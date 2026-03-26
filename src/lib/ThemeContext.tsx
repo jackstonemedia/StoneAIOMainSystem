@@ -8,7 +8,7 @@ interface ThemeContextType {
   themes: { id: ThemeName; name: string; preview: { bg: string; surface: string; primary: string; accent: string } }[];
 }
 
-const THEMES: ThemeContextType['themes'] = [
+export const THEMES: ThemeContextType['themes'] = [
   { id: 'light', name: 'Light', preview: { bg: '#ffffff', surface: '#f8fafc', primary: '#4361EE', accent: '#06D6A0' } },
   { id: 'dark', name: 'Dark', preview: { bg: '#0f172a', surface: '#1e293b', primary: '#818cf8', accent: '#34d399' } },
   { id: 'ocean', name: 'Ocean', preview: { bg: '#0c1222', surface: '#162032', primary: '#38bdf8', accent: '#22d3ee' } },

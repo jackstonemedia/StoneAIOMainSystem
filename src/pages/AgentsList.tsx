@@ -41,7 +41,7 @@ export default function AgentsList() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-8">
+    <div className="flex-1 overflow-y-auto p-8 lg:p-12 relative">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <header className="flex items-center justify-between mb-6 animate-fade-up">
@@ -150,8 +150,9 @@ export default function AgentsList() {
               return (
                 <div
                   key={agent.id}
-                  className="bg-surface border border-border rounded-xl p-5 hover:border-primary/30 transition-all hover:shadow-md group"
+                  className="bg-surface/40 backdrop-blur-xl border border-border/60 rounded-2xl p-6 hover:border-primary/40 transition-all hover:shadow-[0_8px_32px_rgba(0,0,0,0.06)] group relative overflow-hidden"
                 >
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${config.color.split(' ')[0]} rounded-bl-full -mr-8 -mt-8 opacity-20 transition-transform group-hover:scale-110`} />
                   {/* Top Row: Icon + Status + Actions */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">

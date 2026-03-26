@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Github } from 'lucide-react';
 

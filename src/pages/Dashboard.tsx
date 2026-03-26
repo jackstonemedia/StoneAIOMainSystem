@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Plus, Activity, Zap, Clock, Bot, MoreVertical, Play, Settings, FileText, GitMerge, Mic, MessageSquare, Sparkles, ArrowRight } from 'lucide-react';
+import { Plus, Activity, Zap, Clock, Bot, MoreVertical, Settings, FileText, GitMerge, Mic, MessageSquare, Sparkles, ArrowRight } from 'lucide-react';
 
 export default function Dashboard() {
   const stats = [

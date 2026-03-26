@@ -1,9 +1,15 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import workflowAiRouter from './api/workflow-ai.js';
+import chatRouter from './api/chat.js';
+import agentsRouter from './api/agents.js';
+import voiceAgentsRouter from './api/voice-agents.js';
+import { db } from './src/lib/db.js';
 
 // Mock database
-const db = {
+const mockDb = {
   contacts: [
     { id: '1', name: 'Alice Freeman', title: 'VP of Engineering', company: 'Acme Corp', companyId: '1', email: 'alice@acmecorp.com', phone: '+1 (555) 123-4567', location: 'San Francisco, CA', leadScore: 85, lastContact: '2 days ago', about: 'Key decision maker for enterprise software purchases.' },
     { id: '2', name: 'Bob Smith', title: 'Director of IT', company: 'TechStart', companyId: '2', email: 'bob@techstart.io', phone: '+1 (555) 987-6543', location: 'Austin, TX', leadScore: 62, lastContact: '1 week ago', about: 'Looking to upgrade their current infrastructure.' },
@@ -37,118 +43,218 @@ async function startServer() {
 
   app.use(express.json());
 
+  // --- AI Routes ---
+  app.use('/api/workflow-ai', workflowAiRouter);
+  app.use('/api/conversations', chatRouter);
+
   // --- API Routes ---
 
+  const MOCK_WORKSPACE_ID = 'workspace_123';
+
   // Contacts
-  app.get('/api/crm/contacts', (req, res) => {
-    res.json(db.contacts);
+  app.get('/api/crm/contacts', async (req, res) => {
+    try {
+      const contacts = await db.contact.findMany({ 
+        where: { workspaceId: MOCK_WORKSPACE_ID },
+        include: { company: true }
+      });
+      res.json(contacts);
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
   
-  app.get('/api/crm/contacts/:id', (req, res) => {
-    const contact = db.contacts.find(c => c.id === req.params.id);
-    if (contact) res.json(contact);
-    else res.status(404).json({ error: 'Not found' });
+  app.get('/api/crm/contacts/:id', async (req, res) => {
+    try {
+      const contact = await db.contact.findUnique({ 
+        where: { id: req.params.id },
+        include: { company: true }
+      });
+      if (contact) res.json(contact);
+      else res.status(404).json({ error: 'Not found' });
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
 
-  app.put('/api/crm/contacts/:id', (req, res) => {
-    const index = db.contacts.findIndex(c => c.id === req.params.id);
-    if (index !== -1) {
-      db.contacts[index] = { ...db.contacts[index], ...req.body };
-      res.json(db.contacts[index]);
-    } else {
-      res.status(404).json({ error: 'Not found' });
-    }
+  app.put('/api/crm/contacts/:id', async (req, res) => {
+    try {
+      const contact = await db.contact.update({
+        where: { id: req.params.id },
+        data: req.body
+      });
+      res.json(contact);
+    } catch (e) { res.status(404).json({ error: 'Not found' }); }
+  });
+
+  app.post('/api/crm/contacts', async (req, res) => {
+    try {
+      const contact = await db.contact.create({
+        data: { ...req.body, workspaceId: MOCK_WORKSPACE_ID }
+      });
+      res.json(contact);
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
 
   // Companies
-  app.get('/api/crm/companies', (req, res) => {
-    res.json(db.companies);
+  app.get('/api/crm/companies', async (req, res) => {
+    try {
+      const companies = await db.company.findMany({ where: { workspaceId: MOCK_WORKSPACE_ID } });
+      res.json(companies);
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
 
-  app.get('/api/crm/companies/:id', (req, res) => {
-    const company = db.companies.find(c => c.id === req.params.id);
-    if (company) res.json(company);
-    else res.status(404).json({ error: 'Not found' });
+  app.get('/api/crm/companies/:id', async (req, res) => {
+    try {
+      const company = await db.company.findUnique({ where: { id: req.params.id } });
+      if (company) res.json(company);
+      else res.status(404).json({ error: 'Not found' });
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
 
-  app.put('/api/crm/companies/:id', (req, res) => {
-    const index = db.companies.findIndex(c => c.id === req.params.id);
-    if (index !== -1) {
-      db.companies[index] = { ...db.companies[index], ...req.body };
-      res.json(db.companies[index]);
-    } else {
-      res.status(404).json({ error: 'Not found' });
-    }
+  app.put('/api/crm/companies/:id', async (req, res) => {
+    try {
+      const company = await db.company.update({
+        where: { id: req.params.id },
+        data: req.body
+      });
+      res.json(company);
+    } catch (e) { res.status(404).json({ error: 'Not found' }); }
+  });
+
+  app.post('/api/crm/companies', async (req, res) => {
+    try {
+      const company = await db.company.create({
+        data: { ...req.body, workspaceId: MOCK_WORKSPACE_ID }
+      });
+      res.json(company);
+    } catch (e) { res.status(500).json({ error: 'Database error' }); }
   });
 
   // Deals
-  app.get('/api/crm/deals', (req, res) => {
-    res.json(db.deals);
+  app.get('/api/crm/deals', async (req, res) => {
+    try {
+      const deals = await db.deal.findMany({
+        include: { company: true }
+      });
+      res.json(deals);
+    } catch (e) {
+      res.status(500).json({ error: 'Database error' });
+    }
   });
 
-  app.get('/api/crm/deals/:id', (req, res) => {
-    const deal = db.deals.find(d => d.id === req.params.id);
-    if (deal) res.json(deal);
-    else res.status(404).json({ error: 'Not found' });
+  app.get('/api/crm/deals/:id', async (req, res) => {
+    try {
+      const deal = await db.deal.findUnique({ 
+        where: { id: req.params.id },
+        include: { company: true }
+      });
+      if (deal) res.json(deal);
+      else res.status(404).json({ error: 'Not found' });
+    } catch (e) {
+      res.status(500).json({ error: 'Database error' });
+    }
   });
 
-  app.put('/api/crm/deals/:id', (req, res) => {
-    const index = db.deals.findIndex(d => d.id === req.params.id);
-    if (index !== -1) {
-      db.deals[index] = { ...db.deals[index], ...req.body };
-      res.json(db.deals[index]);
-    } else {
+  app.put('/api/crm/deals/:id', async (req, res) => {
+    try {
+      const deal = await db.deal.update({
+        where: { id: req.params.id },
+        data: req.body
+      });
+      res.json(deal);
+    } catch (e) {
       res.status(404).json({ error: 'Not found' });
     }
   });
 
   // Activities
-  app.get('/api/crm/activities', (req, res) => {
-    res.json(db.activities);
+  app.get('/api/crm/activities', async (req, res) => {
+    try {
+      const activities = await db.activity.findMany({
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(activities);
+    } catch (e) {
+      res.status(500).json({ error: 'Database error' });
+    }
+  });
+
+  app.post('/api/crm/activities', async (req, res) => {
+    try {
+      const activity = await db.activity.create({
+        data: req.body
+      });
+      res.json(activity);
+    } catch (e) {
+      res.status(500).json({ error: 'Database error' });
+    }
   });
 
   // Pipelines
   app.get('/api/crm/pipelines', (req, res) => {
-    res.json(db.pipelines);
+    res.json(mockDb.pipelines);
   });
-
+  
   app.put('/api/crm/pipelines/:id', (req, res) => {
-    const index = db.pipelines.findIndex(p => p.id === req.params.id);
+    const index = mockDb.pipelines.findIndex(p => p.id === req.params.id);
     if (index !== -1) {
-      db.pipelines[index] = { ...db.pipelines[index], ...req.body };
-      res.json(db.pipelines[index]);
+      mockDb.pipelines[index] = { ...mockDb.pipelines[index], ...req.body };
+      res.json(mockDb.pipelines[index]);
     } else {
       res.status(404).json({ error: 'Not found' });
     }
   });
 
+  // Agents
+  app.use('/api/agents', agentsRouter);
+  app.use('/api/voice-agents', voiceAgentsRouter);
+
   // Dashboard
-  app.get('/api/crm/dashboard', (req, res) => {
-    const totalContacts = db.contacts.length;
-    const openDeals = db.deals.filter(d => d.stage !== 'Won' && d.stage !== 'Lost').length;
-    const openDealsValue = db.deals
-      .filter(d => d.stage !== 'Won' && d.stage !== 'Lost')
-      .reduce((sum, d) => sum + parseInt(d.amount.replace(/[^0-9]/g, '') || '0'), 0);
-    
-    const wonDeals = db.deals.filter(d => d.stage === 'Won').length;
-    const wonDealsValue = db.deals
-      .filter(d => d.stage === 'Won')
-      .reduce((sum, d) => sum + parseInt(d.amount.replace(/[^0-9]/g, '') || '0'), 0);
+  app.get('/api/crm/dashboard', async (req, res) => {
+    try {
+      const totalContacts = await db.contact.count({ where: { workspaceId: MOCK_WORKSPACE_ID } });
+      const deals = await db.deal.findMany({ where: { workspaceId: MOCK_WORKSPACE_ID } });
+      
+      const openDeals = deals.filter(d => d.stage !== 'Won' && d.stage !== 'Lost').length;
+      const openDealsValue = deals
+        .filter(d => d.stage !== 'Won' && d.stage !== 'Lost')
+        .reduce((sum, d) => sum + d.amount, 0);
+      
+      const wonDeals = deals.filter(d => d.stage === 'Won').length;
+      const wonDealsValue = deals
+        .filter(d => d.stage === 'Won')
+        .reduce((sum, d) => sum + d.amount, 0);
 
-    const activitiesToday = db.activities.filter(a => a.date.includes('Today')).length;
+      // Activities from today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const activitiesToday = await db.activity.count({
+        where: { createdAt: { gte: today } }
+      });
 
-    res.json({
-      stats: {
-        totalContacts,
-        openDeals,
-        openDealsValue: `$${openDealsValue.toLocaleString()}`,
-        wonDeals,
-        wonDealsValue: `$${wonDealsValue.toLocaleString()}`,
-        activitiesToday
-      },
-      recentActivities: db.activities.slice(0, 5),
-      topContacts: db.contacts.sort((a, b) => b.leadScore - a.leadScore).slice(0, 5)
-    });
+      const recentActivities = await db.activity.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      const topContacts = await db.contact.findMany({
+        where: { workspaceId: MOCK_WORKSPACE_ID },
+        take: 5,
+        orderBy: { leadScore: 'desc' }
+      });
+
+      res.json({
+        stats: {
+          totalContacts,
+          openDeals,
+          openDealsValue: `$${openDealsValue.toLocaleString()}`,
+          wonDeals,
+          wonDealsValue: `$${wonDealsValue.toLocaleString()}`,
+          activitiesToday
+        },
+        recentActivities,
+        topContacts
+      });
+    } catch (e) {
+      res.status(500).json({ error: 'Database error' });
+    }
   });
 
   // --- Vite Middleware ---

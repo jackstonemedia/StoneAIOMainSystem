@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { 
   LayoutDashboard, Bot, Store, CreditCard, Settings, LogOut, Server, Users,
-  ChevronLeft, ChevronRight, Sparkles, Mic, GitMerge, Palette, Moon, Sun, Monitor,
+  ChevronLeft, ChevronRight, Sparkles, Mic, GitMerge, Palette,
   MessageSquare, BarChart3, Calendar, FileText, Briefcase
 } from 'lucide-react';
 import { useTheme, type ThemeName } from '../../lib/ThemeContext';
@@ -36,10 +36,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
   ];
 
   const businessNav = [
-    { name: 'CRM', path: '/crm', icon: Users },
-    { name: 'Campaigns', path: '/campaigns', icon: BarChart3 },
-    { name: 'Calendar', path: '/calendar', icon: Calendar },
-    { name: 'Forms', path: '/forms', icon: FileText },
+    { name: 'CRM', path: '/business/crm', icon: Users },
+    { name: 'Campaigns', path: '/business/campaigns', icon: BarChart3 },
+    { name: 'Calendar', path: '/business/calendar', icon: Calendar },
+    { name: 'Forms', path: '/business/forms', icon: FileText },
   ];
 
   const bottomNav = [
@@ -47,15 +47,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     { name: 'Billing', path: '/billing', icon: CreditCard },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
-
-  const themeIcons: Record<string, typeof Sun> = {
-    light: Sun,
-    dark: Moon,
-    ocean: Monitor,
-    sunset: Monitor,
-    forest: Monitor,
-    neon: Monitor,
-  };
 
   const NavItem = ({ item }: { key?: string | number; item: { name: string; path: string; icon: any } }) => {
     // Custom active logic: for paths with query params, match both pathname and params

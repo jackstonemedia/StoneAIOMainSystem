@@ -113,7 +113,6 @@ export default function Pipelines() {
                           className="space-y-3"
                         >
                           {pipeline.stages.map((stage, index) => (
-                            // @ts-expect-error - React 19 types issue with key prop
                             <Draggable key={stage.id} draggableId={stage.id} index={index}>
                               {(provided, snapshot) => (
                                 <div 

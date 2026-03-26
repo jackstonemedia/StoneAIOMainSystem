@@ -3,13 +3,13 @@ import { LayoutDashboard, Users, Building2, CircleDollarSign, CalendarDays, GitM
 
 export default function CrmLayout() {
   const navItems = [
-    { name: 'Dashboard', path: '/crm', icon: LayoutDashboard, end: true },
-    { name: 'Contacts', path: '/crm/contacts', icon: Users },
-    { name: 'Companies', path: '/crm/companies', icon: Building2 },
-    { name: 'Deals', path: '/crm/deals', icon: CircleDollarSign },
-    { name: 'Activities', path: '/crm/activities', icon: CalendarDays },
-    { name: 'Pipelines', path: '/crm/pipelines', icon: GitMerge },
-    { name: 'Settings', path: '/crm/settings', icon: Settings },
+    { name: 'Dashboard', path: '/business/crm', icon: LayoutDashboard, end: true },
+    { name: 'Contacts', path: '/business/crm/contacts', icon: Users },
+    { name: 'Companies', path: '/business/crm/companies', icon: Building2 },
+    { name: 'Deals', path: '/business/crm/deals', icon: CircleDollarSign },
+    { name: 'Activities', path: '/business/crm/activities', icon: CalendarDays },
+    { name: 'Pipelines', path: '/business/crm/pipelines', icon: GitMerge },
+    { name: 'Settings', path: '/business/crm/settings', icon: Settings },
   ];
 
   return (

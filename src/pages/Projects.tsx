@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   FileText, LayoutGrid, Plus, Search, MoreHorizontal, 
   Settings, FolderOpen, Calendar, Users, Tags 

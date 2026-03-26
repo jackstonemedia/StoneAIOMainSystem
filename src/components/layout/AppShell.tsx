@@ -3,11 +3,13 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../lib/ThemeContext';
 import { Menu, X } from 'lucide-react';
+import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isDevBypass = !(import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY;
 
-  return (
+  const content = (
     <ThemeProvider>
       <div className="flex h-screen bg-bg overflow-hidden relative">
         {/* Mobile Header */}
@@ -33,5 +35,20 @@ export default function AppShell() {
         </main>
       </div>
     </ThemeProvider>
+  );
+
+  if (isDevBypass) {
+    return content;
+  }
+
+  return (
+    <>
+      <SignedIn>
+        {content}
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
   );
 }

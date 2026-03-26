@@ -46,15 +46,68 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
 
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "I'm analyzing your request. Since I'm currently in a preview mode, I'm simply mirroring back your thoughts. Once connected to an LLM provider in Settings, I will generate dynamic intelligence.",
-        timestamp: new Date().toISOString()
-      }]);
-    }, 1000);
+    // Call the streaming API
+    const runStream = async () => {
+      try {
+        const assistantMsgId = (Date.now() + 1).toString();
+        
+        // Add an empty assistant message placeholders
+        setMessages(prev => [...prev, {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: "",
+          timestamp: new Date().toISOString()
+        }]);
+
+        const response = await fetch('/api/conversations/default/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: input })
+        });
+
+        if (!response.ok) throw new Error('API Request Failed');
+        
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const dataStr = line.replace('data: ', '').trim();
+                if (!dataStr) continue;
+                if (dataStr === '[DONE]') break;
+                
+                try {
+                  const data = JSON.parse(dataStr);
+                  if (data.text) {
+                    setMessages(prev => prev.map(m => 
+                      m.id === assistantMsgId ? { ...m, content: m.content + data.text } : m
+                    ));
+                  } else if (data.error) {
+                    setMessages(prev => prev.map(m => 
+                      m.id === assistantMsgId ? { ...m, content: m.content + "\n\n**Error:** " + data.error } : m
+                    ));
+                  }
+                } catch (e) {
+                  // Ignore parse errors on partial chunks
+                }
+              }
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('Error sending message:', error);
+      }
+    };
+    
+    runStream();
   };
 
   return (

@@ -6,8 +6,8 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 interface Deal {
   id: string;
   title: string;
-  company: string;
-  amount: string;
+  company?: { name: string } | null;
+  amount: string | number;
   stage: string;
   closeDate: string;
   priority?: 'high' | 'medium' | 'low';
@@ -30,10 +30,10 @@ export default function Deals() {
 
   // Fallback mock data if API fails to provide rich data
   const mockDeals: Deal[] = [
-    { id: '1', title: 'Enterprise License', company: 'Acme Corp', amount: '$45,000', stage: 'proposal', closeDate: 'Oct 24', priority: 'high', owner: 'JS', tags: ['SaaS', 'Q4'] },
-    { id: '2', title: 'Consulting Retainer', company: 'Globex Inc', amount: '$12,000', stage: 'qualified', closeDate: 'Nov 02', priority: 'medium', owner: 'JS', tags: ['Services'] },
-    { id: '3', title: 'Q3 Software Upgrade', company: 'Initech', amount: '$8,500', stage: 'negotiation', closeDate: 'Oct 30', priority: 'high', owner: 'JS', tags: ['Expansion'] },
-    { id: '4', title: 'Initial Pilot', company: 'Soylent', amount: '$3,000', stage: 'lead', closeDate: 'Dec 15', priority: 'low', owner: 'JS', tags: ['Trial'] },
+    { id: '1', title: 'Enterprise License', company: { name: 'Acme Corp' }, amount: 45000, stage: 'proposal', closeDate: 'Oct 24', priority: 'high', owner: 'JS', tags: ['SaaS', 'Q4'] },
+    { id: '2', title: 'Consulting Retainer', company: { name: 'Globex Inc' }, amount: 12000, stage: 'qualified', closeDate: 'Nov 02', priority: 'medium', owner: 'JS', tags: ['Services'] },
+    { id: '3', title: 'Q3 Software Upgrade', company: { name: 'Initech' }, amount: 8500, stage: 'negotiation', closeDate: 'Oct 30', priority: 'high', owner: 'JS', tags: ['Expansion'] },
+    { id: '4', title: 'Initial Pilot', company: { name: 'Soylent' }, amount: 3000, stage: 'lead', closeDate: 'Dec 15', priority: 'low', owner: 'JS', tags: ['Trial'] },
   ];
 
   useEffect(() => {
@@ -141,7 +141,8 @@ export default function Deals() {
               {stages.map(stage => {
                 const stageDeals = deals.filter(d => d.stage.toLowerCase() === stage.id.toLowerCase());
                 const totalAmount = stageDeals.reduce((sum, deal) => {
-                  return sum + parseInt(deal.amount.replace(/[^0-9]/g, ''), 10);
+                  const num = typeof deal.amount === 'string' ? parseInt(deal.amount.replace(/[^0-9]/g, '') || '0', 10) : deal.amount;
+                  return sum + (num || 0);
                 }, 0);
 
                 return (
@@ -171,7 +172,6 @@ export default function Deals() {
                           }`}
                         >
                           {stageDeals.map((deal, index) => (
-                            // @ts-expect-error - React 19 types issue with key prop
                             <Draggable key={deal.id} draggableId={deal.id} index={index}>
                               {(provided, snapshot) => (
                                 <div 
@@ -207,9 +207,9 @@ export default function Deals() {
 
                                   <div className="flex items-center gap-2 mb-4 pl-2">
                                     <div className="w-5 h-5 rounded bg-bg border border-border flex items-center justify-center text-[10px] font-bold text-text-muted uppercase shrink-0">
-                                      {deal.company.substring(0, 1)}
+                                      {(deal.company?.name || 'N').substring(0, 1)}
                                     </div>
-                                    <div className="text-xs font-medium text-text-muted truncate">{deal.company}</div>
+                                    <div className="text-xs font-medium text-text-muted truncate">{deal.company?.name || 'No Company'}</div>
                                   </div>
 
                                   {/* Tags */}
@@ -224,7 +224,9 @@ export default function Deals() {
                                   )}
 
                                   <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50 pl-2">
-                                    <div className="font-bold text-sm text-text-main">{deal.amount}</div>
+                                    <div className="font-bold text-sm text-text-main">
+                                      {typeof deal.amount === 'number' ? `$${deal.amount.toLocaleString()}` : deal.amount}
+                                    </div>
                                     <div className="flex items-center gap-3">
                                       <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
                                         <Calendar className="w-3 h-3" />

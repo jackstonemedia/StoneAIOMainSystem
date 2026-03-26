@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { 
   MessageSquare, Folder, Zap, Settings, Plus, Maximize2, 
   FileText, Terminal, BarChart2, CheckCircle2, Bot, ArrowUp,
@@ -116,7 +117,7 @@ export default function ComputerDashboard() {
             ))}
             
             {isTyping && (
-              <div className="flex flex-col items-start hidden">
+              <div className="flex flex-col items-start">
                 <div className="bg-surface border border-border rounded-2xl rounded-tl-sm p-4 text-sm text-text-muted flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />

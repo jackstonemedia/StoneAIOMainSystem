@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 
 interface Contact {
   id: string;
-  name: string;
-  company: string;
+  firstName: string;
+  lastName?: string | null;
+  company?: { name: string } | null;
   email: string;
-  phone: string;
+  phone?: string | null;
   score?: number;
   lastActivity?: string;
   leadScore?: number;
@@ -92,13 +93,15 @@ export default function Contacts() {
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs shrink-0">
-                            {contact.name.split(' ').map(n => n[0]).join('')}
+                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs shrink-0 uppercase">
+                            {contact.firstName?.charAt(0) || 'U'}
                           </div>
-                          <div className="font-medium text-text-main group-hover:text-primary transition-colors">{contact.name}</div>
+                          <div className="font-medium text-text-main group-hover:text-primary transition-colors">
+                            {`${contact.firstName} ${contact.lastName || ''}`.trim()}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-text-muted">{contact.company}</td>
+                      <td className="px-6 py-4 text-text-muted">{contact.company?.name || '-'}</td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2 text-text-muted">

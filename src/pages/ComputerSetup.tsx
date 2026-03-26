@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Globe, Cpu, HardDrive, Variable, Key, Shield, Wrench, 
@@ -387,7 +387,7 @@ export default function ComputerSetup() {
             {step < 7 && (
               <button
                 onClick={handleNext}
-                className="px-6 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-2"
+                className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors flex items-center gap-2"
               >
                 Continue <ArrowRight className="w-4 h-4" />
               </button>

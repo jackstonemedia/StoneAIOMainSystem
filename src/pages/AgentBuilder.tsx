@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import type { ConfigField } from '../data/workflowNodes';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   ReactFlow, 
@@ -10,7 +11,8 @@ import {
   MiniMap,
   NodeProps,
   Handle,
-  Position
+  Position,
+  Panel
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { 
@@ -19,7 +21,7 @@ import {
   User, Database, Plus, X, Users
 } from 'lucide-react';
 
-import { WORKFLOW_NODES } from '../data/workflowNodes';
+import { WORKFLOW_NODES, getNodeDefaults } from '../data/workflowNodes';
 import VoiceAgentBuilder from './VoiceAgentBuilder';
 
 // --- Custom Nodes for Canvas Builder ---
@@ -77,6 +79,7 @@ export default function AgentBuilder() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNode, setSelectedNode] = useState<any>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Prompt/Config State (Voice & Autonomous)
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant designed to resolve customer inquiries efficiently and politely.');
@@ -124,78 +127,227 @@ export default function AgentBuilder() {
         id: `dnd_${Date.now()}`,
         type: 'custom',
         position,
-        data: { label: nodeData.name, nodeDefId: nodeData.id, ...nodeData.defaults },
+        data: { label: nodeData.name, nodeDefId: nodeData.id, ...getNodeDefaults(nodeData.id) },
       };
 
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) => nds.concat(newNode as any));
     },
     [reactFlowInstance, setNodes]
   );
 
-  const handleTestRun = () => {
+  const agentId = searchParams.get('id') || 'default';
+
+  const handleSaveWorkflow = async () => {
+    try {
+      const res = await fetch(`/api/agents/${agentId}/workflow`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes, edges })
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      alert('Workflow saved successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Error saving workflow');
+    }
+  };
+
+  const handleTestRun = async () => {
+    // 1. Save workflow FIRST so execution engine gets the latest JSON
+    await handleSaveWorkflow();
+
     setIsExecuting(true);
     setShowLogs(true);
     setExecutionLogs([]);
     
-    // Simulate node-by-node execution
-    const executionPath = nodes; 
-    let delay = 0;
-    
-    executionPath.forEach((node, idx) => {
-      setTimeout(() => {
-        setExecutionLogs(prev => [...prev, {
-          nodeId: node.id,
-          status: 'running',
-          time: new Date().toLocaleTimeString(),
-          message: `Executing node: ${node.data.label}...`
-        }]);
-        
-        setTimeout(() => {
-          setExecutionLogs(prev => prev.map(log => 
-            log.nodeId === node.id 
-              ? { ...log, status: 'success', message: `✅ Successfully completed ${node.data.label}` }
-              : log
-          ));
-          
-          if (idx === executionPath.length - 1) {
-            setIsExecuting(false);
-          }
-        }, 1500);
-        
-      }, delay);
-      delay += 2000;
+    // Connect to the backend execution SSE endpoint
+    const eventSource = new EventSource(`/api/agents/${agentId}/run`, {
+      withCredentials: false
     });
+
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'log') {
+          setExecutionLogs(prev => {
+            // Check if log already exists and update status, or add new
+            const existingIdx = prev.findIndex(l => l.nodeId === data.nodeId);
+            if (existingIdx >= 0 && data.status !== 'running') {
+              const newLogs = [...prev];
+              newLogs[existingIdx] = { ...newLogs[existingIdx], status: data.status, message: data.message };
+              return newLogs;
+            }
+            return [...prev, {
+              nodeId: data.nodeId,
+              status: data.status,
+              time: data.time || new Date().toLocaleTimeString(),
+              message: data.message
+            }];
+          });
+        } else if (data.type === 'done') {
+          setIsExecuting(false);
+          eventSource.close();
+        } else if (data.type === 'error') {
+          setExecutionLogs(prev => [...prev, {
+            nodeId: 'system',
+            status: 'error',
+            time: new Date().toLocaleTimeString(),
+            message: data.message
+          }]);
+          setIsExecuting(false);
+          eventSource.close();
+        }
+      } catch (err) {
+        console.error('SSE Error:', err);
+      }
+    };
+
+    eventSource.onerror = () => {
+      setIsExecuting(false);
+      eventSource.close();
+    };
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     
-    setChatMessages(prev => [...prev, { role: 'user', content: chatInput }]);
+    const userMsg = chatInput.trim();
+    setChatMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setChatInput('');
     
-    // Mock AI response
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `I've updated the ${isCanvasType ? 'workflow canvas' : 'agent configuration'} based on your request. I added the necessary steps to handle that logic.` 
-      }]);
-      
-      // Mock updating canvas
-      if (isCanvasType) {
-        const newNode = {
-          id: Date.now().toString(),
-          type: 'output',
-          position: { x: 1100, y: 200 },
-          data: { label: 'Send Slack Alert' }
-        };
-        setNodes(nds => [...nds, newNode]);
-        setEdges(eds => [...eds, { id: `e3-${newNode.id}`, source: '3', target: newNode.id, animated: true, style: { stroke: '#06D6A0', strokeWidth: 2 } }]);
-      } else {
-        // Mock updating config
-        setAttachedTools(prev => [...prev, 'Slack Notifications']);
+    // For non-canvas types, keep the simple config-based approach
+    if (!isCanvasType) {
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: `I've updated the agent configuration based on your request.` 
+        }]);
+        setAttachedTools(prev => [...prev, 'Updated Configuration']);
+      }, 1000);
+      return;
+    }
+
+    // Show typing indicator
+    setChatMessages(prev => [...prev, { role: 'assistant', content: '⏳ Generating workflow...' }]);
+
+    try {
+      // Build current workflow state for modify requests
+      const existingWorkflow = nodes.length > 0 ? {
+        nodes: nodes.map(n => ({ id: n.id, nodeDefId: n.data.nodeDefId, label: n.data.label, config: n.data })),
+        edges: edges.map(e => ({ source: e.source, target: e.target, sourceHandle: (e as any).sourceHandle }))
+      } : undefined;
+
+      const res = await fetch('/api/workflow-ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: userMsg, existingWorkflow })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Failed to generate workflow');
       }
-    }, 1500);
+
+      const workflow = await res.json();
+
+      if (workflow.nodes && workflow.nodes.length > 0) {
+        // Auto-layout: arrange nodes left-to-right with spacing
+        const X_START = 50;
+        const Y_START = 200;
+        const X_GAP = 300;
+        const Y_GAP = 150;
+
+        // Build adjacency for simple left-to-right layout
+        const nodeIds = workflow.nodes.map((n: any) => n.id);
+        const inDegree: Record<string, number> = {};
+        nodeIds.forEach((id: string) => inDegree[id] = 0);
+        (workflow.edges || []).forEach((e: any) => {
+          if (inDegree[e.target] !== undefined) inDegree[e.target]++;
+        });
+
+        // Sort by topological order (BFS)
+        const queue: string[] = nodeIds.filter((id: string) => inDegree[id] === 0);
+        const ordered: string[] = [];
+        const children: Record<string, string[]> = {};
+        nodeIds.forEach((id: string) => children[id] = []);
+        (workflow.edges || []).forEach((e: any) => {
+          if (children[e.source]) children[e.source].push(e.target);
+        });
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          ordered.push(curr);
+          for (const child of children[curr]) {
+            inDegree[child]--;
+            if (inDegree[child] === 0) queue.push(child);
+          }
+        }
+        // Add any remaining nodes (cycles or disconnected)
+        nodeIds.forEach((id: string) => { if (!ordered.includes(id)) ordered.push(id); });
+
+        // Assign column per node based on order
+        const columnOf: Record<string, number> = {};
+        const colCount: Record<number, number> = {};
+        ordered.forEach((id, i) => {
+          // Find max column of parents + 1
+          const parents = (workflow.edges || [])
+            .filter((e: any) => e.target === id)
+            .map((e: any) => columnOf[e.source] ?? 0);
+          const col = parents.length > 0 ? Math.max(...parents) + 1 : 0;
+          columnOf[id] = col;
+          colCount[col] = (colCount[col] || 0) + 1;
+        });
+
+        // Track row within each column
+        const colRow: Record<number, number> = {};
+
+        const newNodes = workflow.nodes.map((n: any) => {
+          const col = columnOf[n.id] ?? 0;
+          const row = colRow[col] || 0;
+          colRow[col] = row + 1;
+          const totalInCol = colCount[col] || 1;
+          const yOffset = totalInCol > 1 ? (row - (totalInCol - 1) / 2) * Y_GAP : 0;
+
+          return {
+            id: n.id,
+            type: 'custom',
+            position: { x: X_START + col * X_GAP, y: Y_START + yOffset },
+            data: { 
+              label: n.label, 
+              nodeDefId: n.nodeDefId,
+              ...getNodeDefaults(n.nodeDefId),
+              ...n.config 
+            }
+          };
+        });
+
+        const newEdges = (workflow.edges || []).map((e: any, i: number) => ({
+          id: `ai_e_${Date.now()}_${i}`,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle || null,
+          animated: true,
+          style: { stroke: '#06D6A0', strokeWidth: 2 }
+        }));
+
+        setNodes(newNodes);
+        setEdges(newEdges);
+      }
+
+      // Replace typing indicator with explanation
+      setChatMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: workflow.explanation || 'Workflow generated! Check the canvas.' }
+      ]);
+
+    } catch (error: any) {
+      // Replace typing indicator with error
+      setChatMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: `❌ ${error.message || 'Failed to generate workflow. Make sure GOOGLE_AI_API_KEY is set.'}` }
+      ]);
+    }
   };
 
   const getTypeColor = () => {
@@ -213,9 +365,9 @@ export default function AgentBuilder() {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-bg text-text-main font-sans overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-transparent text-text-main font-sans overflow-hidden">
       {/* Topbar */}
-      <header className="h-14 border-b border-border bg-surface flex items-center justify-between px-4 shrink-0 z-20">
+      <header className="h-14 border-b border-border/50 bg-surface/40 backdrop-blur-xl flex items-center justify-between px-4 shrink-0 z-20 shadow-sm">
         <div className="flex items-center gap-4">
           <Link to="/agents" className="p-1.5 text-text-muted hover:text-text-main hover:bg-bg rounded-md transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -236,6 +388,12 @@ export default function AgentBuilder() {
           </span>
           <div className="h-6 w-px bg-border mx-1" />
           <button 
+            onClick={handleSaveWorkflow}
+            className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2"
+          >
+            <Save className="w-4 h-4" /> Save Config
+          </button>
+          <button 
             onClick={handleTestRun}
             disabled={isExecuting}
             className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2 disabled:opacity-50"
@@ -251,8 +409,8 @@ export default function AgentBuilder() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Panel - AI Builder Chat */}
-        <aside className="w-80 border-r border-border bg-surface flex flex-col shrink-0 z-10">
-          <div className="p-4 border-b border-border bg-bg/50 flex items-center gap-2">
+        <aside className="w-80 border-r border-border/50 bg-surface/40 backdrop-blur-xl flex flex-col shrink-0 z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+          <div className="p-4 border-b border-border/50 bg-bg/40 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary" />
             <h2 className="font-semibold text-sm">AI Builder</h2>
           </div>
@@ -296,7 +454,7 @@ export default function AgentBuilder() {
         </aside>
 
         {/* Center - Main Builder Area */}
-        <main className="flex-1 relative bg-bg flex flex-col overflow-hidden">
+        <main className="flex-1 relative bg-transparent flex flex-col overflow-hidden">
           {isCanvasType ? (
             <div className="flex-1 relative">
               <ReactFlow
@@ -312,7 +470,7 @@ export default function AgentBuilder() {
               onPaneClick={() => setSelectedNode(null)}
               nodeTypes={nodeTypes}
               fitView
-              className="bg-bg"
+              className="bg-transparent"
             >
               <Background color="var(--border)" gap={16} size={1} />
               <Controls className="bg-surface border border-border rounded-md shadow-sm" />
@@ -326,6 +484,9 @@ export default function AgentBuilder() {
                   return '#eee';
                 }}
               />
+              <Panel position="top-right" className="bg-surface/60 backdrop-blur-xl border border-border/50 rounded-lg p-2 shadow-lg flex items-center gap-3">
+                <span className="text-xs font-semibold text-text-muted px-2">CANVAS</span>
+              </Panel>
             </ReactFlow>
             
             {/* Execution Logs Drawer */}
@@ -355,7 +516,7 @@ export default function AgentBuilder() {
             )}
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto p-8 lg:p-12 bg-bg">
+            <div className="flex-1 overflow-y-auto p-8 lg:p-12 bg-transparent relative">
               <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
                   <h2 className="text-2xl font-semibold mb-2">Agent Configuration</h2>
@@ -363,7 +524,7 @@ export default function AgentBuilder() {
                 </div>
 
                 {/* System Instructions */}
-                <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                     <Bot className="w-4 h-4 text-primary" /> System Instructions
                   </h3>
@@ -379,7 +540,7 @@ export default function AgentBuilder() {
                 {/* Voice Settings (if voice) */}
                 {agentType === 'voice' && (
                   <>
-                    <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                    <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                       <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                         <Volume2 className="w-4 h-4 text-light-purple" /> Voice Settings
                       </h3>
@@ -407,7 +568,7 @@ export default function AgentBuilder() {
                       </div>
                     </div>
 
-                    <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                    <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                       <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                         <Users className="w-4 h-4 text-pink-500" /> CRM Integration
                       </h3>
@@ -426,7 +587,7 @@ export default function AgentBuilder() {
 
                 {/* Autonomous Settings (if autonomous) */}
                 {agentType === 'autonomous' && (
-                  <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                       <Users className="w-4 h-4 text-pink-500" /> CRM Permissions
                     </h3>
@@ -458,7 +619,7 @@ export default function AgentBuilder() {
 
                 {/* Assistant Settings (if assistant) */}
                 {agentType === 'assistant' && (
-                  <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-primary" /> Assistant Settings
                     </h3>
@@ -487,7 +648,7 @@ export default function AgentBuilder() {
 
                 {/* Tools & Knowledge */}
                 <div className="grid md:grid-cols-2 gap-6">
-                  <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
                         <Box className="w-4 h-4 text-green" /> Attached Tools
@@ -513,7 +674,7 @@ export default function AgentBuilder() {
                     </div>
                   </div>
 
-                  <div className="bg-surface border border-border rounded-xl p-6 shadow-sm">
+                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold flex items-center gap-2">
                         <Database className="w-4 h-4 text-amber" /> Knowledge Base
@@ -536,9 +697,9 @@ export default function AgentBuilder() {
 
         {/* Right Panel - Contextual (Library or Inspector) */}
         {isCanvasType && (
-          <aside className="w-80 border-l border-border bg-surface flex flex-col shrink-0 z-10">
+          <aside className="w-80 border-l border-border/50 bg-surface/40 backdrop-blur-xl flex flex-col shrink-0 z-10 shadow-[-4px_0_24px_-12px_rgba(0,0,0,0.1)]">
             {selectedNode ? (
-              // Node Inspector
+              // Node Inspector — typed fields with Simple/Advanced toggle
               <div className="flex flex-col h-full animate-in slide-in-from-right-4 duration-200">
                 <div className="p-4 border-b border-border flex items-center justify-between bg-bg/50">
                   <h2 className="font-semibold text-sm flex items-center gap-2">
@@ -549,39 +710,205 @@ export default function AgentBuilder() {
                   </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {/* Node name */}
                   <div>
-                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Node Name</label>
+                    <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">Node Name</label>
                     <input 
                       type="text" 
                       value={selectedNode.data.label} 
                       onChange={(e) => {
-                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label: e.target.value } } : n));
+                        setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, label: e.target.value } } : n) as any[]);
                         setSelectedNode({ ...selectedNode, data: { ...selectedNode.data, label: e.target.value } });
                       }}
                       className="w-full px-3 py-2 bg-bg border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                   </div>
 
+                  {/* Node description */}
                   {(() => {
                     const def = WORKFLOW_NODES.find(n => n.id === selectedNode.data.nodeDefId);
-                    if (!def || !def.defaults) return null;
-                    
-                    return Object.keys(def.defaults).map(key => (
-                      <div key={key}>
-                        <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">{key.replace(/([A-Z])/g, ' $1').trim()}</label>
-                        <input 
-                          type="text" 
-                          value={selectedNode.data[key] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, [key]: val } } : n));
-                            setSelectedNode({ ...selectedNode, data: { ...selectedNode.data, [key]: val } });
-                          }}
-                          className="w-full px-3 py-2 bg-bg border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        />
-                      </div>
-                    ));
+                    if (def) return <p className="text-xs text-text-muted pb-2 border-b border-border">{def.description}</p>;
+                    return null;
+                  })()}
+
+                  {/* Config fields */}
+                  {(() => {
+                    const def = WORKFLOW_NODES.find(n => n.id === selectedNode.data.nodeDefId);
+                    if (!def) return null;
+
+                    const updateField = (key: string, val: any) => {
+                      setNodes(nds => nds.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, [key]: val } } : n) as any[]);
+                      setSelectedNode((prev: any) => ({ ...prev, data: { ...prev.data, [key]: val } }));
+                    };
+
+                    const visibleFields = def.configFields.filter(f => {
+                      if (f.advanced && !showAdvanced) return false;
+                      if (f.dependsOn) {
+                        return selectedNode.data[f.dependsOn.field] === f.dependsOn.value;
+                      }
+                      return true;
+                    });
+
+                    const renderField = (field: ConfigField) => {
+                      const val = selectedNode.data[field.key] ?? field.default;
+                      const inputCls = 'w-full px-3 py-2 bg-bg border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50';
+
+                      switch (field.type) {
+                        case 'select':
+                          return (
+                            <select value={val} onChange={e => updateField(field.key, e.target.value)} className={inputCls}>
+                              {(field.options || []).map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            </select>
+                          );
+                        case 'toggle':
+                          return (
+                            <button
+                              onClick={() => updateField(field.key, !val)}
+                              className={`relative w-10 h-5 rounded-full transition-colors ${val ? 'bg-primary' : 'bg-border'}`}
+                            >
+                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${val ? 'left-5' : 'left-0.5'}`} />
+                            </button>
+                          );
+                        case 'textarea':
+                          return (
+                            <textarea
+                              value={val || ''}
+                              onChange={e => updateField(field.key, e.target.value)}
+                              placeholder={field.placeholder}
+                              rows={4}
+                              className={`${inputCls} resize-none`}
+                            />
+                          );
+                        case 'number':
+                          return (
+                            <input
+                              type="number"
+                              value={val ?? ''}
+                              onChange={e => updateField(field.key, parseFloat(e.target.value) || 0)}
+                              min={field.validation?.min}
+                              max={field.validation?.max}
+                              step={field.validation?.max && field.validation.max <= 2 ? 0.1 : 1}
+                              className={inputCls}
+                            />
+                          );
+                        case 'code':
+                          return (
+                            <textarea
+                              value={val || ''}
+                              onChange={e => updateField(field.key, e.target.value)}
+                              placeholder={field.placeholder}
+                              rows={6}
+                              className={`${inputCls} font-mono text-xs leading-relaxed resize-none`}
+                              spellCheck={false}
+                            />
+                          );
+                        case 'json':
+                          return (
+                            <textarea
+                              value={typeof val === 'string' ? val : JSON.stringify(val, null, 2)}
+                              onChange={e => updateField(field.key, e.target.value)}
+                              placeholder={field.placeholder || '{}'}
+                              rows={4}
+                              className={`${inputCls} font-mono text-xs resize-none`}
+                              spellCheck={false}
+                            />
+                          );
+                        case 'keyvalue': {
+                          const kv: Record<string, string> = typeof val === 'object' && val ? val : {};
+                          const entries = Object.entries(kv);
+                          return (
+                            <div className="space-y-2">
+                              {entries.map(([k, v], i) => (
+                                <div key={i} className="flex gap-2">
+                                  <input value={k} onChange={e => {
+                                    const newKv = { ...kv }; delete newKv[k]; newKv[e.target.value] = v;
+                                    updateField(field.key, newKv);
+                                  }} className="flex-1 px-2 py-1.5 bg-bg border border-border rounded text-xs" placeholder="Key" />
+                                  <input value={v} onChange={e => {
+                                    updateField(field.key, { ...kv, [k]: e.target.value });
+                                  }} className="flex-1 px-2 py-1.5 bg-bg border border-border rounded text-xs" placeholder="Value" />
+                                  <button onClick={() => {
+                                    const newKv = { ...kv }; delete newKv[k]; updateField(field.key, newKv);
+                                  }} className="text-red text-xs px-1 hover:bg-red/10 rounded">×</button>
+                                </div>
+                              ))}
+                              <button onClick={() => updateField(field.key, { ...kv, '': '' })} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                <Plus className="w-3 h-3" /> Add pair
+                              </button>
+                            </div>
+                          );
+                        }
+                        case 'tags': {
+                          const tags: string[] = Array.isArray(val) ? val : [];
+                          return (
+                            <div>
+                              <div className="flex flex-wrap gap-1.5 mb-2">
+                                {tags.map((tag, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full border border-primary/20">
+                                    {tag}
+                                    <button onClick={() => updateField(field.key, tags.filter((_, j) => j !== i))} className="text-primary/60 hover:text-primary">×</button>
+                                  </span>
+                                ))}
+                              </div>
+                              <input
+                                type="text"
+                                placeholder="Type and press Enter..."
+                                className="w-full px-2 py-1.5 bg-bg border border-border rounded text-xs"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    const t = (e.target as HTMLInputElement).value.trim();
+                                    if (t && !tags.includes(t)) { updateField(field.key, [...tags, t]); (e.target as HTMLInputElement).value = ''; }
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        case 'template':
+                        case 'cron':
+                        case 'text':
+                        default:
+                          return (
+                            <input
+                              type="text"
+                              value={val || ''}
+                              onChange={e => updateField(field.key, e.target.value)}
+                              placeholder={field.placeholder}
+                              className={inputCls}
+                            />
+                          );
+                      }
+                    };
+
+                    const hasAdvanced = def.configFields.some(f => f.advanced);
+
+                    return (
+                      <>
+                        {visibleFields.map(field => (
+                          <div key={field.key}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider">{field.label}</label>
+                              {field.helpText && (
+                                <span className="text-[10px] text-text-muted" title={field.helpText}>ⓘ</span>
+                              )}
+                            </div>
+                            {renderField(field)}
+                          </div>
+                        ))}
+
+                        {/* Advanced toggle */}
+                        {hasAdvanced && (
+                          <button
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="w-full text-xs text-text-muted hover:text-primary font-medium py-2 border-t border-border mt-2 transition-colors"
+                          >
+                            {showAdvanced ? '▲ Hide Advanced' : '▼ Show Advanced Settings'}
+                          </button>
+                        )}
+                      </>
+                    );
                   })()}
 
                   <div className="pt-4 border-t border-border mt-auto">
@@ -623,7 +950,7 @@ export default function AgentBuilder() {
                               key={node.id}
                               draggable 
                               onDragStart={(e) => {
-                                e.dataTransfer.setData('application/reactflow', JSON.stringify(node));
+                                e.dataTransfer.setData('application/reactflow', JSON.stringify({ id: node.id, name: node.name }));
                                 e.dataTransfer.effectAllowed = 'move';
                               }}
                               className={`flex items-center gap-3 p-2 rounded-md border border-border bg-bg cursor-grab transition-colors ${node.borderClass}`}
@@ -634,7 +961,10 @@ export default function AgentBuilder() {
                                   return <Icon className="w-4 h-4" />;
                                 })()}
                               </div>
-                              <span className="text-sm font-medium">{node.name}</span>
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium block">{node.name}</span>
+                                <span className="text-[10px] text-text-muted block truncate">{node.description}</span>
+                              </div>
                             </div>
                           ))}
                         </div>

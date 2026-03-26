@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+/src/generated/prisma
+
+dev.db
+tmp/
+tmp_everything_claude_code/

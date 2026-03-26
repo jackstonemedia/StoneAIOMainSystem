@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String            @id @default(uuid())
+  name      String
+  ownerId   String            @map("owner_id") // Clerk user ID
+  plan      String            @default("free")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  members   WorkspaceMember[]
+  agents    Agent[]
+  contacts  Contact[]
+  companies Company[]
+  deals     Deal[]
+  campaigns Campaign[]
+  forms     Form[]
+  documents Document[]
+  apiKeys   ApiKey[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id") // Clerk user ID
+  role        String    @default("member")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Agent {
+  id          String         @id @default(uuid())
+  workspaceId String         @map("workspace_id")
+  name        String
+  type        String // 'workflow', 'voice', 'autonomous', 'assistant'
+  status      String         @default("draft") // 'draft', 'active', 'paused'
+  config      String // Stored as stringified JSON in sqlite
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs        AgentRun[]
+  messages    AgentMessage[]
+
+  @@map("agents")
+}
+
+model AgentRun {
+  id          String         @id @default(uuid())
+  agentId     String         @map("agent_id")
+  status      String // 'running', 'success', 'failed'
+  startedAt   DateTime       @default(now()) @map("started_at")
+  completedAt DateTime?      @map("completed_at")
+  triggerData String?        @map("trigger_data") // Stringified JSON
+  agent       Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  steps       AgentRunStep[]
+
+  @@map("agent_runs")
+}
+
+model AgentRunStep {
+  id        String   @id @default(uuid())
+  runId     String   @map("run_id")
+  nodeId    String   @map("node_id")
+  status    String // 'success', 'failed'
+  output    String? // Stringified JSON
+  error     String?
+  startedAt DateTime @default(now()) @map("started_at")
+  duration  Int? // duration in ms
+  run       AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("agent_run_steps")
+}
+
+model AgentMessage {
+  id        String   @id @default(uuid())
+  agentId   String?  @map("agent_id")
+  userId    String   @map("user_id") // For identifying the user
+  role      String // 'user', 'assistant', 'system', 'tool'
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@map("agent_messages")
+}
+
+model Contact {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  companyId   String?   @map("company_id")
+  firstName   String    @map("first_name")
+  lastName    String    @map("last_name")
+  email       String?
+  phone       String?
+  location    String?
+  title       String?
+  leadScore   Int       @default(0) @map("lead_score")
+  about       String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deals       Deal[]
+  tasks       Task[]
+
+  @@map("contacts")
+}
+
+model Company {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  website     String?
+  industry    String?
+  location    String?
+  employees   String?
+  revenue     String?
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts    Contact[]
+  deals       Deal[]
+
+  @@map("companies")
+}
+
+model Deal {
+  id          String     @id @default(uuid())
+  workspaceId String     @map("workspace_id")
+  companyId   String?    @map("company_id")
+  contactId   String?    @map("contact_id")
+  title       String
+  amount      Float      @default(0)
+  stage       String
+  probability Int        @default(0)
+  closeDate   DateTime?  @map("close_date")
+  ownerId     String?    @map("owner_id") // Clerk user ID
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company     Company?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact     Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activities  Activity[]
+
+  @@map("deals")
+}
+
+model Task {
+  id         String    @id @default(uuid())
+  contactId  String?   @map("contact_id")
+  title      String
+  dueDate    DateTime? @map("due_date")
+  priority   String    @default("medium")
+  status     String    @default("pending")
+  assigneeId String?   @map("assignee_id") // Clerk user ID
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("tasks")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  dealId    String?  @map("deal_id")
+  type      String // 'email', 'call', 'meeting', 'note'
+  title     String
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+model Campaign {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  status      String    @default("draft") // 'draft', 'scheduled', 'running', 'completed'
+  type        String // 'email', 'sms', 'mixed'
+  audience    String? // Stringified JSON
+  metrics     String? // Stringified JSON
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("campaigns")
+}
+
+model Form {
+  id          String           @id @default(uuid())
+  workspaceId String           @map("workspace_id")
+  name        String
+  schema      String // Stringified JSON
+  visits      Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  submissions FormSubmission[]
+
+  @@map("forms")
+}
+
+model FormSubmission {
+  id          String   @id @default(uuid())
+  formId      String   @map("form_id")
+  data        String // Stringified JSON
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@map("form_submissions")
+}
+
+model Document {
+  id          String          @id @default(uuid())
+  workspaceId String          @map("workspace_id")
+  title       String
+  content     String
+  type        String // 'note', 'pdf', 'url'
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks      DocumentChunk[]
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id         String   @id @default(uuid())
+  documentId String   @map("document_id")
+  content    String
+  // Removed vector extension for SQLite compatibility
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_chunks")
+}
+
+model ApiKey {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  provider     String // 'openai', 'anthropic', 'sendgrid', 'stripe', 'twilio', etc.
+  keyEncrypted String    @map("key_encrypted")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@map("api_keys")
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { Search, Filter, Play, ArrowRight, Bot, MessageSquare, Database, Users, LineChart, Link as LinkIcon, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -40,12 +40,21 @@ const templates = [
     icons: [LinkIcon, Bot, MessageSquare],
     nodes: 6,
     plays: '3.9k'
+  },
+  {
+    id: 'marketing-carousel',
+    category: 'Marketing',
+    title: 'Carousel Post Generator',
+    description: 'Create engaging multi-page carousel content for Instagram and LinkedIn automatically from trending topics and news.',
+    icons: [Users, LineChart, Bot],
+    nodes: 4,
+    plays: '8.4k'
   }
 ];
 
 export default function WorkflowTemplates() {
-  const [activeCategory, setActiveCategory] = React.useState('All');
-  const [searchQuery, setSearchQuery] = React.useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = templates.filter(t => {
     const matchesCat = activeCategory === 'All' || t.category === activeCategory;
@@ -130,7 +139,10 @@ export default function WorkflowTemplates() {
                   <span className="flex items-center gap-1.5"><Play className="w-3.5 h-3.5" /> {template.plays} uses</span>
                   <span className="flex items-center gap-1.5"><Database className="w-3.5 h-3.5" /> {template.nodes} nodes</span>
                 </div>
-                <Link to="/agents/builder?type=workflow" className="p-2 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                <Link 
+                  to={template.id.includes('carousel') ? '/agents/carousel/new' : '/agents/new'} 
+                  className="p-2 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-all shadow-sm"
+                >
                   <ArrowRight className="w-4 h-4 group-hover:-rotate-45 transition-transform" />
                 </Link>
               </div>
