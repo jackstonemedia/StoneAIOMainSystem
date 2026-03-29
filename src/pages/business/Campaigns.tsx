@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getCampaigns, createCampaign } from '../../lib/api';
 import { 
   Mail, MessageSquare, Plus, Search, Filter, BarChart3, 
   Send, Clock, Users, ArrowUpRight, MoreHorizontal, MousePointerClick, CheckCircle2, GitMerge
@@ -24,10 +26,37 @@ const mockCampaigns: Campaign[] = [
 ];
 
 export default function Campaigns() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'all' | 'email' | 'sms'>('all');
   const [isCreating, setIsCreating] = useState(false);
+  const [campaignName, setCampaignName] = useState('Untitled Campaign');
+  const [campaignType, setCampaignType] = useState<'email' | 'sms'>('email');
 
-  const filteredCampaigns = mockCampaigns.filter(c => activeTab === 'all' || c.type === activeTab);
+  const { data: campaigns = [], isLoading } = useQuery<any[]>({
+    queryKey: ['campaigns'],
+    queryFn: getCampaigns
+  });
+
+  const createMutation = useMutation<any, Error, any>({
+    mutationFn: createCampaign,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      setIsCreating(false);
+      setCampaignName('Untitled Campaign');
+    }
+  });
+
+  const handleSaveDraft = () => {
+    createMutation.mutate({
+      name: campaignName,
+      type: campaignType,
+      status: 'draft',
+      audience: JSON.stringify({ segment: 'all' }),
+      metrics: JSON.stringify({ opens: 0, clicks: 0 }),
+    });
+  };
+
+  const filteredCampaigns = campaigns.filter((c: any) => activeTab === 'all' || c.type === activeTab);
 
   if (isCreating) {
     return (
@@ -41,13 +70,18 @@ export default function Campaigns() {
             <div className="h-4 w-px bg-border"></div>
             <input 
               type="text" 
-              defaultValue="Untitled Campaign" 
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
               className="text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-64 text-text-main"
             />
           </div>
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg hover:bg-surface-hover transition-colors">
-              <Clock className="w-4 h-4" /> Save Draft
+            <button 
+              onClick={handleSaveDraft}
+              disabled={createMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg hover:bg-surface-hover transition-colors disabled:opacity-50"
+            >
+              <Clock className="w-4 h-4" /> {createMutation.isPending ? 'Saving...' : 'Save Draft'}
             </button>
             <button className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors shadow-md">
               <Send className="w-4 h-4" /> Send Test
@@ -66,10 +100,16 @@ export default function Campaigns() {
                 <div>
                   <label className="block text-xs font-medium text-text-muted mb-1.5 uppercase tracking-wider">Campaign Type</label>
                   <div className="flex bg-bg p-1 rounded-lg border border-border">
-                    <button className="flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium bg-surface shadow-sm rounded-md border border-border text-primary">
+                    <button 
+                      onClick={() => setCampaignType('email')}
+                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${campaignType === 'email' ? 'bg-surface shadow-sm border border-border text-primary' : 'text-text-muted hover:text-text-main'}`}
+                    >
                       <Mail className="w-4 h-4" /> Email
                     </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium text-text-muted hover:text-text-main">
+                    <button 
+                      onClick={() => setCampaignType('sms')}
+                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${campaignType === 'sms' ? 'bg-surface shadow-sm border border-border text-primary' : 'text-text-muted hover:text-text-main'}`}
+                    >
                       <MessageSquare className="w-4 h-4" /> SMS
                     </button>
                   </div>
@@ -221,7 +261,14 @@ export default function Campaigns() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredCampaigns.map(campaign => (
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">Loading campaigns...</td></tr>
+              ) : filteredCampaigns.length === 0 ? (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">No campaigns found. Create one to get started.</td></tr>
+              ) : filteredCampaigns.map((campaign: any) => {
+                const metrics = campaign.metrics ? JSON.parse(campaign.metrics) : {};
+                const audience = campaign.audience ? JSON.parse(campaign.audience) : { count: 0 };
+                return (
                 <tr key={campaign.id} className="hover:bg-surface-hover transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -230,32 +277,32 @@ export default function Campaigns() {
                       </div>
                       <div>
                         <h4 className="font-semibold text-text-main group-hover:text-primary transition-colors cursor-pointer">{campaign.name}</h4>
-                        <p className="text-xs text-text-muted mt-0.5">Last edited {campaign.lastEdited}</p>
+                        <p className="text-xs text-text-muted mt-0.5">Last edited {new Date(campaign.updatedAt).toLocaleDateString()}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     {campaign.status === 'sent' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Sent</span>}
                     {campaign.status === 'draft' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-500/10 text-gray-500 border border-gray-500/20"><MoreHorizontal className="w-3.5 h-3.5" /> Draft</span>}
-                    {campaign.status === 'scheduled' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20"><Clock className="w-3.5 h-3.5" /> {campaign.scheduledFor}</span>}
+                    {campaign.status === 'scheduled' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20"><Clock className="w-3.5 h-3.5" /> {campaign.scheduledFor || 'Scheduled'}</span>}
                     {campaign.status === 'sending' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20"><Send className="w-3.5 h-3.5 animate-pulse" /> Sending</span>}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-sm text-text-main">
                       <Users className="w-4 h-4 text-text-muted" />
-                      {campaign.audience.toLocaleString()}
+                      {(audience.count || 0).toLocaleString()}
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {campaign.openRate !== undefined && campaign.openRate > 0 ? (
+                    {metrics.opens !== undefined && metrics.opens > 0 ? (
                       <div className="flex gap-4">
                         <div>
                           <p className="text-xs text-text-muted mb-0.5">Open Rate</p>
-                          <p className="font-medium text-sm text-text-main">{campaign.openRate}%</p>
+                          <p className="font-medium text-sm text-text-main">{metrics.openRate || 0}%</p>
                         </div>
                         <div>
                           <p className="text-xs text-text-muted mb-0.5">Click Rate</p>
-                          <p className="font-medium text-sm text-text-main">{campaign.clickRate}%</p>
+                          <p className="font-medium text-sm text-text-main">{metrics.clickRate || 0}%</p>
                         </div>
                       </div>
                     ) : (
@@ -271,7 +318,7 @@ export default function Campaigns() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

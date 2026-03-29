@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, MapPin, Building2, CalendarDays, Activity, CircleDollarSign, Edit2, MoreHorizontal, Save, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import QuickActionsBar from '../../components/crm/QuickActionsBar';
 
 interface Contact {
   id: string;
@@ -103,7 +104,7 @@ export default function ContactDetail() {
       {/* Header */}
       <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
         <div className="flex items-center gap-4">
-          <Link to="/crm/contacts" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
+          <Link to="/business/crm/contacts" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-4">
@@ -139,7 +140,7 @@ export default function ContactDetail() {
                   />
                 </div>
               ) : (
-                <p className="text-sm text-text-muted mt-0.5">{contact.title} at <Link to="/crm/companies/1" className="text-primary hover:underline">{contact.company}</Link></p>
+                <p className="text-sm text-text-muted mt-0.5">{contact.title} at <Link to="/business/crm/companies/1" className="text-primary hover:underline">{contact.company}</Link></p>
               )}
             </div>
           </div>
@@ -260,6 +261,15 @@ export default function ContactDetail() {
 
           {/* Right Column: Activity & Deals */}
           <div className="lg:col-span-2 space-y-6">
+            
+            {/* Quick Actions Bar */}
+            <QuickActionsBar 
+              contactId={contact.id} 
+              contactName={contact.name} 
+              contactPhone={contact.phone} 
+              contactEmail={contact.email} 
+            />
+
             {/* Associated Deals */}
             <div className="bg-surface border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
@@ -271,7 +281,7 @@ export default function ContactDetail() {
                   <div className="text-sm text-text-muted p-4 text-center border border-dashed border-border rounded-lg">No deals found for this contact.</div>
                 ) : (
                   deals.map(deal => (
-                    <Link key={deal.id} to={`/crm/deals/${deal.id}`} className="flex items-center justify-between p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors">
+                    <Link key={deal.id} to={`/business/crm/deals/${deal.id}`} className="flex items-center justify-between p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-amber/10 flex items-center justify-center shrink-0">
                           <CircleDollarSign className="w-5 h-5 text-amber" />

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getReviews, createReview } from '../../lib/api';
 import { 
   Star, MessageSquare, ThumbsUp, ThumbsDown, TrendingUp, 
-  ExternalLink, Send, Filter, BarChart3
+  ExternalLink, Send, Filter, BarChart3, Plus
 } from 'lucide-react';
 
 interface Review {
@@ -14,21 +16,33 @@ interface Review {
   replied: boolean;
 }
 
-const mockReviews: Review[] = [
-  { id: '1', source: 'google', author: 'Sarah M.', rating: 5, text: 'Absolutely amazing service! The AI assistant was incredibly helpful and fast. Best experience I\'ve had.', date: '2 days ago', replied: true },
-  { id: '2', source: 'google', author: 'James K.', rating: 4, text: 'Great product, very easy to set up. Would love to see more integrations in the future.', date: '4 days ago', replied: false },
-  { id: '3', source: 'yelp', author: 'Maria L.', rating: 5, text: 'Game changer for our business. The workflow automation saved us 20+ hours per week.', date: '1 week ago', replied: true },
-  { id: '4', source: 'facebook', author: 'David P.', rating: 3, text: 'Good platform but had some issues with the calendar sync. Support was helpful though.', date: '1 week ago', replied: false },
-  { id: '5', source: 'google', author: 'Emma T.', rating: 5, text: 'The voice agent feature is absolutely incredible. Our customers love it!', date: '2 weeks ago', replied: true },
-];
-
 export default function Reputation() {
+  const queryClient = useQueryClient();
   const [activeSource, setActiveSource] = useState<'all' | 'google' | 'yelp' | 'facebook'>('all');
 
-  const filtered = mockReviews.filter(r => activeSource === 'all' || r.source === activeSource);
-  const avgRating = (mockReviews.reduce((a, r) => a + r.rating, 0) / mockReviews.length).toFixed(1);
-  const positiveCount = mockReviews.filter(r => r.rating >= 4).length;
-  const negativeCount = mockReviews.filter(r => r.rating <= 2).length;
+  const { data: reviews = [], isLoading } = useQuery<any[]>({
+    queryKey: ['reviews'],
+    queryFn: getReviews
+  });
+
+  const createMutation = useMutation<any, Error, any>({
+    mutationFn: createReview,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviews'] })
+  });
+
+  const handleCreateTestReview = () => {
+    createMutation.mutate({
+      author: 'Test User ' + Math.floor(Math.random() * 100),
+      rating: Math.max(1, Math.floor(Math.random() * 6)),
+      text: 'This is a test review generated from the dashboard to verify database integration.',
+      source: ['google', 'yelp', 'facebook'][Math.floor(Math.random() * 3)]
+    });
+  };
+
+  const filtered = reviews.filter((r: any) => activeSource === 'all' || r.source === activeSource);
+  const avgRating = reviews.length > 0 ? (reviews.reduce((a: number, r: any) => a + r.rating, 0) / reviews.length).toFixed(1) : '0.0';
+  const positiveCount = reviews.filter((r: any) => r.rating >= 4).length;
+  const negativeCount = reviews.filter((r: any) => r.rating <= 2).length;
 
   return (
     <div className="flex-1 overflow-y-auto p-8 font-sans">
@@ -39,9 +53,18 @@ export default function Reputation() {
             <h1 className="text-2xl font-bold text-text-main tracking-tight">Reputation Manager</h1>
             <p className="text-sm text-text-muted mt-1">Monitor and respond to reviews across all platforms.</p>
           </div>
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md shadow-primary/20">
-            <Send className="w-4 h-4" /> Request Reviews
-          </button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={handleCreateTestReview}
+              disabled={createMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg hover:bg-surface-hover transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Add Test Review
+            </button>
+            <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md shadow-primary/20">
+              <Send className="w-4 h-4" /> Request Reviews
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -66,7 +89,7 @@ export default function Reputation() {
               <span className="text-sm font-medium text-text-muted">Total Reviews</span>
               <MessageSquare className="w-5 h-5 text-blue-500" />
             </div>
-            <h3 className="text-3xl font-bold text-text-main">{mockReviews.length}</h3>
+            <h3 className="text-3xl font-bold text-text-main">{reviews.length}</h3>
             <span className="text-xs text-emerald-500 font-medium">+3 this month</span>
           </div>
 
@@ -76,7 +99,7 @@ export default function Reputation() {
               <ThumbsUp className="w-5 h-5 text-emerald-500" />
             </div>
             <h3 className="text-3xl font-bold text-text-main">{positiveCount}</h3>
-            <span className="text-xs text-text-muted">{((positiveCount / mockReviews.length) * 100).toFixed(0)}% of total</span>
+            <span className="text-xs text-text-muted">{reviews.length > 0 ? ((positiveCount / reviews.length) * 100).toFixed(0) : 0}% of total</span>
           </div>
 
           <div className="bg-surface border border-border rounded-xl p-5">
@@ -95,7 +118,7 @@ export default function Reputation() {
             <h3 className="font-semibold text-text-main flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-primary" /> Sentiment Breakdown
             </h3>
-            <span className="text-xs text-text-muted">Based on {mockReviews.length} reviews</span>
+            <span className="text-xs text-text-muted">Based on {reviews.length} reviews</span>
           </div>
           <div className="flex rounded-full overflow-hidden h-3">
             <div className="bg-emerald-500" style={{ width: '80%' }} />
@@ -134,9 +157,12 @@ export default function Reputation() {
           </button>
         </div>
 
-        {/* Reviews List */}
         <div className="space-y-4">
-          {filtered.map(review => (
+          {isLoading ? (
+            <div className="p-8 text-center text-text-muted text-sm border border-border rounded-xl bg-surface">Loading reviews...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-text-muted text-sm border border-border rounded-xl bg-surface">No reviews found.</div>
+          ) : filtered.map((review: any) => (
             <div key={review.id} className="bg-surface border border-border rounded-xl p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -156,16 +182,12 @@ export default function Reputation() {
                           <Star key={s} className={`w-3.5 h-3.5 ${s <= review.rating ? 'text-amber-500 fill-amber-500' : 'text-border'}`} />
                         ))}
                       </div>
-                      <span className="text-xs text-text-muted">· {review.date}</span>
+                      <span className="text-xs text-text-muted">· {new Date(review.date).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {review.replied ? (
-                    <span className="text-xs text-emerald-500 font-medium">✓ Replied</span>
-                  ) : (
-                    <button className="text-xs font-medium text-primary hover:underline">Reply</button>
-                  )}
+                  <button className="text-xs font-medium text-primary hover:underline">Reply</button>
                   <button className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-md">
                     <ExternalLink className="w-4 h-4" />
                   </button>

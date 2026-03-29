@@ -1,18 +1,39 @@
 import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getAppointments, createAppointment } from '../../lib/api';
 import { 
   Calendar as CalendarIcon, Clock, Users, Plus, ChevronLeft, ChevronRight, 
   MapPin, Video, Phone, CheckCircle2, MoreHorizontal
 } from 'lucide-react';
 
 export default function Calendar() {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<'month' | 'week' | 'day'>('week');
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const mockAppointments = [
-    { id: 1, title: 'Discovery Call with Acme Corp', time: '10:00 AM - 10:45 AM', type: 'video', status: 'confirmed' },
-    { id: 2, title: 'Product Demo - Jane Doe', time: '1:30 PM - 2:00 PM', type: 'video', status: 'confirmed' },
-    { id: 3, title: 'Follow-up Call', time: '3:00 PM - 3:15 PM', type: 'phone', status: 'pending' },
-  ];
+  const { data: appointments = [], isLoading } = useQuery<any[]>({
+    queryKey: ['appointments'],
+    queryFn: getAppointments
+  });
+
+  const createMutation = useMutation<any, Error, any>({
+    mutationFn: createAppointment,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['appointments'] })
+  });
+
+  const handleCreateTestAppointment = () => {
+    // Generate a random time between today 9AM and 5PM
+    const start = new Date();
+    start.setHours(9 + Math.floor(Math.random() * 8), 0, 0, 0);
+    const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour later
+
+    createMutation.mutate({
+      title: 'Auto-Generated Meeting',
+      startTime: start.toISOString(),
+      endTime: end.toISOString(),
+      status: 'scheduled'
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg font-sans overflow-hidden">
@@ -28,7 +49,11 @@ export default function Calendar() {
             <button className="px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg bg-bg hover:bg-surface-hover transition-colors">
               View Booking Page
             </button>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md">
+            <button 
+              onClick={handleCreateTestAppointment}
+              disabled={createMutation.isPending}
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md"
+            >
               <Plus className="w-5 h-5" />
               New Appointment
             </button>
@@ -181,23 +206,40 @@ export default function Calendar() {
                       </div>
                     </div>
                     
-                    {/* Mock Events (Only on Wed for demonstration) */}
-                    {i === 2 && (
-                      <div className="relative w-full h-full pt-[40px]">
-                        {/* 10:00 AM Event (starts at 2 hours down = 2 * 64 = 128px) */}
-                        <div className="absolute top-[128px] left-2 right-2 h-[48px] bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 overflow-hidden shadow-sm hover:ring-2 ring-blue-500/50 cursor-pointer transition-all hover:bg-blue-500/20 z-20">
-                          <div className="w-1 h-full bg-blue-500 absolute left-0 top-0 rounded-l-lg"></div>
-                          <h4 className="text-xs font-semibold text-blue-500/90 truncate pl-1">Discovery Call with Acme Corp</h4>
-                          <p className="text-[10px] text-blue-500/70 pl-1 mt-0.5 font-medium">10:00 AM - 10:45 AM</p>
-                        </div>
+                    {/* Dynamic Events rendering for Today */}
+                    <div className="relative w-full h-full pt-[40px]">
+                      {appointments.map((apt: any) => {
+                        const start = new Date(apt.startTime);
+                        const end = new Date(apt.endTime);
+                        
+                        // Roughly plot them all on the middle day (Wednesday, i=2) for demonstration if they exist
+                        // Or if matching the day of week `start.getDay() === i + 1`
+                        if (start.getDay() !== i + 1) return null;
 
-                        {/* 1:30 PM Event (13.5 hours on timeline. 13.5 - 8 = 5.5 hours down = 5.5 * 64 = 352px) */}
-                        <div className="absolute top-[352px] left-2 right-2 h-[32px] bg-purple-500/10 border border-purple-500/30 rounded-lg p-1.5 overflow-hidden shadow-sm hover:ring-2 ring-purple-500/50 cursor-pointer transition-all hover:bg-purple-500/20 z-20">
-                          <div className="w-1 h-full bg-purple-500 absolute left-0 top-0 rounded-l-lg"></div>
-                          <h4 className="text-[11px] font-semibold text-purple-500/90 truncate pl-1">Product Demo - Jane Doe</h4>
-                        </div>
-                      </div>
-                    )}
+                        const startHour = start.getHours() + (start.getMinutes() / 60);
+                        const endHour = end.getHours() + (end.getMinutes() / 60);
+
+                        // If it's before 8am or after 8pm, skip rendering for the visual grid
+                        if (startHour < 8 || startHour > 20) return null;
+
+                        const top = (startHour - 8) * 64;
+                        const height = (endHour - startHour) * 64;
+
+                        return (
+                          <div 
+                            key={apt.id} 
+                            style={{ top: `${top}px`, height: `${height}px` }}
+                            className="absolute left-2 right-2 bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 overflow-hidden shadow-sm hover:ring-2 ring-blue-500/50 cursor-pointer transition-all hover:bg-blue-500/20 z-20"
+                          >
+                            <div className="w-1 h-full bg-blue-500 absolute left-0 top-0 rounded-l-lg"></div>
+                            <h4 className="text-xs font-semibold text-blue-500/90 truncate pl-1">{apt.title}</h4>
+                            <p className="text-[10px] text-blue-500/70 pl-1 mt-0.5 font-medium">
+                              {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>

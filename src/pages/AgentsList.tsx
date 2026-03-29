@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Filter, Bot, GitMerge, Mic, Sparkles, MoreVertical, Play, Pause, Settings, Trash2, Clock, Zap, Layers } from 'lucide-react';
+import { Plus, Search, Bot, GitMerge, Mic, Sparkles, MoreVertical, Play, Pause, Settings, Trash2, Clock, Zap, Layers, MessageSquare } from 'lucide-react';
 
 export default function AgentsList() {
   const [searchParams] = useSearchParams();
@@ -10,9 +10,7 @@ export default function AgentsList() {
   const agents = [
     { id: '1', name: 'Invoice Processor', type: 'workflow', status: 'active', lastRun: '2 mins ago', runs: 1240, credits: 3400, description: 'Extracts invoice data from emails and updates accounting system', emoji: '🧾' },
     { id: '2', name: 'Sales Receptionist', type: 'voice', status: 'active', lastRun: 'Active now', runs: 356, credits: 8200, description: 'Handles inbound sales calls and qualifies leads', emoji: '📞' },
-    { id: '3', name: 'Customer Support Triage', type: 'autonomous', status: 'active', lastRun: 'Just now', runs: 892, credits: 4500, description: 'Analyzes support tickets and routes to the right team', emoji: '🎧' },
     { id: '4', name: 'Weekly Report Generator', type: 'workflow', status: 'paused', lastRun: '3 days ago', runs: 52, credits: 150, description: 'Generates weekly performance reports from analytics data', emoji: '📊' },
-    { id: '5', name: 'Lead Research Assistant', type: 'autonomous', status: 'active', lastRun: '15 mins ago', runs: 234, credits: 2100, description: 'Researches prospects and enriches CRM data', emoji: '🔍' },
     { id: '6', name: 'Meeting Scheduler', type: 'voice', status: 'paused', lastRun: '1 day ago', runs: 89, credits: 920, description: 'Handles appointment booking via phone calls', emoji: '📅' },
   ];
 
@@ -25,19 +23,36 @@ export default function AgentsList() {
   const typeConfig: Record<string, { label: string; color: string; icon: typeof Bot }> = {
     workflow: { label: 'Workflow', color: 'bg-teal/10 text-teal border-teal/20', icon: GitMerge },
     voice: { label: 'Voice', color: 'bg-light-purple/10 text-light-purple border-light-purple/20', icon: Mic },
-    autonomous: { label: 'Autonomous', color: 'bg-purple/10 text-purple border-purple/20', icon: Bot },
-    assistant: { label: 'Assistant', color: 'bg-primary/10 text-primary border-primary/20', icon: Sparkles },
+    assistant: { label: 'Assistant', color: 'bg-primary/10 text-primary border-primary/20', icon: MessageSquare },
   };
 
   const filterTabs = [
     { id: 'all', label: 'All Agents', count: agents.length },
     { id: 'workflow', label: 'Workflows', count: agents.filter(a => a.type === 'workflow').length },
     { id: 'voice', label: 'Voice', count: agents.filter(a => a.type === 'voice').length },
-    { id: 'autonomous', label: 'Autonomous', count: agents.filter(a => a.type === 'autonomous').length },
   ];
 
   const getStatusDot = (status: string) => {
     return status === 'active' ? 'bg-green' : status === 'paused' ? 'bg-amber' : 'bg-red';
+  };
+
+  // Determine the creation route based on active tab
+  const getCreateRoute = () => {
+    switch(typeFilter) {
+      case 'voice': return '/agents/voice/new';
+      case 'workflow': return '/agents/workflow/new';
+      case 'assistant': return '/assistant';
+      default: return '/agents/new';
+    }
+  };
+
+  const getCreateLabel = () => {
+    switch(typeFilter) {
+      case 'voice': return 'Create Voice Agent';
+      case 'workflow': return 'Create Workflow';
+      case 'assistant': return 'Create AI Assistant';
+      default: return 'Create Agent';
+    }
   };
 
   return (
@@ -50,10 +65,10 @@ export default function AgentsList() {
             <p className="text-sm text-text-muted">Manage, monitor, and deploy your AI agents.</p>
           </div>
           <Link 
-            to="/agents/new" 
+            to={getCreateRoute()} 
             className="bg-primary text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-all hover:shadow-lg hover:shadow-primary/25 flex items-center gap-2"
           >
-            <Plus className="w-4 h-4" /> Create Agent
+            <Plus className="w-4 h-4" /> {getCreateLabel()}
           </Link>
         </header>
 
@@ -136,11 +151,11 @@ export default function AgentsList() {
             </p>
 
             <Link
-              to="/agents/new"
+              to={getCreateRoute()}
               className="px-8 py-4 rounded-xl text-base font-bold text-white bg-primary hover:bg-primary-hover transition-all shadow-lg hover:shadow-primary/30 flex items-center gap-3 group relative z-10"
             >
               <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" /> 
-              {search ? 'Clear Search & Create' : 'Create your first agent'}
+              {search ? 'Clear Search & Create' : getCreateLabel()}
             </Link>
           </div>
         ) : (
@@ -211,14 +226,16 @@ export default function AgentsList() {
 
             {/* Create New Agent Card */}
             <Link
-              to="/agents/new"
+              to={getCreateRoute()}
               className="border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center justify-center text-center hover:border-primary/50 hover:bg-primary/5 transition-all min-h-[200px] group"
             >
               <div className="w-12 h-12 bg-surface border border-border rounded-xl flex items-center justify-center mb-3 group-hover:bg-primary/10 transition-colors">
                 <Plus className="w-6 h-6 text-text-muted group-hover:text-primary transition-colors" />
               </div>
-              <span className="font-medium text-sm text-text-muted group-hover:text-primary transition-colors">Create New Agent</span>
-              <span className="text-xs text-text-muted mt-1">Workflow, Voice, Autonomous, or Assistant</span>
+              <span className="font-medium text-sm text-text-muted group-hover:text-primary transition-colors">{getCreateLabel()}</span>
+              {typeFilter === 'all' && (
+                <span className="text-xs text-text-muted mt-1">Workflow, Voice, Autonomous, or Assistant</span>
+              )}
             </Link>
           </div>
         )}

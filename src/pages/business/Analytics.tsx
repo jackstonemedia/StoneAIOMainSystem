@@ -1,28 +1,28 @@
+import { useQuery } from '@tanstack/react-query';
+import { getCrmDashboard } from '../../lib/api';
 import { 
   TrendingUp, DollarSign, Users, Bot, Zap, Mail, ArrowUpRight, 
   ArrowDownRight, BarChart3, Activity
 } from 'lucide-react';
 
 export default function Analytics() {
+  const { data: dashboard, isLoading } = useQuery<any>({
+    queryKey: ['dashboard'],
+    queryFn: getCrmDashboard
+  });
+
+  const dMetrics = dashboard?.metrics || { monthlyRevenue: 0, pipelineValue: 0, agentRuns: 0, creditsUsed: 0 };
+  const agentPerformance = dashboard?.agentPerformance || [];
+  const campaignMetrics = dashboard?.campaigns || [];
+
   const metrics = [
-    { label: 'Monthly Recurring Revenue', value: '$48,250', change: '+12.5%', up: true, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-    { label: 'Total Pipeline Value', value: '$182,400', change: '+8.2%', up: true, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Agent Runs (30d)', value: '4,892', change: '+34%', up: true, icon: Bot, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { label: 'Credits Used', value: '12,450', change: '+18%', up: true, icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+    { label: 'Monthly Recurring Revenue', value: `$${dMetrics.monthlyRevenue.toLocaleString()}`, change: '+12.5%', up: true, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { label: 'Total Pipeline Value', value: `$${dMetrics.pipelineValue.toLocaleString()}`, change: '+8.2%', up: true, icon: TrendingUp, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { label: 'Agent Runs (30d)', value: dMetrics.agentRuns.toLocaleString(), change: '+34%', up: true, icon: Bot, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { label: 'Credits Used', value: dMetrics.creditsUsed.toLocaleString(), change: '+18%', up: true, icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10' },
   ];
 
-  const agentPerformance = [
-    { name: 'Lead Scorer', runs: 2340, success: 98.2, avgTime: '1.2s', credits: 4200 },
-    { name: 'Invoice Processor', runs: 890, success: 95.6, avgTime: '3.4s', credits: 2800 },
-    { name: 'Email Follow-up', runs: 1450, success: 99.1, avgTime: '0.8s', credits: 3100 },
-    { name: 'Customer Triage', runs: 212, success: 87.3, avgTime: '5.1s', credits: 2350 },
-  ];
 
-  const campaignMetrics = [
-    { name: 'Black Friday VIP', sent: 14500, opens: 42.5, clicks: 18.2, conversions: 3.8 },
-    { name: 'Cart Recovery', sent: 320, opens: 65.1, clicks: 28.7, conversions: 12.4 },
-    { name: 'Newsletter Q4', sent: 22000, opens: 31.2, clicks: 8.5, conversions: 1.2 },
-  ];
 
   return (
     <div className="flex-1 overflow-y-auto p-8 font-sans">
@@ -113,7 +113,9 @@ export default function Analytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {agentPerformance.map((agent, i) => (
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-text-muted">Loading agent performance...</td></tr>
+              ) : agentPerformance.map((agent: any, i: number) => (
                 <tr key={i} className="hover:bg-surface-hover transition-colors">
                   <td className="px-6 py-4 text-sm font-medium text-text-main">{agent.name}</td>
                   <td className="px-6 py-4 text-sm text-text-main">{agent.runs.toLocaleString()}</td>
@@ -129,6 +131,9 @@ export default function Analytics() {
                   <td className="px-6 py-4 text-sm text-text-main">{agent.credits.toLocaleString()}</td>
                 </tr>
               ))}
+              {agentPerformance.length === 0 && !isLoading && (
+                <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-text-muted">No agents found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -151,15 +156,22 @@ export default function Analytics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {campaignMetrics.map((c, i) => (
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-text-muted">Loading campaigns...</td></tr>
+              ) : campaignMetrics.map((camp: any, i: number) => (
                 <tr key={i} className="hover:bg-surface-hover transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-text-main">{c.name}</td>
-                  <td className="px-6 py-4 text-sm text-text-main">{c.sent.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-sm text-text-main">{c.opens}%</td>
-                  <td className="px-6 py-4 text-sm text-text-main">{c.clicks}%</td>
-                  <td className="px-6 py-4 text-sm font-medium text-emerald-500">{c.conversions}%</td>
+                  <td className="px-6 py-4 text-sm font-medium text-text-main">{camp.name}</td>
+                  <td className="px-6 py-4 text-sm text-text-main">{(camp.sent || 0).toLocaleString()}</td>
+                  <td className="px-6 py-4 text-sm text-text-main">{camp.opens || 0}%</td>
+                  <td className="px-6 py-4 text-sm text-text-main">{camp.clicks || 0}%</td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-medium text-emerald-500">{camp.conversions || 0}%</span>
+                  </td>
                 </tr>
               ))}
+              {campaignMetrics.length === 0 && !isLoading && (
+                <tr><td colSpan={5} className="px-6 py-4 text-center text-sm text-text-muted">No campaigns found.</td></tr>
+              )}
             </tbody>
           </table>
         </div>

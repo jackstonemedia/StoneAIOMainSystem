@@ -106,7 +106,7 @@ export default function DealDetail() {
       {/* Header */}
       <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
         <div className="flex items-center gap-4">
-          <Link to="/crm/deals" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
+          <Link to="/business/crm/deals" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-4">
@@ -298,7 +298,7 @@ export default function DealDetail() {
                   <h2 className="font-semibold">Company</h2>
                 </div>
                 {company ? (
-                  <Link to={`/crm/companies/${deal.companyId}`} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
+                  <Link to={`/business/crm/companies/${deal.companyId}`} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
                     <div className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center shrink-0">
                       <Building2 className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors" />
                     </div>
@@ -318,7 +318,7 @@ export default function DealDetail() {
                   <h2 className="font-semibold">Contact</h2>
                 </div>
                 {contact ? (
-                  <Link to={`/crm/contacts/${deal.contactId}`} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
+                  <Link to={`/business/crm/contacts/${deal.contactId}`} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
                     <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
                       {contact.name.split(' ').map(n => n[0]).join('')}
                     </div>

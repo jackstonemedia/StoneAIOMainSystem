@@ -1,5 +1,6 @@
 import { Search, Filter, Activity as ActivityIcon, Mail, Phone, CalendarDays, CheckCircle2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
 
 interface Activity {
   id: string;
@@ -11,31 +12,101 @@ interface Activity {
 }
 
 export default function Activities() {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: activities = [], isLoading: loading } = useQuery<Activity[]>({
+    queryKey: ['activities'],
+    queryFn: () => fetch('/api/crm/activities').then(res => res.json())
+  });
 
-  useEffect(() => {
-    fetch('/api/crm/activities')
-      .then(res => res.json())
-      .then(data => {
-        setActivities(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch activities:', err);
-        setLoading(false);
-      });
-  }, []);
-
-  const getIconForType = (type: string) => {
-    switch (type) {
-      case 'email': return { icon: Mail, color: 'text-blue-500', bg: 'bg-blue-500/10' };
-      case 'call': return { icon: Phone, color: 'text-green', bg: 'bg-green/10' };
-      case 'meeting': return { icon: CalendarDays, color: 'text-purple', bg: 'bg-purple/10' };
-      case 'task': return { icon: CheckCircle2, color: 'text-amber', bg: 'bg-amber/10' };
-      default: return { icon: ActivityIcon, color: 'text-slate-500', bg: 'bg-slate-500/10' };
+  const getActivityColor = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'email': return 'bg-sky-500 text-white';
+      case 'call': return 'bg-orange-500 text-white';
+      case 'meeting': return 'bg-[#004e89] text-white'; // Dark blue from Monday
+      case 'task': return 'bg-amber-500 text-white';
+      default: return 'bg-slate-500 text-white';
     }
   };
+
+  const getStatusColor = () => {
+     return 'bg-[#00c875] text-white'; // Monday 'Done' green
+  };
+
+  const tableColumns: Column<Activity>[] = [
+    {
+      key: 'title',
+      header: 'Activity',
+      width: '30%',
+      render: (a) => <span className="font-medium text-text-main group-hover/row:text-primary transition-colors">{a.title}</span>
+    },
+    {
+      key: 'owner',
+      header: 'Owner',
+      align: 'center',
+      width: '80px',
+      render: () => (
+        <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center mx-auto shadow-sm">
+           <div className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">J</div>
+        </div>
+      )
+    },
+    {
+      key: 'type',
+      header: 'Activity Type',
+      align: 'center',
+      width: '180px',
+      render: (a) => (
+        <div className={`w-full py-1.5 text-xs font-semibold text-center rounded shadow-sm ${getActivityColor(a.type)}`}>
+           {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
+        </div>
+      )
+    },
+    {
+      key: 'date',
+      header: 'Start time',
+      align: 'left',
+      width: '150px',
+      render: (a) => <span className="text-sm text-text-muted">{a.date}</span>
+    },
+    {
+      key: 'endTime',
+      header: 'End time',
+      align: 'left',
+      width: '150px',
+      render: (a) => <span className="text-sm text-text-muted">{a.date}</span> // Mocking end time
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      width: '120px',
+      render: () => (
+         <div className={`w-full py-1.5 text-xs font-semibold text-center rounded shadow-sm ${getStatusColor()}`}>
+           Done
+         </div>
+      )
+    },
+    {
+       key: 'related',
+       header: 'Related item',
+       align: 'center',
+       width: '150px',
+       render: (a) => (
+         <div className="flex items-center gap-1.5 justify-center mx-auto text-xs font-medium bg-surface border border-border px-3 py-1 rounded text-text-muted hover:border-primary/50 cursor-pointer w-full text-center truncate">
+           <div className="w-1.5 h-4 bg-sky-500 rounded-sm shrink-0" />
+           <span className="truncate">{a.target}</span>
+         </div>
+       )
+    }
+  ];
+
+  const tableGroups: TableGroup<Activity>[] = [
+    {
+      id: 'account_activities',
+      title: 'Account Activities',
+      color: 'bg-blue-400',
+      items: activities
+    }
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -63,38 +134,19 @@ export default function Activities() {
         </button>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline Table */}
       <div className="flex-1 overflow-auto p-8">
-        <div className="max-w-3xl mx-auto">
-          {loading ? (
-            <div className="text-center text-text-muted">Loading activities...</div>
-          ) : (
-            <div className="relative border-l border-border ml-4 space-y-8 pb-8">
-              {activities.map((activity) => {
-                const { icon: Icon, color, bg } = getIconForType(activity.type);
-                return (
-                  <div key={activity.id} className="relative pl-8">
-                    {/* Timeline dot */}
-                    <div className={`absolute -left-4 top-1 w-8 h-8 rounded-full flex items-center justify-center border-4 border-bg ${bg}`}>
-                      <Icon className={`w-3.5 h-3.5 ${color}`} />
-                    </div>
-                    
-                    {/* Content */}
-                    <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-medium">{activity.title}</h3>
-                        <span className="text-xs text-text-muted whitespace-nowrap ml-4">{activity.date}</span>
-                      </div>
-                      <div className="text-sm text-text-muted">
-                        With <span className="font-medium text-text-main">{activity.target}</span> at {activity.company}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-full text-text-muted">Loading activities...</div>
+        ) : (
+          <main className="max-w-[1400px]">
+            <SmartTable 
+              columns={tableColumns} 
+              groups={tableGroups} 
+              addLabel="+ Add activity"
+            />
+          </main>
+        )}
       </div>
     </div>
   );

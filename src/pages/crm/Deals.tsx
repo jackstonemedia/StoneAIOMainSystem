@@ -1,16 +1,25 @@
-import { Search, Filter, MoreHorizontal, Calendar, Plus } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Calendar, Plus, LayoutGrid, List, Users, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDeals, updateDeal } from '../../lib/api';
+import DealSlideOver from '../../components/crm/DealSlideOver';
+import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
+import DealDetailDrawer from '../../components/crm/DealDetailDrawer';
 
 interface Deal {
   id: string;
   title: string;
-  company?: { name: string } | null;
-  amount: string | number;
+  companyId?: string;
+  contactId?: string;
+  company?: {
+    name: string;
+  };
+  amount: number | string;
   stage: string;
-  closeDate: string;
-  priority?: 'high' | 'medium' | 'low';
+  closeDate?: string;
+  priority?: 'low' | 'medium' | 'high';
   owner?: string;
   tags?: string[];
 }
@@ -25,30 +34,31 @@ export default function Deals() {
     { id: 'won', name: 'Won', color: 'bg-green' },
   ];
 
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [optimisticDeals, setOptimisticDeals] = useState<Deal[] | null>(null);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'board' | 'table'>('table');
 
-  // Fallback mock data if API fails to provide rich data
-  const mockDeals: Deal[] = [
-    { id: '1', title: 'Enterprise License', company: { name: 'Acme Corp' }, amount: 45000, stage: 'proposal', closeDate: 'Oct 24', priority: 'high', owner: 'JS', tags: ['SaaS', 'Q4'] },
-    { id: '2', title: 'Consulting Retainer', company: { name: 'Globex Inc' }, amount: 12000, stage: 'qualified', closeDate: 'Nov 02', priority: 'medium', owner: 'JS', tags: ['Services'] },
-    { id: '3', title: 'Q3 Software Upgrade', company: { name: 'Initech' }, amount: 8500, stage: 'negotiation', closeDate: 'Oct 30', priority: 'high', owner: 'JS', tags: ['Expansion'] },
-    { id: '4', title: 'Initial Pilot', company: { name: 'Soylent' }, amount: 3000, stage: 'lead', closeDate: 'Dec 15', priority: 'low', owner: 'JS', tags: ['Trial'] },
-  ];
+  const { data: serverDeals = [], isLoading: loading } = useQuery<Deal[]>({
+    queryKey: ['deals'],
+    queryFn: getDeals
+  });
 
-  useEffect(() => {
-    fetch('/api/crm/deals')
-      .then(res => res.json())
-      .then(data => {
-        setDeals(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch deals, using fallback data:', err);
-        setDeals(mockDeals);
-        setLoading(false);
-      });
-  }, []);
+  const deals = optimisticDeals !== null ? optimisticDeals : serverDeals;
+
+  const updateStageMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; stage: string }) => updateDeal(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setOptimisticDeals(null);
+    },
+    onError: () => {
+      // Revert optimistic update
+      setOptimisticDeals(null);
+    }
+  });
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -89,15 +99,112 @@ export default function Deals() {
       newDeals.splice(actualInsertIndex, 0, updatedDeal);
     }
 
-    setDeals(newDeals);
+    setOptimisticDeals(newDeals);
 
-    // Update backend
-    fetch(`/api/crm/deals/${updatedDeal.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedDeal)
-    }).catch(err => console.error('Failed to update deal:', err));
+    // Update backend via mutation
+    updateStageMutation.mutate({
+      id: updatedDeal.id,
+      stage: destination.droppableId
+    });
   };
+
+  // SmartTable Configurations
+  const tableColumns: Column<Deal>[] = [
+    { 
+      key: 'title', 
+      header: 'Deal Name', 
+      width: '25%',
+      render: (deal) => <div className="font-medium text-text-main group-hover/row:text-primary transition-colors">{deal.title}</div>
+    },
+    {
+      key: 'stage',
+      header: 'Stage',
+      align: 'center',
+      width: '140px',
+      render: (deal) => {
+         const stageData = stages.find(s => s.id === deal.stage);
+         return (
+           <div className={`w-full py-1.5 text-xs font-semibold text-center text-white rounded shadow-sm ${stageData?.color.replace('bg-', 'bg-') || 'bg-surface'}`}>
+             {stageData?.name || deal.stage}
+           </div>
+         );
+      }
+    },
+    {
+       key: 'owner',
+       header: 'Owner',
+       align: 'center',
+       width: '80px',
+       render: (deal) => (
+         deal.owner ? (
+         <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold border border-primary/30 mx-auto" title={deal.owner}>
+           {deal.owner}
+         </div>
+         ) : <div className="w-7 h-7 rounded-full bg-surface border border-dashed border-border flex items-center justify-center mx-auto text-text-muted hover:border-primary/50 transition-colors cursor-pointer"><Plus className="w-3 h-3"/></div>
+       )
+    },
+    {
+      key: 'amount',
+      header: 'Deal Value',
+      align: 'right',
+      width: '120px',
+      render: (deal) => <div className="font-mono text-sm">${(deal.amount || 0).toLocaleString()}</div>
+    },
+    {
+       key: 'contact',
+       header: 'Contacts',
+       align: 'center',
+       width: '150px',
+       render: (deal) => (
+         <div className="flex items-center justify-center mx-auto gap-2 bg-surface border border-border px-3 py-1 rounded-full text-xs font-medium text-text-muted w-max hover:border-primary/50 transition-colors cursor-pointer">
+           <Users className="w-3 h-3" />
+           {deal.contactId ? 'Contact Attached' : 'Add Contact'}
+         </div>
+       )
+    },
+    {
+       key: 'company',
+       header: 'Accounts',
+       align: 'center',
+       width: '150px',
+       render: (deal) => (
+         <div className="flex items-center justify-center mx-auto gap-2 bg-surface border border-border px-3 py-1 rounded-full text-xs font-medium text-text-muted w-max hover:border-primary/50 transition-colors cursor-pointer">
+           <Building2 className="w-3 h-3" />
+           {deal.company?.name || 'Add Account'}
+         </div>
+       )
+    }
+  ];
+
+  const activeDeals = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
+  const wonDeals = deals.filter(d => d.stage === 'won');
+
+  const tableGroups: TableGroup<Deal>[] = [
+    {
+      id: 'active',
+      title: 'Active Deals',
+      color: 'bg-blue-500',
+      items: activeDeals,
+      summary: (
+        <div className="flex items-center justify-end w-full pr-[330px]">
+          <span className="text-text-muted text-sm mr-4">Total Value</span>
+          <span className="font-mono font-medium">${activeDeals.reduce((sum, d) => sum + (d.amount || 0), 0).toLocaleString()}</span>
+        </div>
+      )
+    },
+    {
+      id: 'won',
+      title: 'Closed Won',
+      color: 'bg-green-500',
+      items: wonDeals,
+      summary: (
+        <div className="flex items-center justify-end w-full pr-[330px]">
+          <span className="text-text-muted text-sm mr-4">Total Won</span>
+          <span className="font-mono font-medium">${wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0).toLocaleString()}</span>
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -107,7 +214,10 @@ export default function Deals() {
           <h1 className="text-2xl font-semibold tracking-tight">Deals Pipeline</h1>
           <p className="text-sm text-text-muted mt-1">Manage your sales opportunities and forecast.</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
+        <button 
+          onClick={() => setIsSlideOverOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white shadow-md shadow-primary/20 rounded-lg font-medium hover:bg-primary-hover transition-all"
+        >
           <Plus className="w-4 h-4" />
           New Deal
         </button>
@@ -124,6 +234,22 @@ export default function Deals() {
           />
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex p-1 bg-surface border border-border rounded-lg mr-2">
+            <button 
+              onClick={() => setViewMode('table')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'table' ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main'}`}
+              title="Table View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setViewMode('board')}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main'}`}
+              title="Board View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
           <button className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
             <Filter className="w-4 h-4" />
             Filters
@@ -131,10 +257,20 @@ export default function Deals() {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto p-6">
+      {/* Main Content Area */}
+      <div className={`flex-1 overflow-auto ${viewMode === 'board' ? 'p-6' : 'p-8'}`}>
         {loading ? (
           <div className="flex items-center justify-center h-full text-text-muted">Loading deals...</div>
+        ) : viewMode === 'table' ? (
+          <main className="max-w-[1400px]">
+            <SmartTable 
+              columns={tableColumns} 
+              groups={tableGroups} 
+              onRowClick={(d) => setSelectedDealId(d.id)}
+              onAddClick={() => setIsSlideOverOpen(true)}
+              addLabel="+ Add deal"
+            />
+          </main>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
             <div className="flex gap-6 h-full min-w-max">
@@ -178,7 +314,7 @@ export default function Deals() {
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
-                                  onClick={() => navigate(`/crm/deals/${deal.id}`)}
+                                  onClick={() => setSelectedDealId(deal.id)}
                                   className={`bg-surface border rounded-xl p-4 cursor-pointer transition-all shadow-sm group relative overflow-hidden ${
                                     snapshot.isDragging ? 'border-primary shadow-xl ring-2 ring-primary/20 scale-105 z-50' : 'border-border hover:border-primary/50 hover:shadow-md'
                                   }`}
@@ -259,6 +395,17 @@ export default function Deals() {
           </DragDropContext>
         )}
       </div>
+
+      <DealSlideOver 
+        isOpen={isSlideOverOpen}
+        onClose={() => setIsSlideOverOpen(false)}
+      />
+      
+      <DealDetailDrawer
+        isOpen={!!selectedDealId}
+        onClose={() => setSelectedDealId(null)}
+        dealId={selectedDealId}
+      />
     </div>
   );
 }

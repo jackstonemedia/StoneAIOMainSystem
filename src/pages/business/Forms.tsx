@@ -1,12 +1,26 @@
 import React from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getForms, createForm } from '../../lib/api';
 import { FormInput, Plus, Search, Filter, MoreHorizontal, MousePointerClick, CheckCircle2, Copy } from 'lucide-react';
 
 export default function Forms() {
-  const mockForms = [
-    { id: '1', name: 'Website Contact Form', type: 'Form', submissions: 142, conversion: '12.4%', status: 'Active', updated: '2 hours ago' },
-    { id: '2', name: 'Post-Sale Feedback', type: 'Survey', submissions: 89, conversion: '45.1%', status: 'Active', updated: '1 day ago' },
-    { id: '3', name: 'Q4 Webinar Registration', type: 'Form', submissions: 320, conversion: '28.9%', status: 'Draft', updated: '3 days ago' },
-  ];
+  const queryClient = useQueryClient();
+  const { data: forms = [], isLoading } = useQuery<any[]>({
+    queryKey: ['forms'],
+    queryFn: getForms
+  });
+
+  const createMutation = useMutation<any, Error, any>({
+    mutationFn: createForm,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['forms'] })
+  });
+
+  const handleCreateTestForm = () => {
+    createMutation.mutate({
+      name: 'Test Form ' + Math.floor(Math.random() * 100),
+      schema: JSON.stringify({ fields: [] })
+    });
+  };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg font-sans overflow-hidden">
@@ -18,7 +32,11 @@ export default function Forms() {
             <h1 className="text-2xl font-bold text-text-main tracking-tight">Forms & Surveys</h1>
             <p className="text-sm text-text-muted mt-1">Build custom forms to capture leads and gather feedback.</p>
           </div>
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md">
+          <button 
+            onClick={handleCreateTestForm}
+            disabled={createMutation.isPending}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md"
+          >
             <Plus className="w-5 h-5" />
             Create Form
           </button>
@@ -56,7 +74,11 @@ export default function Forms() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {mockForms.map(form => (
+              {isLoading ? (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">Loading forms...</td></tr>
+              ) : forms.length === 0 ? (
+                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">No forms found. Create one.</td></tr>
+              ) : forms.map((form: any) => (
                 <tr key={form.id} className="hover:bg-surface-hover transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -66,26 +88,22 @@ export default function Forms() {
                       <div>
                         <h4 className="font-semibold text-text-main group-hover:text-primary transition-colors cursor-pointer">{form.name}</h4>
                         <div className="flex flex-wrap gap-2 mt-0.5">
-                          <span className="text-[10px] font-medium bg-bg text-text-muted px-1.5 py-0.5 rounded-md border border-border">{form.type}</span>
-                          <span className="text-xs text-text-muted">Last edited {form.updated}</span>
+                          <span className="text-[10px] font-medium bg-bg text-text-muted px-1.5 py-0.5 rounded-md border border-border">Form</span>
+                          <span className="text-xs text-text-muted">Last edited {new Date(form.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {form.status === 'Active' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Active</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-500/10 text-gray-500 border border-gray-500/20"><MoreHorizontal className="w-3.5 h-3.5" /> Draft</span>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Active</span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-medium text-text-main">{form.submissions.toLocaleString()}</div>
+                    <div className="font-medium text-text-main">{(form.submissions?.length || 0).toLocaleString()}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1 text-sm font-medium text-text-main">
                       <MousePointerClick className="w-3 h-3 text-text-muted" />
-                      {form.conversion}
+                      {form.visits > 0 ? ((form.submissions?.length || 0) / form.visits * 100).toFixed(1) : 0}%
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

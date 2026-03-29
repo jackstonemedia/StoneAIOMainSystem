@@ -1,6 +1,8 @@
-import { Plus, Search, Filter, MoreHorizontal, Building2, Globe, Users } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Building2, Globe, Users, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
 
 interface Company {
   id: string;
@@ -15,32 +17,103 @@ interface Company {
 
 interface Deal {
   id: string;
-  amount: string;
+  amount: string | number;
   stage: string;
   companyId: string;
 }
 
 export default function Companies() {
   const navigate = useNavigate();
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: companies = [], isLoading: loadingCompanies } = useQuery<Company[]>({
+    queryKey: ['companies'],
+    queryFn: () => fetch('/api/crm/companies').then(res => res.json())
+  });
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/crm/companies').then(res => res.json()),
-      fetch('/api/crm/deals').then(res => res.json())
-    ])
-      .then(([companiesData, dealsData]) => {
-        setCompanies(companiesData);
-        setDeals(dealsData);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch companies and deals:', err);
-        setLoading(false);
-      });
-  }, []);
+  const { data: deals = [], isLoading: loadingDeals } = useQuery<Deal[]>({
+    queryKey: ['deals'],
+    queryFn: () => fetch('/api/crm/deals').then(res => res.json())
+  });
+
+  const loading = loadingCompanies || loadingDeals;
+
+  const getIndustryColor = (industry: string) => {
+    if (industry.toLowerCase().includes('software') || industry.toLowerCase().includes('tech')) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+    if (industry.toLowerCase().includes('finance')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+    if (industry.toLowerCase().includes('health')) return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+    return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+  };
+
+  const tableColumns: Column<Company>[] = [
+    {
+      key: 'name',
+      header: 'Account',
+      width: '25%',
+      render: (c) => (
+        <div className="flex items-center gap-3 py-1">
+          <div className="w-8 h-8 rounded bg-surface border border-border flex items-center justify-center shrink-0">
+            <Building2 className="w-4 h-4 text-text-muted" />
+          </div>
+          <span className="font-medium text-text-main group-hover/row:text-primary transition-colors">{c.name}</span>
+        </div>
+      )
+    },
+    {
+      key: 'website',
+      header: 'Domain',
+      align: 'left',
+      width: '200px',
+      render: (c) => (
+        <a href={`https://${c.website}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-xs text-primary/80 hover:text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded w-max">
+          <Globe className="w-3 h-3" />
+          {c.website}
+          <ExternalLink className="w-3 h-3 ml-1 opacity-50" />
+        </a>
+      )
+    },
+    {
+      key: 'industry',
+      header: 'Industry',
+      align: 'left',
+      width: '180px',
+      render: (c) => (
+        <div className={`px-2.5 py-1 rounded text-xs font-medium border w-max ${getIndustryColor(c.industry)}`}>
+          {c.industry || 'Unknown'}
+        </div>
+      )
+    },
+    {
+      key: 'employees',
+      header: 'No. of employees',
+      align: 'center',
+      width: '140px',
+      render: (c) => (
+        <span className="text-sm text-text-muted">{c.employees || '-'}</span>
+      )
+    },
+    {
+      key: 'openDeals',
+      header: 'Open Deals',
+      align: 'center',
+      width: '140px',
+      render: (c) => {
+        const count = deals.filter(d => d.companyId === c.id && d.stage !== 'won' && d.stage !== 'lost').length;
+        return (
+          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${count > 0 ? 'bg-amber-500 text-black' : 'bg-surface text-text-muted'}`}>
+            {count}
+          </div>
+        )
+      }
+    }
+  ];
+
+  const tableGroups: TableGroup<Company>[] = [
+    {
+      id: 'companies',
+      title: 'Companies',
+      color: 'bg-indigo-500',
+      items: companies
+    }
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -72,78 +145,20 @@ export default function Companies() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-surface border border-border rounded-xl overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-text-muted">Loading companies...</div>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-bg border-b border-border">
-                <tr>
-                  <th className="px-6 py-3 font-medium text-text-muted">Company Name</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Industry</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Size</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Open Deals</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Total Revenue</th>
-                  <th className="px-6 py-3 font-medium text-text-muted text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {companies.map((company) => {
-                  const companyDeals = deals.filter(d => d.companyId === company.id && d.stage !== 'Won' && d.stage !== 'Lost');
-                  const openDealsCount = companyDeals.length;
-                  const totalRevenueValue = companyDeals.reduce((sum, d) => sum + parseInt(d.amount.replace(/[^0-9]/g, '') || '0'), 0);
-                  const totalRevenue = openDealsCount > 0 ? `$${totalRevenueValue.toLocaleString()}` : (company.revenue || '$0');
-
-                  return (
-                    <tr 
-                      key={company.id} 
-                      onClick={() => navigate(`/crm/companies/${company.id}`)}
-                      className="hover:bg-surface-hover transition-colors group cursor-pointer"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-bg border border-border text-text-muted flex items-center justify-center shrink-0">
-                            <Building2 className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="font-medium text-text-main group-hover:text-primary transition-colors">{company.name}</div>
-                            <div className="flex items-center gap-1 text-xs text-text-muted mt-0.5">
-                              <Globe className="w-3 h-3" />
-                              {company.website}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-text-muted">{company.industry}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-text-muted">
-                          <Users className="w-3.5 h-3.5" />
-                          {company.employees}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${openDealsCount > 0 ? 'bg-amber/10 text-amber' : 'bg-bg text-text-muted'}`}>
-                          {openDealsCount} deals
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-medium">{totalRevenue}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-text-muted hover:text-text-main opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+      {/* Main Table Area */}
+      <div className="flex-1 overflow-auto p-8">
+        {loading ? (
+          <div className="flex items-center justify-center h-full text-text-muted">Loading accounts...</div>
+        ) : (
+          <main className="max-w-[1400px]">
+             <SmartTable 
+                columns={tableColumns} 
+                groups={tableGroups} 
+                onRowClick={(c) => navigate(`/business/crm/companies/${c.id}`)}
+                addLabel="+ Add account"
+             />
+          </main>
+        )}
       </div>
     </div>
   );

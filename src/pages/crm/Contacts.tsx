@@ -1,6 +1,12 @@
-import { Plus, Search, Filter, MoreHorizontal, Mail, Phone } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Mail, Phone, Building2, CircleDollarSign, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getContacts } from '../../lib/api';
+import ContactSlideOver from '../../components/crm/ContactSlideOver';
+import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
+import CrmSetup from '../../components/crm/CrmSetup';
+import SmartListSidebar from '../../components/crm/SmartListSidebar';
 
 interface Contact {
   id: string;
@@ -17,21 +23,91 @@ interface Contact {
 
 export default function Contacts() {
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: contacts = [], isLoading: loading } = useQuery<Contact[]>({
+    queryKey: ['contacts'],
+    queryFn: getContacts
+  });
 
-  useEffect(() => {
-    fetch('/api/crm/contacts')
-      .then(res => res.json())
-      .then(data => {
-        setContacts(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch contacts:', err);
-        setLoading(false);
-      });
-  }, []);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+  const [activeListId, setActiveListId] = useState('all');
+
+  const tableColumns: Column<Contact>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      width: '30%',
+      render: (c) => (
+        <div className="flex items-center gap-3 py-1">
+          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 uppercase border border-primary/20">
+            {c.firstName?.charAt(0) || 'U'}
+          </div>
+          <span className="font-medium text-text-main group-hover/row:text-primary transition-colors">
+            {`${c.firstName} ${c.lastName || ''}`.trim()}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      align: 'left',
+      width: '200px',
+      render: (c) => (
+        <a href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded w-max transition-colors">
+          <Mail className="w-3 h-3" />
+          {c.email || 'No email'}
+        </a>
+      )
+    },
+    {
+      key: 'company',
+      header: 'Accounts',
+      align: 'center',
+      width: '180px',
+      render: (c) => (
+        c.company?.name ? (
+          <div className="flex items-center justify-center mx-auto gap-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded w-max text-xs font-medium">
+             <Building2 className="w-3 h-3" />
+             {c.company.name}
+          </div>
+        ) : (
+          <span className="text-text-muted text-xs">-</span>
+        )
+      )
+    },
+    {
+      key: 'deals',
+      header: 'Deals',
+      align: 'center',
+      width: '180px',
+      render: () => (
+        // Just mocking the exact visual from the screenshot (Light blue Deals pill)
+        // In a real scenario we'd query contacts[]->deals
+        <div className="flex items-center justify-center gap-1.5 mx-auto bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 px-3 py-1 rounded w-max text-xs font-medium cursor-pointer hover:bg-cyan-500/20 transition-colors">
+           <CircleDollarSign className="w-3 h-3" />
+           Add deal
+        </div>
+      )
+    },
+    {
+      key: 'phone',
+      header: 'Phone',
+      align: 'center',
+      width: '150px',
+      render: (c) => (
+        <span className="text-sm text-text-muted font-mono">{c.phone || '-'}</span>
+      )
+    }
+  ];
+
+  const tableGroups: TableGroup<Contact>[] = [
+    {
+      id: 'active_contacts',
+      title: 'Active Contacts',
+      color: 'bg-green-500',
+      items: contacts
+    }
+  ];
 
   return (
     <div className="h-full flex flex-col">
@@ -41,7 +117,10 @@ export default function Contacts() {
           <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
           <p className="text-sm text-text-muted mt-1">Manage your leads, customers, and partners.</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
+        <button 
+          onClick={() => setIsSlideOverOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white shadow-md shadow-primary/20 rounded-lg font-medium hover:bg-primary-hover transition-all"
+        >
           <Plus className="w-4 h-4" />
           New Contact
         </button>
@@ -63,85 +142,37 @@ export default function Contacts() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="bg-surface border border-border rounded-xl overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-text-muted">Loading contacts...</div>
-          ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-bg border-b border-border">
-                <tr>
-                  <th className="px-6 py-3 font-medium text-text-muted">Name</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Company</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Contact Info</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Lead Score</th>
-                  <th className="px-6 py-3 font-medium text-text-muted">Last Activity</th>
-                  <th className="px-6 py-3 font-medium text-text-muted text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {contacts.map((contact) => {
-                  const score = contact.leadScore || contact.score || 0;
-                  const lastActivity = contact.lastContact || contact.lastActivity || 'Never';
-                  
-                  return (
-                    <tr 
-                      key={contact.id} 
-                      onClick={() => navigate(`/crm/contacts/${contact.id}`)}
-                      className="hover:bg-surface-hover transition-colors group cursor-pointer"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs shrink-0 uppercase">
-                            {contact.firstName?.charAt(0) || 'U'}
-                          </div>
-                          <div className="font-medium text-text-main group-hover:text-primary transition-colors">
-                            {`${contact.firstName} ${contact.lastName || ''}`.trim()}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-text-muted">{contact.company?.name || '-'}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2 text-text-muted">
-                            <Mail className="w-3 h-3" />
-                            <span className="truncate max-w-[150px]">{contact.email}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-text-muted">
-                            <Phone className="w-3 h-3" />
-                            <span>{contact.phone}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-full bg-bg rounded-full h-1.5 max-w-[60px]">
-                            <div 
-                              className={`h-1.5 rounded-full ${score >= 80 ? 'bg-green' : score >= 60 ? 'bg-amber' : 'bg-red'}`} 
-                              style={{ width: `${score}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-medium">{score}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-text-muted">{lastActivity}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-text-muted hover:text-text-main opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+      {/* Main Content Area */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center p-8 text-text-muted">Loading contacts...</div>
+      ) : contacts.length === 0 ? (
+        <div className="flex-1 flex overflow-hidden">
+          <CrmSetup />
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          <SmartListSidebar 
+            activeListId={activeListId} 
+            onSelectList={setActiveListId} 
+          />
+          <div className="flex-1 overflow-auto p-8">
+            <main className="max-w-[1400px]">
+              <SmartTable 
+                columns={tableColumns} 
+                groups={tableGroups} 
+                onRowClick={(c) => navigate(`/business/crm/contacts/${c.id}`)}
+                onAddClick={() => setIsSlideOverOpen(true)}
+                addLabel="+ Add Item"
+              />
+            </main>
+          </div>
+        </div>
+      )}
+
+      <ContactSlideOver 
+        isOpen={isSlideOverOpen}
+        onClose={() => setIsSlideOverOpen(false)}
+      />
     </div>
   );
 }

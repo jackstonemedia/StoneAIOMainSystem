@@ -21,7 +21,10 @@ export default function CrmDashboard() {
 
   useEffect(() => {
     fetch('/api/crm/dashboard')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('API Error');
+        return res.json();
+      })
       .then(data => {
         setData(data);
         setLoading(false);
@@ -84,7 +87,7 @@ export default function CrmDashboard() {
             <div className="bg-surface border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-semibold">Sales Pipeline</h2>
-                <Link to="/crm/deals" className="text-sm text-primary hover:underline">View all deals</Link>
+                <Link to="/business/crm/deals" className="text-sm text-primary hover:underline">View all deals</Link>
               </div>
               <div className="flex h-24 gap-1">
                 {[
@@ -108,7 +111,7 @@ export default function CrmDashboard() {
             <div className="bg-surface border border-border rounded-xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-semibold">Recent Activity</h2>
-                <Link to="/crm/activities" className="text-sm text-primary hover:underline">View all</Link>
+                <Link to="/business/crm/activities" className="text-sm text-primary hover:underline">View all</Link>
               </div>
               <div className="space-y-4">
                 {data.recentActivities.map((act, i) => {
