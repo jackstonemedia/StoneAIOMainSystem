@@ -1,329 +1,309 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCampaigns, createCampaign } from '../../lib/api';
-import { 
-  Mail, MessageSquare, Plus, Search, Filter, BarChart3, 
-  Send, Clock, Users, ArrowUpRight, MoreHorizontal, MousePointerClick, CheckCircle2, GitMerge
-} from 'lucide-react';
+import { Plus, Mail, Phone, Send, Edit2, Trash2, BarChart3, Users, CheckCircle, Clock, FileText, ArrowLeft, Eye, PenLine } from 'lucide-react';
+import { DataTable } from '../../components/ui/DataTable';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { SlidePanel } from '../../components/ui/SlidePanel';
+import { useToast } from '../../components/ui/Toast';
 
-interface Campaign {
-  id: string;
-  name: string;
-  type: 'email' | 'sms';
-  status: 'draft' | 'scheduled' | 'sent' | 'sending';
-  audience: number;
-  openRate?: number;
-  clickRate?: number;
-  scheduledFor?: string;
-  lastEdited: string;
-}
+const API = '/api/business';
+const getCampaigns = () => fetch(`${API}/campaigns`).then(r => r.ok ? r.json() : []);
+const createCampaign = (data: any) => fetch(`${API}/campaigns`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r=>r.json());
 
-const mockCampaigns: Campaign[] = [
-  { id: '1', name: 'Black Friday VIP Early Access', type: 'email', status: 'sent', audience: 14500, openRate: 42.5, clickRate: 18.2, lastEdited: '2 days ago' },
-  { id: '2', name: 'Abandoned Cart Recovery Series', type: 'email', status: 'sending', audience: 320, openRate: 0, clickRate: 0, lastEdited: '1 hour ago' },
-  { id: '3', name: 'Flash Sale SMS Blast', type: 'sms', status: 'scheduled', audience: 5800, scheduledFor: 'Tomorrow, 10:00 AM', lastEdited: '4 hours ago' },
-  { id: '4', name: 'Q4 Product Update Newsletter', type: 'email', status: 'draft', audience: 22000, lastEdited: 'Just now' },
-];
+const STATUS_CONFIG: Record<string,{label:string;color:string;icon:any}> = {
+  sent:      {label:'Sent',      color:'badge-success', icon:CheckCircle},
+  sending:   {label:'Sending',  color:'badge-info',    icon:Send},
+  scheduled: {label:'Scheduled',color:'badge-warning', icon:Clock},
+  draft:     {label:'Draft',    color:'badge-neutral', icon:PenLine},
+};
+
+function parseJSON(s: any) { try { return JSON.parse(s); } catch { return {}; } }
 
 export default function Campaigns() {
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'all' | 'email' | 'sms'>('all');
-  const [isCreating, setIsCreating] = useState(false);
-  const [campaignName, setCampaignName] = useState('Untitled Campaign');
-  const [campaignType, setCampaignType] = useState<'email' | 'sms'>('email');
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [view, setView] = useState<'list'|'builder'>('list');
+  const [newOpen, setNewOpen] = useState(false);
+  const [form, setForm] = useState({ name:'', type:'email', subject:'', previewText:'' });
 
-  const { data: campaigns = [], isLoading } = useQuery<any[]>({
-    queryKey: ['campaigns'],
-    queryFn: getCampaigns
-  });
+  const { data: campaigns = [], isLoading } = useQuery<any[]>({ queryKey:['campaigns'], queryFn:getCampaigns });
 
-  const createMutation = useMutation<any, Error, any>({
+  const createMutation = useMutation({
     mutationFn: createCampaign,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      setIsCreating(false);
-      setCampaignName('Untitled Campaign');
-    }
+    onSuccess: () => { qc.invalidateQueries({queryKey:['campaigns']}); setNewOpen(false); toast('success','Campaign created'); },
+    onError: () => toast('error','Failed to create campaign'),
   });
 
-  const handleSaveDraft = () => {
-    createMutation.mutate({
-      name: campaignName,
-      type: campaignType,
-      status: 'draft',
-      audience: JSON.stringify({ segment: 'all' }),
-      metrics: JSON.stringify({ opens: 0, clicks: 0 }),
-    });
-  };
+  const columns = [
+    {
+      key: 'name', label: 'Campaign', sortable: true,
+      render: (v: string, r: any) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-text-main">{v}</span>
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit mt-0.5 badge ${STATUS_CONFIG[r.status]?.color || 'badge-neutral'}`}>
+            {STATUS_CONFIG[r.status]?.label || r.status}
+          </span>
+        </div>
+      )
+    },
+    {
+      key: 'type', label: 'Type',
+      render: (v: string) => (
+        <span className="flex items-center gap-1.5 text-sm">
+          {v === 'email' ? <Mail className="w-3.5 h-3.5 text-blue-400" /> : <Phone className="w-3.5 h-3.5 text-purple-400" />}
+          {v === 'email' ? 'Email' : 'SMS'}
+        </span>
+      )
+    },
+    {
+      key: 'audience', label: 'Audience',
+      render: (v: string) => {
+        const a = parseJSON(v); return <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-text-muted" />{a.count?.toLocaleString() ?? '—'}</span>;
+      }
+    },
+    {
+      key: 'metrics', label: 'Open Rate',
+      render: (v: string, r: any) => {
+        const m = parseJSON(v);
+        if (!m.openRate) return <span className="text-text-muted">—</span>;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
+              <div className="h-full bg-blue-400 rounded-full" style={{width:`${Math.min(m.openRate,100)}%`}}/>
+            </div>
+            <span className="text-sm font-medium">{m.openRate}%</span>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'metrics', label: 'Clicks',
+      render: (v: string) => {
+        const m = parseJSON(v);
+        return m.clickRate ? <span className="font-medium">{m.clickRate}%</span> : <span className="text-text-muted">—</span>;
+      }
+    },
+    {
+      key: 'updatedAt', label: 'Updated', sortable: true,
+      render: (v: string) => v ? new Date(v).toLocaleDateString() : '—'
+    },
+  ];
 
-  const filteredCampaigns = campaigns.filter((c: any) => activeTab === 'all' || c.type === activeTab);
+  return (
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <PageHeader
+        title="Campaigns"
+        subtitle="Manage email and SMS campaigns"
+        breadcrumb={['Business','Campaigns']}
+        tabs={[
+          { id:'list', label:'All Campaigns', count: campaigns.length },
+          { id:'builder', label:'Campaign Builder' },
+        ]}
+        activeTab={view}
+        onTabChange={v => setView(v as any)}
+        actions={
+          <button className="btn-primary text-sm py-2 px-4" onClick={() => setNewOpen(true)}>
+            <Plus className="w-4 h-4" /> New Campaign
+          </button>
+        }
+      />
 
-  if (isCreating) {
-    return (
-      <div className="flex-1 flex flex-col h-full bg-bg font-sans overflow-hidden">
-        {/* Builder Header */}
-        <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsCreating(false)} className="px-3 py-1.5 text-sm font-medium text-text-muted hover:text-text-main border border-border rounded-lg bg-bg hover:bg-surface-hover transition-colors">
-              Cancel
-            </button>
-            <div className="h-4 w-px bg-border"></div>
-            <input 
-              type="text" 
-              value={campaignName}
-              onChange={(e) => setCampaignName(e.target.value)}
-              className="text-lg font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-64 text-text-main"
+      {view === 'list' ? (
+        <div className="flex-1 p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto">
+            <DataTable
+              columns={columns as any}
+              data={campaigns}
+              isLoading={isLoading}
+              searchable
+              searchPlaceholder="Search campaigns…"
+              rowKey={(r: any) => r.id}
+              emptyState={
+                <div className="text-center py-8">
+                  <Mail className="w-10 h-10 mx-auto text-border mb-3" />
+                  <p className="font-medium text-text-main mb-1">No campaigns yet</p>
+                  <p className="text-sm text-text-muted mb-4">Create your first email or SMS campaign</p>
+                  <button className="btn-primary text-sm py-2 px-4" onClick={() => setNewOpen(true)}>
+                    <Plus className="w-4 h-4" /> Create Campaign
+                  </button>
+                </div>
+              }
             />
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={handleSaveDraft}
-              disabled={createMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg hover:bg-surface-hover transition-colors disabled:opacity-50"
-            >
-              <Clock className="w-4 h-4" /> {createMutation.isPending ? 'Saving...' : 'Save Draft'}
-            </button>
-            <button className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors shadow-md">
-              <Send className="w-4 h-4" /> Send Test
-            </button>
-          </div>
-        </header>
-
-        {/* Builder Workspace */}
+        </div>
+      ) : (
+        /* Campaign Builder */
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel: Settings */}
-          <div className="w-80 border-r border-border bg-surface flex flex-col overflow-y-auto">
-            <div className="p-5 border-b border-border">
-              <h3 className="font-semibold text-text-main mb-4">Campaign Settings</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-text-muted mb-1.5 uppercase tracking-wider">Campaign Type</label>
-                  <div className="flex bg-bg p-1 rounded-lg border border-border">
-                    <button 
-                      onClick={() => setCampaignType('email')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${campaignType === 'email' ? 'bg-surface shadow-sm border border-border text-primary' : 'text-text-muted hover:text-text-main'}`}
-                    >
-                      <Mail className="w-4 h-4" /> Email
-                    </button>
-                    <button 
-                      onClick={() => setCampaignType('sms')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${campaignType === 'sms' ? 'bg-surface shadow-sm border border-border text-primary' : 'text-text-muted hover:text-text-main'}`}
-                    >
-                      <MessageSquare className="w-4 h-4" /> SMS
-                    </button>
+          {/* Left settings */}
+          <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-6 space-y-6">
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Campaign Name</label>
+              <input className="input-luxury" placeholder="e.g. Black Friday Promo" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">From Name</label>
+              <input className="input-luxury" defaultValue="Jack @ Stone AIO" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Subject Line</label>
+              <input className="input-luxury" placeholder="Don't miss out on this…" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Preview Text</label>
+              <input className="input-luxury" placeholder="Extra details shown in inbox…" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Audience</label>
+              <select className="input-luxury">
+                <option>All Contacts (2,847)</option>
+                <option>Hot Leads (96)</option>
+                <option>Enterprise Accounts (28)</option>
+                <option>Custom Segment</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Send Time</label>
+              <select className="input-luxury">
+                <option>Send Immediately</option>
+                <option>Schedule for Later</option>
+                <option>Optimal Send Time (AI)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Center preview */}
+          <div className="flex-1 overflow-y-auto bg-surface-hover/30 p-8 flex flex-col items-center">
+            <div className="w-full max-w-lg">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-xs text-text-muted font-medium">Email Preview</span>
+                <div className="flex gap-1 bg-bg border border-border rounded-lg p-0.5">
+                  <button className="px-3 py-1 text-xs rounded-md bg-surface text-primary border border-border font-semibold">Desktop</button>
+                  <button className="px-3 py-1 text-xs rounded-md text-text-muted hover:text-text-main">Mobile</button>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl shadow-[var(--shadow-luxury)] overflow-hidden border border-border/40">
+                {/* Email header */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-center">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs">S</span>
+                    </div>
+                    <span className="text-white font-bold text-sm">Stone AIO</span>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-muted mb-1.5 uppercase tracking-wider">To (Audience)</label>
-                  <select className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-text-main">
-                    <option>All Subscribers (22,450)</option>
-                    <option>VIP Customers (1,200)</option>
-                    <option>Active in last 30 days (8,400)</option>
-                  </select>
+                {/* Hero */}
+                <div className="p-8 text-center bg-gradient-to-b from-blue-50 to-white">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-3">Exclusive Black Friday Offer 🎉</h2>
+                  <p className="text-slate-600 text-sm mb-6 leading-relaxed">Get 40% off all annual plans this weekend only. Automate your business and save thousands.</p>
+                  <a className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-sm font-bold no-underline hover:bg-indigo-700">Claim Your Discount →</a>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-muted mb-1.5 uppercase tracking-wider">From Name</label>
-                  <input type="text" defaultValue="Jack Stone" className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-text-main" />
+                {/* Body */}
+                <div className="px-8 py-6 space-y-4 text-sm text-slate-600 leading-relaxed">
+                  <p>Hi [First Name],</p>
+                  <p>The Black Friday deal is here. For 72 hours only, every Stone AIO annual plan is 40% off. That's hundreds of dollars back in your pocket — and full access to our entire platform.</p>
+                  <p className="font-semibold text-slate-900">Here's what you get:</p>
+                  <ul className="list-disc list-inside space-y-1.5 text-slate-600">
+                    <li>Unlimited AI voice & workflow agents</li>
+                    <li>Full CRM + campaign builder</li>
+                    <li>Priority 24/7 support</li>
+                    <li>API access + integrations</li>
+                  </ul>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-text-muted mb-1.5 uppercase tracking-wider">Subject Line</label>
-                  <input type="text" placeholder="e.g., Huge announcements inside!" className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-text-main" />
+                {/* Footer */}
+                <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 text-center">
+                  <p className="text-xs text-slate-400">Stone AIO · 123 Business Ave · San Francisco, CA</p>
+                  <p className="text-xs text-slate-400 mt-1"><a href="#" className="underline">Unsubscribe</a> · <a href="#" className="underline">View in browser</a></p>
                 </div>
               </div>
             </div>
-            
-            <div className="p-5 flex-1">
-              <h3 className="font-semibold text-text-main mb-4">Content Blocks</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {['Text', 'Image', 'Button', 'Divider', 'Spacer', 'Social', 'Video', 'HTML'].map(block => (
-                  <div key={block} className="border border-border bg-bg hover:border-primary/50 cursor-grab rounded-lg p-3 flex flex-col items-center justify-center gap-2 transition-colors group">
-                    <div className="w-8 h-8 rounded-full bg-surface group-hover:bg-primary/10 flex items-center justify-center transition-colors">
-                      <Plus className="w-4 h-4 text-text-muted group-hover:text-primary" />
-                    </div>
-                    <span className="text-xs font-medium text-text-main">{block}</span>
-                  </div>
+          </div>
+
+          {/* Right AI panel */}
+          <div className="w-64 shrink-0 border-l border-border overflow-y-auto p-5 space-y-5">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-teal flex items-center justify-center">
+                <BarChart3 className="w-3 h-3 text-white" />
+              </div>
+              <h3 className="font-semibold text-sm text-text-main">AI Optimization</h3>
+            </div>
+
+            <div className="card-surface p-3">
+              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Deliverability Score</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-400 rounded-full" style={{width:'87%'}}/>
+                </div>
+                <span className="text-sm font-bold text-emerald-400">87</span>
+              </div>
+            </div>
+
+            <div className="card-surface p-3">
+              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Subject A/B Ideas</div>
+              <div className="space-y-2">
+                {["Don't miss out — 40% off ends soon", "Your exclusive Black Friday deal is here", "⏰ 72 hours only — save 40% today"].map((s,i) => (
+                  <button key={i} className="w-full text-left text-xs p-2 rounded-lg bg-bg border border-border hover:border-primary/30 text-text-muted hover:text-text-main transition-all">
+                    {s}
+                  </button>
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Right Panel: Canvas */}
-          <div className="flex-1 bg-bg p-8 flex justify-center overflow-y-auto" style={{ backgroundImage: 'radial-gradient(var(--border) 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
-            <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-gray-200 min-h-[800px] flex flex-col items-center justify-center text-gray-400">
-              <Mail className="w-12 h-12 mb-4 opacity-20" />
-              <p className="font-medium text-gray-500">Drag and drop blocks here to design your email.</p>
+            <div className="card-surface p-3">
+              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Send Time</div>
+              <div className="text-xs font-medium text-emerald-400">Tuesday · 10am–11am</div>
+              <p className="text-[10px] text-text-muted mt-0.5">Based on your audience engagement history</p>
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="flex-1 flex flex-col h-full bg-bg font-sans overflow-hidden">
-      
-      {/* Header & Metrics */}
-      <header className="px-8 pt-8 pb-6 border-b border-border bg-surface shrink-0">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-text-main tracking-tight">Campaigns</h1>
-            <p className="text-sm text-text-muted mt-1">Manage email and SMS broadcasts, flows, and analytics.</p>
-          </div>
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md shadow-primary/20 hover:shadow-primary/40"
-          >
-            <Plus className="w-5 h-5" />
-            Create Campaign
-          </button>
-        </div>
-
-        {/* Global Metrics */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: 'Total Sent (30d)', value: '142.5k', change: '+12%', icon: Send, color: 'text-blue-500' },
-            { label: 'Avg Open Rate', value: '38.2%', change: '+2.4%', icon: Mail, color: 'text-emerald-500' },
-            { label: 'Avg Click Rate', value: '4.8%', change: '-0.3%', icon: MousePointerClick, color: 'text-purple-500' },
-            { label: 'Active Flows', value: '12', change: '+2', icon: GitMerge, color: 'text-amber-500' },
-          ].map((stat, i) => (
-            <div key={i} className="bg-bg border border-border rounded-xl p-4 flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-text-muted mb-1">{stat.label}</p>
-                <div className="flex items-baseline gap-2">
-                  <h3 className="text-2xl font-bold text-text-main">{stat.value}</h3>
-                  <span className={`text-xs font-medium ${stat.change.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {stat.change}
-                  </span>
-                </div>
-              </div>
-              <div className={`p-2 rounded-lg bg-surface border border-border ${stat.color}`}>
-                <stat.icon className="w-5 h-5" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto">
-        
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex bg-surface p-1 rounded-lg border border-border">
-            {[
-              { id: 'all', label: 'All Campaigns' },
-              { id: 'email', label: 'Email Only' },
-              { id: 'sms', label: 'SMS Only' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === tab.id 
-                    ? 'bg-bg text-primary shadow-sm border border-border' 
-                    : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-                }`}
-              >
-                {tab.label}
+            <div className="mt-auto pt-4 space-y-2">
+              <button className="btn-primary w-full text-sm py-2.5">
+                <Send className="w-4 h-4" /> Send Campaign
               </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input 
-                type="text" 
-                placeholder="Search campaigns..." 
-                className="w-64 pl-9 pr-4 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:border-primary text-text-main placeholder:text-text-muted/60"
-              />
+              <button className="btn-secondary w-full text-sm py-2.5">
+                <Clock className="w-4 h-4" /> Schedule
+              </button>
             </div>
-            <button className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover text-text-main transition-colors">
-              <Filter className="w-4 h-4" /> Filter
-            </button>
           </div>
         </div>
+      )}
 
-        {/* Campaign List */}
-        <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-border bg-bg/50">
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-text-muted">Campaign Name</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-text-muted">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-text-muted">Audience</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-text-muted">Engagement</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-text-muted text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {isLoading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">Loading campaigns...</td></tr>
-              ) : filteredCampaigns.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-text-muted">No campaigns found. Create one to get started.</td></tr>
-              ) : filteredCampaigns.map((campaign: any) => {
-                const metrics = campaign.metrics ? JSON.parse(campaign.metrics) : {};
-                const audience = campaign.audience ? JSON.parse(campaign.audience) : { count: 0 };
-                return (
-                <tr key={campaign.id} className="hover:bg-surface-hover transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg border ${campaign.type === 'email' ? 'bg-blue-500/10 border-blue-500/20 text-blue-500' : 'bg-purple-500/10 border-purple-500/20 text-purple-500'}`}>
-                        {campaign.type === 'email' ? <Mail className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-text-main group-hover:text-primary transition-colors cursor-pointer">{campaign.name}</h4>
-                        <p className="text-xs text-text-muted mt-0.5">Last edited {new Date(campaign.updatedAt).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {campaign.status === 'sent' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"><CheckCircle2 className="w-3.5 h-3.5" /> Sent</span>}
-                    {campaign.status === 'draft' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-500/10 text-gray-500 border border-gray-500/20"><MoreHorizontal className="w-3.5 h-3.5" /> Draft</span>}
-                    {campaign.status === 'scheduled' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20"><Clock className="w-3.5 h-3.5" /> {campaign.scheduledFor || 'Scheduled'}</span>}
-                    {campaign.status === 'sending' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20"><Send className="w-3.5 h-3.5 animate-pulse" /> Sending</span>}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-text-main">
-                      <Users className="w-4 h-4 text-text-muted" />
-                      {(audience.count || 0).toLocaleString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {metrics.opens !== undefined && metrics.opens > 0 ? (
-                      <div className="flex gap-4">
-                        <div>
-                          <p className="text-xs text-text-muted mb-0.5">Open Rate</p>
-                          <p className="font-medium text-sm text-text-main">{metrics.openRate || 0}%</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-0.5">Click Rate</p>
-                          <p className="font-medium text-sm text-text-main">{metrics.clickRate || 0}%</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-text-muted italic">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 text-text-muted hover:text-text-main hover:bg-surface rounded-lg transition-colors">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              )})}
-            </tbody>
-          </table>
+      {/* New Campaign Slide Panel */}
+      <SlidePanel open={newOpen} onClose={() => setNewOpen(false)} title="Create Campaign" subtitle="Start a new email or SMS campaign"
+        actions={
+          <>
+            <button className="btn-secondary text-sm py-2 px-4" onClick={() => setNewOpen(false)}>Cancel</button>
+            <button className="btn-primary text-sm py-2 px-4" onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending}>
+              Create Campaign
+            </button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Campaign Name *</label>
+            <input className="input-luxury" placeholder="e.g. Black Friday Promo"
+              value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 block">Type</label>
+            <div className="grid grid-cols-2 gap-3">
+              {(['email','sms'] as const).map(t => (
+                <button key={t} onClick={() => setForm(f=>({...f,type:t}))}
+                  className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${form.type===t?'border-primary bg-primary/5':'border-border hover:border-primary/30'}`}>
+                  {t==='email' ? <Mail className={`w-5 h-5 ${form.type===t?'text-primary':'text-text-muted'}`}/> : <Phone className={`w-5 h-5 ${form.type===t?'text-primary':'text-text-muted'}`}/>}
+                  <span className={`text-sm font-semibold capitalize ${form.type===t?'text-primary':'text-text-muted'}`}>{t}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {form.type === 'email' && (
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Subject Line</label>
+              <input className="input-luxury" placeholder="What's the email about?"
+                value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} />
+            </div>
+          )}
         </div>
-      </div>
-
+      </SlidePanel>
     </div>
   );
 }

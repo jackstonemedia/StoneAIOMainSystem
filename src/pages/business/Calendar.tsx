@@ -1,253 +1,285 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAppointments, createAppointment } from '../../lib/api';
-import { 
-  Calendar as CalendarIcon, Clock, Users, Plus, ChevronLeft, ChevronRight, 
-  MapPin, Video, Phone, CheckCircle2, MoreHorizontal
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  ChevronLeft, ChevronRight, Plus, Video, Phone, Users, Clock, Calendar as CalIcon, X, MapPin
 } from 'lucide-react';
+import { SlidePanel } from '../../components/ui/SlidePanel';
+import { useToast } from '../../components/ui/Toast';
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const HOURS  = Array.from({length:10},(_,i)=>i+8); // 8am–5pm
+
+const typeConfig: Record<string,{icon:any;color:string;bg:string}> = {
+  call:    {icon:Phone, color:'text-blue-400',   bg:'bg-blue-400/10   border-blue-400/30'},
+  meeting: {icon:Users, color:'text-purple-400', bg:'bg-purple-400/10 border-purple-400/30'},
+  video:   {icon:Video, color:'text-teal-400',   bg:'bg-teal-400/10   border-teal-400/30'},
+};
+
+function getCalendarGrid(year: number, month: number) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+/** Get start of the iso-date-only string for today */
+function today() { return new Date().toISOString().split('T')[0]; }
 
 export default function Calendar() {
-  const queryClient = useQueryClient();
-  const [view, setView] = useState<'month' | 'week' | 'day'>('week');
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { toast } = useToast();
+  const now = new Date();
+  const [viewYear, setViewYear]   = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [view, setView]           = useState<'month'|'week'>('week');
+  const [newOpen, setNewOpen]     = useState(false);
+  const [form, setForm]           = useState({ title:'', type:'call', date:'', time:'09:00', duration:60, attendee:'', location:'' });
 
-  const { data: appointments = [], isLoading } = useQuery<any[]>({
+  const { data: apts = [] } = useQuery<any[]>({
     queryKey: ['appointments'],
-    queryFn: getAppointments
+    queryFn: () => fetch('/api/business/appointments').then(r => r.ok ? r.json() : []),
   });
 
-  const createMutation = useMutation<any, Error, any>({
-    mutationFn: createAppointment,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['appointments'] })
+  /* ── Week view helpers ── */
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay() + 1); // Monday
+  const weekDays = Array.from({length:5},(_,i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate()+i);
+    return d;
   });
 
-  const handleCreateTestAppointment = () => {
-    // Generate a random time between today 9AM and 5PM
-    const start = new Date();
-    start.setHours(9 + Math.floor(Math.random() * 8), 0, 0, 0);
-    const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour later
+  function aptsForDay(d: Date) {
+    const ds = d.toISOString().split('T')[0];
+    return apts.filter((a:any) => a.startTime?.startsWith(ds));
+  }
 
-    createMutation.mutate({
-      title: 'Auto-Generated Meeting',
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
-      status: 'scheduled'
-    });
+  function hourPx(iso: string) {
+    const d = new Date(iso);
+    return (d.getHours() - 8 + d.getMinutes()/60) * 64; // 64px/hour
+  }
+  function durationPx(start: string, end: string) {
+    return Math.max(32, (new Date(end).getTime()-new Date(start).getTime())/3600000*64);
+  }
+
+  /* ── Month mini-calendar ── */
+  const grid = getCalendarGrid(viewYear, viewMonth);
+  const todayStr = today();
+  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y=>y-1); } else setViewMonth(m=>m-1); };
+  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y=>y+1); } else setViewMonth(m=>m+1); };
+
+  const handleCreate = () => {
+    if (!form.title.trim() || !form.date) { toast('warning', 'Please fill in title and date'); return; }
+    toast('success', 'Appointment created', `${form.title} scheduled for ${form.date}`);
+    setNewOpen(false);
+    setForm({ title:'', type:'call', date:'', time:'09:00', duration:60, attendee:'', location:'' });
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-bg font-sans overflow-hidden">
-      
-      {/* Header */}
-      <header className="px-8 py-6 border-b border-border bg-surface shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-text-main tracking-tight">Calendar & Booking</h1>
-            <p className="text-sm text-text-muted mt-1">Manage your schedule and share appointment booking links.</p>
+    <div className="h-full flex overflow-hidden bg-bg">
+      {/* Sidebar */}
+      <aside className="w-64 shrink-0 border-r border-border flex flex-col bg-surface/50 overflow-y-auto">
+        {/* Mini calendar */}
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center justify-between mb-3">
+            <button onClick={prevMonth} className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors"><ChevronLeft className="w-4 h-4"/></button>
+            <span className="text-sm font-semibold">{MONTHS[viewMonth].slice(0,3)} {viewYear}</span>
+            <button onClick={nextMonth} className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors"><ChevronRight className="w-4 h-4"/></button>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="px-4 py-2 text-sm font-medium text-text-main border border-border rounded-lg bg-bg hover:bg-surface-hover transition-colors">
-              View Booking Page
-            </button>
-            <button 
-              onClick={handleCreateTestAppointment}
-              disabled={createMutation.isPending}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-medium hover:bg-primary-hover transition-all shadow-md"
-            >
-              <Plus className="w-5 h-5" />
-              New Appointment
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Split */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Sidebar: Mini Calendar & Integrations */}
-        <div className="w-72 border-r border-border bg-surface flex flex-col p-6 overflow-y-auto shrink-0">
-          
-          {/* Mini Calendar (Static Mock) */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-sm text-text-main">October 2023</h3>
-              <div className="flex gap-1">
-                <button className="p-1 hover:bg-surface-hover rounded"><ChevronLeft className="w-4 h-4 text-text-muted" /></button>
-                <button className="p-1 hover:bg-surface-hover rounded"><ChevronRight className="w-4 h-4 text-text-muted" /></button>
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2">
-              <span className="text-text-muted font-medium">S</span>
-              <span className="text-text-muted font-medium">M</span>
-              <span className="text-text-muted font-medium">T</span>
-              <span className="text-text-muted font-medium">W</span>
-              <span className="text-text-muted font-medium">T</span>
-              <span className="text-text-muted font-medium">F</span>
-              <span className="text-text-muted font-medium">S</span>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-sm">
-              {Array.from({ length: 31 }).map((_, i) => (
-                <div 
-                  key={i} 
-                  className={`p-1.5 rounded-full cursor-pointer flex items-center justify-center ${
-                    i === 14 ? 'bg-primary text-white font-medium shadow-sm' 
-                    : 'text-text-main hover:bg-bg'
-                  }`}
-                >
-                  {i + 1}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <hr className="border-border my-6" />
-
-          {/* Calendars List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm text-text-main uppercase tracking-wider">My Calendars</h3>
-              <button className="p-1 text-text-muted hover:text-primary transition-colors"><Plus className="w-4 h-4" /></button>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" defaultChecked className="rounded border-border text-primary focus:ring-primary/20 bg-bg" />
-                <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-                <span className="text-sm text-text-main group-hover:text-primary transition-colors">Discovery Calls</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" defaultChecked className="rounded border-border text-primary focus:ring-primary/20 bg-bg" />
-                <span className="w-3 h-3 rounded-full bg-purple-500"></span>
-                <span className="text-sm text-text-main group-hover:text-primary transition-colors">Product Demos</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" defaultChecked className="rounded border-border text-primary focus:ring-primary/20 bg-bg" />
-                <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-                <span className="text-sm text-text-main group-hover:text-primary transition-colors">Personal Events</span>
-              </label>
-            </div>
-          </div>
-
-          <hr className="border-border my-6" />
-
-          {/* Integrations Status */}
-          <div className="bg-bg border border-border rounded-xl p-4">
-            <h3 className="font-semibold text-sm text-text-main mb-3">Sync Status</h3>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-              <span className="text-sm text-text-muted">Google Calendar connected</span>
-            </div>
-            <button className="text-xs text-primary font-medium hover:underline mt-1">Manage Connections</button>
-          </div>
-
-        </div>
-
-        {/* Right Area: Large Calendar View */}
-        <div className="flex-1 flex flex-col bg-bg overflow-hidden relative">
-          
-          {/* Calendar Toolbar */}
-          <div className="h-16 border-b border-border flex items-center justify-between px-6 shrink-0 bg-surface/50 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-text-main">Oct 15 - 21, 2023</h2>
-              <div className="flex gap-1">
-                <button className="p-1.5 border border-border bg-surface rounded-md hover:bg-bg transition-colors"><ChevronLeft className="w-4 h-4 text-text-muted" /></button>
-                <button className="p-1.5 border border-border bg-surface rounded-md hover:bg-bg transition-colors text-sm font-medium px-3 text-text-main tracking-tight">Today</button>
-                <button className="p-1.5 border border-border bg-surface rounded-md hover:bg-bg transition-colors"><ChevronRight className="w-4 h-4 text-text-muted" /></button>
-              </div>
-            </div>
-
-            <div className="flex bg-surface p-1 rounded-lg border border-border">
-              {(['day', 'week', 'month'] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-md capitalize transition-colors ${
-                    view === v 
-                      ? 'bg-bg text-primary shadow-sm border border-border' 
-                      : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-                  }`}
-                >
-                  {v}
+          <div className="grid grid-cols-7 gap-0">
+            {['S','M','T','W','T','F','S'].map((d,i)=>(
+              <div key={i} className="text-center text-[10px] font-semibold text-text-muted py-1">{d}</div>
+            ))}
+            {grid.map((day, idx) => {
+              const dateStr = day ? `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}` : '';
+              const isToday = dateStr === todayStr;
+              return (
+                <button key={idx} disabled={!day} className={`h-7 w-7 mx-auto text-xs rounded-full flex items-center justify-center transition-colors ${!day?'':'hover:bg-surface-hover'} ${isToday?'bg-primary text-white font-bold':'text-text-muted'}`}>
+                  {day || ''}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Calendar Grid (Week View Mock) */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="flex min-h-[800px] relative">
-              {/* Time axis */}
-              <div className="w-16 flex flex-col pt-[40px] border-r border-border shrink-0 bg-bg z-20">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="h-16 text-xs text-text-muted font-medium text-right pr-3 -mt-2">
-                    {i + 8 === 12 ? '12:00 PM' : `${(i + 8) % 12 || 12}:00 ${i + 8 >= 12 ? 'PM' : 'AM'}`}
-                  </div>
-                ))}
-              </div>
-
-              {/* Days Columns & Grid */}
-              <div className="flex-1 flex relative">
-                
-                {/* Horizontal Grid Lines */}
-                <div className="absolute inset-0 pt-[40px] pointer-events-none flex flex-col z-0">
-                  {Array.from({ length: 12 }).map((_, i) => (
-                    <div key={i} className="h-16 border-t border-border/60 w-full" />
-                  ))}
-                </div>
-
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((day, i) => (
-                  <div key={day} className="flex-1 border-r border-border relative z-10">
-                    <div className="h-[40px] border-b border-border flex flex-col items-center justify-center bg-surface sticky top-0 z-30 shadow-sm">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{day}</span>
-                        <span className={`text-sm font-bold ${i === 2 ? 'w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center' : 'text-text-main'}`}>
-                          {15 + i}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Dynamic Events rendering for Today */}
-                    <div className="relative w-full h-full pt-[40px]">
-                      {appointments.map((apt: any) => {
-                        const start = new Date(apt.startTime);
-                        const end = new Date(apt.endTime);
-                        
-                        // Roughly plot them all on the middle day (Wednesday, i=2) for demonstration if they exist
-                        // Or if matching the day of week `start.getDay() === i + 1`
-                        if (start.getDay() !== i + 1) return null;
-
-                        const startHour = start.getHours() + (start.getMinutes() / 60);
-                        const endHour = end.getHours() + (end.getMinutes() / 60);
-
-                        // If it's before 8am or after 8pm, skip rendering for the visual grid
-                        if (startHour < 8 || startHour > 20) return null;
-
-                        const top = (startHour - 8) * 64;
-                        const height = (endHour - startHour) * 64;
-
-                        return (
-                          <div 
-                            key={apt.id} 
-                            style={{ top: `${top}px`, height: `${height}px` }}
-                            className="absolute left-2 right-2 bg-blue-500/10 border border-blue-500/30 rounded-lg p-2 overflow-hidden shadow-sm hover:ring-2 ring-blue-500/50 cursor-pointer transition-all hover:bg-blue-500/20 z-20"
-                          >
-                            <div className="w-1 h-full bg-blue-500 absolute left-0 top-0 rounded-l-lg"></div>
-                            <h4 className="text-xs font-semibold text-blue-500/90 truncate pl-1">{apt.title}</h4>
-                            <p className="text-[10px] text-blue-500/70 pl-1 mt-0.5 font-medium">
-                              {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
 
+        {/* Today's events */}
+        <div className="p-4 flex-1">
+          <div className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Today</div>
+          {aptsForDay(now).length === 0 ? (
+            <p className="text-xs text-text-muted">No events today</p>
+          ) : aptsForDay(now).map((apt: any) => {
+            const cfg = typeConfig[apt.type] || typeConfig.meeting;
+            const time = new Date(apt.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            return (
+              <div key={apt.id} className={`mb-2 p-2.5 rounded-xl border ${cfg.bg} bg-opacity-50`}>
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <cfg.icon className={`w-3 h-3 ${cfg.color}`} />
+                  <span className="text-xs font-semibold text-text-main truncate">{apt.title}</span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-text-muted">
+                  <Clock className="w-2.5 h-2.5" />{time}
+                  {apt.contact?.name && <span>· {apt.contact.name}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Booking link */}
+        <div className="p-4 border-t border-border">
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+            <div className="text-xs font-semibold text-primary mb-1">Booking Link</div>
+            <div className="text-[10px] text-text-muted font-mono mb-2">stone.aio/book/jack</div>
+            <button
+              onClick={() => { navigator.clipboard?.writeText('https://stone.aio/book/jack'); toast('success','Copied!','Booking link copied to clipboard'); }}
+              className="w-full py-1.5 bg-primary/10 text-primary text-xs font-semibold rounded-lg hover:bg-primary/20 transition-colors"
+            >
+              Copy Link
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main calendar area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="h-16 border-b border-border px-6 flex items-center justify-between shrink-0 bg-surface/60 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <button className="btn-primary py-2 px-4 text-sm" onClick={() => setNewOpen(true)}>
+              <Plus className="w-4 h-4" /> New Event
+            </button>
+            <div className="flex bg-surface border border-border rounded-lg p-0.5">
+              {(['week','month'] as const).map(v => (
+                <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${view===v?'bg-bg text-primary border border-border shadow-sm':'text-text-muted hover:text-text-main'}`}>{v}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="p-2 rounded-lg border border-border hover:border-primary/30 text-text-muted hover:text-text-main transition-colors"><ChevronLeft className="w-4 h-4"/></button>
+            <span className="text-sm font-semibold min-w-[150px] text-center">{MONTHS[now.getMonth()]} {now.getFullYear()}</span>
+            <button className="p-2 rounded-lg border border-border hover:border-primary/30 text-text-muted hover:text-text-main transition-colors"><ChevronRight className="w-4 h-4"/></button>
+            <button onClick={() => {}} className="px-3 py-1.5 text-xs font-semibold border border-primary/30 text-primary bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">Today</button>
+          </div>
+        </div>
+
+        {/* Week view */}
+        <div className="flex-1 overflow-auto">
+          {/* Day header */}
+          <div className="grid sticky top-0 z-10 bg-surface/95 backdrop-blur-sm border-b border-border" style={{gridTemplateColumns:'64px repeat(5,1fr)'}}>
+            <div className="h-14 border-r border-border" />
+            {weekDays.map((d, i) => {
+              const isToday = d.toISOString().split('T')[0] === todayStr;
+              return (
+                <div key={i} className={`h-14 border-r border-border flex flex-col items-center justify-center ${isToday?'bg-primary/5':''}`}>
+                  <span className="text-[10px] font-semibold text-text-muted uppercase">{DAYS[d.getDay()]}</span>
+                  <span className={`text-lg font-bold mt-0.5 ${isToday?'text-primary':''}`}>{d.getDate()}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Time grid */}
+          <div className="grid relative" style={{gridTemplateColumns:'64px repeat(5,1fr)'}}>
+            {/* Time labels */}
+            <div className="border-r border-border">
+              {HOURS.map(h => (
+                <div key={h} style={{height:64}} className="border-b border-border/50 flex items-start justify-end pr-3 pt-1">
+                  <span className="text-[10px] text-text-muted">{h === 12 ? '12pm' : h > 12 ? `${h-12}pm` : `${h}am`}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Day columns */}
+            {weekDays.map((d, di) => {
+              const dayApts = aptsForDay(d);
+              const isToday = d.toISOString().split('T')[0] === todayStr;
+              return (
+                <div key={di} className={`border-r border-border relative ${isToday?'bg-primary/[0.02]':''}`} style={{height: HOURS.length * 64}}>
+                  {HOURS.map(h => <div key={h} style={{height:64}} className="border-b border-border/30" />)}
+                  {dayApts.map((apt: any) => {
+                    const cfg = typeConfig[apt.type] || typeConfig.meeting;
+                    const top = hourPx(apt.startTime);
+                    const height = durationPx(apt.startTime, apt.endTime);
+                    const time = new Date(apt.startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+                    return (
+                      <div key={apt.id} className={`absolute left-1 right-1 rounded-lg border px-2 py-1 cursor-pointer hover:opacity-90 transition-opacity ${cfg.bg}`}
+                        style={{top:`${top}px`, height:`${height}px`, overflow:'hidden'}}>
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <cfg.icon className={`w-2.5 h-2.5 ${cfg.color} shrink-0`} />
+                          <span className={`text-[10px] font-bold ${cfg.color} truncate`}>{apt.title}</span>
+                        </div>
+                        <p className="text-[9px] text-text-muted leading-tight">{time}{apt.contact?.name ? ` · ${apt.contact.name}` : ''}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
+      {/* New Event Panel */}
+      <SlidePanel open={newOpen} onClose={() => setNewOpen(false)} title="New Event" subtitle="Schedule a call, meeting, or appointment"
+        actions={<>
+          <button className="btn-secondary text-sm py-2 px-4" onClick={() => setNewOpen(false)}>Cancel</button>
+          <button className="btn-primary text-sm py-2 px-4" onClick={handleCreate}>Create Event</button>
+        </>}
+      >
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Title *</label>
+            <input className="input-luxury" placeholder="e.g. Discovery Call with Acme"
+              value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['call','meeting','video'] as const).map(t => {
+                const cfg = typeConfig[t];
+                return (
+                  <button key={t} onClick={() => setForm(f=>({...f,type:t}))}
+                    className={`p-3 rounded-xl border text-center transition-all ${form.type===t?`${cfg.bg} border-current`:'border-border hover:border-primary/30'}`}>
+                    <cfg.icon className={`w-4 h-4 mx-auto mb-1 ${form.type===t?cfg.color:'text-text-muted'}`} />
+                    <span className={`text-xs font-semibold capitalize ${form.type===t?cfg.color:'text-text-muted'}`}>{t}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Date *</label>
+              <input type="date" className="input-luxury" value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Time</label>
+              <input type="time" className="input-luxury" value={form.time} onChange={e => setForm(f=>({...f,time:e.target.value}))} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Duration</label>
+            <select className="input-luxury" value={form.duration} onChange={e => setForm(f=>({...f,duration:+e.target.value}))}>
+              {[15,30,45,60,90,120].map(d=><option key={d} value={d}>{d} minutes</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Attendee</label>
+            <input className="input-luxury" placeholder="Contact name or email"
+              value={form.attendee} onChange={e => setForm(f=>({...f,attendee:e.target.value}))} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Location / Link</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              <input className="input-luxury pl-9" placeholder="Zoom link, address, or phone"
+                value={form.location} onChange={e => setForm(f=>({...f,location:e.target.value}))} />
+            </div>
+          </div>
+        </div>
+      </SlidePanel>
     </div>
   );
 }

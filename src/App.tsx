@@ -48,6 +48,7 @@ import CrmSettings from './pages/crm/Settings';
 
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from './components/ui/Toast';
 
 const PUBLISHABLE_KEY = (import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY || '';
 const queryClient = new QueryClient();
@@ -118,6 +119,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       {isDevBypass ? (
         <BrowserRouter>
           <AppRoutes />
@@ -178,6 +180,7 @@ export default function App() {
           </BrowserRouter>
         </ClerkProvider>
       )}
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
