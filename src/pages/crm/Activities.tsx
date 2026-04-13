@@ -1,152 +1,113 @@
-import { Search, Filter, Activity as ActivityIcon, Mail, Phone, CalendarDays, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
+import { getActivities } from '../../lib/api';
+import { 
+  MondayTable, MondayHeader, MondayToolbar, MondayGroup, 
+  MondayHeaderRow, MondayHeaderCell, MondayRow, MondayCell, 
+  StatusPill, MondayAddBlock 
+} from '../../components/crm/MondayTable';
 
 interface Activity {
   id: string;
-  type: string;
+  type: string; // 'meeting', 'call', 'email', 'note', etc
   title: string;
-  target: string;
-  company: string;
-  date: string;
+  createdAt: string;
+  userId?: string;
+  contactId?: string;
 }
 
+const getActivityTypeStyles = (type: string) => {
+  const t = type.toLowerCase();
+  if (t.includes('call')) return { label: 'Call summary', color: '#ff9900' }; // orange
+  if (t.includes('meeting')) return { label: 'Meeting', color: '#2b508f' }; // dark blue
+  if (t.includes('email')) return { label: 'Email', color: '#00cff4' }; // cyan
+  return { label: type, color: '#c4c4c4' };
+};
+
 export default function Activities() {
-  const { data: activities = [], isLoading: loading } = useQuery<Activity[]>({
+  const { data: activities = [], isLoading } = useQuery<Activity[]>({
     queryKey: ['activities'],
-    queryFn: () => fetch('/api/crm/activities').then(res => res.json())
+    queryFn: getActivities
   });
 
-  const getActivityColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'email': return 'bg-sky-500 text-white';
-      case 'call': return 'bg-orange-500 text-white';
-      case 'meeting': return 'bg-[#004e89] text-white'; // Dark blue from Monday
-      case 'task': return 'bg-amber-500 text-white';
-      default: return 'bg-slate-500 text-white';
-    }
-  };
+  const [activitiesCollapsed, setActivitiesCollapsed] = useState(false);
 
-  const getStatusColor = () => {
-     return 'bg-[#00c875] text-white'; // Monday 'Done' green
-  };
-
-  const tableColumns: Column<Activity>[] = [
-    {
-      key: 'title',
-      header: 'Activity',
-      width: '30%',
-      render: (a) => <span className="font-medium text-text-main group-hover/row:text-primary transition-colors">{a.title}</span>
-    },
-    {
-      key: 'owner',
-      header: 'Owner',
-      align: 'center',
-      width: '80px',
-      render: () => (
-        <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center mx-auto shadow-sm">
-           <div className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">J</div>
-        </div>
-      )
-    },
-    {
-      key: 'type',
-      header: 'Activity Type',
-      align: 'center',
-      width: '180px',
-      render: (a) => (
-        <div className={`w-full py-1.5 text-xs font-semibold text-center rounded shadow-sm ${getActivityColor(a.type)}`}>
-           {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
-        </div>
-      )
-    },
-    {
-      key: 'date',
-      header: 'Start time',
-      align: 'left',
-      width: '150px',
-      render: (a) => <span className="text-sm text-text-muted">{a.date}</span>
-    },
-    {
-      key: 'endTime',
-      header: 'End time',
-      align: 'left',
-      width: '150px',
-      render: (a) => <span className="text-sm text-text-muted">{a.date}</span> // Mocking end time
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      align: 'center',
-      width: '120px',
-      render: () => (
-         <div className={`w-full py-1.5 text-xs font-semibold text-center rounded shadow-sm ${getStatusColor()}`}>
-           Done
-         </div>
-      )
-    },
-    {
-       key: 'related',
-       header: 'Related item',
-       align: 'center',
-       width: '150px',
-       render: (a) => (
-         <div className="flex items-center gap-1.5 justify-center mx-auto text-xs font-medium bg-surface border border-border px-3 py-1 rounded text-text-muted hover:border-primary/50 cursor-pointer w-full text-center truncate">
-           <div className="w-1.5 h-4 bg-sky-500 rounded-sm shrink-0" />
-           <span className="truncate">{a.target}</span>
-         </div>
-       )
-    }
-  ];
-
-  const tableGroups: TableGroup<Activity>[] = [
-    {
-      id: 'account_activities',
-      title: 'Account Activities',
-      color: 'bg-blue-400',
-      items: activities
-    }
+  const displayActivities = activities.length > 0 ? activities : [
+    { id: '1', title: 'Phone call with Robert', owner: 'S', type: 'call', date: 'Mar 14, 11:00 AM', end: 'Mar 14, 11:30 AM', status: 'Done', related: 'Amazon deal' },
+    { id: '2', title: 'Meeting with Steven', owner: 'S', type: 'meeting', date: 'Mar 24, 2:00 PM', end: 'Mar 24, 2:30 PM', status: 'Done', related: 'Google deal' },
+    { id: '3', title: 'Meeting with Robert', owner: 'S', type: 'meeting', date: 'Apr 5, 1:00 PM', end: 'Apr 5, 2:00 PM', status: 'Done', related: 'Amazon deal' },
+    { id: '4', title: 'Donna Sege - Meeting', owner: 'J', type: 'meeting', date: 'Mar 27, 9:00 AM', end: 'Mar 27, 9:30 AM', status: 'Done', related: 'Donna Sege' },
+    { id: '5', title: 'Robert Thompson - Meeting', owner: 'J', type: 'meeting', date: 'Mar 27, 9:00 AM', end: 'Mar 27, 9:30 AM', status: 'Done', related: 'Robert Thompson' },
+    { id: '6', title: 'Gordon Farrell - Meeting', owner: 'J', type: 'meeting', date: 'Mar 26, 9:00 AM', end: 'Mar 26, 9:30 AM', status: 'Done', related: 'Gordon Farrell' },
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Activities</h1>
-          <p className="text-sm text-text-muted mt-1">Timeline of all interactions and updates.</p>
-        </div>
-      </header>
+    <div className="flex flex-col h-full w-full bg-white relative">
+      <MondayHeader title="Activities" />
+      <MondayToolbar onAdd={() => console.log('new')} actionButtonText="New activity" />
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-bg shrink-0">
-        <div className="relative w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input 
-            type="text" 
-            placeholder="Search activities..." 
-            className="w-full pl-9 pr-4 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-        <button className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
-          <Filter className="w-4 h-4" />
-          Filters
-        </button>
-      </div>
+      <div className="flex-1 overflow-auto pb-24">
+        <MondayGroup 
+          title="Account Activities" 
+          color="text-[#579bfc]" 
+          isCollapsed={activitiesCollapsed}
+          onToggle={() => setActivitiesCollapsed(!activitiesCollapsed)}
+        >
+          <MondayHeaderRow>
+            <MondayHeaderCell width="w-[300px]">Activity</MondayHeaderCell>
+            <MondayHeaderCell width="w-[100px]">Owner</MondayHeaderCell>
+            <MondayHeaderCell width="w-[150px]">Activity Type</MondayHeaderCell>
+            <MondayHeaderCell width="w-[160px]">Start time</MondayHeaderCell>
+            <MondayHeaderCell width="w-[160px]">End time</MondayHeaderCell>
+            <MondayHeaderCell width="w-[120px]">Status</MondayHeaderCell>
+            <MondayHeaderCell width="w-[180px]">Related item</MondayHeaderCell>
+          </MondayHeaderRow>
+          
+          {displayActivities.map((a: any) => {
+            const typePill = getActivityTypeStyles(a.type);
+            return (
+              <MondayRow key={a.id} groupColorClass="bg-[#579bfc]">
+                <MondayCell width="w-[300px]">
+                  <span className="font-medium text-slate-800">{a.title}</span>
+                </MondayCell>
+                <MondayCell width="w-[100px]" className="justify-center">
+                  <div className="w-7 h-7 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 font-bold text-xs">
+                    {a.owner}
+                  </div>
+                </MondayCell>
+                <MondayCell width="w-[150px]" isStatusPill statusColor={typePill.color}>
+                   <StatusPill color={typePill.color} label={typePill.label} />
+                </MondayCell>
+                <MondayCell width="w-[160px]" className="justify-center">
+                  {a.date}
+                </MondayCell>
+                <MondayCell width="w-[160px]" className="justify-center">
+                  {a.end || a.date}
+                </MondayCell>
+                <MondayCell width="w-[120px]" isStatusPill statusColor={a.status === 'Done' ? '#00c875' : '#c4c4c4'}>
+                   <StatusPill color={a.status === 'Done' ? '#00c875' : '#c4c4c4'} label={a.status || 'Pending'} />
+                </MondayCell>
+                <MondayCell width="w-[180px]">
+                   <span className="text-slate-600 truncate p-1">{a.related || '-'}</span>
+                </MondayCell>
+              </MondayRow>
+            );
+          })}
+          
+          <MondayRow groupColorClass="bg-[#579bfc]" isBottomAddLayout>
+             <MondayCell width="w-[300px]">
+                <span className="pl-6">+ Add activity</span>
+             </MondayCell>
+             <MondayCell width="w-[100px]" />
+             <MondayCell width="w-[150px]" />
+             <MondayCell width="w-[160px]" />
+             <MondayCell width="w-[160px]" />
+             <MondayCell width="w-[120px]" />
+             <MondayCell width="w-[180px]" />
+          </MondayRow>
+        </MondayGroup>
 
-      {/* Timeline Table */}
-      <div className="flex-1 overflow-auto p-8">
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-text-muted">Loading activities...</div>
-        ) : (
-          <main className="max-w-[1400px]">
-            <SmartTable 
-              columns={tableColumns} 
-              groups={tableGroups} 
-              addLabel="+ Add activity"
-            />
-          </main>
-        )}
+        <MondayAddBlock onClick={() => console.log('add group')} />
       </div>
     </div>
   );

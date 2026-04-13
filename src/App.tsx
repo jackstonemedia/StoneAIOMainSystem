@@ -35,16 +35,18 @@ import Inbox from './pages/business/Inbox';
 
 // CRM Pages
 import CrmLayout from './pages/crm/CrmLayout';
-import CrmDashboard from './pages/crm/Dashboard';
 import Contacts from './pages/crm/Contacts';
 import ContactDetail from './pages/crm/ContactDetail';
 import Companies from './pages/crm/Companies';
+import Leads from './pages/crm/Leads';
 import CompanyDetail from './pages/crm/CompanyDetail';
 import Deals from './pages/crm/Deals';
 import DealDetail from './pages/crm/DealDetail';
 import Activities from './pages/crm/Activities';
 import Pipelines from './pages/crm/Pipelines';
+import Communications from './pages/crm/Communications';
 import CrmSettings from './pages/crm/Settings';
+import { Navigate } from 'react-router-dom';
 
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -92,11 +94,13 @@ function AppRoutes() {
           <Route path="reputation" element={<Reputation />} />
           {/* CRM nested under business */}
           <Route path="crm" element={<CrmLayout />}>
-            <Route index element={<CrmDashboard />} />
+            <Route index element={<Navigate to="contacts" replace />} />
             <Route path="contacts" element={<Contacts />} />
             <Route path="contacts/:id" element={<ContactDetail />} />
-            <Route path="companies" element={<Companies />} />
-            <Route path="companies/:id" element={<CompanyDetail />} />
+            <Route path="accounts" element={<Companies />} />
+            <Route path="accounts/:id" element={<CompanyDetail />} />
+            <Route path="leads" element={<Leads />} />
+            <Route path="communications" element={<Communications />} />
             <Route path="deals" element={<Deals />} />
             <Route path="deals/:id" element={<DealDetail />} />
             <Route path="activities" element={<Activities />} />
@@ -157,11 +161,13 @@ export default function App() {
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="reputation" element={<Reputation />} />
                   <Route path="crm" element={<CrmLayout />}>
-                    <Route index element={<CrmDashboard />} />
+                    <Route index element={<Navigate to="contacts" replace />} />
                     <Route path="contacts" element={<Contacts />} />
                     <Route path="contacts/:id" element={<ContactDetail />} />
                     <Route path="companies" element={<Companies />} />
                     <Route path="companies/:id" element={<CompanyDetail />} />
+                    <Route path="leads" element={<Leads />} />
+                    <Route path="communications" element={<Communications />} />
                     <Route path="deals" element={<Deals />} />
                     <Route path="deals/:id" element={<DealDetail />} />
                     <Route path="activities" element={<Activities />} />

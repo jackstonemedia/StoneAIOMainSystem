@@ -1,411 +1,335 @@
-import { Search, Filter, MoreHorizontal, Calendar, Plus, LayoutGrid, List, Users, Building2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDeals, updateDeal } from '../../lib/api';
+import React, { useState, useEffect } from 'react';
+import {
+  MondayGroup, MondayHeaderRow, MondayHeaderCell, MondayRow, MondayCell,
+  StatusPill, MondayAddBlock, MondayHeader, MondayToolbar
+} from '../../components/crm/MondayTable';
 import DealSlideOver from '../../components/crm/DealSlideOver';
-import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
-import DealDetailDrawer from '../../components/crm/DealDetailDrawer';
+import KanbanBoard from '../../components/crm/KanbanBoard';
+import WinLossModal from '../../components/crm/WinLossModal';
+import { Building2, Users, Columns, Grid, List, ChevronDown, Target, TrendingUp, Calendar, Search, Filter, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface Deal {
-  id: string;
-  title: string;
-  companyId?: string;
-  contactId?: string;
-  company?: {
-    name: string;
-  };
-  amount: number | string;
-  stage: string;
-  closeDate?: string;
-  priority?: 'low' | 'medium' | 'high';
-  owner?: string;
-  tags?: string[];
+  id: string; title: string; value: number; stage: string; probability: number;
+  expectedCloseDate: string; stageAge?: number;
+  contact?: { firstName: string; lastName?: string | null } | null;
+  company?: { name: string } | null;
+}
+
+const PIPELINES = [
+  { id: 'p1', name: 'Main Sales Pipeline' },
+  { id: 'p2', name: 'Enterprise Pipeline' },
+  { id: 'p3', name: 'Partner Pipeline' },
+];
+
+const KANBAN_STAGES = [
+  { id: '1', name: 'Discovery', color: 'text-[#579bfc]', rottingDays: 14 },
+  { id: '2', name: 'Proposal', color: 'text-[#00cff4]', rottingDays: 10 },
+  { id: '3', name: 'Negotiation', color: 'text-[#a25ddc]', rottingDays: 7 },
+  { id: '4', name: 'Won', color: 'text-[#00c875]' },
+  { id: '5', name: 'Lost', color: 'text-[#e2445c]' },
+];
+
+const STAGE_COLORS: Record<string, string> = {
+  Discovery: '#579bfc', Proposal: '#00cff4', Negotiation: '#a25ddc', Won: '#00c875', Lost: '#e2445c',
+};
+
+const INITIAL_DEALS: Deal[] = [
+  { id: '1', title: 'Google Integration Suite', value: 70000, stage: 'Discovery', probability: 20, expectedCloseDate: 'May 30', stageAge: 3, contact: { firstName: 'Steven', lastName: 'Scott' }, company: { name: 'Google' } },
+  { id: '2', title: 'Apple Enterprise Plan', value: 55000, stage: 'Discovery', probability: 40, expectedCloseDate: 'Jun 15', stageAge: 18, contact: { firstName: 'Sam', lastName: 'Jones' }, company: { name: 'Apple' } },
+  { id: '3', title: 'Amazon AWS Contract', value: 100000, stage: 'Proposal', probability: 60, expectedCloseDate: 'Apr 28', stageAge: 5, contact: { firstName: 'Robert', lastName: 'Thompson' }, company: { name: 'Amazon' } },
+  { id: '4', title: 'Acme Q3 Software', value: 55000, stage: 'Won', probability: 100, expectedCloseDate: 'Mar 20', stageAge: 0, contact: { firstName: 'Alice', lastName: 'Freeman' }, company: { name: 'Acme Corp' } },
+  { id: '5', title: 'Tesla Hardware Upgrade', value: 30000, stage: 'Won', probability: 100, expectedCloseDate: 'Mar 15', stageAge: 0, contact: { firstName: 'Elon', lastName: 'Musk' }, company: { name: 'Tesla' } },
+  { id: '6', title: 'NovaStar AI Platform', value: 88000, stage: 'Negotiation', probability: 75, expectedCloseDate: 'May 5', stageAge: 9, contact: { firstName: 'David', lastName: 'Chen' }, company: { name: 'NovaStar' } },
+  { id: '7', title: 'Orbit Labs Pro Tier', value: 36000, stage: 'Proposal', probability: 55, expectedCloseDate: 'Jun 1', stageAge: 2, contact: { firstName: 'James', lastName: 'Lee' }, company: { name: 'Orbit Labs' } },
+];
+
+type ViewMode = 'kanban' | 'table' | 'list';
+
+function getStagePill(stage: string) {
+  const color = STAGE_COLORS[stage] || '#a25ddc';
+  return { label: stage, color };
 }
 
 export default function Deals() {
-  const navigate = useNavigate();
-  const stages = [
-    { id: 'lead', name: 'Lead', color: 'bg-slate-400' },
-    { id: 'qualified', name: 'Qualified', color: 'bg-blue-400' },
-    { id: 'proposal', name: 'Proposal', color: 'bg-amber' },
-    { id: 'negotiation', name: 'Negotiation', color: 'bg-purple' },
-    { id: 'won', name: 'Won', color: 'bg-green' },
-  ];
-
-  const queryClient = useQueryClient();
-  const [optimisticDeals, setOptimisticDeals] = useState<Deal[] | null>(null);
+  const [localDeals, setLocalDeals] = useState<Deal[]>(() => {
+    const saved = localStorage.getItem('crm_deals');
+    return saved ? JSON.parse(saved) : INITIAL_DEALS;
+  });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('crm_deals_view') as ViewMode) || 'kanban');
+  const [activePipeline, setActivePipeline] = useState(PIPELINES[0]);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
-  const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'board' | 'table'>('table');
+  const [activeCollapsed, setActiveCollapsed] = useState(false);
+  const [closedCollapsed, setClosedCollapsed] = useState(false);
+  const [winLoss, setWinLoss] = useState<{ dealId: string; title: string; outcome: 'won' | 'lost' } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStage, setFilterStage] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const { data: serverDeals = [], isLoading: loading } = useQuery<Deal[]>({
-    queryKey: ['deals'],
-    queryFn: getDeals
-  });
-
-  const deals = optimisticDeals !== null ? optimisticDeals : serverDeals;
-
-  const updateStageMutation = useMutation({
-    mutationFn: ({ id, ...data }: { id: string; stage: string }) => updateDeal(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      setOptimisticDeals(null);
-    },
-    onError: () => {
-      // Revert optimistic update
-      setOptimisticDeals(null);
-    }
-  });
-
-  const onDragEnd = (result: DropResult) => {
-    const { destination, source, draggableId } = result;
-
-    if (!destination) return;
-
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) {
-      return;
-    }
-
-    const draggedDeal = deals.find(d => d.id === draggableId);
-    if (!draggedDeal) return;
-
-    // Create a new array to avoid mutating state directly
-    const newDeals = [...deals];
-    
-    // Remove the dragged item from its original position
-    const sourceIndex = newDeals.findIndex(d => d.id === draggableId);
-    newDeals.splice(sourceIndex, 1);
-
-    // Update the stage of the dragged item
-    const updatedDeal = { ...draggedDeal, stage: destination.droppableId };
-
-    // Find where to insert it in the destination stage
-    // We need to insert it at the correct index relative to other items in the destination stage
-    const destStageDeals = newDeals.filter(d => d.stage === destination.droppableId);
-    
-    // If inserting at the end or into an empty list
-    if (destination.index >= destStageDeals.length) {
-      newDeals.push(updatedDeal);
-    } else {
-      // Find the actual index in the full array
-      const itemAtDestIndex = destStageDeals[destination.index];
-      const actualInsertIndex = newDeals.findIndex(d => d.id === itemAtDestIndex.id);
-      newDeals.splice(actualInsertIndex, 0, updatedDeal);
-    }
-
-    setOptimisticDeals(newDeals);
-
-    // Update backend via mutation
-    updateStageMutation.mutate({
-      id: updatedDeal.id,
-      stage: destination.droppableId
-    });
+  const persist = (updated: Deal[]) => {
+    setLocalDeals(updated);
+    localStorage.setItem('crm_deals', JSON.stringify(updated));
   };
 
-  // SmartTable Configurations
-  const tableColumns: Column<Deal>[] = [
-    { 
-      key: 'title', 
-      header: 'Deal Name', 
-      width: '25%',
-      render: (deal) => <div className="font-medium text-text-main group-hover/row:text-primary transition-colors">{deal.title}</div>
-    },
-    {
-      key: 'stage',
-      header: 'Stage',
-      align: 'center',
-      width: '140px',
-      render: (deal) => {
-         const stageData = stages.find(s => s.id === deal.stage);
-         return (
-           <div className={`w-full py-1.5 text-xs font-semibold text-center text-white rounded shadow-sm ${stageData?.color.replace('bg-', 'bg-') || 'bg-surface'}`}>
-             {stageData?.name || deal.stage}
-           </div>
-         );
-      }
-    },
-    {
-       key: 'owner',
-       header: 'Owner',
-       align: 'center',
-       width: '80px',
-       render: (deal) => (
-         deal.owner ? (
-         <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold border border-primary/30 mx-auto" title={deal.owner}>
-           {deal.owner}
-         </div>
-         ) : <div className="w-7 h-7 rounded-full bg-surface border border-dashed border-border flex items-center justify-center mx-auto text-text-muted hover:border-primary/50 transition-colors cursor-pointer"><Plus className="w-3 h-3"/></div>
-       )
-    },
-    {
-      key: 'amount',
-      header: 'Deal Value',
-      align: 'right',
-      width: '120px',
-      render: (deal) => <div className="font-mono text-sm">${(deal.amount || 0).toLocaleString()}</div>
-    },
-    {
-       key: 'contact',
-       header: 'Contacts',
-       align: 'center',
-       width: '150px',
-       render: (deal) => (
-         <div className="flex items-center justify-center mx-auto gap-2 bg-surface border border-border px-3 py-1 rounded-full text-xs font-medium text-text-muted w-max hover:border-primary/50 transition-colors cursor-pointer">
-           <Users className="w-3 h-3" />
-           {deal.contactId ? 'Contact Attached' : 'Add Contact'}
-         </div>
-       )
-    },
-    {
-       key: 'company',
-       header: 'Accounts',
-       align: 'center',
-       width: '150px',
-       render: (deal) => (
-         <div className="flex items-center justify-center mx-auto gap-2 bg-surface border border-border px-3 py-1 rounded-full text-xs font-medium text-text-muted w-max hover:border-primary/50 transition-colors cursor-pointer">
-           <Building2 className="w-3 h-3" />
-           {deal.company?.name || 'Add Account'}
-         </div>
-       )
-    }
-  ];
+  const setView = (v: ViewMode) => { setViewMode(v); localStorage.setItem('crm_deals_view', v); };
 
-  const activeDeals = deals.filter(d => d.stage !== 'won' && d.stage !== 'lost');
-  const wonDeals = deals.filter(d => d.stage === 'won');
+  const filtered = localDeals.filter(d => {
+    if (searchQuery && !d.title.toLowerCase().includes(searchQuery.toLowerCase()) && !d.company?.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterStage && d.stage !== filterStage) return false;
+    return true;
+  });
 
-  const tableGroups: TableGroup<Deal>[] = [
-    {
-      id: 'active',
-      title: 'Active Deals',
-      color: 'bg-blue-500',
-      items: activeDeals,
-      summary: (
-        <div className="flex items-center justify-end w-full pr-[330px]">
-          <span className="text-text-muted text-sm mr-4">Total Value</span>
-          <span className="font-mono font-medium">${activeDeals.reduce((sum, d) => sum + (d.amount || 0), 0).toLocaleString()}</span>
-        </div>
-      )
-    },
-    {
-      id: 'won',
-      title: 'Closed Won',
-      color: 'bg-green-500',
-      items: wonDeals,
-      summary: (
-        <div className="flex items-center justify-end w-full pr-[330px]">
-          <span className="text-text-muted text-sm mr-4">Total Won</span>
-          <span className="font-mono font-medium">${wonDeals.reduce((sum, d) => sum + (d.amount || 0), 0).toLocaleString()}</span>
-        </div>
-      )
+  const activeDeals = filtered.filter(d => !['Won', 'Lost'].includes(d.stage));
+  const closedDeals = filtered.filter(d => ['Won', 'Lost'].includes(d.stage));
+
+  const totalPipeline = activeDeals.reduce((acc, d) => acc + d.value, 0);
+  const weightedForecast = activeDeals.reduce((acc, d) => acc + d.value * (d.probability / 100), 0);
+  const wonValue = closedDeals.filter(d => d.stage === 'Won').reduce((acc, d) => acc + d.value, 0);
+
+  const handleDealMove = (dealId: string, destStageName: string) => {
+    const deal = localDeals.find(d => d.id === dealId);
+    if (!deal) return;
+    persist(localDeals.map(d => d.id === dealId ? { ...d, stage: destStageName, stageAge: 0 } : d));
+    if (destStageName === 'Won' || destStageName === 'Lost') {
+      setWinLoss({ dealId, title: deal.title, outcome: destStageName === 'Won' ? 'won' : 'lost' });
     }
-  ];
+  };
+
+  const handleWinLossConfirm = (reason: string, note: string) => {
+    console.log('Win/Loss reason:', reason, note);
+    setWinLoss(null);
+  };
+
+  const deleteDeal = (id: string) => persist(localDeals.filter(d => d.id !== id));
+
+  const sumActive = activeDeals.reduce((acc, d) => acc + d.value, 0);
+  const sumClosed = closedDeals.reduce((acc, d) => acc + d.value, 0);
+
+  const headerCols = (
+    <MondayHeaderRow>
+      <MondayHeaderCell width="flex-1 min-w-[240px]">Deal</MondayHeaderCell>
+      <MondayHeaderCell width="w-[140px]">Stage</MondayHeaderCell>
+      <MondayHeaderCell width="w-[130px]">Value</MondayHeaderCell>
+      <MondayHeaderCell width="w-[80px]">Prob.</MondayHeaderCell>
+      <MondayHeaderCell width="w-[120px]">Weighted</MondayHeaderCell>
+      <MondayHeaderCell width="w-[110px]">Close Date</MondayHeaderCell>
+      <MondayHeaderCell width="w-[180px]">Contact</MondayHeaderCell>
+      <MondayHeaderCell width="w-[160px]">Company</MondayHeaderCell>
+    </MondayHeaderRow>
+  );
+
+  const renderDealRow = (d: Deal, groupColor: string) => {
+    const stage = getStagePill(d.stage);
+    return (
+      <MondayRow key={d.id} groupColorClass={groupColor}>
+        <MondayCell width="flex-1 min-w-[240px]">
+          <span onClick={() => setIsSlideOverOpen(true)} className="font-bold text-text-main hover:text-primary cursor-pointer transition-colors text-[13px]">{d.title}</span>
+        </MondayCell>
+        <MondayCell width="w-[140px]" isStatusPill statusColor={stage.color}>
+          <StatusPill color={stage.color} label={stage.label} />
+        </MondayCell>
+        <MondayCell width="w-[130px]">
+          <span className="font-bold text-text-main">${(d.value || 0).toLocaleString()}</span>
+        </MondayCell>
+        <MondayCell width="w-[80px]">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-surface-hover rounded-full overflow-hidden shadow-inner flex shrink-0">
+              <div className="h-full rounded-full drop-shadow-[0_0_8px_currentColor]" style={{ background: stage.color, color: stage.color, width: `${d.probability}%` }} />
+            </div>
+            <span className="text-[11px] font-bold text-text-muted">{d.probability}%</span>
+          </div>
+        </MondayCell>
+        <MondayCell width="w-[120px]">
+          <div className="flex items-center gap-1.5 text-[12px] font-bold text-text-muted">
+            <Target className="w-3.5 h-3.5 text-primary shrink-0" />
+            ${Math.round((d.value || 0) * (d.probability / 100)).toLocaleString()}
+          </div>
+        </MondayCell>
+        <MondayCell width="w-[110px]">
+          {d.expectedCloseDate ? (
+            <div className="flex items-center gap-1.5 text-[12px] font-bold text-text-muted">
+              <Calendar className="w-3.5 h-3.5 text-primary" /> {d.expectedCloseDate}
+            </div>
+          ) : <span className="text-text-muted/50 text-[12px] font-bold">—</span>}
+        </MondayCell>
+        <MondayCell width="w-[180px]">
+          {d.contact ? (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-surface-hover shadow-sm rounded-md text-text-main text-[11px] font-bold max-w-full w-max mt-1">
+              <Users className="w-3 h-3 shrink-0 text-accent-teal" />
+              <span className="truncate">{d.contact.firstName} {d.contact.lastName}</span>
+            </div>
+          ) : <span className="opacity-0">-</span>}
+        </MondayCell>
+        <MondayCell width="w-[160px]">
+          {d.company ? (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/[0.06] rounded-md text-primary/80 text-[11px] font-semibold max-w-full w-max mt-1">
+              <Building2 className="w-3 h-3 shrink-0" />
+              <span className="truncate">{d.company.name}</span>
+            </div>
+          ) : <span className="opacity-0">-</span>}
+        </MondayCell>
+      </MondayRow>
+    );
+  };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Deals Pipeline</h1>
-          <p className="text-sm text-text-muted mt-1">Manage your sales opportunities and forecast.</p>
-        </div>
-        <button 
-          onClick={() => setIsSlideOverOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white shadow-md shadow-primary/20 rounded-lg font-medium hover:bg-primary-hover transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          New Deal
-        </button>
-      </header>
+    <div className="flex flex-col h-full w-full bg-bg relative styled-scrollbar">
+      <MondayHeader title="Deals" subtitle={activePipeline.name} />
+
+      {/* Forecast Bar */}
+      <div className="flex items-center gap-6 px-8 py-3 border-b border-border shrink-0 bg-white/70 backdrop-blur-md">
+        {[
+          { label: 'Pipeline',         value: `$${totalPipeline.toLocaleString()}`,                icon: TrendingUp, color: 'var(--primary)' },
+          { label: 'Weighted Forecast', value: `$${Math.round(weightedForecast).toLocaleString()}`, icon: Target,     color: 'var(--accent-teal)' },
+          { label: 'Won (Period)',       value: `$${wonValue.toLocaleString()}`,                    icon: TrendingUp, color: 'var(--accent-green)' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-border bg-surface">
+              <Icon className="w-4 h-4" style={{ color }} />
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">{label}</div>
+              <div className="text-[15px] font-bold text-text-main">{value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-bg shrink-0">
-        <div className="relative w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input 
-            type="text" 
-            placeholder="Search deals..." 
-            className="w-full pl-9 pr-4 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex p-1 bg-surface border border-border rounded-lg mr-2">
-            <button 
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'table' ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main'}`}
-              title="Table View"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => setViewMode('board')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main'}`}
-              title="Board View"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
-          <button className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
-            <Filter className="w-4 h-4" />
-            Filters
+      <div className="flex items-center gap-4 px-8 py-4 bg-bg border-b border-border shrink-0 flex-wrap relative z-20">
+        <button onClick={() => setIsSlideOverOpen(true)} className="btn-primary px-5 py-2 text-[13px]">
+          + New deal
+        </button>
+
+        {/* Pipeline Selector */}
+        <div className="relative">
+          <button onClick={() => setPipelineOpen(o => !o)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-transparent text-[13px] font-bold text-text-main hover:bg-surface-hover hover:border-border/50 transition-all">
+            {activePipeline.name} <ChevronDown className="w-4 h-4 text-text-muted" />
           </button>
+          <AnimatePresence>
+            {pipelineOpen && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl shadow-luxury py-1.5 min-w-[200px]">
+                {PIPELINES.map(p => (
+                  <button key={p.id} onClick={() => { setActivePipeline(p); setPipelineOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-[13px] font-bold transition-all ${activePipeline.id === p.id ? 'text-primary bg-primary/10' : 'text-text-muted hover:bg-surface-hover hover:text-text-main'}`}>
+                    {p.name}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Search */}
+        <div className="relative flex items-center bg-surface border border-border rounded-lg px-3 py-1.5 gap-2 shadow-inner group focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+          <Search className="w-4 h-4 text-text-muted group-focus-within:text-primary transition-colors" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search deals..."
+            className="bg-transparent text-[13px] font-bold text-text-main outline-none w-48 placeholder:text-text-muted/60" />
+          {searchQuery && <button onClick={() => setSearchQuery('')}><X className="w-3.5 h-3.5 text-text-muted hover:text-accent-red" /></button>}
+        </div>
+
+        {/* Stage filter */}
+        <div className="relative">
+          <button onClick={() => setFilterOpen(o => !o)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all border border-transparent ${filterStage ? 'bg-primary/10 text-primary border-primary/20 shadow-sm' : 'text-text-muted hover:bg-surface-hover hover:border-border/50'}`}>
+            <Filter className="w-4 h-4" /> {filterStage || 'All Stages'}
+          </button>
+          <AnimatePresence>
+            {filterOpen && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="absolute top-full left-0 mt-2 z-50 bg-surface border border-border rounded-xl shadow-luxury py-1.5 min-w-[150px]">
+                {['', ...KANBAN_STAGES.map(s => s.name)].map(s => (
+                  <button key={s || 'all'} onClick={() => { setFilterStage(s); setFilterOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-[13px] font-bold flex items-center gap-3 transition-all ${filterStage === s ? 'bg-primary/10 text-primary' : 'text-text-muted hover:bg-surface-hover hover:text-text-main'}`}>
+                    {s && <div className="w-3 h-3 rounded-md shadow-sm" style={{ background: STAGE_COLORS[s], boxShadow: `0 0 8px ${STAGE_COLORS[s]}` }} />}
+                    {s || 'All Stages'}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* View Switcher */}
+        <div className="ml-auto flex items-center gap-1 bg-surface-hover p-1.5 rounded-xl border border-border flex-wrap shadow-inner">
+          {([['kanban', Columns, 'Board'], ['table', Grid, 'Table'], ['list', List, 'List']] as [ViewMode, any, string][]).map(([mode, Icon, label]) => (
+            <button key={mode} onClick={() => setView(mode)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all text-[12px] font-bold ${viewMode === mode ? 'bg-surface text-primary shadow-[0_2px_8px_rgba(0,0,0,0.08)] scale-105' : 'text-text-muted hover:text-text-main hover:bg-bg'}`}>
+              <Icon className="w-4 h-4" /> {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className={`flex-1 overflow-auto ${viewMode === 'board' ? 'p-6' : 'p-8'}`}>
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-text-muted">Loading deals...</div>
-        ) : viewMode === 'table' ? (
-          <main className="max-w-[1400px]">
-            <SmartTable 
-              columns={tableColumns} 
-              groups={tableGroups} 
-              onRowClick={(d) => setSelectedDealId(d.id)}
-              onAddClick={() => setIsSlideOverOpen(true)}
-              addLabel="+ Add deal"
-            />
-          </main>
-        ) : (
-          <DragDropContext onDragEnd={onDragEnd}>
-            <div className="flex gap-6 h-full min-w-max">
-              {stages.map(stage => {
-                const stageDeals = deals.filter(d => d.stage.toLowerCase() === stage.id.toLowerCase());
-                const totalAmount = stageDeals.reduce((sum, deal) => {
-                  const num = typeof deal.amount === 'string' ? parseInt(deal.amount.replace(/[^0-9]/g, '') || '0', 10) : deal.amount;
-                  return sum + (num || 0);
-                }, 0);
-
-                return (
-                  <div key={stage.id} className="w-80 flex flex-col h-full">
-                    {/* Stage Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${stage.color}`} />
-                        <h3 className="font-semibold">{stage.name}</h3>
-                        <span className="text-xs font-medium text-text-muted bg-surface border border-border px-2 py-0.5 rounded-full">
-                          {stageDeals.length}
-                        </span>
-                      </div>
-                      <div className="text-sm font-medium text-text-muted">
-                        ${totalAmount.toLocaleString()}
-                      </div>
-                    </div>
-
-                    {/* Deal Cards */}
-                    <Droppable droppableId={stage.id}>
-                      {(provided, snapshot) => (
-                        <div 
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className={`flex-1 flex flex-col gap-3 rounded-xl p-3 border overflow-y-auto transition-colors ${
-                            snapshot.isDraggingOver ? 'bg-surface border-primary/50' : 'bg-surface/50 border-border/50'
-                          }`}
-                        >
-                          {stageDeals.map((deal, index) => (
-                            <Draggable key={deal.id} draggableId={deal.id} index={index}>
-                              {(provided, snapshot) => (
-                                <div 
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  onClick={() => setSelectedDealId(deal.id)}
-                                  className={`bg-surface border rounded-xl p-4 cursor-pointer transition-all shadow-sm group relative overflow-hidden ${
-                                    snapshot.isDragging ? 'border-primary shadow-xl ring-2 ring-primary/20 scale-105 z-50' : 'border-border hover:border-primary/50 hover:shadow-md'
-                                  }`}
-                                  style={{
-                                    ...provided.draggableProps.style,
-                                    transform: snapshot.isDragging 
-                                      ? `${provided.draggableProps.style?.transform} rotate(3deg)` 
-                                      : provided.draggableProps.style?.transform
-                                  }}
-                                >
-                                  {/* Priority indicator stripe */}
-                                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                                    deal.priority === 'high' ? 'bg-red-500' :
-                                    deal.priority === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
-                                  }`} />
-
-                                  <div className="flex items-start justify-between mb-3 pl-2">
-                                    <div className="font-semibold text-sm text-text-main group-hover:text-primary transition-colors pr-4">{deal.title}</div>
-                                    <button 
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="text-text-muted hover:text-text-main opacity-0 group-hover:opacity-100 transition-opacity p-1 -mr-2 -mt-2 rounded-md hover:bg-surface-hover"
-                                    >
-                                      <MoreHorizontal className="w-4 h-4" />
-                                    </button>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 mb-4 pl-2">
-                                    <div className="w-5 h-5 rounded bg-bg border border-border flex items-center justify-center text-[10px] font-bold text-text-muted uppercase shrink-0">
-                                      {(deal.company?.name || 'N').substring(0, 1)}
-                                    </div>
-                                    <div className="text-xs font-medium text-text-muted truncate">{deal.company?.name || 'No Company'}</div>
-                                  </div>
-
-                                  {/* Tags */}
-                                  {deal.tags && deal.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-4 pl-2">
-                                      {deal.tags.map(tag => (
-                                        <span key={tag} className="text-[10px] font-medium bg-bg text-text-muted px-2 py-0.5 rounded-md border border-border">
-                                          {tag}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50 pl-2">
-                                    <div className="font-bold text-sm text-text-main">
-                                      {typeof deal.amount === 'number' ? `$${deal.amount.toLocaleString()}` : deal.amount}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
-                                        <Calendar className="w-3 h-3" />
-                                        {deal.closeDate}
-                                      </div>
-                                      {deal.owner && (
-                                        <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[9px] font-bold border border-primary/20" title={`Owner: ${deal.owner}`}>
-                                          {deal.owner}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                          {stageDeals.length === 0 && !snapshot.isDraggingOver && (
-                            <div className="h-24 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-sm text-text-muted">
-                              Drop deals here
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Droppable>
+      {/* Content */}
+      <div className="flex-1 overflow-auto flex flex-col items-stretch">
+        {viewMode === 'kanban' ? (
+          <KanbanBoard deals={filtered} stages={KANBAN_STAGES} onDealMove={handleDealMove} onDealDelete={deleteDeal} onDealEdit={() => setIsSlideOverOpen(true)} />
+        ) : viewMode === 'list' ? (
+          <div className="divide-y divide-border bg-surface rounded-xl border border-border shadow-sm mx-8 my-6">
+            {filtered.map(d => {
+              const stage = getStagePill(d.stage);
+              return (
+                <div key={d.id} onClick={() => setIsSlideOverOpen(true)} className="flex items-center gap-4 px-6 py-4 hover:bg-surface-hover transition-colors group cursor-pointer">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[14px] text-text-main group-hover:text-primary transition-colors">{d.title}</p>
+                    {d.company && <p className="text-[12px] text-text-muted mt-0.5">{d.company.name}</p>}
                   </div>
-                );
-              })}
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: stage.color }} />
+                  <span className="text-[14px] font-bold text-text-main w-[100px] text-right">${d.value.toLocaleString()}</span>
+                  <div className="flex items-center gap-2 w-[120px]">
+                    <div className="flex-1 h-1.5 bg-border/40 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${d.probability}%`, background: stage.color }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-text-muted">{d.probability}%</span>
+                  </div>
+                  <span className="text-[12px] font-bold text-text-muted w-[100px] px-4">{d.expectedCloseDate || '—'}</span>
+                  <button onClick={() => deleteDeal(d.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-accent-red hover:bg-red/10 w-8 h-8 rounded-lg flex items-center justify-center">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="pb-24 w-full px-8 py-6">
+            <MondayGroup title={`Active Deals (${activeDeals.length})`} color="var(--primary)"
+              isCollapsed={activeCollapsed} onToggle={() => setActiveCollapsed(!activeCollapsed)}>
+              {headerCols}
+              {activeDeals.map(d => renderDealRow(d, 'var(--primary)'))}
+              <div className="flex border-b border-border bg-bg h-10 items-center px-4 rounded-b-xl border-x">
+                <div className="flex-1 px-4 text-[13px] font-bold text-text-muted">
+                  <span className="text-text-main">${sumActive.toLocaleString()}</span> total · <span className="text-primary">${Math.round(weightedForecast).toLocaleString()}</span> weighted
+                </div>
+              </div>
+            </MondayGroup>
+
+            <div className="h-8" />
+
+            <MondayGroup title={`Closed Deals (${closedDeals.length})`} color="var(--accent-green)"
+              isCollapsed={closedCollapsed} onToggle={() => setClosedCollapsed(!closedCollapsed)}>
+              {headerCols}
+              {closedDeals.map(d => renderDealRow(d, 'var(--accent-green)'))}
+              <div className="flex border-b border-border bg-bg h-10 items-center px-4 rounded-b-xl border-x">
+                <div className="flex-1 px-4 text-[13px] font-bold text-text-muted"><span className="text-text-main">${sumClosed.toLocaleString()}</span> total</div>
+              </div>
+            </MondayGroup>
+            <div className="mt-8">
+              <MondayAddBlock onClick={() => setIsSlideOverOpen(true)} />
             </div>
-          </DragDropContext>
+          </div>
         )}
       </div>
 
-      <DealSlideOver 
-        isOpen={isSlideOverOpen}
-        onClose={() => setIsSlideOverOpen(false)}
-      />
-      
-      <DealDetailDrawer
-        isOpen={!!selectedDealId}
-        onClose={() => setSelectedDealId(null)}
-        dealId={selectedDealId}
-      />
+      <DealSlideOver isOpen={isSlideOverOpen} onClose={() => setIsSlideOverOpen(false)} />
+
+      {winLoss && (
+        <WinLossModal isOpen={true} onClose={() => setWinLoss(null)}
+          outcome={winLoss.outcome} dealTitle={winLoss.title} onConfirm={handleWinLossConfirm} />
+      )}
     </div>
   );
 }

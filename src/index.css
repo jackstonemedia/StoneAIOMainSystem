@@ -30,9 +30,9 @@
   /* Light Theme (default) */
   :root, .theme-light {
     --bg: #ffffff;
-    --surface: #f8fafc;
-    --surface-hover: #f1f5f9;
-    --border: #e2e8f0;
+    --surface: rgba(241, 245, 249, 0.65);
+    --surface-hover: rgba(226, 232, 240, 0.55);
+    --border: rgba(203, 213, 225, 0.4);
     --text-main: #0f172a;
     --text-muted: #64748b;
     --primary: #4361EE;

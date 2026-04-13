@@ -60,14 +60,14 @@ export default function BusinessDashboard() {
       .catch(() => {});
   }, []);
 
-  const pipeline = metrics?.pipeline || [
+  const pipeline = Array.isArray(metrics?.pipeline_stages) ? metrics.pipeline_stages : (metrics?.pipeline_stages || [
     { name:'Lead',        count:45, value:120000, color:'#64748b' },
     { name:'Qualified',   count:28, value:240000, color:'#818cf8' },
     { name:'Proposal',    count:15, value:180000, color:'#fbbf24' },
     { name:'Negotiation', count:8,  value:305000, color:'#a78bfa' },
     { name:'Won',         count:18, value:210000, color:'#34d399' },
-  ];
-  const totalPipelineCount = pipeline.reduce((s:number,p:any)=>s+p.count,0);
+  ]);
+  const totalPipelineCount = (Array.isArray(pipeline) ? pipeline : []).reduce((s:number,p:any)=>s+(p.count || 0),0);
 
   return (
     <div className="flex-1 overflow-y-auto bg-bg">
@@ -97,10 +97,10 @@ export default function BusinessDashboard() {
 
         {/* Metric Cards */}
         <div className="grid grid-cols-4 gap-4 stagger-children">
-          <MetricCard label="Monthly Revenue"   value="$48,250" change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={SPARKLINES.revenue}   delay={0}  />
-          <MetricCard label="Pipeline Value"    value="$182,400" change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-blue-400"    iconBg="bg-blue-500/10"    sparkline={SPARKLINES.pipeline}  delay={60} />
-          <MetricCard label="Active Contacts"   value="2,847"   change="+156"   trend="up"   icon={Users}       iconColor="text-purple-400"  iconBg="bg-purple-500/10"  sparkline={SPARKLINES.contacts}  delay={120}/>
-          <MetricCard label="Conversion Rate"   value="24.8%"   change="-1.2%"  trend="down" icon={BarChart3}   iconColor="text-amber-400"   iconBg="bg-amber-500/10"   sparkline={SPARKLINES.conversion} delay={180}/>
+          <MetricCard label="Monthly Revenue"   value={metrics?.revenue?.current ? `$${metrics.revenue.current.toLocaleString()}` : "$48,250"} change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={metrics?.revenue?.trend || SPARKLINES.revenue}   delay={0}  />
+          <MetricCard label="Pipeline Value"    value={metrics?.pipeline?.value ? `$${metrics.pipeline.value.toLocaleString()}` : "$182,400"} change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-blue-400"    iconBg="bg-blue-500/10"    sparkline={metrics?.pipeline?.trend || SPARKLINES.pipeline}  delay={60} />
+          <MetricCard label="Active Contacts"   value={metrics?.contacts?.total ? metrics.contacts.total.toLocaleString() : "2,847"}   change="+156"   trend="up"   icon={Users}       iconColor="text-purple-400"  iconBg="bg-purple-500/10"  sparkline={metrics?.contacts?.trend || SPARKLINES.contacts}  delay={120}/>
+          <MetricCard label="Conversion Rate"   value={metrics?.conversion?.rate ? `${metrics.conversion.rate}%` : "24.8%"}   change="-1.2%"  trend="down" icon={BarChart3}   iconColor="text-amber-400"   iconBg="bg-amber-500/10"   sparkline={metrics?.conversion?.trend || SPARKLINES.conversion} delay={180}/>
         </div>
 
         {/* Main grid */}
@@ -144,8 +144,8 @@ export default function BusinessDashboard() {
                 </Link>
               </div>
               <div className="space-y-3">
-                {pipeline.map((stage: any, i: number) => {
-                  const pct = Math.round((stage.count / totalPipelineCount) * 100);
+                {(Array.isArray(pipeline) ? pipeline : []).map((stage: any, i: number) => {
+                  const pct = Math.round(((stage.count || 0) / (totalPipelineCount || 1)) * 100);
                   return (
                     <div key={i} className="group cursor-pointer" onClick={() => navigate('/business/crm/deals')}>
                       <div className="flex items-center justify-between mb-1.5">

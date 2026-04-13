@@ -1,164 +1,108 @@
-import { Plus, Search, Filter, MoreHorizontal, Building2, Globe, Users, ExternalLink } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SmartTable, Column, TableGroup } from '../../components/crm/SmartTable';
+import { getCompanies } from '../../lib/api';
+import { 
+  MondayTable, MondayHeader, MondayToolbar, MondayGroup, 
+  MondayHeaderRow, MondayHeaderCell, MondayRow, MondayCell, 
+  StatusPill, MondayAddBlock 
+} from '../../components/crm/MondayTable';
 
 interface Company {
   id: string;
   name: string;
-  industry: string;
-  website: string;
-  employees: string;
-  openDeals?: number;
-  totalRevenue?: string;
-  revenue?: string;
-}
-
-interface Deal {
-  id: string;
-  amount: string | number;
-  stage: string;
-  companyId: string;
+  domain?: string | null;
+  industry?: string | null;
+  employees?: string | null;
+  location?: string | null;
+  description?: string | null;
 }
 
 export default function Companies() {
-  const navigate = useNavigate();
-  const { data: companies = [], isLoading: loadingCompanies } = useQuery<Company[]>({
+  const { data: companies = [], isLoading } = useQuery<Company[]>({
     queryKey: ['companies'],
-    queryFn: () => fetch('/api/crm/companies').then(res => res.json())
+    queryFn: getCompanies
   });
 
-  const { data: deals = [], isLoading: loadingDeals } = useQuery<Deal[]>({
-    queryKey: ['deals'],
-    queryFn: () => fetch('/api/crm/deals').then(res => res.json())
-  });
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+  const [companiesCollapsed, setCompaniesCollapsed] = useState(false);
 
-  const loading = loadingCompanies || loadingDeals;
-
-  const getIndustryColor = (industry: string) => {
-    if (industry.toLowerCase().includes('software') || industry.toLowerCase().includes('tech')) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-    if (industry.toLowerCase().includes('finance')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-    if (industry.toLowerCase().includes('health')) return 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-    return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-  };
-
-  const tableColumns: Column<Company>[] = [
-    {
-      key: 'name',
-      header: 'Account',
-      width: '25%',
-      render: (c) => (
-        <div className="flex items-center gap-3 py-1">
-          <div className="w-8 h-8 rounded bg-surface border border-border flex items-center justify-center shrink-0">
-            <Building2 className="w-4 h-4 text-text-muted" />
-          </div>
-          <span className="font-medium text-text-main group-hover/row:text-primary transition-colors">{c.name}</span>
-        </div>
-      )
-    },
-    {
-      key: 'website',
-      header: 'Domain',
-      align: 'left',
-      width: '200px',
-      render: (c) => (
-        <a href={`https://${c.website}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 text-xs text-primary/80 hover:text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded w-max">
-          <Globe className="w-3 h-3" />
-          {c.website}
-          <ExternalLink className="w-3 h-3 ml-1 opacity-50" />
-        </a>
-      )
-    },
-    {
-      key: 'industry',
-      header: 'Industry',
-      align: 'left',
-      width: '180px',
-      render: (c) => (
-        <div className={`px-2.5 py-1 rounded text-xs font-medium border w-max ${getIndustryColor(c.industry)}`}>
-          {c.industry || 'Unknown'}
-        </div>
-      )
-    },
-    {
-      key: 'employees',
-      header: 'No. of employees',
-      align: 'center',
-      width: '140px',
-      render: (c) => (
-        <span className="text-sm text-text-muted">{c.employees || '-'}</span>
-      )
-    },
-    {
-      key: 'openDeals',
-      header: 'Open Deals',
-      align: 'center',
-      width: '140px',
-      render: (c) => {
-        const count = deals.filter(d => d.companyId === c.id && d.stage !== 'won' && d.stage !== 'lost').length;
-        return (
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${count > 0 ? 'bg-amber-500 text-black' : 'bg-surface text-text-muted'}`}>
-            {count}
-          </div>
-        )
-      }
-    }
-  ];
-
-  const tableGroups: TableGroup<Company>[] = [
-    {
-      id: 'companies',
-      title: 'Companies',
-      color: 'bg-indigo-500',
-      items: companies
-    }
+  // Fallback map mimicking image 2
+  const displayAccounts = companies.length > 0 ? companies : [
+    { id: '1', name: 'Google', domain: 'https://google.com', industry: 'Software, Data', description: 'Google is a multinational corporation that s...', employees: '10000+', location: 'Mountain View CA' },
+    { id: '2', name: 'Apple', domain: 'https://apple.com', industry: 'Hardware, Consumer Electronics', description: 'Apple Inc. is an American multinational tech...', employees: '1001-5000', location: 'California, USA' },
+    { id: '3', name: 'Amazon', domain: 'https://amazon.com', industry: 'Retail, Cloud', description: 'Amazon is a multinational technology comp...', employees: '10000+', location: 'Seattle, WA' },
   ];
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Companies</h1>
-          <p className="text-sm text-text-muted mt-1">Track organizations and their associated deals.</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors">
-          <Plus className="w-4 h-4" />
-          New Company
-        </button>
-      </header>
+    <div className="flex flex-col h-full w-full bg-white relative">
+      <MondayHeader title="Accounts" />
+      <MondayToolbar onAdd={() => setIsSlideOverOpen(true)} actionButtonText="New account" />
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-bg shrink-0">
-        <div className="relative w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input 
-            type="text" 
-            placeholder="Search companies..." 
-            className="w-full pl-9 pr-4 py-2 bg-surface border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
-        <button className="flex items-center gap-2 px-3 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
-          <Filter className="w-4 h-4" />
-          Filters
-        </button>
-      </div>
+      <div className="flex-1 overflow-auto pb-24">
+        {/* COMPANIES GROUP */}
+        <MondayGroup 
+          title="Companies" 
+          color="text-[#00cff4]" 
+          isCollapsed={companiesCollapsed}
+          onToggle={() => setCompaniesCollapsed(!companiesCollapsed)}
+        >
+          <MondayHeaderRow>
+            <MondayHeaderCell width="w-[260px]">Account</MondayHeaderCell>
+            <MondayHeaderCell width="w-[200px]">Domain</MondayHeaderCell>
+            <MondayHeaderCell width="w-[250px]">Industry</MondayHeaderCell>
+            <MondayHeaderCell width="w-[300px]">Description</MondayHeaderCell>
+            <MondayHeaderCell width="w-[140px]">No. of employees</MondayHeaderCell>
+            <MondayHeaderCell width="w-[180px]">Headquarters locati...</MondayHeaderCell>
+          </MondayHeaderRow>
+          
+          {displayAccounts.map((a) => {
+            return (
+              <MondayRow key={a.id} groupColorClass="bg-[#00cff4]">
+                <MondayCell width="w-[260px]">
+                  <span className="font-medium hover:text-[#0073ea] hover:underline cursor-pointer text-slate-800">
+                    {a.name}
+                  </span>
+                </MondayCell>
+                <MondayCell width="w-[200px]">
+                  <a href={a.domain || '#'} target="_blank" rel="noreferrer" className="text-[#0073ea] hover:underline truncate w-full cursor-pointer">
+                    {a.domain || '-'}
+                  </a>
+                </MondayCell>
+                <MondayCell width="w-[250px]">
+                   <div className="flex items-center gap-1.5 flex-wrap overflow-hidden h-[26px]">
+                     {a.industry?.split(',').map((ind, i) => (
+                       <span key={i} className="px-2 py-0.5 bg-[#d8f0f0] text-[#008291] rounded text-[11px] font-medium whitespace-nowrap">
+                         {ind.trim()}
+                       </span>
+                     ))}
+                   </div>
+                </MondayCell>
+                <MondayCell width="w-[300px]">
+                  <span className="truncate w-full">{a.description || '-'}</span>
+                </MondayCell>
+                <MondayCell width="w-[140px]" className="justify-center">
+                  {a.employees || '-'}
+                </MondayCell>
+                <MondayCell width="w-[180px]" className="justify-center">
+                  {a.location || '-'}
+                </MondayCell>
+              </MondayRow>
+            );
+          })}
+          
+          <MondayRow groupColorClass="bg-[#00cff4]" isBottomAddLayout>
+             <MondayCell width="w-[260px]">
+                <span className="pl-6">+ Add account</span>
+             </MondayCell>
+             <MondayCell width="w-[200px]" />
+             <MondayCell width="w-[250px]" />
+             <MondayCell width="w-[300px]" />
+             <MondayCell width="w-[140px]" />
+             <MondayCell width="w-[180px]" />
+          </MondayRow>
+        </MondayGroup>
 
-      {/* Main Table Area */}
-      <div className="flex-1 overflow-auto p-8">
-        {loading ? (
-          <div className="flex items-center justify-center h-full text-text-muted">Loading accounts...</div>
-        ) : (
-          <main className="max-w-[1400px]">
-             <SmartTable 
-                columns={tableColumns} 
-                groups={tableGroups} 
-                onRowClick={(c) => navigate(`/business/crm/companies/${c.id}`)}
-                addLabel="+ Add account"
-             />
-          </main>
-        )}
+        <MondayAddBlock onClick={() => console.log('add group')} />
       </div>
     </div>
   );

@@ -20,12 +20,7 @@ export const THEMES: ThemeContextType['themes'] = [
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('stone-aio-theme') as ThemeName) || 'dark';
-    }
-    return 'dark';
-  });
+  const [theme, setThemeState] = useState<ThemeName>('light');
 
   const setTheme = (newTheme: ThemeName) => {
     setThemeState(newTheme);
