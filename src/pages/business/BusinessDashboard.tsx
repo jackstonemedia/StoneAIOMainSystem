@@ -15,17 +15,17 @@ const SPARKLINES = {
 };
 
 const ACTIVITY = [
-  { type:'deal',    text:'Enterprise License moved to Negotiation',   time:'2m ago',   icon:DollarSign, color:'text-amber-400' },
-  { type:'campaign',text:'Black Friday email campaign sent to 14.5k', time:'1h ago',   icon:Mail,       color:'text-blue-400' },
-  { type:'contact', text:'23 new leads imported from web form',       time:'3h ago',   icon:Users,      color:'text-purple-400' },
-  { type:'agent',   text:'Lead Scorer completed 142 evaluations',     time:'4h ago',   icon:Bot,        color:'text-primary' },
-  { type:'review',  text:'5★ review received on Google',              time:'5h ago',   icon:Star,       color:'text-amber-400' },
+  { type:'deal',    text:'Enterprise License moved to Negotiation',   time:'2m ago',   icon:DollarSign, hex:'#F59E0B' },
+  { type:'campaign',text:'Black Friday email campaign sent to 14.5k', time:'1h ago',   icon:Mail,       hex:'#3B82F6' },
+  { type:'contact', text:'23 new leads imported from web form',       time:'3h ago',   icon:Users,      hex:'#8B5CF6' },
+  { type:'agent',   text:'Lead Scorer completed 142 evaluations',     time:'4h ago',   icon:Bot,        hex:'#52677D' },
+  { type:'review',  text:'5★ review received on Google',              time:'5h ago',   icon:Star,       hex:'#F59E0B' },
 ];
 
 const SCHEDULE = [
-  { title:'Discovery call — Acme Corp',    time:'2:00 PM', contact:'Sarah Chen',   type:'call',    color:'bg-blue-500' },
-  { title:'Product demo — Enterprise tier',time:'3:30 PM', contact:'Mike Johnson', type:'video',   color:'bg-purple-500' },
-  { title:'Contract review follow-up',     time:'4:15 PM', contact:'Lisa Wang',    type:'meeting', color:'bg-emerald-500' },
+  { title:'Discovery call — Acme Corp',    time:'2:00 PM', contact:'Sarah Chen',   type:'call',    hex:'#3B82F6' },
+  { title:'Product demo — Enterprise tier',time:'3:30 PM', contact:'Mike Johnson', type:'video',   hex:'#8B5CF6' },
+  { title:'Contract review follow-up',     time:'4:15 PM', contact:'Lisa Wang',    type:'meeting', hex:'#10B981' },
 ];
 
 // Simple SVG area chart
@@ -178,7 +178,10 @@ export default function BusinessDashboard() {
               <div className="divide-y divide-border/60">
                 {ACTIVITY.map((item, i) => (
                   <div key={i} className="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-hover transition-colors group">
-                    <div className={`w-8 h-8 rounded-lg bg-bg border border-border flex items-center justify-center shrink-0 ${item.color}`}>
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${item.hex}18`, color: item.hex, border: '1px solid var(--border)' }}
+                    >
                       <item.icon className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -204,8 +207,14 @@ export default function BusinessDashboard() {
               </div>
               <div className="p-4 space-y-3">
                 {SCHEDULE.map((ev, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-bg border border-border rounded-xl hover:border-primary/30 transition-colors group cursor-pointer">
-                    <div className={`w-1.5 h-12 rounded-full ${ev.color} shrink-0 mt-0.5`} />
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = ev.hex)}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border)')}
+                  >
+                    <div className="w-1.5 h-12 rounded-full shrink-0 mt-0.5" style={{ background: ev.hex }} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text-main truncate group-hover:text-primary transition-colors">{ev.title}</p>
                       <p className="text-xs text-text-muted mt-0.5">{ev.time} · {ev.contact}</p>
@@ -226,22 +235,28 @@ export default function BusinessDashboard() {
               <h2 className="font-semibold text-text-main mb-4">Quick Actions</h2>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label:'New Campaign',   icon:Mail,        path:'/business/campaigns',     color:'text-blue-400  bg-blue-500/10'  },
-                  { label:'Add Contact',    icon:Users,       path:'/business/crm/contacts',  color:'text-purple-400 bg-purple-500/10'},
-                  { label:'Create Form',    icon:FileText,    path:'/business/forms',         color:'text-teal-400  bg-teal-500/10'  },
-                  { label:'View Reports',   icon:BarChart3,   path:'/business/analytics',     color:'text-amber-400 bg-amber-500/10' },
-                  { label:'Send SMS',       icon:MessageSquare,path:'/inbox',                 color:'text-green-400 bg-green-500/10' },
-                  { label:'Reputation',     icon:Star,        path:'/business/reputation',    color:'text-red-400   bg-red-500/10'   },
+                  { label:'New Campaign',  icon:Mail,         path:'/business/campaigns',    hex:'#3B82F6' },
+                  { label:'Add Contact',   icon:Users,        path:'/business/crm/contacts', hex:'#8B5CF6' },
+                  { label:'Create Form',   icon:FileText,     path:'/business/forms',        hex:'#14B8A6' },
+                  { label:'Analytics',     icon:BarChart3,    path:'/business/analytics',    hex:'#F59E0B' },
+                  { label:'Send Message',  icon:MessageSquare,path:'/inbox',                 hex:'#10B981' },
+                  { label:'Reputation',    icon:Star,         path:'/business/reputation',   hex:'#EF4444' },
                 ].map((a, i) => (
                   <button
                     key={i}
                     onClick={() => navigate(a.path)}
-                    className="glass-card-hover flex flex-col items-center gap-2 p-3 text-center"
+                    className="flex flex-col items-center gap-2 p-3 text-center rounded-xl transition-all"
+                    style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = a.hex)}
+                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border)')}
                   >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${a.color}`}>
-                      <a.icon className="w-4 h-4" />
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{ background: `${a.hex}18`, color: a.hex }}
+                    >
+                      <a.icon className="w-4 h-4" strokeWidth={1.8} />
                     </div>
-                    <span className="text-xs font-medium text-text-main">{a.label}</span>
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-main)' }}>{a.label}</span>
                   </button>
                 ))}
               </div>
