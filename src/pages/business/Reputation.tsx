@@ -8,15 +8,15 @@ function Stars({ rating }: { rating: number }) {
   return (
     <div className="flex gap-0.5">
       {Array.from({length:5}).map((_,i)=>(
-        <Star key={i} className={`w-3.5 h-3.5 ${i<rating?'text-amber-400 fill-amber-400':'text-border'}`} />
+        <Star key={i} className={`w-3.5 h-3.5 ${i<rating?'text-text-muted fill-amber-400':'text-border'}`} />
       ))}
     </div>
   );
 }
 
 const SOURCE_CONFIG: Record<string,{label:string;color:string;bg:string}> = {
-  google:   {label:'Google',   color:'text-text-muted',   bg:'bg-blue-400/10'},
-  facebook: {label:'Facebook', color:'text-text-muted', bg:'bg-indigo-400/10'},
+  google:   {label:'Google',   color:'text-text-muted',   bg:'bg-primary/10'},
+  facebook: {label:'Facebook', color:'text-text-muted', bg:'bg-primary/10'},
   yelp:     {label:'Yelp',     color:'text-red-400',    bg:'bg-red-400/10'},
 };
 
@@ -100,9 +100,9 @@ export default function Reputation() {
                 {dist.map(({star,count}) => (
                   <div key={star} className="flex items-center gap-2">
                     <span className="text-xs font-medium text-text-muted w-4">{star}</span>
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
+                    <Star className="w-3 h-3 text-text-muted fill-amber-400 shrink-0" />
                     <div className="flex-1 h-2 bg-border/40 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full transition-all duration-700" style={{width: total ? `${(count/total)*100}%` : '0%'}} />
+                      <div className="h-full bg-primary rounded-full transition-all duration-700" style={{width: total ? `${(count/total)*100}%` : '0%'}} />
                     </div>
                     <span className="text-xs text-text-muted w-4 text-right">{count}</span>
                   </div>
@@ -186,7 +186,7 @@ export default function Reputation() {
                           <button
                             onClick={() => generateAIReply(review)}
                             disabled={aiLoading === review.id}
-                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-400/20 text-text-muted bg-purple-400/5 hover:bg-purple-400/10 transition-all disabled:opacity-50"
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-primary/20 text-text-muted bg-primary/5 hover:bg-primary/10 transition-all disabled:opacity-50"
                           >
                             <Bot className="w-3 h-3" />
                             {aiLoading === review.id ? 'Generating…' : 'AI Reply'}

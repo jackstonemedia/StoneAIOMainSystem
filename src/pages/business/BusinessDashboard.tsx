@@ -98,9 +98,9 @@ export default function BusinessDashboard() {
         {/* Metric Cards */}
         <div className="grid grid-cols-4 gap-4 stagger-children">
           <MetricCard label="Monthly Revenue"   value={metrics?.revenue?.current ? `$${metrics.revenue.current.toLocaleString()}` : "$48,250"} change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={metrics?.revenue?.trend || SPARKLINES.revenue}   delay={0}  />
-          <MetricCard label="Pipeline Value"    value={metrics?.pipeline?.value ? `$${metrics.pipeline.value.toLocaleString()}` : "$182,400"} change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-blue-500/10"    sparkline={metrics?.pipeline?.trend || SPARKLINES.pipeline}  delay={60} />
-          <MetricCard label="Active Contacts"   value={metrics?.contacts?.total ? metrics.contacts.total.toLocaleString() : "2,847"}   change="+156"   trend="up"   icon={Users}       iconColor="text-text-muted"  iconBg="bg-purple-500/10"  sparkline={metrics?.contacts?.trend || SPARKLINES.contacts}  delay={120}/>
-          <MetricCard label="Conversion Rate"   value={metrics?.conversion?.rate ? `${metrics.conversion.rate}%` : "24.8%"}   change="-1.2%"  trend="down" icon={BarChart3}   iconColor="text-amber-400"   iconBg="bg-amber-500/10"   sparkline={metrics?.conversion?.trend || SPARKLINES.conversion} delay={180}/>
+          <MetricCard label="Pipeline Value"    value={metrics?.pipeline?.value ? `$${metrics.pipeline.value.toLocaleString()}` : "$182,400"} change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-primary/100/10"    sparkline={metrics?.pipeline?.trend || SPARKLINES.pipeline}  delay={60} />
+          <MetricCard label="Active Contacts"   value={metrics?.contacts?.total ? metrics.contacts.total.toLocaleString() : "2,847"}   change="+156"   trend="up"   icon={Users}       iconColor="text-text-muted"  iconBg="bg-primary/100/10"  sparkline={metrics?.contacts?.trend || SPARKLINES.contacts}  delay={120}/>
+          <MetricCard label="Conversion Rate"   value={metrics?.conversion?.rate ? `${metrics.conversion.rate}%` : "24.8%"}   change="-1.2%"  trend="down" icon={BarChart3}   iconColor="text-text-muted"   iconBg="bg-primary/100/10"   sparkline={metrics?.conversion?.trend || SPARKLINES.conversion} delay={180}/>
         </div>
 
         {/* Main grid */}

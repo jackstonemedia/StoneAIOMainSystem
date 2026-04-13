@@ -15,7 +15,7 @@ interface ContactHealthScoreProps {
 
 function getScoreColor(score: number) {
   if (score >= 70) return { stroke: '#00c875', text: '#00c875', bg: 'bg-emerald-50', label: 'Hot', ring: '#00c875' };
-  if (score >= 40) return { stroke: '#ffcb00', text: '#d97706', bg: 'bg-amber-50', label: 'Warm', ring: '#ffcb00' };
+  if (score >= 40) return { stroke: '#ffcb00', text: '#d97706', bg: 'bg-primary/10', label: 'Warm', ring: '#ffcb00' };
   return { stroke: '#e2445c', text: '#e2445c', bg: 'bg-rose-50', label: 'Cold', ring: '#e2445c' };
 }
 
@@ -61,9 +61,9 @@ export default function ContactHealthScore({ score, size = 'md', showLabel = fal
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 bg-white border border-slate-200 rounded-xl shadow-xl p-3 min-w-[180px] pointer-events-none"
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border rounded-xl shadow-xl p-3 min-w-[180px] pointer-events-none"
           >
-            <p className="text-[11px] font-bold text-slate-700 mb-2 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-text-main mb-2 flex items-center justify-between">
               Health Score
               <span className="font-black" style={{ color: clr.text }}>{score}/100</span>
             </p>
@@ -74,11 +74,11 @@ export default function ContactHealthScore({ score, size = 'md', showLabel = fal
               { label: 'Meetings', value: activityBreakdown.meetings, max: 20 },
             ].map(item => (
               <div key={item.label} className="mb-1.5">
-                <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
+                <div className="flex justify-between text-[10px] text-text-muted0 mb-0.5">
                   <span>{item.label}</span>
                   <span className="font-semibold">{item.value}/{item.max}</span>
                 </div>
-                <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-1 bg-surface-hover rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${(item.value / item.max) * 100}%`, background: clr.stroke }} />
                 </div>
               </div>

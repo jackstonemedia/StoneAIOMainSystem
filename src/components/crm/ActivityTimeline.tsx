@@ -17,8 +17,8 @@ interface ActivityTimelineProps {
 const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   email:   { icon: Mail,            color: 'text-sky-400',    bg: 'bg-sky-500/15 border-sky-500/30' },
   call:    { icon: Phone,           color: 'text-green-400',  bg: 'bg-green-500/15 border-green-500/30' },
-  meeting: { icon: CalendarDays,    color: 'text-purple-400', bg: 'bg-purple-500/15 border-purple-500/30' },
-  note:    { icon: FileText,        color: 'text-amber-400',  bg: 'bg-amber-500/15 border-amber-500/30' },
+  meeting: { icon: CalendarDays,    color: 'text-text-muted', bg: 'bg-primary/100/15 border-primary/30' },
+  note:    { icon: FileText,        color: 'text-text-muted',  bg: 'bg-primary/100/15 border-primary/30' },
   deal:    { icon: CircleDollarSign,color: 'text-primary',    bg: 'bg-primary/15 border-primary/30' },
   sms:     { icon: MessageSquare,   color: 'text-rose-400',   bg: 'bg-rose-500/15 border-rose-500/30' },
 };

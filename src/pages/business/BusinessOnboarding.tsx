@@ -15,15 +15,15 @@ interface BusinessOnboardingProps {
 }
 
 const columnOptions = [
-  { id: 'email', label: 'Email', color: 'text-amber-500 bg-amber-500/10 border-amber-500/30' },
+  { id: 'email', label: 'Email', color: 'text-text-muted0 bg-primary/100/10 border-primary/30' },
   { id: 'accounts', label: 'Accounts', color: 'text-primary bg-rose-500/10 border-rose-500/30' },
   { id: 'deals', label: 'Deals', color: 'text-primary bg-rose-500/10 border-rose-500/30' },
-  { id: 'phone', label: 'Phone', color: 'text-amber-500 bg-amber-500/10 border-amber-500/30' },
+  { id: 'phone', label: 'Phone', color: 'text-text-muted0 bg-primary/100/10 border-primary/30' },
   { id: 'type', label: 'Type', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
   { id: 'priority', label: 'Priority', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
   { id: 'title', label: 'Title', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30' },
   { id: 'dealsValue', label: 'Deals value', color: 'text-primary bg-rose-500/10 border-rose-500/30' },
-  { id: 'comments', label: 'Comments', color: 'text-amber-500 bg-amber-500/10 border-amber-500/30' },
+  { id: 'comments', label: 'Comments', color: 'text-text-muted0 bg-primary/100/10 border-primary/30' },
 ];
 
 const integrationTools = [
@@ -33,9 +33,9 @@ const integrationTools = [
   { id: 'ocal', label: 'Outlook Calendar', icon: CalendarDays, color: 'text-text-muted' },
   { id: 'fb', label: 'Facebook Ads', icon: BarChart, color: 'text-text-muted' },
   { id: 'linkedin', label: 'LinkedIn', icon: Briefcase, color: 'text-text-muted' },
-  { id: 'mailchimp', label: 'Mailchimp', icon: Mail, color: 'text-yellow-500' },
+  { id: 'mailchimp', label: 'Mailchimp', icon: Mail, color: 'text-text-muted0' },
   { id: 'teams', label: 'Microsoft Teams', icon: MessageSquare, color: 'text-text-muted' },
-  { id: 'hubspot', label: 'Hubspot', icon: CircleDollarSign, color: 'text-orange-500' },
+  { id: 'hubspot', label: 'Hubspot', icon: CircleDollarSign, color: 'text-text-muted0' },
   { id: 'zoom', label: 'Zoom', icon: MessageSquare, color: 'text-text-muted' },
 ];
 
@@ -204,7 +204,7 @@ export default function BusinessOnboarding({ onComplete }: BusinessOnboardingPro
       <div className="flex-1 bg-bg p-8 lg:p-12 pl-0 flex items-center justify-center relative overflow-hidden">
         
         {/* Decorative backdrop shapes */}
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-white/20 blur-3xl rounded-full pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-surface/20 blur-3xl rounded-full pointer-events-none" />
         <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-teal-400/10 blur-3xl rounded-full pointer-events-none" />
 
         {/* Window Chrome */}
@@ -213,9 +213,9 @@ export default function BusinessOnboarding({ onComplete }: BusinessOnboardingPro
           {/* Top Bar */}
           <div className="h-10 bg-bg border-b border-border flex items-center px-4 justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-slate-300" />
-              <div className="w-3 h-3 rounded-full bg-slate-300" />
-              <div className="w-3 h-3 rounded-full bg-slate-300" />
+              <div className="w-3 h-3 rounded-full bg-surface-hover" />
+              <div className="w-3 h-3 rounded-full bg-surface-hover" />
+              <div className="w-3 h-3 rounded-full bg-surface-hover" />
             </div>
             <button className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
           </div>
@@ -268,7 +268,7 @@ export default function BusinessOnboarding({ onComplete }: BusinessOnboardingPro
                           <div className="px-2 py-0.5 bg-primary/10 text-primary rounded font-medium truncate">Deal</div>
                         </div>
                         <div className="col-span-1 p-3 border-border flex items-center justify-center bg-surface">
-                          <div className="w-4 h-3 bg-slate-200 rounded-sm" />
+                          <div className="w-4 h-3 bg-surface-hover rounded-sm" />
                         </div>
                       </div>
                    ))}
@@ -318,7 +318,7 @@ export default function BusinessOnboarding({ onComplete }: BusinessOnboardingPro
                    </div>
                  </div>
                  
-                 <div className="w-64 h-3 bg-slate-200 rounded-full mt-4 mx-auto" />
+                 <div className="w-64 h-3 bg-surface-hover rounded-full mt-4 mx-auto" />
                </div>
 
             </div>

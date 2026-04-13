@@ -117,7 +117,7 @@ export default function Analytics() {
       render: (v: number) => v > 0 ? (
         <div className="flex items-center gap-2">
           <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-blue-400 rounded-full" style={{ width: `${Math.min(v, 100)}%` }} />
+            <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(v, 100)}%` }} />
           </div>
           <span>{v}%</span>
         </div>
@@ -159,9 +159,9 @@ export default function Analytics() {
           {/* KPI Cards */}
           <div className="grid grid-cols-4 gap-4 stagger-children">
             <MetricCard label="Monthly Revenue"  value="$48,250" change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={[38,42,41,55,52,62,58,71,68,78,82,92]} delay={0}   />
-            <MetricCard label="Pipeline Value"   value="$182,400" change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-blue-500/10"    sparkline={[120,130,118,145,140,160,155,175,170,185,195,210]} delay={60}  />
-            <MetricCard label="Agent Runs (30d)" value="4,682"   change="+34%"   trend="up"   icon={Bot}         iconColor="text-text-muted"  iconBg="bg-purple-500/10"  sparkline={[200,280,350,380,420,480,510,560,590,640,680,720]} delay={120} />
-            <MetricCard label="Credits Used"     value="19,210"  change="+18%"   trend="up"   icon={Zap}         iconColor="text-amber-400"   iconBg="bg-amber-500/10"   sparkline={[1200,1400,1600,1650,1700,1800,1900,2100,2200,2400,2500,2660]} delay={180} />
+            <MetricCard label="Pipeline Value"   value="$182,400" change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-primary/100/10"    sparkline={[120,130,118,145,140,160,155,175,170,185,195,210]} delay={60}  />
+            <MetricCard label="Agent Runs (30d)" value="4,682"   change="+34%"   trend="up"   icon={Bot}         iconColor="text-text-muted"  iconBg="bg-primary/100/10"  sparkline={[200,280,350,380,420,480,510,560,590,640,680,720]} delay={120} />
+            <MetricCard label="Credits Used"     value="19,210"  change="+18%"   trend="up"   icon={Zap}         iconColor="text-text-muted"   iconBg="bg-primary/100/10"   sparkline={[1200,1400,1600,1650,1700,1800,1900,2100,2200,2400,2500,2660]} delay={180} />
           </div>
 
           {/* Charts row */}

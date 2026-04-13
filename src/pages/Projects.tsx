@@ -8,10 +8,10 @@ export default function Projects() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
   const mockProjects = [
-    { id: '1', title: 'Q4 Product Launch', description: 'GTM strategy, email sequences, and ad assets.', type: 'Marketing', users: 3, lastEdited: '2h ago', color: 'bg-blue-500' },
+    { id: '1', title: 'Q4 Product Launch', description: 'GTM strategy, email sequences, and ad assets.', type: 'Marketing', users: 3, lastEdited: '2h ago', color: 'bg-primary/100' },
     { id: '2', title: 'Q3 Financial Review', description: 'Revenue tracking, SaaS metrics, and projections.', type: 'Finance', users: 2, lastEdited: '1d ago', color: 'bg-emerald-500' },
-    { id: '3', title: 'Enterprise Sales Deck', description: 'Master presentation for Acme Corp negotiation.', type: 'Sales', users: 5, lastEdited: '3d ago', color: 'bg-amber-500' },
-    { id: '4', title: 'Stone AIO Rebrand', description: 'Asset library, UX copies, and design tokens.', type: 'Design', users: 4, lastEdited: 'Just now', color: 'bg-purple-500' },
+    { id: '3', title: 'Enterprise Sales Deck', description: 'Master presentation for Acme Corp negotiation.', type: 'Sales', users: 5, lastEdited: '3d ago', color: 'bg-primary/100' },
+    { id: '4', title: 'Stone AIO Rebrand', description: 'Asset library, UX copies, and design tokens.', type: 'Design', users: 4, lastEdited: 'Just now', color: 'bg-primary/100' },
   ];
 
   return (

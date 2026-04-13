@@ -189,7 +189,7 @@ function EditableCell({ value, onChange, width, placeholder = '' }: { value: str
           placeholder={placeholder} onChange={e => setDraft(e.target.value)}
           onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }} />
       ) : (
-        <span className={`truncate cursor-text w-full block ${!value ? 'text-slate-300 italic text-[12px]' : ''}`}
+        <span className={`truncate cursor-text w-full block ${!value ? 'text-text-muted italic text-[12px]' : ''}`}
           onDoubleClick={() => { setDraft(value); setEditing(true); }}>
           {value || placeholder}
         </span>
@@ -260,7 +260,7 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                 <h2 className="text-[16px] font-bold text-text-main">Create Contact</h2>
                 <p className="text-[12px] text-text-muted mt-0.5">Add a new person to your CRM.</p>
               </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-slate-100 transition-colors">
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -280,7 +280,7 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                   <div className="flex gap-2">
                     {(['High', 'Medium', 'Low'] as const).map(p => (
                       <button key={p} type="button" onClick={() => setForm(f => ({ ...f, priority: f.priority === p ? '' : p }))}
-                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.priority === p ? 'border-transparent text-white shadow-sm' : 'border-border text-text-muted bg-surface-hover hover:bg-slate-100'}`}
+                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.priority === p ? 'border-transparent text-white shadow-sm' : 'border-border text-text-muted bg-surface-hover hover:bg-surface-hover'}`}
                         style={form.priority === p ? { background: PRIORITY_COLORS[p] } : {}}>
                         {p}
                       </button>
@@ -292,7 +292,7 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                   <div className="flex gap-2">
                     {(['Active', 'Inactive'] as const).map(s => (
                       <button key={s} type="button" onClick={() => setForm(f => ({ ...f, status: s }))}
-                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.status === s ? 'bg-slate-800 text-white border-slate-800' : 'border-border text-text-muted bg-surface-hover hover:bg-slate-100'}`}>
+                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.status === s ? 'bg-bg text-white border-border' : 'border-border text-text-muted bg-surface-hover hover:bg-surface-hover'}`}>
                         {s}
                       </button>
                     ))}
@@ -300,7 +300,7 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                 </div>
               </div>
               <div className="p-5 border-t border-border flex items-center justify-end gap-3 bg-surface-hover">
-                <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100 transition-colors">Cancel</button>
+                <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover transition-colors">Cancel</button>
                 <button type="submit" disabled={saving || !form.firstName.trim()}
                   className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
                   {saving ? 'Saving...' : 'Create Contact'}
@@ -346,7 +346,7 @@ function ImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: 
             <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[500px]">
               <div className="flex items-center justify-between px-6 py-5 border-b border-border">
                 <div><h2 className="text-[16px] font-bold text-text-main">Import Contacts</h2><p className="text-[12px] text-text-muted mt-0.5">Upload a CSV file.</p></div>
-                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:bg-slate-100"><X className="w-4 h-4" /></button>
+                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:bg-surface-hover"><X className="w-4 h-4" /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
@@ -368,7 +368,7 @@ function ImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: 
                 )}
               </div>
               <div className="px-6 pb-5 flex justify-end gap-3">
-                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 <button disabled={parsed.length === 0} onClick={() => { onImport(parsed); onClose(); }}
                   className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] disabled:opacity-40 flex items-center gap-2">
                   <Upload className="w-3.5 h-3.5" /> Import {parsed.length > 0 ? `${parsed.length} Contacts` : ''}

@@ -71,7 +71,7 @@ export default function Activities() {
                   <span className="font-medium text-text-main">{a.title}</span>
                 </MondayCell>
                 <MondayCell width="w-[100px]" className="justify-center">
-                  <div className="w-7 h-7 rounded-full bg-slate-200 border border-border flex items-center justify-center text-text-muted font-bold text-xs">
+                  <div className="w-7 h-7 rounded-full bg-surface-hover border border-border flex items-center justify-center text-text-muted font-bold text-xs">
                     {a.owner}
                   </div>
                 </MondayCell>

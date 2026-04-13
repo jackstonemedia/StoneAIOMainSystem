@@ -77,7 +77,7 @@ export default function ForecastView({ deals, stages }: ForecastViewProps) {
         </div>
         <div className="bg-surface border border-border/60 rounded-2xl p-5">
           <div className="flex items-center gap-2 text-text-muted text-xs font-medium mb-1">
-            <BarChart3 className="w-4 h-4 text-amber-400" />
+            <BarChart3 className="w-4 h-4 text-text-muted" />
             Open Deals
           </div>
           <div className="text-2xl font-bold text-text-main mt-1">{totalDeals}</div>

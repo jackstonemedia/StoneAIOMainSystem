@@ -51,14 +51,14 @@ function VoIPDialpad() {
         <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm">
           <h2 className="text-[14px] font-bold text-text-main mb-4">Soft Phone</h2>
           {/* Display */}
-          <div className="bg-slate-900 rounded-xl px-4 py-3 mb-4 min-h-[52px] flex items-center justify-between">
+          <div className="bg-bg rounded-xl px-4 py-3 mb-4 min-h-[52px] flex items-center justify-between">
             <span className="text-[18px] font-mono font-bold text-white tracking-widest">{number || <span className="text-text-muted text-[14px]">Enter number</span>}</span>
             {number && <button onClick={() => setNumber(n => n.slice(0, -1))} className="text-text-muted hover:text-white"><X className="w-4 h-4" /></button>}
           </div>
 
           {/* Call state */}
           {callState !== 'idle' && (
-            <div className={`mb-4 rounded-xl p-3 text-center ${callState === 'dialing' ? 'bg-amber-50 text-amber-700' : callState === 'connected' ? 'bg-green-50 text-green-700' : 'bg-surface-hover text-text-muted'}`}>
+            <div className={`mb-4 rounded-xl p-3 text-center ${callState === 'dialing' ? 'bg-primary/10 text-primary' : callState === 'connected' ? 'bg-green-50 text-green-700' : 'bg-surface-hover text-text-muted'}`}>
               <p className="text-[12px] font-bold uppercase tracking-wider">{callState === 'dialing' ? 'Dialing...' : callState === 'connected' ? 'Connected' : 'Call Ended'}</p>
               {callState === 'connected' && <p className="text-[20px] font-mono font-bold mt-1">{fmtTime(duration)}</p>}
             </div>
@@ -68,7 +68,7 @@ function VoIPDialpad() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
               <button key={d} onClick={() => dial(d)} disabled={callState !== 'idle'}
-                className="h-12 rounded-xl bg-surface-hover hover:bg-slate-100 font-bold text-[16px] text-text-main transition-colors disabled:opacity-40 active:scale-95">
+                className="h-12 rounded-xl bg-surface-hover hover:bg-surface-hover font-bold text-[16px] text-text-main transition-colors disabled:opacity-40 active:scale-95">
                 {d}
               </button>
             ))}
@@ -84,11 +84,11 @@ function VoIPDialpad() {
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setMuted(m => !m)}
-                  className={`py-2 rounded-xl font-semibold text-[12px] flex items-center justify-center gap-2 transition-colors ${muted ? 'bg-slate-800 text-white' : 'bg-slate-100 text-text-main hover:bg-slate-200'}`}>
+                  className={`py-2 rounded-xl font-semibold text-[12px] flex items-center justify-center gap-2 transition-colors ${muted ? 'bg-bg text-white' : 'bg-surface-hover text-text-main hover:bg-surface-hover'}`}>
                   {muted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />} {muted ? 'Unmute' : 'Mute'}
                 </button>
                 <button onClick={() => setHeld(h => !h)}
-                  className={`py-2 rounded-xl font-semibold text-[12px] flex items-center justify-center gap-2 transition-colors ${held ? 'bg-surface-hover text-amber-700' : 'bg-slate-100 text-text-main hover:bg-slate-200'}`}>
+                  className={`py-2 rounded-xl font-semibold text-[12px] flex items-center justify-center gap-2 transition-colors ${held ? 'bg-surface-hover text-primary' : 'bg-surface-hover text-text-main hover:bg-surface-hover'}`}>
                   {held ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />} {held ? 'Resume' : 'Hold'}
                 </button>
               </div>
@@ -109,7 +109,7 @@ function VoIPDialpad() {
         <div className="divide-y divide-slate-100">
           {CALL_LOG.map(call => (
             <div key={call.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-hover transition-colors">
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${call.status === 'missed' ? 'bg-red-50' : call.dir === 'in' ? 'bg-blue-50' : 'bg-green-50'}`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${call.status === 'missed' ? 'bg-red-50' : call.dir === 'in' ? 'bg-primary/10' : 'bg-green-50'}`}>
                 <Phone className={`w-4 h-4 ${call.status === 'missed' ? 'text-red-500' : call.dir === 'in' ? 'text-text-muted' : 'text-green-500'}`} />
               </div>
               <div className="flex-1">
@@ -150,7 +150,7 @@ function EmailTab() {
         {/* Sync cards */}
         <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
           <h2 className="text-[13px] font-bold text-text-main mb-3">Email Sync</h2>
-          {[{ name: 'Gmail', color: 'bg-red-500', icon: '✉' }, { name: 'Outlook', color: 'bg-blue-500', icon: '📧' }].map(provider => {
+          {[{ name: 'Gmail', color: 'bg-red-500', icon: '✉' }, { name: 'Outlook', color: 'bg-primary/100', icon: '📧' }].map(provider => {
             const isConnected = connected.includes(provider.name);
             return (
               <div key={provider.name} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
@@ -194,7 +194,7 @@ function EmailTab() {
                 <p className={`text-[12px] ${!thread.read ? 'font-semibold text-text-main' : 'text-text-main'} truncate`}>{thread.subject}</p>
                 <p className="text-[11px] text-text-muted truncate">{thread.preview}</p>
                 <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-[10px] font-bold bg-blue-50 text-text-muted px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <span className="text-[10px] font-bold bg-primary/10 text-text-muted px-1.5 py-0.5 rounded flex items-center gap-1">
                     <Check className="w-2.5 h-2.5" /> {thread.tracking.opens} opens
                   </span>
                   {thread.tracking.clicks > 0 && <span className="text-[10px] font-bold bg-green-50 text-green-600 px-1.5 py-0.5 rounded">{thread.tracking.clicks} clicks</span>}
@@ -212,7 +212,7 @@ function EmailTab() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/20 z-40" onClick={() => setComposing(false)} />
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 220 }}
               className="fixed bottom-0 right-8 w-[520px] bg-surface border border-border rounded-t-2xl shadow-2xl z-50">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-slate-800 rounded-t-2xl">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg rounded-t-2xl">
                 <h3 className="text-[13px] font-bold text-white">New Email</h3>
                 <button onClick={() => setComposing(false)} className="text-text-muted hover:text-white"><X className="w-4 h-4" /></button>
               </div>
@@ -278,7 +278,7 @@ function SMSTab() {
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {activeThread.messages.map((m, i) => (
             <div key={i} className={`flex ${m.dir === 'out' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] ${m.dir === 'out' ? 'bg-primary text-white rounded-br-md' : 'bg-slate-100 text-text-main rounded-bl-md'}`}>
+              <div className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] ${m.dir === 'out' ? 'bg-primary text-white rounded-br-md' : 'bg-surface-hover text-text-main rounded-bl-md'}`}>
                 <p>{m.text}</p>
                 <p className={`text-[10px] mt-1 ${m.dir === 'out' ? 'text-white/70' : 'text-text-muted'} text-right`}>{m.time}</p>
               </div>
@@ -291,7 +291,7 @@ function SMSTab() {
           <button onClick={() => setMsg('')} className="p-2.5 bg-primary text-white rounded-xl hover:bg-[#0060c2] transition-colors shadow-sm">
             <Send className="w-4 h-4" />
           </button>
-          <button className="p-2.5 bg-slate-100 text-text-main rounded-xl hover:bg-slate-200 transition-colors"><Image className="w-4 h-4" /></button>
+          <button className="p-2.5 bg-surface-hover text-text-main rounded-xl hover:bg-surface-hover transition-colors"><Image className="w-4 h-4" /></button>
         </div>
       </div>
     </div>
@@ -371,7 +371,7 @@ function MeetingSchedulerTab() {
                       return (
                         <td key={day} className="px-0.5 py-0.5">
                           <button onClick={() => toggleSlot(slot)}
-                            className={`w-full h-8 rounded-lg transition-all border ${on ? 'bg-primary border-primary shadow-sm' : 'bg-surface-hover border-border hover:border-border hover:bg-slate-100'}`} />
+                            className={`w-full h-8 rounded-lg transition-all border ${on ? 'bg-primary border-primary shadow-sm' : 'bg-surface-hover border-border hover:border-border hover:bg-surface-hover'}`} />
                         </td>
                       );
                     })}
@@ -461,7 +461,7 @@ function SharedInboxTab() {
     { id: '4', source: 'email', from: 'james@orbit.dev', subject: 'Renewal discussion', preview: 'We are happy with the platform and want to talk renewal...', time: 'Yesterday', assignee: 'Sarah', unread: false },
   ];
   const SOURCE_ICONS: Record<string, any> = { email: Mail, sms: MessageSquare, form: Inbox };
-  const SOURCE_COLORS: Record<string, string> = { email: 'bg-blue-50 text-text-muted', sms: 'bg-green-50 text-green-500', form: 'bg-purple-50 text-text-muted' };
+  const SOURCE_COLORS: Record<string, string> = { email: 'bg-primary/10 text-text-muted', sms: 'bg-green-50 text-green-500', form: 'bg-primary/10 text-text-muted' };
   const TEAM = ['You', 'Sarah', 'Mike', 'Unassigned'];
   const [assignees, setAssignees] = useState<Record<string, string>>({});
 
@@ -535,7 +535,7 @@ export default function Communications() {
       <div className="flex items-center gap-1 px-8 py-3 bg-surface border-b border-border shrink-0 overflow-x-auto">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:bg-slate-100 hover:text-text-main'}`}>
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:bg-surface-hover hover:text-text-main'}`}>
             <Icon className="w-4 h-4" /> {label}
           </button>
         ))}

@@ -66,7 +66,7 @@ export default function CrmSetup() {
       align: 'left',
       width: '30%',
       render: (c) => (
-        <div className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded w-max">
+        <div className="flex items-center gap-1.5 text-xs text-text-muted bg-primary/100/10 border border-primary/20 px-2.5 py-1 rounded w-max">
           <Mail className="w-3 h-3" />
           {c.email}
         </div>
@@ -90,7 +90,7 @@ export default function CrmSetup() {
       align: 'center',
       width: '20%',
       render: () => (
-        <div className="flex items-center justify-center gap-1.5 mx-auto bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 px-3 py-1 rounded w-max text-xs font-medium">
+        <div className="flex items-center justify-center gap-1.5 mx-auto bg-primary/100/10 border border-primary/30 text-text-muted px-3 py-1 rounded w-max text-xs font-medium">
            <CircleDollarSign className="w-3 h-3" />
            Add deal
         </div>
@@ -113,7 +113,7 @@ export default function CrmSetup() {
       <div className="w-[450px] shrink-0 border-r border-border bg-surface flex flex-col p-12 overflow-y-auto">
         <h1 className="text-2xl font-semibold mb-2 text-text-main flex items-center gap-3">
           <span className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-             <div className="w-3 h-3 bg-white rounded-full"></div>
+             <div className="w-3 h-3 bg-surface rounded-full"></div>
           </span>
           Next, add a few contacts
         </h1>

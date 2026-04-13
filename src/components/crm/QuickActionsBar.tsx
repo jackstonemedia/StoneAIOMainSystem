@@ -121,9 +121,9 @@ export default function QuickActionsBar({ contactId, contactName, contactPhone, 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-text-main flex items-center gap-2">
-                {activeAction === 'sms' && <><MessageSquare className="w-5 h-5 text-blue-500" /> Send SMS to {contactName}</>}
-                {activeAction === 'email' && <><Mail className="w-5 h-5 text-indigo-500" /> Send Email to {contactName}</>}
-                {activeAction === 'note' && <><FileText className="w-5 h-5 text-amber-500" /> Log Note for {contactName}</>}
+                {activeAction === 'sms' && <><MessageSquare className="w-5 h-5 text-text-muted0" /> Send SMS to {contactName}</>}
+                {activeAction === 'email' && <><Mail className="w-5 h-5 text-text-muted0" /> Send Email to {contactName}</>}
+                {activeAction === 'note' && <><FileText className="w-5 h-5 text-text-muted0" /> Log Note for {contactName}</>}
               </h3>
               
               {activeAction === 'sms' && !contactPhone && (

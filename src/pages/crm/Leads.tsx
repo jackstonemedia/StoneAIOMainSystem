@@ -46,7 +46,7 @@ function LeadScoreBar({ score }: { score: number }) {
   const color = score >= 70 ? '#00c875' : score >= 40 ? '#ffcb00' : '#e2445c';
   return (
     <div className="flex items-center gap-2 w-full">
-      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-surface-hover rounded-full overflow-hidden">
         <motion.div className="h-full rounded-full" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${score}%` }} transition={{ duration: 0.6 }} />
       </div>
       <span className="text-[11px] font-bold w-7 text-right" style={{ color }}>{score}</span>
@@ -101,7 +101,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                   <h2 className="text-[16px] font-bold text-text-main">Bulk Import Leads</h2>
                   <p className="text-[12px] text-text-muted mt-0.5">Upload CSV with columns: name, email, phone, company, title, source</p>
                 </div>
-                <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:bg-slate-100"><X className="w-4 h-4" /></button>
+                <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover"><X className="w-4 h-4" /></button>
               </div>
 
               <div className="p-6">
@@ -110,7 +110,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                     <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                       onClick={() => fileRef.current?.click()}
                       className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#e5f0ff]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
-                      <Upload className="w-10 h-10 text-slate-300" />
+                      <Upload className="w-10 h-10 text-text-muted" />
                       <p className="text-[13px] font-medium text-text-main">{fileName || 'Drop CSV file here or click to browse'}</p>
                       <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
                     </div>
@@ -125,7 +125,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                       <button onClick={reset} className="text-[12px] text-text-muted hover:text-text-main flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> Change file</button>
                     </div>
                     <div className="bg-surface-hover rounded-xl border border-border overflow-hidden mb-4 max-h-[200px] overflow-y-auto">
-                      <div className="grid grid-cols-4 px-3 py-2 bg-slate-100 text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                      <div className="grid grid-cols-4 px-3 py-2 bg-surface-hover text-[11px] font-bold text-text-muted uppercase tracking-wider">
                         <span>Name</span><span>Email</span><span>Company</span><span>Source</span>
                       </div>
                       {parsed.slice(0, 8).map((l, i) => (
@@ -138,7 +138,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                       ))}
                       {parsed.length > 8 && <div className="px-3 py-2 text-[11px] text-text-muted">+{parsed.length - 8} more rows...</div>}
                     </div>
-                    <div className="bg-amber-50 border border-border rounded-xl px-4 py-3 text-[12px] text-amber-700 font-medium">
+                    <div className="bg-primary/10 border border-border rounded-xl px-4 py-3 text-[12px] text-primary font-medium">
                       Duplicate check: {parsed.filter(l => INITIAL_LEADS.some(ex => ex.email === l.email)).length} potential duplicates detected — they will be skipped.
                     </div>
                   </>
@@ -146,7 +146,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
               </div>
 
               <div className="px-6 pb-5 flex justify-end gap-3">
-                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 {step === 'map' && (
                   <button onClick={() => { onImport(parsed); onClose(); reset(); }}
                     className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] shadow-sm flex items-center gap-2">
@@ -179,7 +179,7 @@ function FunnelView({ leads }: { leads: Lead[] }) {
               <span className="font-semibold">{s}</span>
               <span className="font-bold">{count} ({pct.toFixed(0)}%)</span>
             </div>
-            <div className="h-10 bg-slate-100 rounded-xl overflow-hidden flex items-center">
+            <div className="h-10 bg-surface-hover rounded-xl overflow-hidden flex items-center">
               <motion.div className="h-full rounded-xl flex items-center justify-end px-3" style={{ background: color, width: `${Math.max(pct, 8)}%` }} initial={{ width: 0 }} animate={{ width: `${Math.max(pct, 8)}%` }} transition={{ duration: 0.7, delay: 0.1 }}>
                 <span className="text-white font-bold text-[12px]">{count}</span>
               </motion.div>
@@ -319,7 +319,7 @@ export default function Leads() {
           <SortAsc className="w-4 h-4 opacity-70" /> {sortBy === 'score' ? 'By Score' : sortBy === 'name' ? 'By Name' : 'Sort'}
         </button>
 
-        <div className="ml-auto flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+        <div className="ml-auto flex items-center gap-1 bg-surface-hover p-1 rounded-lg">
           {([['table', Grid], ['card', LayoutGrid], ['funnel', Funnel]] as [ViewMode, any][]).map(([mode, Icon]) => (
             <button key={mode} onClick={() => setView(mode)}
               className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${viewMode === mode ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>

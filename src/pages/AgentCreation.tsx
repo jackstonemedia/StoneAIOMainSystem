@@ -360,7 +360,7 @@ export default function AgentCreation() {
       <footer className="fixed bottom-0 left-0 right-0 p-6 bg-surface/20 backdrop-blur-3xl border-t border-white/10 z-50 flex justify-between items-center px-8 lg:px-16 shadow-[0_-20px_60px_rgba(0,0,0,0.3)]">
         <button
           onClick={handleBack}
-          className="px-8 py-4 rounded-2xl text-base font-bold text-text-muted hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+          className="px-8 py-4 rounded-2xl text-base font-bold text-text-muted hover:text-white hover:bg-surface/5 transition-colors border border-transparent hover:border-white/10"
         >
           Cancel
         </button>

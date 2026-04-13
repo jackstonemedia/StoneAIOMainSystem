@@ -570,7 +570,7 @@ export default function AgentBuilder() {
 
                     <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                       <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                        <Users className="w-4 h-4 text-pink-500" /> CRM Integration
+                        <Users className="w-4 h-4 text-text-muted0" /> CRM Integration
                       </h3>
                       <div className="space-y-4">
                         <label className="flex items-center gap-3">
@@ -589,7 +589,7 @@ export default function AgentBuilder() {
                 {agentType === 'autonomous' && (
                   <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-pink-500" /> CRM Permissions
+                      <Users className="w-4 h-4 text-text-muted0" /> CRM Permissions
                     </h3>
                     <div className="space-y-4">
                       <p className="text-sm text-text-muted mb-4">

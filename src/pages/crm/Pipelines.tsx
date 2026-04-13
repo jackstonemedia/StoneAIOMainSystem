@@ -20,12 +20,12 @@ interface Stage {
 interface Pipeline { id: string; name: string; stages: Stage[]; }
 
 const STAGE_COLORS = [
-  { label: 'Slate', value: 'bg-slate-400', hex: '#94a3b8' },
-  { label: 'Blue', value: 'bg-blue-500', hex: '#3b82f6' },
-  { label: 'Cyan', value: 'bg-cyan-500', hex: '#06b6d4' },
-  { label: 'Amber', value: 'bg-amber-500', hex: '#f59e0b' },
-  { label: 'Orange', value: 'bg-orange-500', hex: '#f97316' },
-  { label: 'Purple', value: 'bg-purple-500', hex: '#a855f7' },
+  { label: 'Slate', value: 'bg-surface-hover', hex: '#94a3b8' },
+  { label: 'Blue', value: 'bg-primary/100', hex: '#3b82f6' },
+  { label: 'Cyan', value: 'bg-primary/100', hex: '#06b6d4' },
+  { label: 'Amber', value: 'bg-primary/100', hex: '#f59e0b' },
+  { label: 'Orange', value: 'bg-primary/100', hex: '#f97316' },
+  { label: 'Purple', value: 'bg-primary/100', hex: '#a855f7' },
   { label: 'Rose', value: 'bg-rose-500', hex: '#f43f5e' },
   { label: 'Green', value: 'bg-green-500', hex: '#22c55e' },
   { label: 'Emerald', value: 'bg-emerald-500', hex: '#10b981' },
@@ -37,10 +37,10 @@ const DEFAULT_PIPELINES: Pipeline[] = [
   {
     id: 'p1', name: 'Main Sales Pipeline',
     stages: [
-      { id: 's1', name: 'Lead', probability: 10, color: 'bg-slate-400', order: 0, rottingDays: 21, autoTask: false, automations: [] },
-      { id: 's2', name: 'Discovery', probability: 25, color: 'bg-blue-500', order: 1, rottingDays: 14, autoTask: false, automations: [] },
-      { id: 's3', name: 'Proposal', probability: 50, color: 'bg-cyan-500', order: 2, rottingDays: 10, autoTask: true, automations: [{ id: 'a1', trigger: 'enter', action: 'email', actionValue: 'Send proposal follow-up', enabled: true }] },
-      { id: 's4', name: 'Negotiation', probability: 75, color: 'bg-amber-500', order: 3, rottingDays: 7, autoTask: false, automations: [] },
+      { id: 's1', name: 'Lead', probability: 10, color: 'bg-surface-hover', order: 0, rottingDays: 21, autoTask: false, automations: [] },
+      { id: 's2', name: 'Discovery', probability: 25, color: 'bg-primary/100', order: 1, rottingDays: 14, autoTask: false, automations: [] },
+      { id: 's3', name: 'Proposal', probability: 50, color: 'bg-primary/100', order: 2, rottingDays: 10, autoTask: true, automations: [{ id: 'a1', trigger: 'enter', action: 'email', actionValue: 'Send proposal follow-up', enabled: true }] },
+      { id: 's4', name: 'Negotiation', probability: 75, color: 'bg-primary/100', order: 3, rottingDays: 7, autoTask: false, automations: [] },
       { id: 's5', name: 'Closed Won', probability: 100, color: 'bg-green-500', order: 4, rottingDays: 0, autoTask: false, automations: [{ id: 'a2', trigger: 'enter', action: 'task', actionValue: 'Send onboarding kit', enabled: true }] },
     ]
   },
@@ -64,7 +64,7 @@ function NewPipelineModal({ isOpen, onClose, onSave }: { isOpen: boolean; onClos
                 placeholder="e.g. Enterprise Pipeline, Partner Deals..."
                 className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4" />
               <div className="flex justify-end gap-2">
-                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 <button disabled={!name.trim()} onClick={() => { onSave(name.trim()); setName(''); onClose(); }}
                   className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] disabled:opacity-40">
                   Create Pipeline
@@ -92,7 +92,7 @@ function AutomationRow({ auto, onToggle, onDelete }: { auto: Automation; onToggl
           <span className="text-primary">{auto.actionValue}</span>
         </p>
       </div>
-      <button onClick={onToggle} className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${auto.enabled ? 'bg-primary' : 'bg-slate-200'}`}>
+      <button onClick={onToggle} className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${auto.enabled ? 'bg-primary' : 'bg-surface-hover'}`}>
         <span className={`absolute top-0.5 w-3 h-3 bg-surface rounded-full shadow transition-all ${auto.enabled ? 'left-4' : 'left-0.5'}`} />
       </button>
       <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-500 transition-all">
@@ -130,9 +130,9 @@ export default function Pipelines() {
     const newPipeline: Pipeline = {
       id: `p-${Date.now()}`, name,
       stages: [
-        { id: `s-${Date.now()}-1`, name: 'Lead', probability: 10, color: 'bg-slate-400', order: 0, rottingDays: 21, autoTask: false, automations: [] },
-        { id: `s-${Date.now()}-2`, name: 'Discovery', probability: 25, color: 'bg-blue-500', order: 1, rottingDays: 14, autoTask: false, automations: [] },
-        { id: `s-${Date.now()}-3`, name: 'Proposal', probability: 50, color: 'bg-cyan-500', order: 2, rottingDays: 10, autoTask: false, automations: [] },
+        { id: `s-${Date.now()}-1`, name: 'Lead', probability: 10, color: 'bg-surface-hover', order: 0, rottingDays: 21, autoTask: false, automations: [] },
+        { id: `s-${Date.now()}-2`, name: 'Discovery', probability: 25, color: 'bg-primary/100', order: 1, rottingDays: 14, autoTask: false, automations: [] },
+        { id: `s-${Date.now()}-3`, name: 'Proposal', probability: 50, color: 'bg-primary/100', order: 2, rottingDays: 10, autoTask: false, automations: [] },
         { id: `s-${Date.now()}-4`, name: 'Won', probability: 100, color: 'bg-green-500', order: 3, rottingDays: 0, autoTask: false, automations: [] },
       ]
     };
@@ -176,7 +176,7 @@ export default function Pipelines() {
 
   const addStage = (pipelineId: string) => {
     persist(pipelines.map(p => p.id !== pipelineId ? p : {
-      ...p, stages: [...p.stages, { id: `stage-${Date.now()}`, name: 'New Stage', probability: 50, color: 'bg-slate-400', order: p.stages.length, rottingDays: 14, autoTask: false, automations: [] }]
+      ...p, stages: [...p.stages, { id: `stage-${Date.now()}`, name: 'New Stage', probability: 50, color: 'bg-surface-hover', order: p.stages.length, rottingDays: 14, autoTask: false, automations: [] }]
     }));
   };
 
@@ -447,7 +447,7 @@ export default function Pipelines() {
                 <h2 className="text-[16px] font-bold text-text-main mb-1">Delete Pipeline?</h2>
                 <p className="text-[13px] text-text-muted mb-5">This cannot be undone. All stages in this pipeline will be removed.</p>
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => setDeletingPipeline(null)} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
+                  <button onClick={() => setDeletingPipeline(null)} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                   <button onClick={() => deletePipeline(deletingPipeline!)} className="px-5 py-2 rounded-xl text-[13px] font-semibold bg-red-500 text-white hover:bg-red-600">Delete Pipeline</button>
                 </div>
               </div>

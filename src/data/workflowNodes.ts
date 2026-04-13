@@ -300,7 +300,7 @@ const dataJson: WorkflowNodeDefinition = {
 const crmContact: WorkflowNodeDefinition = {
   id: 'crm-contact', category: 'Data & CRM', name: 'Manage Contact', description: 'Find, create, or update CRM contacts',
   type: 'tool', icon: Users,
-  colorClass: 'text-pink-500', bgClass: 'bg-pink-500/10', borderClass: 'hover:border-pink-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: ['contact'],
   configFields: [
     { key: 'action', label: 'Action', type: 'select', default: 'upsert', options: [
@@ -320,7 +320,7 @@ const crmContact: WorkflowNodeDefinition = {
 const crmTask: WorkflowNodeDefinition = {
   id: 'crm-task', category: 'Data & CRM', name: 'Manage Task', description: 'Create or update CRM tasks',
   type: 'tool', icon: ListFilter,
-  colorClass: 'text-pink-500', bgClass: 'bg-pink-500/10', borderClass: 'hover:border-pink-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: ['task'],
   configFields: [
     { key: 'action', label: 'Action', type: 'select', default: 'create', options: [
@@ -381,7 +381,7 @@ const dataFilter: WorkflowNodeDefinition = {
 const commEmail: WorkflowNodeDefinition = {
   id: 'comm-email', category: 'Communication', name: 'Send Email', description: 'Send an email via SMTP or API',
   type: 'output', icon: Mail,
-  colorClass: 'text-blue-500', bgClass: 'bg-blue-500/10', borderClass: 'hover:border-blue-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: [],
   configFields: [
     { key: 'provider', label: 'Provider', type: 'select', default: 'sendgrid', options: [
@@ -402,7 +402,7 @@ const commEmail: WorkflowNodeDefinition = {
 const commSms: WorkflowNodeDefinition = {
   id: 'comm-sms', category: 'Communication', name: 'Send SMS', description: 'Send an SMS via Twilio',
   type: 'output', icon: MessageSquare,
-  colorClass: 'text-blue-500', bgClass: 'bg-blue-500/10', borderClass: 'hover:border-blue-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: [],
   configFields: [
     { key: 'to', label: 'To (Phone)', type: 'template', default: '{{input.phone}}', required: true, placeholder: '+1234567890' },
@@ -415,7 +415,7 @@ const commSms: WorkflowNodeDefinition = {
 const commVoice: WorkflowNodeDefinition = {
   id: 'comm-voice', category: 'Communication', name: 'Make Voice Call', description: 'Trigger an outbound voice call',
   type: 'output', icon: Phone,
-  colorClass: 'text-blue-500', bgClass: 'bg-blue-500/10', borderClass: 'hover:border-blue-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: ['callResult'],
   configFields: [
     { key: 'agentId', label: 'Voice Agent', type: 'select', default: '', options: [ { label: '(Select agent)', value: '' } ], helpText: 'Choose from your voice agents' },
@@ -429,7 +429,7 @@ const commVoice: WorkflowNodeDefinition = {
 const commSlack: WorkflowNodeDefinition = {
   id: 'comm-slack', category: 'Communication', name: 'Slack Message', description: 'Post a message to Slack',
   type: 'output', icon: Slack,
-  colorClass: 'text-blue-500', bgClass: 'bg-blue-500/10', borderClass: 'hover:border-blue-500/50',
+  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: [],
   configFields: [
     { key: 'channel', label: 'Channel', type: 'text', default: '#general', required: true, placeholder: '#sales-alerts' },

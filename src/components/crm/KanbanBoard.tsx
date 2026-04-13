@@ -53,7 +53,7 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
           style={provided.draggableProps.style}
           onClick={onEdit}
           className={`group transition-all select-none rounded-xl border ${
-            snapshot.isDragging ? 'shadow-2xl border-primary/40 rotate-1 z-50 scale-105 cursor-grabbing bg-white' : 'bg-surface border-border shadow-sm hover:shadow-md cursor-pointer hover:border-primary/50'
+            snapshot.isDragging ? 'shadow-2xl border-primary/40 rotate-1 z-50 scale-105 cursor-grabbing bg-surface' : 'bg-surface border-border shadow-sm hover:shadow-md cursor-pointer hover:border-primary/50'
           }`}
         >
           <div className="p-3 relative flex flex-col gap-2">

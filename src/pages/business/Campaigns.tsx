@@ -69,7 +69,7 @@ export default function Campaigns() {
         return (
           <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
-              <div className="h-full bg-blue-400 rounded-full" style={{width:`${Math.min(m.openRate,100)}%`}}/>
+              <div className="h-full bg-primary rounded-full" style={{width:`${Math.min(m.openRate,100)}%`}}/>
             </div>
             <span className="text-sm font-medium">{m.openRate}%</span>
           </div>
@@ -195,7 +195,7 @@ export default function Campaigns() {
                 <div className="p-8 text-center bg-gradient-to-b from-blue-50 to-white">
                   <h2 className="text-2xl font-bold text-text-main mb-3">Exclusive Black Friday Offer 🎉</h2>
                   <p className="text-text-main text-sm mb-6 leading-relaxed">Get 40% off all annual plans this weekend only. Automate your business and save thousands.</p>
-                  <a className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-sm font-bold no-underline hover:bg-indigo-700">Claim Your Discount →</a>
+                  <a className="inline-block bg-primary text-white px-6 py-3 rounded-full text-sm font-bold no-underline hover:bg-primary">Claim Your Discount →</a>
                 </div>
                 {/* Body */}
                 <div className="px-8 py-6 space-y-4 text-sm text-text-main leading-relaxed">

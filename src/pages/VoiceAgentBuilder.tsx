@@ -20,7 +20,7 @@ const SETTINGS_TABS = [
   { id: 'call', label: 'Call Controls', icon: PhoneCall, color: 'text-green' },
   { id: 'analysis', label: 'Analytics', icon: BarChart3, color: 'text-amber' },
   { id: 'security', label: 'Security', icon: Shield, color: 'text-red' },
-  { id: 'webhooks', label: 'Webhooks', icon: Webhook, color: 'text-pink-500' },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook, color: 'text-text-muted0' },
   { id: 'tools', label: 'Tools & MCPs', icon: Puzzle, color: 'text-light-purple' },
 ] as const;
 

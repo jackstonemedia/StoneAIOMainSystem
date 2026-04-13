@@ -18,11 +18,11 @@ interface FileAttachmentsProps {
 const STORAGE_KEY = (id: string) => `crm_attachments_${id}`;
 
 function getIcon(type: string) {
-  if (type.startsWith('image/')) return { Icon: Image, color: 'text-purple-500', bg: 'bg-purple-50' };
-  if (type.startsWith('video/')) return { Icon: Film, color: 'text-blue-500', bg: 'bg-blue-50' };
+  if (type.startsWith('image/')) return { Icon: Image, color: 'text-text-muted0', bg: 'bg-primary/10' };
+  if (type.startsWith('video/')) return { Icon: Film, color: 'text-text-muted0', bg: 'bg-primary/10' };
   if (type.startsWith('audio/')) return { Icon: Music, color: 'text-green-500', bg: 'bg-green-50' };
-  if (type.includes('zip') || type.includes('rar')) return { Icon: FileArchive, color: 'text-amber-500', bg: 'bg-amber-50' };
-  return { Icon: FileText, color: 'text-slate-500', bg: 'bg-slate-100' };
+  if (type.includes('zip') || type.includes('rar')) return { Icon: FileArchive, color: 'text-text-muted0', bg: 'bg-primary/10' };
+  return { Icon: FileText, color: 'text-text-muted0', bg: 'bg-surface-hover' };
 }
 
 function formatBytes(bytes: number) {
@@ -90,7 +90,7 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Files & Documents</h3>
+        <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Files & Documents</h3>
         <button onClick={() => fileRef.current?.click()} className="text-[11px] font-semibold text-[#0073ea] hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
           <Upload className="w-3.5 h-3.5" /> Upload
         </button>
@@ -103,10 +103,10 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all mb-4 ${dragging ? 'border-[#0073ea] bg-[#e5f0ff]/50' : 'border-slate-200 hover:border-[#0073ea]/40 hover:bg-slate-50'}`}
+        className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all mb-4 ${dragging ? 'border-[#0073ea] bg-[#e5f0ff]/50' : 'border-border hover:border-[#0073ea]/40 hover:bg-surface-hover'}`}
       >
-        <Upload className={`w-6 h-6 ${dragging ? 'text-[#0073ea]' : 'text-slate-400'}`} />
-        <p className="text-[12px] font-medium text-slate-500 text-center">
+        <Upload className={`w-6 h-6 ${dragging ? 'text-[#0073ea]' : 'text-text-muted'}`} />
+        <p className="text-[12px] font-medium text-text-muted0 text-center">
           {uploading ? `Uploading ${uploading}...` : 'Drop files here or click to browse'}
         </p>
       </div>
@@ -119,19 +119,19 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
             return (
               <motion.div key={att.id}
                 initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 20 }}
-                className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl group hover:border-slate-300 transition-colors">
+                className="flex items-center gap-3 p-3 bg-surface-hover border border-border rounded-xl group hover:border-border transition-colors">
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
                   <Icon className={`w-4.5 h-4.5 ${color}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-slate-800 truncate">{att.name}</p>
-                  <p className="text-[11px] text-slate-400">{formatBytes(att.size)} · {att.uploadedAt}</p>
+                  <p className="text-[13px] font-semibold text-text-main truncate">{att.name}</p>
+                  <p className="text-[11px] text-text-muted">{formatBytes(att.size)} · {att.uploadedAt}</p>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => downloadFile(att)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-500 transition-colors">
+                  <button onClick={() => downloadFile(att)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-surface-hover text-text-muted0 transition-colors">
                     <Download className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => removeFile(att.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => removeFile(att.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -141,7 +141,7 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
         </AnimatePresence>
 
         {attachments.length === 0 && (
-          <p className="text-[12px] text-slate-400 italic text-center py-1">No files attached yet.</p>
+          <p className="text-[12px] text-text-muted italic text-center py-1">No files attached yet.</p>
         )}
       </div>
     </div>

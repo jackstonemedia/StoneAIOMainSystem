@@ -11,7 +11,7 @@ export const useToast = () => useContext(ToastContext);
 const icons = {
   success: { Icon: CheckCircle, cls: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
   error:   { Icon: XCircle,     cls: 'text-red-400 bg-red-500/10 border-red-500/20' },
-  warning: { Icon: AlertTriangle,cls: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  warning: { Icon: AlertTriangle,cls: 'text-text-muted bg-primary/100/10 border-primary/20' },
   info:    { Icon: Info,         cls: 'text-primary bg-primary/10 border-primary/20' },
 };
 

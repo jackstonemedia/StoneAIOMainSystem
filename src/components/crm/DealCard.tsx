@@ -21,10 +21,10 @@ interface DealCardProps {
 }
 
 const urgencyStripe = (deal: Deal) => {
-  if (!deal.closeDate) return 'bg-blue-500';
+  if (!deal.closeDate) return 'bg-primary/100';
   const daysToClose = Math.floor((new Date(deal.closeDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysToClose < 0) return 'bg-red-500';
-  if (daysToClose <= 30) return 'bg-amber-500';
+  if (daysToClose <= 30) return 'bg-primary/100';
   return 'bg-green-500';
 };
 
@@ -32,7 +32,7 @@ const urgencyLabel = (deal: Deal) => {
   if (!deal.closeDate) return null;
   const daysToClose = Math.floor((new Date(deal.closeDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysToClose < 0) return { label: 'Overdue', color: 'text-red-400 bg-red-500/10 border-red-500/20' };
-  if (daysToClose <= 30) return { label: `${daysToClose}d left`, color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+  if (daysToClose <= 30) return { label: `${daysToClose}d left`, color: 'text-text-muted bg-primary/100/10 border-primary/20' };
   return null;
 };
 

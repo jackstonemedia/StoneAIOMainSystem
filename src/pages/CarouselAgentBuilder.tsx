@@ -597,7 +597,7 @@ export default function CarouselAgentBuilder() {
             </div>
             <input type="text" value={agentName} onChange={e => setAgentName(e.target.value)} className="font-semibold text-sm bg-transparent border-none focus:outline-none hover:bg-surface-hover px-2 py-1 rounded w-64" />
           </div>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider text-pink-500 bg-pink-500/10 border border-pink-500/20">Carousel Agent</span>
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider text-text-muted0 bg-primary/100/10 border border-primary/20">Carousel Agent</span>
         </div>
         <div className="flex items-center gap-3">
           {saveStatus === 'saved' && <span className="text-xs text-green flex items-center gap-1"><Save className="w-3 h-3" /> Saved</span>}
@@ -777,7 +777,7 @@ export default function CarouselAgentBuilder() {
                     <button onClick={() => setActiveAccordion(a => a === 'theme' ? '' : 'theme')} className="w-full flex items-center justify-between p-4 bg-surface/30 hover:bg-surface/60 transition-colors">
                       <div className="flex items-center gap-3">
                         <br />
-                        <Palette className="w-4 h-4 text-pink-500" />
+                        <Palette className="w-4 h-4 text-text-muted0" />
                         <span className="text-xs font-bold uppercase tracking-wider text-text-main">Colors & Backgrounds</span>
                       </div>
                       <ChevronDown className={`w-4 h-4 text-text-muted transition-transform duration-300 ${activeAccordion === 'theme' ? 'rotate-180' : ''}`} />
@@ -785,12 +785,12 @@ export default function CarouselAgentBuilder() {
                     {activeAccordion === 'theme' && (
                       <div className="p-5 border-t border-border/50 space-y-6 bg-surface/10">
                         {/* Subtle Pattern */}
-                        <div className="p-4 bg-pink-500/5 border border-pink-500/20 rounded-xl flex items-start gap-3">
-                          <Sparkles className="w-5 h-5 text-pink-400 mt-0.5 shrink-0" />
+                        <div className="p-4 bg-primary/100/5 border border-primary/20 rounded-xl flex items-start gap-3">
+                          <Sparkles className="w-5 h-5 text-text-muted mt-0.5 shrink-0" />
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
                               <h4 className="text-xs font-semibold">Subtle Pattern Overlay</h4>
-                              <button onClick={() => setUsePattern(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${usePattern ? 'bg-pink-500' : 'bg-border'}`}>
+                              <button onClick={() => setUsePattern(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${usePattern ? 'bg-primary/100' : 'bg-border'}`}>
                                 <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${usePattern ? 'left-4' : 'left-0.5'}`} />
                               </button>
                             </div>
@@ -799,7 +799,7 @@ export default function CarouselAgentBuilder() {
                               <div className="grid grid-cols-3 gap-2 mt-4">
                                 {PATTERN_OPTIONS.map(p => (
                                   <button key={p.id} onClick={() => setSelectedPattern(p.id)}
-                                    className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all ${selectedPattern === p.id ? 'bg-pink-500/20 border-pink-400 text-pink-300' : 'bg-surface border-border text-text-muted hover:border-text-muted'}`}>
+                                    className={`py-2 px-1 rounded-lg text-[10px] font-bold border transition-all ${selectedPattern === p.id ? 'bg-primary/100/20 border-primary text-text-muted' : 'bg-surface border-border text-text-muted hover:border-text-muted'}`}>
                                     {p.label}
                                   </button>
                                 ))}
@@ -815,7 +815,7 @@ export default function CarouselAgentBuilder() {
                               <h4 className="text-xs font-semibold">AI Auto-Select Palette</h4>
                               <p className="text-[10px] text-text-muted">Randomly selects a fresh editorial palette every generation.</p>
                             </div>
-                            <button onClick={() => setAutoGenBackground(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${autoGenBackground ? 'bg-pink-500' : 'bg-border'}`}>
+                            <button onClick={() => setAutoGenBackground(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${autoGenBackground ? 'bg-primary/100' : 'bg-border'}`}>
                               <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${autoGenBackground ? 'left-4' : 'left-0.5'}`} />
                             </button>
                           </div>

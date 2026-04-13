@@ -77,7 +77,7 @@ export function MondayGroup({ title, color, children, isCollapsed, onToggle, onE
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute left-full top-0 ml-2 z-50 bg-white/95 border border-border rounded-xl shadow-luxury py-1 min-w-[140px]">
+                <div className="absolute left-full top-0 ml-2 z-50 bg-surface/95 border border-border rounded-xl shadow-luxury py-1 min-w-[140px]">
                   {onEdit && (
                     <button onClick={() => { onEdit(); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-[12px] font-semibold text-text-main hover:bg-surface-hover hover:text-primary transition-colors flex items-center gap-2">
                       Edit Group
