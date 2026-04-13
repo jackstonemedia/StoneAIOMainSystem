@@ -1,29 +1,38 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { useState } from 'react';
-import { 
-  LayoutDashboard, BarChart3, Calendar, FileText, Users, Star,
-  Mail, ChevronRight
-} from 'lucide-react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import BusinessOnboarding from './BusinessOnboarding';
+
+const ONBOARDING_KEY = 'stone-aio-business-onboarded';
 
 export default function BusinessLayout() {
   const location = useLocation();
-  const [hasOnboarded, setHasOnboarded] = useState(false);
-  
-  // Build breadcrumb from path
-  const segments = location.pathname.split('/').filter(Boolean);
-  const breadcrumbs = segments.map((seg, i) => ({
-    label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
-    path: '/' + segments.slice(0, i + 1).join('/'),
-  }));
+
+  // Persist onboarding state in localStorage so it survives page refresh
+  const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(ONBOARDING_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const completeOnboarding = () => {
+    try {
+      localStorage.setItem(ONBOARDING_KEY, 'true');
+    } catch {}
+    setHasOnboarded(true);
+  };
 
   if (!hasOnboarded) {
-    return <BusinessOnboarding onComplete={() => setHasOnboarded(true)} />;
+    return <BusinessOnboarding onComplete={completeOnboarding} />;
   }
 
   return (
-    <div className="flex h-full w-full">
-      <main className="flex-1 overflow-hidden bg-bg flex flex-col w-full">
+    <div
+      className="flex h-full w-full"
+      style={{ background: 'var(--bg)', color: 'var(--text-main)' }}
+    >
+      <main className="flex-1 overflow-hidden flex flex-col w-full">
         <div className="flex-1 overflow-auto">
           <Outlet />
         </div>

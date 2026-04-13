@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard, Server, Search, Inbox, Bell,
-  BarChart, Reply, FileText, FileSpreadsheet, Building2, Trash2,
-  Settings, Moon, Palette, HelpCircle, PanelLeftClose, ChevronDown, Zap
+  BarChart3, Reply, FileText, FileSpreadsheet, Building2,
+  Settings, HelpCircle, PanelLeftClose, ChevronDown, Zap,
+  Users, Calendar, Star, Activity, GitBranch, MessageSquare,
+  Mic, Sparkles, LogOut, ChevronsUpDown
 } from 'lucide-react';
 import { useMode } from '../../store/modeStore';
 
@@ -19,29 +21,28 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
   const location = useLocation();
   const [searchParams] = useSearchParams();
 
-  // No auto-collapse — user controls sidebar state manually
-
-  // ── Mode-based Navigation Data ──
+  // ── Creator Studio Navigation ──
   const creatorMenu = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Projects', path: '/projects', icon: BarChart },
-    { name: 'Voice Agents', path: '/agents?type=voice', icon: Reply },
-    { name: 'Documentation', path: '/assistant', icon: FileText },
-    { name: 'Cloud Computer', path: '/computer', icon: Server },
-    { name: 'Workflows', path: '/agents?type=workflow', icon: FileSpreadsheet },
-    { name: 'Marketplace', path: '/marketplace', icon: Building2 },
-    { name: 'Trash', path: '#', icon: Trash2 },
+    { name: 'Dashboard',     path: '/dashboard',          icon: LayoutDashboard },
+    { name: 'AI Agents',     path: '/agents',             icon: Sparkles },
+    { name: 'Voice Agents',  path: '/agents?type=voice',  icon: Mic },
+    { name: 'Workflows',     path: '/agents?type=workflow',icon: GitBranch },
+    { name: 'AI Assistant',  path: '/assistant',          icon: MessageSquare },
+    { name: 'Cloud Computer',path: '/computer',           icon: Server },
+    { name: 'Templates',     path: '/templates',          icon: FileSpreadsheet },
+    { name: 'Marketplace',   path: '/marketplace',        icon: Building2 },
   ];
 
+  // ── Management / Business Navigation ──
   const businessMenu = [
-    { name: 'Dashboard', path: '/business', icon: LayoutDashboard },
-    { name: 'CRM Contacts', path: '/business/crm/contacts', icon: BarChart },
-    { name: 'Campaigns', path: '/business/campaigns', icon: Reply },
-    { name: 'Documentation', path: '/business/forms', icon: FileText },
-    { name: 'Settings', path: '/settings', icon: Server },
-    { name: 'Analytics', path: '/business/analytics', icon: FileSpreadsheet },
-    { name: 'Reputation', path: '/business/reputation', icon: Building2 },
-    { name: 'Trash', path: '#', icon: Trash2 },
+    { name: 'Dashboard',     path: '/business',                   icon: LayoutDashboard },
+    { name: 'CRM',           path: '/business/crm/contacts',      icon: Users },
+    { name: 'Inbox',         path: '/inbox',                      icon: Inbox },
+    { name: 'Campaigns',     path: '/business/campaigns',         icon: Reply },
+    { name: 'Calendar',      path: '/business/calendar',          icon: Calendar },
+    { name: 'Analytics',     path: '/business/analytics',         icon: BarChart3 },
+    { name: 'Forms',         path: '/business/forms',             icon: FileText },
+    { name: 'Reputation',    path: '/business/reputation',        icon: Star },
   ];
 
   const NavItem = ({ item }: { item: { name: string; path: string; icon: any } }) => {
@@ -62,16 +63,16 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     if (collapsed) {
       return (
         <NavLink
-            to={item.path}
-            onClick={() => setMobileOpen?.(false)}
-            title={item.name}
-            className={`flex items-center justify-center w-10 h-10 mx-auto my-1.5 rounded-md transition-all ${
-              isActive 
-                ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-slate-200 text-slate-800' 
-                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-            }`}
-          >
-            <item.icon className="w-4 h-4" strokeWidth={2}/>
+          to={item.path}
+          onClick={() => setMobileOpen?.(false)}
+          title={item.name}
+          className={`flex items-center justify-center w-9 h-9 mx-auto my-1 rounded-lg transition-all duration-150 ${
+            isActive
+              ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)]'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
+          }`}
+        >
+          <item.icon className="w-[17px] h-[17px]" strokeWidth={isActive ? 2 : 1.75} />
         </NavLink>
       );
     }
@@ -80,14 +81,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       <NavLink
         to={item.path}
         onClick={() => setMobileOpen?.(false)}
-        className={`flex items-center gap-3 px-3 py-2 mx-3 my-0.5 rounded-lg text-[13px] font-medium transition-all ${
-          isActive 
-            ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] border border-slate-200 text-[#1e293b]' 
-            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+        className={`flex items-center gap-3 px-3 py-2 mx-3 my-0.5 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+          isActive
+            ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)] font-semibold'
+            : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
         }`}
       >
-        <item.icon className="w-[18px] h-[18px] shrink-0 opacity-80" strokeWidth={1.8} />
-        <span className="truncate tracking-tight">{item.name}</span>
+        <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={isActive ? 2 : 1.75} />
+        <span className="truncate">{item.name}</span>
       </NavLink>
     );
   };
@@ -96,198 +97,329 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
   return (
     <>
+      {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
           onClick={() => setMobileOpen?.(false)}
         />
       )}
 
       <aside
-        className={`flex flex-col h-full shrink-0 transition-all duration-300 z-50 bg-[#f8fafc] border-r border-[#e2e8f0] text-slate-800
-          fixed md:relative top-0 bottom-0 left-0 shadow-[4px_0_24px_rgba(0,0,0,0.01)] md:shadow-none
-          ${collapsed ? 'w-[68px]' : 'w-[250px]'}
+        className={`flex flex-col h-full shrink-0 transition-all duration-300 z-50
+          fixed md:relative top-0 bottom-0 left-0
+          border-r
+          ${collapsed ? 'w-[60px]' : 'w-[240px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
+        style={{
+          background: 'var(--sidebar-bg)',
+          borderColor: 'var(--sidebar-border)',
+        }}
       >
-        {/* Header Block */}
-        <div className={`h-14 flex items-center border-b border-[#e2e8f0] shrink-0 ${collapsed ? 'justify-center mx-0' : 'px-4 justify-between'}`}>
+        {/* ── Logo Header ── */}
+        <div
+          className={`h-[54px] flex items-center border-b shrink-0 ${
+            collapsed ? 'justify-center' : 'px-4 justify-between'
+          }`}
+          style={{ borderColor: 'var(--sidebar-border)' }}
+        >
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 bg-white text-[#4f46e5] rounded flex items-center justify-center font-bold text-[10px] shadow-sm border border-slate-200">
-               <Zap className="w-3.5 h-3.5" fill="currentColor" />
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <Zap className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} strokeWidth={1.8} />
             </div>
             {!collapsed && (
-              <span className="font-[600] text-[15px] tracking-tight text-slate-800">Stone AIO</span>
+              <span
+                className="font-bold text-[14.5px] tracking-tight select-none"
+                style={{ color: 'var(--text-main)' }}
+              >
+                Stone AIO
+              </span>
             )}
           </div>
-          
-          {/* Subtle Inline Sidebar Toggle */}
+
+          {/* Collapse toggle */}
+          {!collapsed ? (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="w-6 h-6 rounded-md flex items-center justify-center transition-colors hidden md:flex"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-main)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+            >
+              <PanelLeftClose className="w-[16px] h-[16px]" strokeWidth={1.5} />
+            </button>
+          ) : (
+            <button
+              onClick={() => setCollapsed(false)}
+              className="absolute -right-3 top-4 w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20 hidden md:flex transition-colors"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <PanelLeftClose className="w-3 h-3 rotate-180" strokeWidth={1.5} />
+            </button>
+          )}
+        </div>
+
+        {/* ── Quick Search ── */}
+        <div
+          className={`h-[40px] border-b flex items-center cursor-text shrink-0 transition-colors ${
+            collapsed ? 'justify-center' : 'px-4 gap-2.5'
+          }`}
+          style={{ borderColor: 'var(--sidebar-border)', color: 'var(--text-muted)' }}
+        >
+          <Search className="w-[15px] h-[15px] shrink-0" strokeWidth={1.8} />
           {!collapsed && (
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition-colors hidden md:flex"
-            >
-              <PanelLeftClose className="w-[18px] h-[18px]" strokeWidth={1.5} />
-            </button>
-          )}
-          {collapsed && (
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="absolute -right-3 top-4 w-6 h-6 bg-white border border-[#e2e8f0] rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 shadow-sm transition-all z-20 hidden md:flex"
-            >
-              <PanelLeftClose className="w-3.5 h-3.5 rotate-180" strokeWidth={1.5}/>
-            </button>
+            <span className="text-[12.5px] font-medium opacity-75">Quick search…</span>
           )}
         </div>
 
-        {/* Quick Search */}
-        <div className={`h-[42px] border-b border-[#e2e8f0] flex items-center text-slate-500 hover:bg-slate-200/30 cursor-text transition-colors shrink-0 ${collapsed ? 'justify-center' : 'px-4 gap-3'}`}>
-           <Search className="w-[18px] h-[18px] shrink-0" strokeWidth={1.8}/>
-           {!collapsed && (
-             <span className="text-[13px] font-medium opacity-90 truncate">Quick search</span>
-           )}
-        </div>
+        {/* ── Scrollable Nav Body ── */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col pb-2">
 
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden styled-scrollbar relative flex flex-col pb-4">
-          
-          {/* Top Communication Segment */}
-          <div className="border-b border-[#e2e8f0] py-2 shrink-0">
-             <div className={`flex items-center justify-between text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md' : 'px-4 py-2'}`}>
-                <div className="flex items-center gap-3">
-                  <Inbox className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                  {!collapsed && <span>Inbox</span>}
-                </div>
-                {!collapsed && <span className="text-slate-400 text-[11px] font-semibold">12</span>}
-             </div>
-             
-             <div className={`flex items-center justify-between text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors mt-0.5 ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md' : 'px-4 py-2'}`}>
-                <div className="flex items-center gap-3">
-                  <Bell className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                  {!collapsed && <span>Notifications</span>}
-                </div>
-                {!collapsed && <span className="text-slate-400 text-[11px] font-semibold">15+</span>}
-             </div>
+          {/* Inbox + Notifications strip */}
+          <div
+            className="border-b py-1 shrink-0"
+            style={{ borderColor: 'var(--sidebar-border)' }}
+          >
+            {[
+              { label: 'Inbox', icon: Inbox, count: '12', path: '/inbox' },
+              { label: 'Notifications', icon: Bell, count: '5', path: '#' },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => item.path !== '#' && navigate(item.path)}
+                className={`w-full flex items-center transition-colors ${
+                  collapsed
+                    ? 'justify-center mx-auto w-9 h-9 rounded-lg my-0.5'
+                    : 'px-4 py-2 gap-3'
+                }`}
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-main)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                }}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={1.75} />
+                {!collapsed && (
+                  <>
+                    <span className="text-[13px] font-medium flex-1 text-left">{item.label}</span>
+                    <span
+                      className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-md"
+                      style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)' }}
+                    >
+                      {item.count}
+                    </span>
+                  </>
+                )}
+              </button>
+            ))}
           </div>
 
-          {/* Mode Switcher Widget */}
+          {/* ── Mode Switcher ── */}
           {!collapsed ? (
-            <div className="mx-4 mt-4 mb-2 p-[2px] rounded-lg bg-gradient-to-br from-[#4f46e5] via-[#a855f7] to-[#ec4899] shadow-[0_2px_8px_rgba(79,70,229,0.2)] shrink-0">
-              <div className="bg-white/95 backdrop-blur rounded-[6px] p-0.5 flex">
+            <div
+              className="mx-3 mt-3 mb-1 p-[1.5px] rounded-xl shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+              }}
+            >
+              <div
+                className="rounded-[10px] p-0.5 flex"
+                style={{ background: 'var(--surface)' }}
+              >
                 <button
-                  onClick={() => {
-                    setMode('business');
-                    navigate('/business');
+                  onClick={() => { setMode('business'); navigate('/business'); }}
+                  className={`flex-1 py-1.5 text-[11.5px] font-bold rounded-[8px] transition-all ${
+                    mode === 'business' ? 'shadow-sm' : ''
+                  }`}
+                  style={{
+                    background: mode === 'business' ? 'var(--primary)' : 'transparent',
+                    color: mode === 'business' ? 'var(--text-main)' : 'var(--text-muted)',
                   }}
-                  className={`flex-1 flex justify-center py-1.5 text-[11px] font-bold rounded transition-all ${mode === 'business' ? 'bg-gradient-to-r from-slate-100 to-white text-[#4f46e5] shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Management
                 </button>
                 <button
-                  onClick={() => {
-                    setMode('creator');
-                    navigate('/dashboard');
+                  onClick={() => { setMode('creator'); navigate('/dashboard'); }}
+                  className={`flex-1 py-1.5 text-[11.5px] font-bold rounded-[8px] transition-all ${
+                    mode === 'creator' ? 'shadow-sm' : ''
+                  }`}
+                  style={{
+                    background: mode === 'creator' ? 'var(--primary)' : 'transparent',
+                    color: mode === 'creator' ? 'var(--text-main)' : 'var(--text-muted)',
                   }}
-                  className={`flex-1 flex justify-center py-1.5 text-[11px] font-bold rounded transition-all ${mode === 'creator' ? 'bg-gradient-to-r from-slate-100 to-white text-[#ec4899] shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   Creation
                 </button>
               </div>
             </div>
           ) : (
-             <div className="mx-auto w-10 h-10 mt-4 shrink-0 p-[2px] rounded-lg bg-gradient-to-br from-[#4f46e5] via-[#a855f7] to-[#ec4899] shadow-sm cursor-pointer" onClick={() => {
-                 const newMode = mode === 'creator' ? 'business' : 'creator';
-                 setMode(newMode);
-                 navigate(newMode === 'creator' ? '/dashboard' : '/business');
-             }}>
-                 <div className="bg-white/95 backdrop-blur rounded-[6px] w-full h-full flex items-center justify-center">
-                    <Zap className={`w-4 h-4 ${mode === 'creator' ? 'text-[#ec4899]' : 'text-[#4f46e5]'} fill-current`} />
-                 </div>
-             </div>
-          )}
-
-          {!collapsed && (
-            <div className="px-5 pt-3 pb-2 shrink-0">
-              <span className="text-[13px] font-medium text-slate-500 tracking-tight">Menu</span>
+            <div
+              className="mx-auto w-9 h-9 mt-3 mb-1 shrink-0 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+              style={{ background: 'var(--primary)', color: 'var(--text-main)' }}
+              onClick={() => {
+                const newMode = mode === 'creator' ? 'business' : 'creator';
+                setMode(newMode);
+                navigate(newMode === 'creator' ? '/dashboard' : '/business');
+              }}
+              title={`Switch to ${mode === 'creator' ? 'Management' : 'Creation'}`}
+            >
+              <Zap className="w-4 h-4" strokeWidth={1.8} />
             </div>
           )}
 
-          {currentMenu.map((item) => <NavItem key={item.name} item={item} />)}
-
-          {/* Upgrade Plan Widget — matching Pointsale reference */}
-          {!collapsed ? (
-            <div className="mx-4 mt-6 mb-2 rounded-xl bg-gradient-to-br from-[#e8eaff] to-[#f0eeff] p-4 border border-[#dcdaff] shadow-[0_2px_8px_rgba(0,0,0,0.03)] shrink-0">
-              <div className="flex items-center gap-2 mb-3">
-                 <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-[#4f46e5] border border-[#e0dfff]">
-                   <Zap className="w-4 h-4" fill="currentColor" />
-                 </div>
-                 <div className="flex flex-col justify-center leading-tight">
-                   <span className="text-[11px] text-slate-500 font-medium">Current plan:</span>
-                   <span className="text-[13px] font-bold text-slate-800 tracking-tight">Pro trial</span>
-                 </div>
-              </div>
-              <p className="text-[12px] text-slate-500 leading-snug mb-4">
-                 Upgrade to Pro to get the latest and exclusive features
-              </p>
-              <button 
-                className="w-full bg-white text-[#4f46e5] text-[13px] font-semibold rounded-lg py-2 shadow-sm border border-[#dcdaff] hover:shadow-md transition-shadow flex justify-center items-center gap-1.5"
+          {/* ── Section label ── */}
+          {!collapsed && (
+            <div className="px-4 pt-3 pb-1.5 shrink-0">
+              <span
+                className="text-[10px] font-bold tracking-[0.08em] uppercase"
+                style={{ color: 'var(--text-muted)', opacity: 0.6 }}
               >
-                <Zap className="w-3.5 h-3.5" fill="currentColor"/>
+                {mode === 'creator' ? 'Creator Studio' : 'Management'}
+              </span>
+            </div>
+          )}
+
+          {/* ── Navigation items ── */}
+          <div className="flex-1">
+            {currentMenu.map((item) => <NavItem key={item.name} item={item} />)}
+          </div>
+
+          {/* ── Upgrade card ── */}
+          {!collapsed ? (
+            <div
+              className="mx-3 mt-4 mb-2 rounded-xl p-4 shrink-0"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}
+                >
+                  <Zap className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} strokeWidth={1.8} />
+                </div>
+                <div className="leading-tight">
+                  <div className="text-[10.5px] font-medium" style={{ color: 'var(--text-muted)' }}>Current plan</div>
+                  <div className="text-[13px] font-bold" style={{ color: 'var(--text-main)' }}>Pro Trial</div>
+                </div>
+              </div>
+              <p className="text-[11.5px] leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>
+                Upgrade to unlock all enterprise features.
+              </p>
+              <button
+                className="w-full text-[12.5px] font-semibold py-2 rounded-lg transition-all"
+                style={{
+                  background: 'var(--primary)',
+                  color: 'var(--text-main)',
+                  border: '1px solid var(--border)',
+                }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = 'var(--primary-hover)')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'var(--primary)')}
+              >
                 Upgrade to Pro
               </button>
             </div>
           ) : (
-             <div className="mx-3 mt-6 shrink-0">
-               <button 
-                 className="w-full aspect-square bg-[#e8eaff] rounded-lg flex items-center justify-center text-[#4f46e5] shadow-sm border border-[#dcdaff] hover:opacity-90"
-                 title="Upgrade to Pro"
-               >
-                 <Zap className="w-4 h-4" fill="currentColor"/>
-               </button>
-             </div>
+            <div className="mx-2 mt-4 mb-2 shrink-0">
+              <button
+                className="w-full aspect-square rounded-lg flex items-center justify-center transition-colors"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                }}
+                title="Upgrade to Pro"
+              >
+                <Zap className="w-4 h-4" strokeWidth={1.8} />
+              </button>
+            </div>
           )}
 
-          {/* Utilities */}
-          <div className="border-t border-[#e2e8f0] pt-2 mt-4 space-y-0.5 shrink-0">
-             <div className={`flex items-center gap-3 text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md' : 'px-4 py-2 mx-2 rounded-lg'}`}>
-                <Settings className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                {!collapsed && <span>Preferences</span>}
-             </div>
-             <div className={`flex items-center gap-3 text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md' : 'px-4 py-2 mx-2 rounded-lg'}`}>
-                <Moon className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                {!collapsed && <span>Dark mode</span>}
-             </div>
-             <div className={`flex items-center gap-3 text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md' : 'px-4 py-2 mx-2 rounded-lg'}`}>
-                <Palette className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                {!collapsed && <span>Themes</span>}
-             </div>
-             <div className={`flex items-center gap-3 text-[13px] font-medium text-slate-500 hover:bg-slate-200/50 cursor-pointer transition-colors ${collapsed ? 'justify-center mx-auto w-10 h-10 rounded-md mb-2' : 'px-4 py-2 mx-2 rounded-lg mb-2'}`}>
-                <HelpCircle className="w-[18px] h-[18px]" strokeWidth={1.8} />
-                {!collapsed && <span>Help</span>}
-             </div>
+          {/* ── Utility links ── */}
+          <div
+            className="border-t pt-1.5 shrink-0"
+            style={{ borderColor: 'var(--sidebar-border)' }}
+          >
+            {[
+              { label: 'Settings', icon: Settings, path: '/settings' },
+              { label: 'Help',     icon: HelpCircle, path: '#' },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={() => item.path !== '#' && navigate(item.path)}
+                className={`w-full flex items-center transition-colors rounded-lg ${
+                  collapsed
+                    ? 'justify-center mx-auto w-9 h-9 my-0.5'
+                    : 'px-4 py-2 mx-0 gap-3'
+                }`}
+                style={{ color: 'var(--text-muted)' }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-main)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                }}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="w-[16px] h-[16px] shrink-0" strokeWidth={1.75} />
+                {!collapsed && <span className="text-[13px] font-medium">{item.label}</span>}
+              </button>
+            ))}
           </div>
         </nav>
 
-        {/* Floating Profile Strip at absolute bottom */}
-        <div className={`h-[60px] border-t border-[#e2e8f0] bg-[#f8fafc] flex items-center shrink-0 cursor-pointer hover:bg-slate-200/50 transition-colors ${collapsed ? 'justify-center px-0' : 'px-4 justify-between'}`}>
-           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
-               {/* Mock Avatar */}
-               <div className="w-full h-full bg-[#d0d3e5] flex items-end justify-center pt-2">
-                 <div className="w-4 h-4 rounded-full bg-slate-400 mb-0.5"></div>
-               </div>
-             </div>
-             {!collapsed && (
-               <div className="flex flex-col justify-center leading-tight">
-                 <span className="text-[13px] font-semibold text-slate-800 tracking-tight">Jack Stone</span>
-                 <span className="text-[11px] font-medium text-slate-500">{mode === 'creator' ? 'Creator Studio' : 'Enterprise CRM'}</span>
-               </div>
-             )}
-           </div>
-           {!collapsed && (
-             <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-           )}
+        {/* ── Profile Footer ── */}
+        <div
+          className={`h-[56px] border-t flex items-center shrink-0 cursor-pointer transition-colors ${
+            collapsed ? 'justify-center px-2' : 'px-4 justify-between gap-3'
+          }`}
+          style={{ borderColor: 'var(--sidebar-border)' }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)')}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+        >
+          <div className={`flex items-center gap-2.5 min-w-0 ${collapsed ? 'justify-center' : ''}`}>
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 select-none"
+              style={{ background: 'var(--primary)', color: 'var(--text-main)' }}
+            >
+              JS
+            </div>
+            {!collapsed && (
+              <div className="flex flex-col justify-center leading-tight min-w-0">
+                <span className="text-[13px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>
+                  Jack Stone
+                </span>
+                <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                  {mode === 'creator' ? 'Creator Studio' : 'Enterprise CRM'}
+                </span>
+              </div>
+            )}
+          </div>
+          {!collapsed && (
+            <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+          )}
         </div>
-
       </aside>
     </>
   );
