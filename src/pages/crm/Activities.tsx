@@ -18,10 +18,10 @@ interface Activity {
 
 const getActivityTypeStyles = (type: string) => {
   const t = type.toLowerCase();
-  if (t.includes('call')) return { label: 'Call summary', color: '#ff9900' }; // orange
-  if (t.includes('meeting')) return { label: 'Meeting', color: '#2b508f' }; // dark blue
-  if (t.includes('email')) return { label: 'Email', color: '#00cff4' }; // cyan
-  return { label: type, color: '#c4c4c4' };
+  if (t.includes('call')) return { label: 'Call summary', color: '#52677D' }; // orange
+  if (t.includes('meeting')) return { label: 'Meeting', color: '#52677D' }; // dark blue
+  if (t.includes('email')) return { label: 'Email', color: '#52677D' }; // cyan
+  return { label: type, color: '#52677D' };
 };
 
 export default function Activities() {
@@ -49,7 +49,7 @@ export default function Activities() {
       <div className="flex-1 overflow-auto pb-24">
         <MondayGroup 
           title="Account Activities" 
-          color="text-[#579bfc]" 
+          color="text-[#52677D]" 
           isCollapsed={activitiesCollapsed}
           onToggle={() => setActivitiesCollapsed(!activitiesCollapsed)}
         >
@@ -66,7 +66,7 @@ export default function Activities() {
           {displayActivities.map((a: any) => {
             const typePill = getActivityTypeStyles(a.type);
             return (
-              <MondayRow key={a.id} groupColorClass="bg-[#579bfc]">
+              <MondayRow key={a.id} groupColorClass="bg-[#52677D]">
                 <MondayCell width="w-[300px]">
                   <span className="font-medium text-text-main">{a.title}</span>
                 </MondayCell>
@@ -84,8 +84,8 @@ export default function Activities() {
                 <MondayCell width="w-[160px]" className="justify-center">
                   {a.end || a.date}
                 </MondayCell>
-                <MondayCell width="w-[120px]" isStatusPill statusColor={a.status === 'Done' ? '#00c875' : '#c4c4c4'}>
-                   <StatusPill color={a.status === 'Done' ? '#00c875' : '#c4c4c4'} label={a.status || 'Pending'} />
+                <MondayCell width="w-[120px]" isStatusPill statusColor={a.status === 'Done' ? '#52677D' : '#52677D'}>
+                   <StatusPill color={a.status === 'Done' ? '#52677D' : '#52677D'} label={a.status || 'Pending'} />
                 </MondayCell>
                 <MondayCell width="w-[180px]">
                    <span className="text-text-main truncate p-1">{a.related || '-'}</span>
@@ -94,7 +94,7 @@ export default function Activities() {
             );
           })}
           
-          <MondayRow groupColorClass="bg-[#579bfc]" isBottomAddLayout>
+          <MondayRow groupColorClass="bg-[#52677D]" isBottomAddLayout>
              <MondayCell width="w-[300px]">
                 <span className="pl-6">+ Add activity</span>
              </MondayCell>

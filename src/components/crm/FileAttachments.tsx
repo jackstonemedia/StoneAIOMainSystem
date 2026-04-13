@@ -91,7 +91,7 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Files & Documents</h3>
-        <button onClick={() => fileRef.current?.click()} className="text-[11px] font-semibold text-[#0073ea] hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
+        <button onClick={() => fileRef.current?.click()} className="text-[11px] font-semibold text-[#52677D] hover:bg-[#52677D] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
           <Upload className="w-3.5 h-3.5" /> Upload
         </button>
         <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFileChange} />
@@ -103,9 +103,9 @@ export default function FileAttachments({ entityId }: FileAttachmentsProps) {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => fileRef.current?.click()}
-        className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all mb-4 ${dragging ? 'border-[#0073ea] bg-[#e5f0ff]/50' : 'border-border hover:border-[#0073ea]/40 hover:bg-surface-hover'}`}
+        className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all mb-4 ${dragging ? 'border-[#52677D] bg-[#52677D]/50' : 'border-border hover:border-[#52677D]/40 hover:bg-surface-hover'}`}
       >
-        <Upload className={`w-6 h-6 ${dragging ? 'text-[#0073ea]' : 'text-text-muted'}`} />
+        <Upload className={`w-6 h-6 ${dragging ? 'text-[#52677D]' : 'text-text-muted'}`} />
         <p className="text-[12px] font-medium text-text-muted0 text-center">
           {uploading ? `Uploading ${uploading}...` : 'Drop files here or click to browse'}
         </p>

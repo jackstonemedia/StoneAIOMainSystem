@@ -31,7 +31,7 @@ export interface Contact {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  High: '#ff5ac4', Medium: '#ffcb00', Low: '#00c875', '': '#e0e0e0',
+  High: '#52677D', Medium: '#52677D', Low: '#52677D', '': '#52677D',
 };
 
 const INITIAL_CONTACTS: Contact[] = [];
@@ -200,7 +200,7 @@ function EditableCell({ value, onChange, width, placeholder = '' }: { value: str
 
 function PriorityCell({ value, onChange, width }: { value: string; onChange: (v: string) => void; width: string; }) {
   const [open, setOpen] = useState(false);
-  const color = PRIORITY_COLORS[value] || '#e0e0e0';
+  const color = PRIORITY_COLORS[value] || '#52677D';
   return (
     <MondayCell isStatusPill statusColor={color} width={width}>
       <div className="relative w-full h-full flex items-center justify-center cursor-pointer" onClick={() => setOpen(!open)}>
@@ -213,7 +213,7 @@ function PriorityCell({ value, onChange, width }: { value: string; onChange: (v:
               {(['High', 'Medium', 'Low', ''] as const).map(opt => (
                 <button key={opt || 'none'} className="w-full px-3 py-2 text-[12px] text-left hover:bg-surface-hover flex items-center gap-2.5 font-medium transition-colors"
                   onClick={() => { onChange(opt); setOpen(false); }}>
-                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PRIORITY_COLORS[opt] || '#e0e0e0' }} />
+                  <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PRIORITY_COLORS[opt] || '#52677D' }} />
                   {opt || 'None'}
                 </button>
               ))}
@@ -302,7 +302,7 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
               <div className="p-5 border-t border-border flex items-center justify-end gap-3 bg-surface-hover">
                 <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover transition-colors">Cancel</button>
                 <button type="submit" disabled={saving || !form.firstName.trim()}
-                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
+                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#52677D] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
                   {saving ? 'Saving...' : 'Create Contact'}
                 </button>
               </div>
@@ -351,7 +351,7 @@ function ImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: 
               <div className="p-6 space-y-4">
                 <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                   onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#e5f0ff]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
+                  className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#52677D]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
                   <Upload className="w-8 h-8 text-text-muted" />
                   <p className="text-[13px] font-medium text-text-main">{fileName ? `✓ ${fileName} — ${parsed.length} contacts found` : 'Drag & drop CSV or click to browse'}</p>
                   <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
@@ -370,7 +370,7 @@ function ImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: 
               <div className="px-6 pb-5 flex justify-end gap-3">
                 <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 <button disabled={parsed.length === 0} onClick={() => { onImport(parsed); onClose(); }}
-                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] disabled:opacity-40 flex items-center gap-2">
+                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#52677D] disabled:opacity-40 flex items-center gap-2">
                   <Upload className="w-3.5 h-3.5" /> Import {parsed.length > 0 ? `${parsed.length} Contacts` : ''}
                 </button>
               </div>
@@ -394,7 +394,7 @@ function ContactCard({ c, onDelete }: { c: Contact; onDelete: () => void; key?: 
       <Link to={`/business/crm/contacts/${c.id}`} className="block">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-[15px] text-white shadow-sm"
-            style={{ background: clr === '#e0e0e0' ? '#94a3b8' : clr }}>
+            style={{ background: clr === '#52677D' ? '#52677D' : clr }}>
             {initials || '?'}
           </div>
           <div className="flex-1 min-w-0">

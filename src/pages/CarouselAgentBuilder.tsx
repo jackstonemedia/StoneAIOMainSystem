@@ -12,16 +12,16 @@ import jsPDF from 'jspdf';
 
 // ─── Palettes ─────────────────────────────────────────────────────────────────
 const GALLERY_BACKGROUNDS = [
-  { id: 'dark-lime',    name: 'Dark & Lime',     bg: '#142d2c', text: '#ffffff', accent: '#e2f163' },
-  { id: 'cream',        name: 'Editorial Cream', bg: '#f4efe8', text: '#1a1a1a', accent: '#1a1a1a' },
-  { id: 'royal-purple', name: 'Royal Purple',    bg: '#2d1b69', text: '#ffffff', accent: '#f5c67a' },
-  { id: 'burgundy',     name: 'Burgundy Gold',   bg: '#6b1e3a', text: '#ffffff', accent: '#f5c767' },
-  { id: 'soft-purple',  name: 'Soft Purple',     bg: '#9580e2', text: '#ffffff', accent: '#ffffff' },
-  { id: 'yellow',       name: 'Electric Yellow', bg: '#dfeb60', text: '#0d0d0d', accent: '#0d0d0d' },
-  { id: 'navy',         name: 'Navy & Sky',      bg: '#0f1f40', text: '#ffffff', accent: '#7dd3fc' },
-  { id: 'warm-black',   name: 'Warm Black',      bg: '#111111', text: '#ffffff', accent: '#ff4e50' },
-  { id: 'blush',        name: 'Blush Rose',      bg: '#f7e8ec', text: '#2d1b2e', accent: '#8b2252' },
-  { id: 'forest',       name: 'Forest Sage',     bg: '#2d4a3e', text: '#ffffff', accent: '#a8d5b5' },
+  { id: 'dark-lime',    name: 'Dark & Lime',     bg: '#52677D', text: '#ffffff', accent: '#52677D' },
+  { id: 'cream',        name: 'Editorial Cream', bg: '#52677D', text: '#52677D', accent: '#52677D' },
+  { id: 'royal-purple', name: 'Royal Purple',    bg: '#52677D', text: '#ffffff', accent: '#52677D' },
+  { id: 'burgundy',     name: 'Burgundy Gold',   bg: '#52677D', text: '#ffffff', accent: '#52677D' },
+  { id: 'soft-purple',  name: 'Soft Purple',     bg: '#52677D', text: '#ffffff', accent: '#ffffff' },
+  { id: 'yellow',       name: 'Electric Yellow', bg: '#52677D', text: '#52677D', accent: '#52677D' },
+  { id: 'navy',         name: 'Navy & Sky',      bg: '#52677D', text: '#ffffff', accent: '#52677D' },
+  { id: 'warm-black',   name: 'Warm Black',      bg: '#52677D', text: '#ffffff', accent: '#52677D' },
+  { id: 'blush',        name: 'Blush Rose',      bg: '#52677D', text: '#52677D', accent: '#52677D' },
+  { id: 'forest',       name: 'Forest Sage',     bg: '#52677D', text: '#ffffff', accent: '#52677D' },
 ];
 
 const AUTO_PALETTES = GALLERY_BACKGROUNDS;
@@ -452,9 +452,9 @@ export default function CarouselAgentBuilder() {
   const [brandName, setBrandName] = useState('LOGO');
   const [websiteUrl, setWebsiteUrl] = useState('www.yourwebsite.com');
   const [useCustomColors, setUseCustomColors] = useState(false);
-  const [customBg, setCustomBg] = useState('#0f172a');
+  const [customBg, setCustomBg] = useState('#52677D');
   const [customText, setCustomText] = useState('#ffffff');
-  const [customAccent, setCustomAccent] = useState('#38bdf8');
+  const [customAccent, setCustomAccent] = useState('#52677D');
 
   // Pattern backgrounds & Fonts
   const [usePattern, setUsePattern] = useState(false);
@@ -697,7 +697,7 @@ export default function CarouselAgentBuilder() {
                             <label className="block text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Platform Format</label>
                             <div className="flex gap-2">
                               {(['instagram', 'linkedin'] as const).map(p => (
-                                <button key={p} onClick={() => setPlatform(p)} className={`flex-1 p-2 rounded-lg border text-center transition-all ${platform === p ? (p === 'instagram' ? 'bg-primary/10 border-primary text-primary' : 'bg-[#0077B5]/10 border-[#0077B5] text-[#0077B5]') : 'bg-surface border-border text-text-muted hover:border-text-muted'}`}>
+                                <button key={p} onClick={() => setPlatform(p)} className={`flex-1 p-2 rounded-lg border text-center transition-all ${platform === p ? (p === 'instagram' ? 'bg-primary/10 border-primary text-primary' : 'bg-[#52677D]/10 border-[#52677D] text-[#52677D]') : 'bg-surface border-border text-text-muted hover:border-text-muted'}`}>
                                   <span className="text-[10px] font-bold block capitalize">{p}</span>
                                 </button>
                               ))}
@@ -950,7 +950,7 @@ export default function CarouselAgentBuilder() {
                     <button onClick={handleExportPdf} disabled={isExporting} className="text-xs font-bold px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg flex items-center gap-1.5 disabled:opacity-50">
                       {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} PDF
                     </button>
-                    <button className="text-xs font-bold px-4 py-2 bg-[#0077B5] hover:bg-[#0077B5]/90 text-white rounded-lg flex items-center gap-1.5">
+                    <button className="text-xs font-bold px-4 py-2 bg-[#52677D] hover:bg-[#52677D]/90 text-white rounded-lg flex items-center gap-1.5">
                       <Send className="w-3.5 h-3.5" /> Publish
                     </button>
                   </div>

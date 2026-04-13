@@ -15,16 +15,16 @@ const SPARKLINES = {
 };
 
 const ACTIVITY = [
-  { type:'deal',    text:'Enterprise License moved to Negotiation',   time:'2m ago',   icon:DollarSign, hex:'#F59E0B' },
-  { type:'campaign',text:'Black Friday email campaign sent to 14.5k', time:'1h ago',   icon:Mail,       hex:'#3B82F6' },
-  { type:'contact', text:'23 new leads imported from web form',       time:'3h ago',   icon:Users,      hex:'#8B5CF6' },
+  { type:'deal',    text:'Enterprise License moved to Negotiation',   time:'2m ago',   icon:DollarSign, hex:'#EF4444' },
+  { type:'campaign',text:'Black Friday email campaign sent to 14.5k', time:'1h ago',   icon:Mail,       hex:'#52677D' },
+  { type:'contact', text:'23 new leads imported from web form',       time:'3h ago',   icon:Users,      hex:'#52677D' },
   { type:'agent',   text:'Lead Scorer completed 142 evaluations',     time:'4h ago',   icon:Bot,        hex:'#52677D' },
-  { type:'review',  text:'5★ review received on Google',              time:'5h ago',   icon:Star,       hex:'#F59E0B' },
+  { type:'review',  text:'5★ review received on Google',              time:'5h ago',   icon:Star,       hex:'#10B981' },
 ];
 
 const SCHEDULE = [
-  { title:'Discovery call — Acme Corp',    time:'2:00 PM', contact:'Sarah Chen',   type:'call',    hex:'#3B82F6' },
-  { title:'Product demo — Enterprise tier',time:'3:30 PM', contact:'Mike Johnson', type:'video',   hex:'#8B5CF6' },
+  { title:'Discovery call — Acme Corp',    time:'2:00 PM', contact:'Sarah Chen',   type:'call',    hex:'#52677D' },
+  { title:'Product demo — Enterprise tier',time:'3:30 PM', contact:'Mike Johnson', type:'video',   hex:'#52677D' },
   { title:'Contract review follow-up',     time:'4:15 PM', contact:'Lisa Wang',    type:'meeting', hex:'#10B981' },
 ];
 
@@ -61,11 +61,11 @@ export default function BusinessDashboard() {
   }, []);
 
   const pipeline = Array.isArray(metrics?.pipeline_stages) ? metrics.pipeline_stages : (metrics?.pipeline_stages || [
-    { name:'Lead',        count:45, value:120000, color:'#64748b' },
-    { name:'Qualified',   count:28, value:240000, color:'#818cf8' },
-    { name:'Proposal',    count:15, value:180000, color:'#fbbf24' },
-    { name:'Negotiation', count:8,  value:305000, color:'#a78bfa' },
-    { name:'Won',         count:18, value:210000, color:'#34d399' },
+    { name:'Lead',        count:45, value:120000, color:'#52677D' },
+    { name:'Qualified',   count:28, value:240000, color:'#52677D' },
+    { name:'Proposal',    count:15, value:180000, color:'#10B981' },
+    { name:'Negotiation', count:8,  value:305000, color:'#EF4444' },
+    { name:'Won',         count:18, value:210000, color:'#10B981' },
   ]);
   const totalPipelineCount = (Array.isArray(pipeline) ? pipeline : []).reduce((s:number,p:any)=>s+(p.count || 0),0);
 
@@ -235,10 +235,10 @@ export default function BusinessDashboard() {
               <h2 className="font-semibold text-text-main mb-4">Quick Actions</h2>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label:'New Campaign',  icon:Mail,         path:'/business/campaigns',    hex:'#3B82F6' },
-                  { label:'Add Contact',   icon:Users,        path:'/business/crm/contacts', hex:'#8B5CF6' },
-                  { label:'Create Form',   icon:FileText,     path:'/business/forms',        hex:'#14B8A6' },
-                  { label:'Analytics',     icon:BarChart3,    path:'/business/analytics',    hex:'#F59E0B' },
+                  { label:'New Campaign',  icon:Mail,         path:'/business/campaigns',    hex:'#52677D' },
+                  { label:'Add Contact',   icon:Users,        path:'/business/crm/contacts', hex:'#52677D' },
+                  { label:'Create Form',   icon:FileText,     path:'/business/forms',        hex:'#BDC4D4' },
+                  { label:'Analytics',     icon:BarChart3,    path:'/business/analytics',    hex:'#52677D' },
                   { label:'Send Message',  icon:MessageSquare,path:'/inbox',                 hex:'#10B981' },
                   { label:'Reputation',    icon:Star,         path:'/business/reputation',   hex:'#EF4444' },
                 ].map((a, i) => (

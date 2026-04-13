@@ -14,9 +14,9 @@ interface ContactHealthScoreProps {
 }
 
 function getScoreColor(score: number) {
-  if (score >= 70) return { stroke: '#00c875', text: '#00c875', bg: 'bg-emerald-50', label: 'Hot', ring: '#00c875' };
-  if (score >= 40) return { stroke: '#ffcb00', text: '#d97706', bg: 'bg-primary/10', label: 'Warm', ring: '#ffcb00' };
-  return { stroke: '#e2445c', text: '#e2445c', bg: 'bg-rose-50', label: 'Cold', ring: '#e2445c' };
+  if (score >= 70) return { stroke: '#52677D', text: '#52677D', bg: 'bg-emerald-50', label: 'Hot', ring: '#52677D' };
+  if (score >= 40) return { stroke: '#52677D', text: '#52677D', bg: 'bg-primary/10', label: 'Warm', ring: '#52677D' };
+  return { stroke: '#52677D', text: '#52677D', bg: 'bg-rose-50', label: 'Cold', ring: '#52677D' };
 }
 
 export default function ContactHealthScore({ score, size = 'md', showLabel = false, activityBreakdown }: ContactHealthScoreProps) {
@@ -33,7 +33,7 @@ export default function ContactHealthScore({ score, size = 'md', showLabel = fal
   return (
     <div className="relative inline-flex flex-col items-center" onMouseEnter={() => setTooltipOpen(true)} onMouseLeave={() => setTooltipOpen(false)}>
       <svg width={dims} height={dims} viewBox={`0 0 ${dims} ${dims}`} className="rotate-[-90deg]">
-        <circle cx={dims / 2} cy={dims / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={strokeW} />
+        <circle cx={dims / 2} cy={dims / 2} r={r} fill="none" stroke="#52677D" strokeWidth={strokeW} />
         <motion.circle
           cx={dims / 2} cy={dims / 2} r={r}
           fill="none"

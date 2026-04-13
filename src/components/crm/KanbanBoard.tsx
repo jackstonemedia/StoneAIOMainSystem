@@ -127,11 +127,9 @@ export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, o
   };
 
   const getStageHex = (color: string) => {
-    const map: Record<string, string> = {
-      'text-[#579bfc]': 'var(--primary)', 'text-[#00cff4]': 'var(--accent-teal)',
-      'text-[#a25ddc]': 'var(--accent-purple)', 'text-[#00c875]': 'var(--accent-green)', 'text-[#e2445c]': 'var(--accent-red)',
-    };
-    return map[color] || 'var(--text-muted)';
+    if (color.includes('green') || color.includes('10B981')) return '#10B981';
+    if (color.includes('red') || color.includes('rose') || color.includes('EF4444')) return '#EF4444';
+    return 'var(--primary)';
   };
 
   return (

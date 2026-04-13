@@ -26,10 +26,10 @@ interface Lead {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  'New Lead': '#ffcb00',
-  'Contacted': '#ff7a59',
-  'Qualified': '#00c875',
-  'Disqualified': '#e2445c',
+  'New Lead': '#52677D',
+  'Contacted': '#52677D',
+  'Qualified': '#52677D',
+  'Disqualified': '#52677D',
 };
 
 const SOURCES = ['Website Form', 'Cold Outreach', 'Referral', 'LinkedIn', 'Google Ads', 'Trade Show', 'Partner', 'Organic'];
@@ -43,7 +43,7 @@ const INITIAL_LEADS: Lead[] = [
 ];
 
 function LeadScoreBar({ score }: { score: number }) {
-  const color = score >= 70 ? '#00c875' : score >= 40 ? '#ffcb00' : '#e2445c';
+  const color = score >= 70 ? '#52677D' : score >= 40 ? '#52677D' : '#52677D';
   return (
     <div className="flex items-center gap-2 w-full">
       <div className="flex-1 h-1.5 bg-surface-hover rounded-full overflow-hidden">
@@ -109,7 +109,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                   <>
                     <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                       onClick={() => fileRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#e5f0ff]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
+                      className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#52677D]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
                       <Upload className="w-10 h-10 text-text-muted" />
                       <p className="text-[13px] font-medium text-text-main">{fileName || 'Drop CSV file here or click to browse'}</p>
                       <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
@@ -149,7 +149,7 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                 <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 {step === 'map' && (
                   <button onClick={() => { onImport(parsed); onClose(); reset(); }}
-                    className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] shadow-sm flex items-center gap-2">
+                    className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#52677D] shadow-sm flex items-center gap-2">
                     <Upload className="w-3.5 h-3.5" /> Import {parsed.length} Leads
                   </button>
                 )}
@@ -263,8 +263,8 @@ export default function Leads() {
           </div>
           <div className="flex items-center gap-3">
             {[
-              { label: 'Avg Score', value: avgScore, color: avgScore >= 70 ? '#00c875' : '#ffcb00' },
-              { label: 'Qualified', value: qualified, color: '#00c875' },
+              { label: 'Avg Score', value: avgScore, color: avgScore >= 70 ? '#52677D' : '#52677D' },
+              { label: 'Qualified', value: qualified, color: '#52677D' },
             ].map(stat => (
               <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover border border-border rounded-xl">
                 <TrendingUp className="w-3.5 h-3.5" style={{ color: stat.color }} />
@@ -278,7 +278,7 @@ export default function Leads() {
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-8 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
-        <button onClick={() => setSlideOverOpen(true)} className="bg-primary hover:bg-[#0060c2] text-white text-[13px] font-medium px-4 py-1.5 rounded-md transition-colors shadow-sm">
+        <button onClick={() => setSlideOverOpen(true)} className="bg-primary hover:bg-[#52677D] text-white text-[13px] font-medium px-4 py-1.5 rounded-md transition-colors shadow-sm">
           + New lead
         </button>
         <button onClick={() => setImportOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
@@ -296,7 +296,7 @@ export default function Leads() {
         </div>
 
         <div className="relative">
-          <button onClick={() => setFilterOpen(o => !o)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${filterStatus ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
+          <button onClick={() => setFilterOpen(o => !o)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${filterStatus ? 'bg-[#52677D] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
             <Filter className="w-4 h-4 opacity-70" /> {filterStatus || 'All Status'}
           </button>
           <AnimatePresence>
@@ -304,7 +304,7 @@ export default function Leads() {
               <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 mt-1 z-50 bg-surface border border-border rounded-xl shadow-xl py-1.5 min-w-[160px]">
                 {['', 'New Lead', 'Contacted', 'Qualified', 'Disqualified'].map(s => (
                   <button key={s || 'all'} onClick={() => { setFilterStatus(s); setFilterOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[13px] font-medium flex items-center gap-2.5 transition-colors ${filterStatus === s ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
+                    className={`w-full text-left px-3 py-2 text-[13px] font-medium flex items-center gap-2.5 transition-colors ${filterStatus === s ? 'bg-[#52677D] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
                     {s && <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[s] }} />}
                     {s || 'All Status'}
                   </button>
@@ -315,7 +315,7 @@ export default function Leads() {
         </div>
 
         <button onClick={() => setSortBy(s => s === '' ? 'score' : s === 'score' ? 'name' : '')}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${sortBy ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${sortBy ? 'bg-[#52677D] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
           <SortAsc className="w-4 h-4 opacity-70" /> {sortBy === 'score' ? 'By Score' : sortBy === 'name' ? 'By Name' : 'Sort'}
         </button>
 
@@ -333,7 +333,7 @@ export default function Leads() {
       <AnimatePresence>
         {selected.size > 0 && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-            className="flex items-center gap-3 px-8 py-2 bg-[#e5f0ff] border-b border-primary/20 shrink-0">
+            className="flex items-center gap-3 px-8 py-2 bg-[#52677D] border-b border-primary/20 shrink-0">
             <span className="text-[13px] font-semibold text-primary">{selected.size} selected</span>
             <button onClick={() => { persist(leads.filter(l => !selected.has(l.id))); setSelected(new Set()); }} className="text-[13px] font-semibold text-red-500 hover:text-red-700 px-3 py-1 hover:bg-red-50 rounded-lg">Delete</button>
             <button onClick={() => setSelected(new Set())} className="ml-auto text-[12px] text-text-muted hover:text-text-main flex items-center gap-1"><X className="w-3.5 h-3.5" /> Clear</button>
@@ -353,7 +353,7 @@ export default function Leads() {
                 <button onClick={() => deleteLead(l.id)} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400">
                   <X className="w-3.5 h-3.5" />
                 </button>
-                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-[14px] mb-3" style={{ background: STATUS_COLORS[l.status] || '#94a3b8' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-[14px] mb-3" style={{ background: STATUS_COLORS[l.status] || '#52677D' }}>
                   {l.name[0]}
                 </div>
                 <p className="font-bold text-[14px] text-text-main">{l.name}</p>
@@ -370,7 +370,7 @@ export default function Leads() {
             ))}
           </div>
         ) : (
-          <MondayGroup title={`All Leads (${filtered.length})`} color="text-[#579bfc]"
+          <MondayGroup title={`All Leads (${filtered.length})`} color="text-[#52677D]"
             isCollapsed={collapsed} onToggle={() => setCollapsed(!collapsed)}>
             <MondayHeaderRow>
               <MondayHeaderCell width="w-[32px]"> </MondayHeaderCell>
@@ -386,7 +386,7 @@ export default function Leads() {
             </MondayHeaderRow>
 
             {filtered.map(l => (
-              <MondayRow key={l.id} groupColorClass="bg-[#579bfc]">
+              <MondayRow key={l.id} groupColorClass="bg-[#52677D]">
                 <MondayCell width="w-[32px]">
                   <button onClick={() => toggleSelect(l.id)} className="flex items-center justify-center w-5 h-5 text-text-muted hover:text-primary">
                     {selected.has(l.id) ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
@@ -394,7 +394,7 @@ export default function Leads() {
                 </MondayCell>
                 <MondayCell width="w-[220px]">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[11px] shrink-0" style={{ background: STATUS_COLORS[l.status] || '#94a3b8' }}>{l.name[0]}</div>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[11px] shrink-0" style={{ background: STATUS_COLORS[l.status] || '#52677D' }}>{l.name[0]}</div>
                     <div className="min-w-0">
                       <p className="font-semibold text-[13px] text-text-main truncate">{l.name}</p>
                       {l.title && <p className="text-[11px] text-text-muted truncate">{l.title}</p>}
@@ -438,7 +438,7 @@ export default function Leads() {
 
             <div className="flex border-b border-border/80 bg-surface hover:bg-surface-hover transition-colors cursor-pointer" onClick={() => setSlideOverOpen(true)}>
               <div className="border-r border-border/80 flex items-center justify-center p-2.5 w-[44px] shrink-0 relative">
-                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#579bfc]" />
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#52677D]" />
               </div>
               <div className="flex items-center p-2.5 text-[13px] text-text-muted gap-2 hover:text-text-main">
                 <Plus className="w-4 h-4" /> Add lead

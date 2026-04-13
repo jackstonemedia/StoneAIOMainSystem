@@ -100,7 +100,7 @@ export default function ContactCard({ contact }: ContactCardProps) {
             className="h-full rounded-full transition-all duration-700"
             style={{
               width: `${score}%`,
-              background: score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : score >= 25 ? '#3b82f6' : '#6b7280'
+              background: score >= 75 ? '#52677D' : score >= 50 ? '#52677D' : score >= 25 ? '#52677D' : '#52677D'
             }}
           />
         </div>

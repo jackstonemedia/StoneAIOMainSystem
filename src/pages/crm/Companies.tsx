@@ -42,7 +42,7 @@ export default function Companies() {
         {/* COMPANIES GROUP */}
         <MondayGroup 
           title="Companies" 
-          color="text-[#00cff4]" 
+          color="text-[#52677D]" 
           isCollapsed={companiesCollapsed}
           onToggle={() => setCompaniesCollapsed(!companiesCollapsed)}
         >
@@ -57,7 +57,7 @@ export default function Companies() {
           
           {displayAccounts.map((a) => {
             return (
-              <MondayRow key={a.id} groupColorClass="bg-[#00cff4]">
+              <MondayRow key={a.id} groupColorClass="bg-[#52677D]">
                 <MondayCell width="w-[260px]">
                   <span className="font-medium hover:text-primary hover:underline cursor-pointer text-text-main">
                     {a.name}
@@ -71,7 +71,7 @@ export default function Companies() {
                 <MondayCell width="w-[250px]">
                    <div className="flex items-center gap-1.5 flex-wrap overflow-hidden h-[26px]">
                      {a.industry?.split(',').map((ind, i) => (
-                       <span key={i} className="px-2 py-0.5 bg-bg text-[#008291] rounded text-[11px] font-medium whitespace-nowrap">
+                       <span key={i} className="px-2 py-0.5 bg-bg text-[#52677D] rounded text-[11px] font-medium whitespace-nowrap">
                          {ind.trim()}
                        </span>
                      ))}
@@ -90,7 +90,7 @@ export default function Companies() {
             );
           })}
           
-          <MondayRow groupColorClass="bg-[#00cff4]" isBottomAddLayout>
+          <MondayRow groupColorClass="bg-[#52677D]" isBottomAddLayout>
              <MondayCell width="w-[260px]">
                 <span className="pl-6">+ Add account</span>
              </MondayCell>

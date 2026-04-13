@@ -20,14 +20,14 @@ interface Stage {
 interface Pipeline { id: string; name: string; stages: Stage[]; }
 
 const STAGE_COLORS = [
-  { label: 'Slate', value: 'bg-surface-hover', hex: '#94a3b8' },
-  { label: 'Blue', value: 'bg-primary/100', hex: '#3b82f6' },
-  { label: 'Cyan', value: 'bg-primary/100', hex: '#06b6d4' },
-  { label: 'Amber', value: 'bg-primary/100', hex: '#f59e0b' },
-  { label: 'Orange', value: 'bg-primary/100', hex: '#f97316' },
-  { label: 'Purple', value: 'bg-primary/100', hex: '#a855f7' },
-  { label: 'Rose', value: 'bg-rose-500', hex: '#f43f5e' },
-  { label: 'Green', value: 'bg-green-500', hex: '#22c55e' },
+  { label: 'Slate', value: 'bg-surface-hover', hex: '#52677D' },
+  { label: 'Blue', value: 'bg-primary/100', hex: '#52677D' },
+  { label: 'Cyan', value: 'bg-primary/100', hex: '#52677D' },
+  { label: 'Amber', value: 'bg-primary/100', hex: '#52677D' },
+  { label: 'Orange', value: 'bg-primary/100', hex: '#52677D' },
+  { label: 'Purple', value: 'bg-primary/100', hex: '#52677D' },
+  { label: 'Rose', value: 'bg-rose-500', hex: '#52677D' },
+  { label: 'Green', value: 'bg-green-500', hex: '#52677D' },
   { label: 'Emerald', value: 'bg-emerald-500', hex: '#10b981' },
 ];
 
@@ -66,7 +66,7 @@ function NewPipelineModal({ isOpen, onClose, onSave }: { isOpen: boolean; onClos
               <div className="flex justify-end gap-2">
                 <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
                 <button disabled={!name.trim()} onClick={() => { onSave(name.trim()); setName(''); onClose(); }}
-                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] disabled:opacity-40">
+                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#52677D] disabled:opacity-40">
                   Create Pipeline
                 </button>
               </div>
@@ -82,7 +82,7 @@ function AutomationRow({ auto, onToggle, onDelete }: { auto: Automation; onToggl
   const ActionIcon = ACTION_ICONS[auto.action] || Zap;
   return (
     <div className="flex items-center gap-3 py-2 px-3 bg-surface rounded-xl border border-border group">
-      <div className="w-7 h-7 rounded-lg bg-[#e5f0ff] flex items-center justify-center shrink-0">
+      <div className="w-7 h-7 rounded-lg bg-[#52677D] flex items-center justify-center shrink-0">
         <ActionIcon className="w-3.5 h-3.5 text-primary" />
       </div>
       <div className="flex-1 min-w-0">

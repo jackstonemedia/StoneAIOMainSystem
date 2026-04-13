@@ -73,7 +73,7 @@ export default function WinLossModal({ isOpen, onClose, outcome, dealTitle, onCo
                     <MessageSquare className="w-3.5 h-3.5" /> Notes (optional)
                   </label>
                   <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Add context or next steps..."
-                    className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 resize-none placeholder:text-text-muted" />
+                    className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#52677D]/30 resize-none placeholder:text-text-muted" />
                 </div>
               </div>
 

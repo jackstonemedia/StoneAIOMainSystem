@@ -46,10 +46,10 @@ const MOCK_ACTIVITIES: ActivityItem[] = [
 ];
 
 const STAGE_COLORS: Record<string, string> = {
-  Discovery: '#579bfc', Proposal: '#00cff4', Negotiation: '#a25ddc', Won: '#00c875', Lost: '#e2445c',
+  Discovery: '#52677D', Proposal: '#52677D', Negotiation: '#52677D', Won: '#52677D', Lost: '#52677D',
 };
 
-const TAG_COLORS = ['#579bfc', '#00c875', '#ffcb00', '#ff5ac4', '#a25ddc', '#e2445c', '#00cff4'];
+const TAG_COLORS = ['#52677D', '#52677D', '#52677D', '#52677D', '#52677D', '#52677D', '#52677D'];
 
 function getActivityIcon(type: string) {
   switch (type) {
@@ -145,7 +145,7 @@ export default function ContactDetail() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0073ea] to-[#a25ddc] flex items-center justify-center font-bold text-lg text-white shadow-md">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#52677D] to-[#52677D] flex items-center justify-center font-bold text-lg text-white shadow-md">
               {initials}
             </div>
             <div>
@@ -177,7 +177,7 @@ export default function ContactDetail() {
               <button onClick={() => { setEditForm(contact); setIsEditing(false); }} className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
                 <X className="w-4 h-4" /> Cancel
               </button>
-              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#0060c2] transition-colors shadow-sm">
+              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#52677D] transition-colors shadow-sm">
                 <Save className="w-4 h-4" /> Save Changes
               </button>
             </>
@@ -230,7 +230,7 @@ export default function ContactDetail() {
                 <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-3">Social</h3>
                 <div className="space-y-2">
                   {[
-                    { icon: Linkedin, field: 'linkedin', label: 'LinkedIn', color: 'text-[#0077b5]', placeholder: 'linkedin.com/in/...' },
+                    { icon: Linkedin, field: 'linkedin', label: 'LinkedIn', color: 'text-[#52677D]', placeholder: 'linkedin.com/in/...' },
                     { icon: Twitter, field: 'twitter', label: 'Twitter/X', color: 'text-text-main', placeholder: '@username' },
                     { icon: Github, field: 'github', label: 'GitHub', color: 'text-text-main', placeholder: 'github.com/...' },
                   ].map(({ icon: Icon, field, label, color, placeholder }) => (
@@ -264,10 +264,10 @@ export default function ContactDetail() {
                 <ContactHealthScore score={contact.leadScore} size="lg" showLabel activityBreakdown={healthBreakdown} />
                 <div className="flex-1 space-y-2">
                   {[
-                    { label: 'Recency', val: healthBreakdown.recency, max: 30, color: '#0073ea' },
-                    { label: 'Email Opens', val: healthBreakdown.emailOpens, max: 25, color: '#00c875' },
-                    { label: 'Calls', val: healthBreakdown.calls, max: 25, color: '#a25ddc' },
-                    { label: 'Meetings', val: healthBreakdown.meetings, max: 20, color: '#ffcb00' },
+                    { label: 'Recency', val: healthBreakdown.recency, max: 30, color: '#52677D' },
+                    { label: 'Email Opens', val: healthBreakdown.emailOpens, max: 25, color: '#52677D' },
+                    { label: 'Calls', val: healthBreakdown.calls, max: 25, color: '#52677D' },
+                    { label: 'Meetings', val: healthBreakdown.meetings, max: 20, color: '#52677D' },
                   ].map(({ label, val, max, color }) => (
                     <div key={label}>
                       <div className="flex justify-between text-[10px] text-text-muted mb-0.5"><span>{label}</span><span className="font-semibold">{val}/{max}</span></div>
@@ -284,7 +284,7 @@ export default function ContactDetail() {
             <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Tags</h2>
-                <button onClick={() => setAddingTag(true)} className="text-[11px] font-semibold text-primary hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
+                <button onClick={() => setAddingTag(true)} className="text-[11px] font-semibold text-primary hover:bg-[#52677D] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" /> Add
                 </button>
               </div>
@@ -306,7 +306,7 @@ export default function ContactDetail() {
                       <input autoFocus value={newTag} onChange={e => setNewTag(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') setAddingTag(false); }}
                         placeholder="Tag name..." className="flex-1 px-2.5 py-1.5 bg-surface-hover border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                      <button onClick={addTag} className="px-3 py-1.5 bg-primary text-white text-[12px] font-semibold rounded-lg hover:bg-[#0060c2]">Add</button>
+                      <button onClick={addTag} className="px-3 py-1.5 bg-primary text-white text-[12px] font-semibold rounded-lg hover:bg-[#52677D]">Add</button>
                       <button onClick={() => setAddingTag(false)} className="p-1.5 text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
                     </div>
                   </motion.div>
@@ -344,7 +344,7 @@ export default function ContactDetail() {
                     <AnimatePresence>
                       {newActivity && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                          className="mb-5 p-4 bg-[#e5f0ff]/50 border border-primary/20 rounded-xl space-y-3">
+                          className="mb-5 p-4 bg-[#52677D]/50 border border-primary/20 rounded-xl space-y-3">
                           <div className="flex gap-2">
                             {[['call', 'Call'], ['email', 'Email'], ['meeting', 'Meeting'], ['note', 'Note']].map(([type, label]) => (
                               <button key={type} onClick={() => setNewActivity({ ...newActivity, type })}
@@ -360,7 +360,7 @@ export default function ContactDetail() {
                             className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                           <div className="flex justify-end gap-2">
                             <button onClick={() => setNewActivity(null)} className="px-4 py-1.5 text-[12px] font-semibold text-text-muted hover:bg-surface-hover rounded-lg">Cancel</button>
-                            <button onClick={logActivity} className="px-4 py-1.5 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-[#0060c2]">Log Activity</button>
+                            <button onClick={logActivity} className="px-4 py-1.5 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-[#52677D]">Log Activity</button>
                           </div>
                         </motion.div>
                       )}
@@ -412,7 +412,7 @@ export default function ContactDetail() {
                       <div className="space-y-3">
                         {deals.map(deal => (
                           <Link key={deal.id} to={`/business/crm/deals/${deal.id}`}
-                            className="flex items-center justify-between p-4 bg-surface-hover border border-border rounded-xl hover:border-primary/40 hover:bg-[#e5f0ff]/30 transition-all">
+                            className="flex items-center justify-between p-4 bg-surface-hover border border-border rounded-xl hover:border-primary/40 hover:bg-[#52677D]/30 transition-all">
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
                                 <CircleDollarSign className="w-5 h-5 text-text-muted0" />
@@ -424,7 +424,7 @@ export default function ContactDetail() {
                             </div>
                             <div className="text-right">
                               <div className="font-bold text-[14px] text-text-main">{deal.amount}</div>
-                              <div className="text-[11px] font-semibold mt-0.5" style={{ color: STAGE_COLORS[deal.stage] || '#94a3b8' }}>{deal.stage}</div>
+                              <div className="text-[11px] font-semibold mt-0.5" style={{ color: STAGE_COLORS[deal.stage] || '#52677D' }}>{deal.stage}</div>
                             </div>
                           </Link>
                         ))}

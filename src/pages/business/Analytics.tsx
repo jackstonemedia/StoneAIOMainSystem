@@ -84,11 +84,11 @@ export default function Analytics() {
   ];
 
   const funnelData = [
-    { name: 'Lead',        count: 45, pct: 100, color: '#64748b' },
-    { name: 'Qualified',   count: 28, pct: 62,  color: '#818cf8' },
-    { name: 'Proposal',    count: 15, pct: 33,  color: '#fbbf24' },
-    { name: 'Negotiation', count: 8,  pct: 18,  color: '#a78bfa' },
-    { name: 'Won',         count: 18, pct: 40,  color: '#34d399' },
+    { name: 'Lead',        count: 45, pct: 100, color: '#52677D' },
+    { name: 'Qualified',   count: 28, pct: 62,  color: '#52677D' },
+    { name: 'Proposal',    count: 15, pct: 33,  color: '#52677D' },
+    { name: 'Negotiation', count: 8,  pct: 18,  color: '#52677D' },
+    { name: 'Won',         count: 18, pct: 40,  color: '#52677D' },
   ];
 
   const agentCols = [
@@ -99,7 +99,7 @@ export default function Analytics() {
       render: (v: number) => (
         <div className="flex items-center gap-2">
           <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: v > 97 ? '#34d399' : v > 93 ? '#fbbf24' : '#fb7185' }} />
+            <div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: v > 97 ? '#52677D' : v > 93 ? '#52677D' : '#52677D' }} />
           </div>
           <span className="text-sm font-medium">{v}%</span>
         </div>
@@ -189,7 +189,7 @@ export default function Analytics() {
                 </div>
                 <span className="badge badge-info">+34%</span>
               </div>
-              <AreaChart data={[200,280,350,380,420,480,510,560,590,640,680,720]} color="#a78bfa" label="agents" />
+              <AreaChart data={[200,280,350,380,420,480,510,560,590,640,680,720]} color="#52677D" label="agents" />
             </div>
           </div>
 

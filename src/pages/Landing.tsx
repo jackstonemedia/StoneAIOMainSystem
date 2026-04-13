@@ -13,7 +13,7 @@ export default function Landing() {
           </div>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-text-muted">
-            <a href="#features" className="hover:text-text-main transition-colors">Features</a>
+            <a href="#526tures" className="hover:text-text-main transition-colors">Features</a>
             <Link to="/marketplace" className="hover:text-text-main transition-colors">Marketplace</Link>
             <a href="#pricing" className="hover:text-text-main transition-colors">Pricing</a>
             <a href="#" className="hover:text-text-main transition-colors">Docs</a>

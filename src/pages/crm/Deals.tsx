@@ -23,15 +23,15 @@ const PIPELINES = [
 ];
 
 const KANBAN_STAGES = [
-  { id: '1', name: 'Discovery', color: 'text-[#579bfc]', rottingDays: 14 },
-  { id: '2', name: 'Proposal', color: 'text-[#00cff4]', rottingDays: 10 },
-  { id: '3', name: 'Negotiation', color: 'text-[#a25ddc]', rottingDays: 7 },
-  { id: '4', name: 'Won', color: 'text-[#00c875]' },
-  { id: '5', name: 'Lost', color: 'text-[#e2445c]' },
+  { id: '1', name: 'Discovery', color: 'text-[#52677D]', rottingDays: 14 },
+  { id: '2', name: 'Proposal', color: 'text-[#52677D]', rottingDays: 10 },
+  { id: '3', name: 'Negotiation', color: 'text-[#52677D]', rottingDays: 7 },
+  { id: '4', name: 'Won', color: 'text-[#52677D]' },
+  { id: '5', name: 'Lost', color: 'text-[#52677D]' },
 ];
 
 const STAGE_COLORS: Record<string, string> = {
-  Discovery: '#579bfc', Proposal: '#00cff4', Negotiation: '#a25ddc', Won: '#00c875', Lost: '#e2445c',
+  Discovery: '#52677D', Proposal: '#52677D', Negotiation: '#52677D', Won: '#52677D', Lost: '#52677D',
 };
 
 const INITIAL_DEALS: Deal[] = [
@@ -47,7 +47,7 @@ const INITIAL_DEALS: Deal[] = [
 type ViewMode = 'kanban' | 'table' | 'list';
 
 function getStagePill(stage: string) {
-  const color = STAGE_COLORS[stage] || '#a25ddc';
+  const color = STAGE_COLORS[stage] || '#52677D';
   return { label: stage, color };
 }
 

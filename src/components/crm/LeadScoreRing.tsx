@@ -12,10 +12,10 @@ export default function LeadScoreRing({ score = 0, size = 36, strokeWidth = 3, s
   const offset = circumference - (clampedScore / 100) * circumference;
 
   const getColor = (s: number) => {
-    if (s >= 75) return '#22c55e'; // green
-    if (s >= 50) return '#f59e0b'; // amber
-    if (s >= 25) return '#3b82f6'; // blue
-    return '#6b7280'; // gray
+    if (s >= 75) return '#52677D'; // green
+    if (s >= 50) return '#52677D'; // amber
+    if (s >= 25) return '#52677D'; // blue
+    return '#52677D'; // gray
   };
 
   const color = getColor(clampedScore);

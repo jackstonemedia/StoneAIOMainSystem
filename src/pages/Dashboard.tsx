@@ -52,7 +52,7 @@ const quickActions = [
 function getStatusColor(status: string) {
   switch (status) {
     case 'Running': return '#10B981';
-    case 'Paused':  return '#F59E0B';
+    case 'Paused':  return '#52677D';
     case 'Error':   return '#EF4444';
     default:        return '#52677D';
   }

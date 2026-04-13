@@ -90,7 +90,7 @@ export default function DuplicateDetectionModal({ isOpen, onClose, contact, dupl
                 <div className="px-6 pt-4 flex gap-2 overflow-x-auto">
                   {duplicates.map(dup => (
                     <button key={dup.id} onClick={() => setSelectedDup(dup)}
-                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${selectedDup.id === dup.id ? 'bg-[#0073ea] text-white border-[#0073ea]' : 'bg-surface-hover text-text-main border-border hover:border-border'}`}>
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${selectedDup.id === dup.id ? 'bg-[#52677D] text-white border-[#52677D]' : 'bg-surface-hover text-text-main border-border hover:border-border'}`}>
                       {dup.firstName} {dup.lastName}
                     </button>
                   ))}
@@ -115,10 +115,10 @@ export default function DuplicateDetectionModal({ isOpen, onClose, contact, dupl
                       <div key={key} className="grid grid-cols-[1fr_48px_1fr] gap-3 items-center">
                         {/* Left */}
                         <div onClick={() => toggleChoice(key)}
-                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${choice === 'left' ? 'border-[#0073ea] bg-[#e5f0ff]' : 'border-border bg-surface-hover hover:border-border opacity-60'}`}>
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${choice === 'left' ? 'border-[#52677D] bg-[#52677D]' : 'border-border bg-surface-hover hover:border-border opacity-60'}`}>
                           <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">{label}</div>
                           <div className="text-[13px] font-semibold text-text-main truncate">{leftVal || '—'}</div>
-                          {choice === 'left' && <Check className="w-3.5 h-3.5 text-[#0073ea] float-right -mt-3" />}
+                          {choice === 'left' && <Check className="w-3.5 h-3.5 text-[#52677D] float-right -mt-3" />}
                         </div>
 
                         {/* Toggle */}
@@ -131,10 +131,10 @@ export default function DuplicateDetectionModal({ isOpen, onClose, contact, dupl
 
                         {/* Right */}
                         <div onClick={() => toggleChoice(key)}
-                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${choice === 'right' ? 'border-[#0073ea] bg-[#e5f0ff]' : 'border-border bg-surface-hover hover:border-border opacity-60'}`}>
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${choice === 'right' ? 'border-[#52677D] bg-[#52677D]' : 'border-border bg-surface-hover hover:border-border opacity-60'}`}>
                           <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">{label}</div>
                           <div className="text-[13px] font-semibold text-text-main truncate">{rightVal || '—'}</div>
-                          {choice === 'right' && <Check className="w-3.5 h-3.5 text-[#0073ea] float-right -mt-3" />}
+                          {choice === 'right' && <Check className="w-3.5 h-3.5 text-[#52677D] float-right -mt-3" />}
                         </div>
                       </div>
                     );
@@ -148,7 +148,7 @@ export default function DuplicateDetectionModal({ isOpen, onClose, contact, dupl
               <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-surface-hover/50">
                 <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted0 hover:bg-surface-hover transition-colors">Cancel</button>
                 <button onClick={handleMerge} disabled={merging || done}
-                  className="flex items-center gap-2 px-6 py-2 rounded-xl text-[13px] font-semibold bg-[#0073ea] text-white hover:bg-[#0060c2] transition-colors shadow-sm disabled:opacity-60">
+                  className="flex items-center gap-2 px-6 py-2 rounded-xl text-[13px] font-semibold bg-[#52677D] text-white hover:bg-[#52677D] transition-colors shadow-sm disabled:opacity-60">
                   {done ? <><Check className="w-4 h-4" /> Merged!</> : merging ? 'Merging...' : <><Merge className="w-4 h-4" /> Merge Records</>}
                 </button>
               </div>

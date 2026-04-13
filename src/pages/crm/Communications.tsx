@@ -162,14 +162,14 @@ function EmailTab() {
                   </div>
                 </div>
                 <button onClick={() => setConnected(prev => isConnected ? prev.filter(p => p !== provider.name) : [...prev, provider.name])}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${isConnected ? 'bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600' : 'bg-[#e5f0ff] text-primary hover:bg-primary hover:text-white'}`}>
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${isConnected ? 'bg-green-100 text-green-700 hover:bg-red-50 hover:text-red-600' : 'bg-[#52677D] text-primary hover:bg-primary hover:text-white'}`}>
                   {isConnected ? 'Connected' : 'Connect'}
                 </button>
               </div>
             );
           })}
         </div>
-        <button onClick={() => setComposing(true)} className="w-full py-2.5 bg-primary hover:bg-[#0060c2] text-white font-bold text-[13px] rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors">
+        <button onClick={() => setComposing(true)} className="w-full py-2.5 bg-primary hover:bg-[#52677D] text-white font-bold text-[13px] rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Compose Email
         </button>
       </div>
@@ -182,8 +182,8 @@ function EmailTab() {
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
           {THREADS.map(thread => (
-            <div key={thread.id} className={`flex gap-4 px-6 py-4 cursor-pointer hover:bg-surface-hover transition-colors ${!thread.read ? 'bg-[#f0f7ff]' : ''}`}>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0073ea] to-[#a25ddc] flex items-center justify-center text-white font-bold text-[13px] shrink-0">
+            <div key={thread.id} className={`flex gap-4 px-6 py-4 cursor-pointer hover:bg-surface-hover transition-colors ${!thread.read ? 'bg-[#52677D]' : ''}`}>
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#52677D] to-[#52677D] flex items-center justify-center text-white font-bold text-[13px] shrink-0">
                 {thread.from[0]}
               </div>
               <div className="flex-1 min-w-0">
@@ -231,7 +231,7 @@ function EmailTab() {
                     <button className="hover:text-text-main transition-colors"><Paperclip className="w-4 h-4" /></button>
                   </div>
                   <button onClick={() => { setComposing(false); setTo(''); setSubject(''); setBody(''); }}
-                    className="flex items-center gap-2 px-5 py-2 bg-primary text-white text-[13px] font-semibold rounded-xl hover:bg-[#0060c2] transition-colors shadow-sm">
+                    className="flex items-center gap-2 px-5 py-2 bg-primary text-white text-[13px] font-semibold rounded-xl hover:bg-[#52677D] transition-colors shadow-sm">
                     <Send className="w-4 h-4" /> Send
                   </button>
                 </div>
@@ -261,8 +261,8 @@ function SMSTab() {
         <div className="divide-y divide-slate-100">
           {threads.map(t => (
             <button key={t.id} onClick={() => setActiveThread(t)}
-              className={`w-full text-left px-4 py-3 hover:bg-surface-hover transition-colors ${activeThread.id === t.id ? 'bg-[#e5f0ff]' : ''}`}>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0073ea] to-[#a25ddc] flex items-center justify-center text-white font-bold text-[12px] mb-1">{t.name[0]}</div>
+              className={`w-full text-left px-4 py-3 hover:bg-surface-hover transition-colors ${activeThread.id === t.id ? 'bg-[#52677D]' : ''}`}>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#52677D] to-[#52677D] flex items-center justify-center text-white font-bold text-[12px] mb-1">{t.name[0]}</div>
               <p className="font-semibold text-[12px] text-text-main">{t.name}</p>
               <p className="text-[11px] text-text-muted truncate">{t.messages[t.messages.length - 1]?.text}</p>
             </button>
@@ -272,7 +272,7 @@ function SMSTab() {
       {/* Messages */}
       <div className="flex-1 flex flex-col">
         <div className="px-5 py-3 border-b border-border flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0073ea] to-[#a25ddc] flex items-center justify-center text-white font-bold text-[13px]">{activeThread.name[0]}</div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#52677D] to-[#52677D] flex items-center justify-center text-white font-bold text-[13px]">{activeThread.name[0]}</div>
           <div><p className="font-bold text-[13px] text-text-main">{activeThread.name}</p><p className="text-[11px] text-text-muted">{activeThread.number}</p></div>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
@@ -288,7 +288,7 @@ function SMSTab() {
         <div className="px-4 py-3 border-t border-border flex items-end gap-3">
           <textarea value={msg} onChange={e => setMsg(e.target.value)} rows={1} placeholder="Type a message..."
             className="flex-1 px-4 py-2.5 bg-surface-hover border border-border rounded-2xl text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
-          <button onClick={() => setMsg('')} className="p-2.5 bg-primary text-white rounded-xl hover:bg-[#0060c2] transition-colors shadow-sm">
+          <button onClick={() => setMsg('')} className="p-2.5 bg-primary text-white rounded-xl hover:bg-[#52677D] transition-colors shadow-sm">
             <Send className="w-4 h-4" />
           </button>
           <button className="p-2.5 bg-surface-hover text-text-main rounded-xl hover:bg-surface-hover transition-colors"><Image className="w-4 h-4" /></button>
@@ -344,7 +344,7 @@ function MeetingSchedulerTab() {
           <div className="flex items-center gap-2 bg-surface-hover border border-border rounded-xl px-3 py-2.5">
             <Link2 className="w-4 h-4 text-text-muted shrink-0" />
             <span className="flex-1 text-[12px] text-text-main font-mono truncate">{bookingLink}</span>
-            <button onClick={copyLink} className={`text-[12px] font-bold px-3 py-1 rounded-lg transition-colors ${linkCopied ? 'bg-green-100 text-green-700' : 'bg-primary text-white hover:bg-[#0060c2]'}`}>
+            <button onClick={copyLink} className={`text-[12px] font-bold px-3 py-1 rounded-lg transition-colors ${linkCopied ? 'bg-green-100 text-green-700' : 'bg-primary text-white hover:bg-[#52677D]'}`}>
               {linkCopied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
@@ -391,7 +391,7 @@ function MeetingSchedulerTab() {
             <p className="text-[12px] text-text-muted italic text-center py-4">No upcoming meetings</p>
           ) : UPCOMING.map((m, i) => (
             <div key={i} className="flex gap-3 py-3 border-b border-border last:border-0">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0073ea] to-[#a25ddc] flex items-center justify-center text-white font-bold text-[13px] shrink-0">{m.avatar}</div>
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#52677D] to-[#52677D] flex items-center justify-center text-white font-bold text-[13px] shrink-0">{m.avatar}</div>
               <div>
                 <p className="font-semibold text-[12px] text-text-main">{m.name}</p>
                 <p className="text-[11px] text-primary font-medium">{m.type}</p>
@@ -477,7 +477,7 @@ function SharedInboxTab() {
         {THREADS.map(t => {
           const Icon = SOURCE_ICONS[t.source] || Mail;
           return (
-            <div key={t.id} className={`flex gap-4 px-6 py-4 hover:bg-surface-hover transition-colors cursor-pointer ${t.unread ? 'bg-[#f0f7ff]' : ''}`}>
+            <div key={t.id} className={`flex gap-4 px-6 py-4 hover:bg-surface-hover transition-colors cursor-pointer ${t.unread ? 'bg-[#52677D]' : ''}`}>
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${SOURCE_COLORS[t.source]}`}>
                 <Icon className="w-4 h-4" />
               </div>

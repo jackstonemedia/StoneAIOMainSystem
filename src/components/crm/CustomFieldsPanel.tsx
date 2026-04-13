@@ -79,13 +79,13 @@ export default function CustomFieldsPanel({ entityId, entityType }: CustomFields
   };
 
   const renderInput = (field: CustomField) => {
-    const base = 'flex-1 bg-surface-hover border border-border rounded-lg px-2.5 py-1.5 text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 focus:border-[#0073ea]/50 transition-all';
+    const base = 'flex-1 bg-surface-hover border border-border rounded-lg px-2.5 py-1.5 text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#52677D]/30 focus:border-[#52677D]/50 transition-all';
     switch (field.type) {
       case 'checkbox':
         return (
           <input type="checkbox" checked={field.value === 'true'}
             onChange={e => updateValue(field.id, e.target.checked ? 'true' : 'false')}
-            className="w-4 h-4 rounded border-border text-[#0073ea] focus:ring-[#0073ea]/30 cursor-pointer" />
+            className="w-4 h-4 rounded border-border text-[#52677D] focus:ring-[#52677D]/30 cursor-pointer" />
         );
       case 'number':
         return <input type="number" value={field.value} onChange={e => updateValue(field.id, e.target.value)} className={base} placeholder="0" />;
@@ -102,7 +102,7 @@ export default function CustomFieldsPanel({ entityId, entityType }: CustomFields
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Custom Fields</h3>
-        <button onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#0073ea] hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-1 text-[11px] font-semibold text-[#52677D] hover:bg-[#52677D] px-2 py-1 rounded-lg transition-colors">
           <Plus className="w-3.5 h-3.5" /> Add field
         </button>
       </div>
@@ -135,12 +135,12 @@ export default function CustomFieldsPanel({ entityId, entityType }: CustomFields
       <AnimatePresence>
         {adding && (
           <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-            className="mt-3 p-3 bg-[#f8fafc] border border-border rounded-xl space-y-2">
+            className="mt-3 p-3 bg-[#52677D] border border-border rounded-xl space-y-2">
             <div className="flex gap-2">
               <input autoFocus value={newLabel} onChange={e => setNewLabel(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addField(); if (e.key === 'Escape') setAdding(false); }}
                 placeholder="Field label (e.g. LinkedIn, Industry...)"
-                className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 focus:border-[#0073ea]/50" />
+                className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-[#52677D]/30 focus:border-[#52677D]/50" />
               <div className="relative">
                 <button onClick={() => setTypeDropOpen(o => !o)}
                   className="flex items-center gap-1.5 bg-surface border border-border rounded-lg px-3 py-2 text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
@@ -153,7 +153,7 @@ export default function CustomFieldsPanel({ entityId, entityType }: CustomFields
                       className="absolute top-full right-0 mt-1 z-50 bg-surface border border-border rounded-xl shadow-xl py-1.5 min-w-[140px]">
                       {FIELD_TYPES.map(t => (
                         <button key={t.value} onClick={() => { setNewType(t.value); setTypeDropOpen(false); }}
-                          className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center gap-2 hover:bg-surface-hover transition-colors ${newType === t.value ? 'text-[#0073ea] font-semibold' : 'text-text-main'}`}>
+                          className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center gap-2 hover:bg-surface-hover transition-colors ${newType === t.value ? 'text-[#52677D] font-semibold' : 'text-text-main'}`}>
                           <span>{FIELD_TYPE_ICONS[t.value]}</span> {t.label}
                         </button>
                       ))}
@@ -165,7 +165,7 @@ export default function CustomFieldsPanel({ entityId, entityType }: CustomFields
             <div className="flex justify-end gap-2">
               <button onClick={() => setAdding(false)} className="px-3 py-1.5 text-[12px] font-semibold text-text-muted0 hover:bg-surface-hover rounded-lg transition-colors">Cancel</button>
               <button onClick={addField} disabled={!newLabel.trim()}
-                className="px-4 py-1.5 text-[12px] font-semibold bg-[#0073ea] text-white rounded-lg hover:bg-[#0060c2] transition-colors disabled:opacity-40">
+                className="px-4 py-1.5 text-[12px] font-semibold bg-[#52677D] text-white rounded-lg hover:bg-[#52677D] transition-colors disabled:opacity-40">
                 Add Field
               </button>
             </div>

@@ -10,11 +10,11 @@ interface ThemeContextType {
 
 export const THEMES: ThemeContextType['themes'] = [
   { id: 'stone',  name: 'Enterprise Navy', preview: { bg: '#0F1A2B', surface: '#1C2E4A', primary: '#52677D', accent: '#BDC4D4' } },
-  { id: 'dark',   name: 'Dark',            preview: { bg: '#080d1a', surface: '#111827', primary: '#818cf8', accent: '#34d399' } },
-  { id: 'ocean',  name: 'Ocean',           preview: { bg: '#060d1a', surface: '#0d1829', primary: '#38bdf8', accent: '#22d3ee' } },
-  { id: 'sunset', name: 'Sunset',          preview: { bg: '#110a0d', surface: '#1e1218', primary: '#f97316', accent: '#fb923c' } },
-  { id: 'forest', name: 'Forest',          preview: { bg: '#080f0b', surface: '#0f1a10', primary: '#22c55e', accent: '#4ade80' } },
-  { id: 'neon',   name: 'Neon',            preview: { bg: '#05050f', surface: '#0a0a1e', primary: '#a855f7', accent: '#e879f9' } },
+  { id: 'dark',   name: 'Dark',            preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
+  { id: 'ocean',  name: 'Ocean',           preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
+  { id: 'sunset', name: 'Sunset',          preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
+  { id: 'forest', name: 'Forest',          preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
+  { id: 'neon',   name: 'Neon',            preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
 ];
 
 const THEME_KEY = 'stone-aio-theme';

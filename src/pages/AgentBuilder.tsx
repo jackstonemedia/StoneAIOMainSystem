@@ -65,8 +65,8 @@ const initialNodes = [
 ];
 
 const initialEdges = [
-  { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: '#4361EE', strokeWidth: 2 } },
-  { id: 'e2-3', source: '2', target: '3', animated: true, style: { stroke: '#F77F00', strokeWidth: 2 } },
+  { id: 'e1-2', source: '1', target: '2', animated: true, style: { stroke: '#52677D', strokeWidth: 2 } },
+  { id: 'e2-3', source: '2', target: '3', animated: true, style: { stroke: '#52677D', strokeWidth: 2 } },
 ];
 
 // --- Main Component ---
@@ -328,7 +328,7 @@ export default function AgentBuilder() {
           target: e.target,
           sourceHandle: e.sourceHandle || null,
           animated: true,
-          style: { stroke: '#06D6A0', strokeWidth: 2 }
+          style: { stroke: '#52677D', strokeWidth: 2 }
         }));
 
         setNodes(newNodes);
@@ -481,7 +481,7 @@ export default function AgentBuilder() {
                   if (n.type === 'llm') return 'var(--color-amber)';
                   if (n.type === 'tool') return 'var(--color-green)';
                   if (n.type === 'output') return 'var(--color-teal)';
-                  return '#eee';
+                  return '#526';
                 }}
               />
               <Panel position="top-right" className="bg-surface/60 backdrop-blur-xl border border-border/50 rounded-lg p-2 shadow-lg flex items-center gap-3">

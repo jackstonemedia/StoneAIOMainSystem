@@ -196,7 +196,7 @@ export default function ComputerDashboard() {
             </div>
 
             {/* Panel Content (Terminal specific for now as requested by user command earlier) */}
-            <div className="flex-1 overflow-auto bg-[#0a0a0a] p-4 font-mono text-sm">
+            <div className="flex-1 overflow-auto bg-[#52677D] p-4 font-mono text-sm">
               {activeRightPanel === 'terminal' && (
                 <div className="space-y-2 text-gray-300">
                   <div className="text-emerald-500 mb-4"># Terminal synchronized with AI Agent workspace...</div>

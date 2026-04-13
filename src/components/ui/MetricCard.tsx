@@ -73,7 +73,7 @@ export function MetricCard({
     ? `${prefix}${displayed.toLocaleString()}${suffix}`
     : value;
 
-  const sparkColor = trend === 'up' ? '#34d399' : trend === 'down' ? '#fb7185' : '#818cf8';
+  const sparkColor = trend === 'up' ? '#52677D' : trend === 'down' ? '#52677D' : '#52677D';
 
   return (
     <div
