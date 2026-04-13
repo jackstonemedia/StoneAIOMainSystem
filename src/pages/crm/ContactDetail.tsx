@@ -53,10 +53,10 @@ const TAG_COLORS = ['#579bfc', '#00c875', '#ffcb00', '#ff5ac4', '#a25ddc', '#e24
 
 function getActivityIcon(type: string) {
   switch (type) {
-    case 'email': return { bg: 'bg-blue-50', color: 'text-blue-500', Icon: Mail };
+    case 'email': return { bg: 'bg-blue-50', color: 'text-text-muted', Icon: Mail };
     case 'call': return { bg: 'bg-green-50', color: 'text-green-500', Icon: Phone };
-    case 'meeting': return { bg: 'bg-purple-50', color: 'text-purple-500', Icon: CalendarDays };
-    default: return { bg: 'bg-slate-100', color: 'text-slate-500', Icon: Activity };
+    case 'meeting': return { bg: 'bg-purple-50', color: 'text-text-muted', Icon: CalendarDays };
+    default: return { bg: 'bg-slate-100', color: 'text-text-muted', Icon: Activity };
   }
 }
 
@@ -126,8 +126,8 @@ export default function ContactDetail() {
   if (loading) return (
     <div className="h-full flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-[#0073ea] border-t-transparent rounded-full animate-spin" />
-        <p className="text-[13px] text-slate-500">Loading contact...</p>
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-[13px] text-text-muted">Loading contact...</p>
       </div>
     </div>
   );
@@ -137,11 +137,11 @@ export default function ContactDetail() {
   const initials = contact.name.split(' ').map(n => n[0]).join('').toUpperCase();
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-[#f8fafc]">
+    <div className="h-full flex flex-col overflow-hidden bg-bg">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0 shadow-sm">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface shrink-0 shadow-sm">
         <div className="flex items-center gap-4">
-          <Link to="/business/crm/contacts" className="p-2 -ml-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+          <Link to="/business/crm/contacts" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-slate-100 rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-4">
@@ -151,22 +151,22 @@ export default function ContactDetail() {
             <div>
               {isEditing ? (
                 <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                  className="text-xl font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30" />
+                  className="text-xl font-bold text-text-main bg-surface border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30" />
               ) : (
-                <h1 className="text-xl font-bold text-slate-800">{contact.name}</h1>
+                <h1 className="text-xl font-bold text-text-main">{contact.name}</h1>
               )}
               {isEditing ? (
                 <div className="flex items-center gap-2 mt-1.5">
                   <input type="text" value={editForm.title} placeholder="Job title"
                     onChange={e => setEditForm({ ...editForm, title: e.target.value })}
-                    className="text-sm bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 w-32" />
-                  <span className="text-sm text-slate-400">at</span>
+                    className="text-sm bg-surface border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30 w-32" />
+                  <span className="text-sm text-text-muted">at</span>
                   <input type="text" value={editForm.company} placeholder="Company"
                     onChange={e => setEditForm({ ...editForm, company: e.target.value })}
-                    className="text-sm bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 w-32" />
+                    className="text-sm bg-surface border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30 w-32" />
                 </div>
               ) : (
-                <p className="text-sm text-slate-500 mt-0.5">{contact.title}{contact.title && contact.company ? ' at ' : ''}<Link to="/business/crm/companies/1" className="text-[#0073ea] hover:underline">{contact.company}</Link></p>
+                <p className="text-sm text-text-muted mt-0.5">{contact.title}{contact.title && contact.company ? ' at ' : ''}<Link to="/business/crm/companies/1" className="text-primary hover:underline">{contact.company}</Link></p>
               )}
             </div>
           </div>
@@ -174,19 +174,19 @@ export default function ContactDetail() {
         <div className="flex items-center gap-2">
           {isEditing ? (
             <>
-              <button onClick={() => { setEditForm(contact); setIsEditing(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+              <button onClick={() => { setEditForm(contact); setIsEditing(false); }} className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
                 <X className="w-4 h-4" /> Cancel
               </button>
-              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-[#0073ea] text-white rounded-lg text-sm font-semibold hover:bg-[#0060c2] transition-colors shadow-sm">
+              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#0060c2] transition-colors shadow-sm">
                 <Save className="w-4 h-4" /> Save Changes
               </button>
             </>
           ) : (
             <>
-              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-hover transition-colors">
                 <Edit2 className="w-4 h-4" /> Edit
               </button>
-              <button className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+              <button className="p-2 bg-surface border border-border rounded-lg text-text-muted hover:bg-surface-hover transition-colors">
                 <MoreHorizontal className="w-5 h-5" />
               </button>
             </>
@@ -201,8 +201,8 @@ export default function ContactDetail() {
           {/* Left column */}
           <div className="space-y-5">
             {/* Info Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-4">Contact Info</h2>
+            <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
+              <h2 className="text-[12px] font-bold text-text-muted uppercase tracking-wider mb-4">Contact Info</h2>
               <div className="space-y-3">
                 {[
                   { icon: Mail, label: 'Email', value: editForm.email, field: 'email', type: 'email' },
@@ -211,39 +211,39 @@ export default function ContactDetail() {
                   { icon: Building2, label: 'Company', value: editForm.company, field: 'company', type: 'text' },
                 ].map(({ icon: Icon, label, value, field, type }) => (
                   <div key={field} className="flex items-start gap-3 text-sm">
-                    <Icon className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                    <Icon className="w-4 h-4 text-text-muted shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       {isEditing ? (
                         <input type={type} value={value} onChange={e => setEditForm({ ...editForm, [field]: e.target.value })}
-                          className="w-full font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 text-[13px]" />
+                          className="w-full font-medium text-text-main bg-surface-hover border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30 text-[13px]" />
                       ) : (
-                        <div className="font-medium text-slate-800 text-[13px] truncate">{value || <span className="text-slate-300 italic">Not set</span>}</div>
+                        <div className="font-medium text-text-main text-[13px] truncate">{value || <span className="text-slate-300 italic">Not set</span>}</div>
                       )}
-                      <div className="text-[11px] text-slate-400 mt-0.5">{label}</div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{label}</div>
                     </div>
                   </div>
                 ))}
               </div>
 
               {/* Social Links */}
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Social</h3>
+              <div className="mt-4 pt-4 border-t border-border">
+                <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-3">Social</h3>
                 <div className="space-y-2">
                   {[
                     { icon: Linkedin, field: 'linkedin', label: 'LinkedIn', color: 'text-[#0077b5]', placeholder: 'linkedin.com/in/...' },
-                    { icon: Twitter, field: 'twitter', label: 'Twitter/X', color: 'text-slate-800', placeholder: '@username' },
-                    { icon: Github, field: 'github', label: 'GitHub', color: 'text-slate-700', placeholder: 'github.com/...' },
+                    { icon: Twitter, field: 'twitter', label: 'Twitter/X', color: 'text-text-main', placeholder: '@username' },
+                    { icon: Github, field: 'github', label: 'GitHub', color: 'text-text-main', placeholder: 'github.com/...' },
                   ].map(({ icon: Icon, field, label, color, placeholder }) => (
                     <div key={field} className="flex items-center gap-2">
                       <Icon className={`w-4 h-4 shrink-0 ${color}`} />
                       {isEditing ? (
                         <input type="text" value={(editForm as any)[field] || ''} placeholder={placeholder}
                           onChange={e => setEditForm({ ...editForm, [field]: e.target.value })}
-                          className="flex-1 text-[12px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30" />
+                          className="flex-1 text-[12px] bg-surface-hover border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30" />
                       ) : (
                         (contact as any)[field] ? (
                           <a href={`https://${(contact as any)[field]?.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer"
-                            className="text-[12px] text-[#0073ea] hover:underline flex items-center gap-1 truncate">
+                            className="text-[12px] text-primary hover:underline flex items-center gap-1 truncate">
                             {(contact as any)[field]} <ExternalLink className="w-3 h-3 shrink-0" />
                           </a>
                         ) : <span className="text-[12px] text-slate-300 italic">{placeholder}</span>
@@ -255,10 +255,10 @@ export default function ContactDetail() {
             </div>
 
             {/* Health Score */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">Health Score</h2>
-                <span className="text-[11px] font-semibold text-slate-500">Engagement Index</span>
+                <h2 className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Health Score</h2>
+                <span className="text-[11px] font-semibold text-text-muted">Engagement Index</span>
               </div>
               <div className="flex items-center gap-4">
                 <ContactHealthScore score={contact.leadScore} size="lg" showLabel activityBreakdown={healthBreakdown} />
@@ -270,7 +270,7 @@ export default function ContactDetail() {
                     { label: 'Meetings', val: healthBreakdown.meetings, max: 20, color: '#ffcb00' },
                   ].map(({ label, val, max, color }) => (
                     <div key={label}>
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5"><span>{label}</span><span className="font-semibold">{val}/{max}</span></div>
+                      <div className="flex justify-between text-[10px] text-text-muted mb-0.5"><span>{label}</span><span className="font-semibold">{val}/{max}</span></div>
                       <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
                         <motion.div className="h-full rounded-full" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${(val / max) * 100}%` }} transition={{ duration: 0.8, delay: 0.1 }} />
                       </div>
@@ -281,10 +281,10 @@ export default function ContactDetail() {
             </div>
 
             {/* Tags */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-wider">Tags</h2>
-                <button onClick={() => setAddingTag(true)} className="text-[11px] font-semibold text-[#0073ea] hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
+                <h2 className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Tags</h2>
+                <button onClick={() => setAddingTag(true)} className="text-[11px] font-semibold text-primary hover:bg-[#e5f0ff] px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" /> Add
                 </button>
               </div>
@@ -297,7 +297,7 @@ export default function ContactDetail() {
                     </button>
                   </div>
                 ))}
-                {(contact.tags || []).length === 0 && <p className="text-[12px] text-slate-400 italic">No tags yet</p>}
+                {(contact.tags || []).length === 0 && <p className="text-[12px] text-text-muted italic">No tags yet</p>}
               </div>
               <AnimatePresence>
                 {addingTag && (
@@ -305,9 +305,9 @@ export default function ContactDetail() {
                     <div className="flex gap-2">
                       <input autoFocus value={newTag} onChange={e => setNewTag(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') setAddingTag(false); }}
-                        placeholder="Tag name..." className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30" />
-                      <button onClick={addTag} className="px-3 py-1.5 bg-[#0073ea] text-white text-[12px] font-semibold rounded-lg hover:bg-[#0060c2]">Add</button>
-                      <button onClick={() => setAddingTag(false)} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="w-4 h-4" /></button>
+                        placeholder="Tag name..." className="flex-1 px-2.5 py-1.5 bg-surface-hover border border-border rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      <button onClick={addTag} className="px-3 py-1.5 bg-primary text-white text-[12px] font-semibold rounded-lg hover:bg-[#0060c2]">Add</button>
+                      <button onClick={() => setAddingTag(false)} className="p-1.5 text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
                     </div>
                   </motion.div>
                 )}
@@ -321,11 +321,11 @@ export default function ContactDetail() {
             <QuickActionsBar contactId={contact.id} contactName={contact.name} contactPhone={contact.phone} contactEmail={contact.email} />
 
             {/* Tabs */}
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="flex border-b border-slate-200 bg-slate-50/50">
+            <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex border-b border-border bg-surface-hover">
                 {([['activity', 'Activity'], ['deals', 'Deals'], ['files', 'Files'], ['custom', 'Custom Fields']] as const).map(([tab, label]) => (
                   <button key={tab} onClick={() => setActiveTab(tab)}
-                    className={`px-5 py-3.5 text-[13px] font-semibold transition-colors border-b-2 -mb-px ${activeTab === tab ? 'border-[#0073ea] text-[#0073ea] bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                    className={`px-5 py-3.5 text-[13px] font-semibold transition-colors border-b-2 -mb-px ${activeTab === tab ? 'border-primary text-primary bg-surface' : 'border-transparent text-text-muted hover:text-text-main'}`}>
                     {label}
                   </button>
                 ))}
@@ -336,44 +336,44 @@ export default function ContactDetail() {
                 {activeTab === 'activity' && (
                   <div>
                     <div className="flex items-center justify-between mb-5">
-                      <h2 className="font-semibold text-slate-800">Timeline</h2>
+                      <h2 className="font-semibold text-text-main">Timeline</h2>
                       <button onClick={() => setNewActivity({ type: 'call', title: '', note: '' })}
-                        className="text-sm text-[#0073ea] hover:underline font-medium">+ Log Activity</button>
+                        className="text-sm text-primary hover:underline font-medium">+ Log Activity</button>
                     </div>
 
                     <AnimatePresence>
                       {newActivity && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                          className="mb-5 p-4 bg-[#e5f0ff]/50 border border-[#0073ea]/20 rounded-xl space-y-3">
+                          className="mb-5 p-4 bg-[#e5f0ff]/50 border border-primary/20 rounded-xl space-y-3">
                           <div className="flex gap-2">
                             {[['call', 'Call'], ['email', 'Email'], ['meeting', 'Meeting'], ['note', 'Note']].map(([type, label]) => (
                               <button key={type} onClick={() => setNewActivity({ ...newActivity, type })}
-                                className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors ${newActivity.type === type ? 'bg-[#0073ea] text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors ${newActivity.type === type ? 'bg-primary text-white' : 'bg-surface border border-border text-text-main hover:bg-surface-hover'}`}>
                                 {label}
                               </button>
                             ))}
                           </div>
                           <input value={newActivity.title} onChange={e => setNewActivity({ ...newActivity, title: e.target.value })}
-                            placeholder="Activity title..." className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30" />
+                            placeholder="Activity title..." className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30" />
                           <textarea value={newActivity.note} onChange={e => setNewActivity({ ...newActivity, note: e.target.value })}
                             placeholder="Notes (optional)..." rows={2}
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 resize-none" />
+                            className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => setNewActivity(null)} className="px-4 py-1.5 text-[12px] font-semibold text-slate-500 hover:bg-slate-100 rounded-lg">Cancel</button>
-                            <button onClick={logActivity} className="px-4 py-1.5 text-[12px] font-semibold bg-[#0073ea] text-white rounded-lg hover:bg-[#0060c2]">Log Activity</button>
+                            <button onClick={() => setNewActivity(null)} className="px-4 py-1.5 text-[12px] font-semibold text-text-muted hover:bg-slate-100 rounded-lg">Cancel</button>
+                            <button onClick={logActivity} className="px-4 py-1.5 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-[#0060c2]">Log Activity</button>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
 
                     {activities.length === 0 ? (
-                      <div className="text-center py-10 text-slate-400">
+                      <div className="text-center py-10 text-text-muted">
                         <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
                         <p className="text-[13px] font-medium">No activity yet</p>
                         <p className="text-[12px] mt-1">Log a call, email, or meeting to start the timeline.</p>
                       </div>
                     ) : (
-                      <div className="relative border-l-2 border-slate-100 ml-4 space-y-5 pb-2">
+                      <div className="relative border-l-2 border-border ml-4 space-y-5 pb-2">
                         {activities.map(act => {
                           const { Icon, color, bg } = getActivityIcon(act.type);
                           return (
@@ -383,10 +383,10 @@ export default function ContactDetail() {
                               </div>
                               <div>
                                 <div className="flex items-center justify-between mb-0.5">
-                                  <h3 className="text-[13px] font-semibold text-slate-800">{act.title}</h3>
-                                  <span className="text-[11px] text-slate-400">{act.date}</span>
+                                  <h3 className="text-[13px] font-semibold text-text-main">{act.title}</h3>
+                                  <span className="text-[11px] text-text-muted">{act.date}</span>
                                 </div>
-                                {act.note && <p className="text-[12px] text-slate-500 leading-relaxed">{act.note}</p>}
+                                {act.note && <p className="text-[12px] text-text-muted leading-relaxed">{act.note}</p>}
                               </div>
                             </div>
                           );
@@ -400,11 +400,11 @@ export default function ContactDetail() {
                 {activeTab === 'deals' && (
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="font-semibold text-slate-800">Associated Deals</h2>
-                      <button className="text-sm text-[#0073ea] hover:underline font-medium">+ Add Deal</button>
+                      <h2 className="font-semibold text-text-main">Associated Deals</h2>
+                      <button className="text-sm text-primary hover:underline font-medium">+ Add Deal</button>
                     </div>
                     {deals.length === 0 ? (
-                      <div className="text-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                      <div className="text-center py-10 text-text-muted border-2 border-dashed border-border rounded-xl">
                         <CircleDollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
                         <p className="text-[13px] font-medium">No deals linked</p>
                       </div>
@@ -412,18 +412,18 @@ export default function ContactDetail() {
                       <div className="space-y-3">
                         {deals.map(deal => (
                           <Link key={deal.id} to={`/business/crm/deals/${deal.id}`}
-                            className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-[#0073ea]/40 hover:bg-[#e5f0ff]/30 transition-all">
+                            className="flex items-center justify-between p-4 bg-surface-hover border border-border rounded-xl hover:border-primary/40 hover:bg-[#e5f0ff]/30 transition-all">
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center">
                                 <CircleDollarSign className="w-5 h-5 text-amber-500" />
                               </div>
                               <div>
-                                <div className="font-semibold text-[13px] text-slate-800">{deal.title}</div>
-                                <div className="text-[11px] text-slate-400 mt-0.5">Close: {deal.closeDate}</div>
+                                <div className="font-semibold text-[13px] text-text-main">{deal.title}</div>
+                                <div className="text-[11px] text-text-muted mt-0.5">Close: {deal.closeDate}</div>
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="font-bold text-[14px] text-slate-800">{deal.amount}</div>
+                              <div className="font-bold text-[14px] text-text-main">{deal.amount}</div>
                               <div className="text-[11px] font-semibold mt-0.5" style={{ color: STAGE_COLORS[deal.stage] || '#94a3b8' }}>{deal.stage}</div>
                             </div>
                           </Link>
@@ -442,13 +442,13 @@ export default function ContactDetail() {
             </div>
 
             {/* About */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-              <h2 className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-3">Background</h2>
+            <div className="bg-surface border border-border rounded-2xl p-5 shadow-sm">
+              <h2 className="text-[12px] font-bold text-text-muted uppercase tracking-wider mb-3">Background</h2>
               {isEditing ? (
                 <textarea value={editForm.about || ''} onChange={e => setEditForm({ ...editForm, about: e.target.value })} rows={4}
-                  className="w-full text-[13px] text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 resize-none" />
+                  className="w-full text-[13px] text-text-main leading-relaxed bg-surface-hover border border-border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
               ) : (
-                <p className="text-[13px] text-slate-600 leading-relaxed">{contact.about || <span className="text-slate-300 italic">No background notes.</span>}</p>
+                <p className="text-[13px] text-text-main leading-relaxed">{contact.about || <span className="text-slate-300 italic">No background notes.</span>}</p>
               )}
             </div>
           </div>

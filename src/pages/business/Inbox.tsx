@@ -9,8 +9,8 @@ const getMessages = (id: string) => fetch(`${API}/conversations/${id}/messages`)
 const postMessage = (id: string, body: any) => fetch(`${API}/conversations/${id}/messages`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json());
 
 const channelConfig: Record<string, { icon: any; label: string; color: string }> = {
-  email: { icon: Mail,          label: 'Email', color: 'text-blue-400 bg-blue-400/10' },
-  sms:   { icon: Phone,         label: 'SMS',   color: 'text-purple-400 bg-purple-400/10' },
+  email: { icon: Mail,          label: 'Email', color: 'text-text-muted bg-blue-400/10' },
+  sms:   { icon: Phone,         label: 'SMS',   color: 'text-text-muted bg-purple-400/10' },
   chat:  { icon: MessageSquare, label: 'Chat',  color: 'text-teal-400 bg-teal-400/10' },
 };
 

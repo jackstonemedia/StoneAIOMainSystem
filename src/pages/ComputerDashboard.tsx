@@ -201,7 +201,7 @@ export default function ComputerDashboard() {
                 <div className="space-y-2 text-gray-300">
                   <div className="text-emerald-500 mb-4"># Terminal synchronized with AI Agent workspace...</div>
                   <div className="flex items-center gap-2">
-                    <span className="text-blue-400">root@zo</span>:<span className="text-blue-400">~</span>$ 
+                    <span className="text-text-muted">root@zo</span>:<span className="text-text-muted">~</span>$ 
                     <span className="text-gray-100">pip install numpy pandas</span>
                   </div>
                   <div className="text-gray-400">Collecting numpy</div>
@@ -212,7 +212,7 @@ export default function ComputerDashboard() {
                   <div className="text-emerald-500 mb-4">Successfully installed numpy-1.26.4 pandas-2.2.1</div>
                   
                   <div className="flex items-center gap-2">
-                    <span className="text-blue-400">root@zo</span>:<span className="text-blue-400">~</span>$ 
+                    <span className="text-text-muted">root@zo</span>:<span className="text-text-muted">~</span>$ 
                     <span className="w-2 h-4 bg-gray-400 animate-pulse inline-block" />
                   </div>
                 </div>

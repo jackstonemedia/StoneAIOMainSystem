@@ -34,7 +34,7 @@ export default function Companies() {
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative">
+    <div className="flex flex-col h-full w-full bg-surface relative">
       <MondayHeader title="Accounts" />
       <MondayToolbar onAdd={() => setIsSlideOverOpen(true)} actionButtonText="New account" />
 
@@ -59,19 +59,19 @@ export default function Companies() {
             return (
               <MondayRow key={a.id} groupColorClass="bg-[#00cff4]">
                 <MondayCell width="w-[260px]">
-                  <span className="font-medium hover:text-[#0073ea] hover:underline cursor-pointer text-slate-800">
+                  <span className="font-medium hover:text-primary hover:underline cursor-pointer text-text-main">
                     {a.name}
                   </span>
                 </MondayCell>
                 <MondayCell width="w-[200px]">
-                  <a href={a.domain || '#'} target="_blank" rel="noreferrer" className="text-[#0073ea] hover:underline truncate w-full cursor-pointer">
+                  <a href={a.domain || '#'} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate w-full cursor-pointer">
                     {a.domain || '-'}
                   </a>
                 </MondayCell>
                 <MondayCell width="w-[250px]">
                    <div className="flex items-center gap-1.5 flex-wrap overflow-hidden h-[26px]">
                      {a.industry?.split(',').map((ind, i) => (
-                       <span key={i} className="px-2 py-0.5 bg-[#d8f0f0] text-[#008291] rounded text-[11px] font-medium whitespace-nowrap">
+                       <span key={i} className="px-2 py-0.5 bg-bg text-[#008291] rounded text-[11px] font-medium whitespace-nowrap">
                          {ind.trim()}
                        </span>
                      ))}

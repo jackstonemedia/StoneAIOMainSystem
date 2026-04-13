@@ -635,7 +635,7 @@ export default function CarouselAgentBuilder() {
                       <div className="flex items-center justify-between mb-1">
                         <h4 className="text-xs font-semibold">Auto-Research Web</h4>
                         <button onClick={() => setAutoResearch(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${autoResearch ? 'bg-primary' : 'bg-border'}`}>
-                          <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${autoResearch ? 'left-4' : 'left-0.5'}`} />
+                          <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${autoResearch ? 'left-4' : 'left-0.5'}`} />
                         </button>
                       </div>
                       <p className="text-[10px] text-text-muted">Searches current web trends and data to enrich your post.</p>
@@ -757,7 +757,7 @@ export default function CarouselAgentBuilder() {
                           <div className="flex items-center justify-between mb-3">
                             <div><h4 className="text-xs font-semibold">Custom Hex Colors</h4><p className="text-[10px] text-text-muted">Override palette with brand colors.</p></div>
                             <button onClick={() => setUseCustomColors(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${useCustomColors ? 'bg-emerald-500' : 'bg-border'}`}>
-                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${useCustomColors ? 'left-4' : 'left-0.5'}`} />
+                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${useCustomColors ? 'left-4' : 'left-0.5'}`} />
                             </button>
                           </div>
                           {useCustomColors && (
@@ -791,7 +791,7 @@ export default function CarouselAgentBuilder() {
                             <div className="flex items-center justify-between mb-1">
                               <h4 className="text-xs font-semibold">Subtle Pattern Overlay</h4>
                               <button onClick={() => setUsePattern(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${usePattern ? 'bg-pink-500' : 'bg-border'}`}>
-                                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${usePattern ? 'left-4' : 'left-0.5'}`} />
+                                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${usePattern ? 'left-4' : 'left-0.5'}`} />
                               </button>
                             </div>
                             <p className="text-[10px] text-text-muted">Adds a premium texture to slides — dots, grids, weaves and more.</p>
@@ -816,7 +816,7 @@ export default function CarouselAgentBuilder() {
                               <p className="text-[10px] text-text-muted">Randomly selects a fresh editorial palette every generation.</p>
                             </div>
                             <button onClick={() => setAutoGenBackground(v => !v)} className={`relative w-8 h-4 rounded-full transition-colors ${autoGenBackground ? 'bg-pink-500' : 'bg-border'}`}>
-                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${autoGenBackground ? 'left-4' : 'left-0.5'}`} />
+                              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface shadow transition-transform ${autoGenBackground ? 'left-4' : 'left-0.5'}`} />
                             </button>
                           </div>
                           <div className={`transition-all ${autoGenBackground ? 'opacity-40 pointer-events-none' : ''}`}>

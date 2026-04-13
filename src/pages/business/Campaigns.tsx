@@ -50,7 +50,7 @@ export default function Campaigns() {
       key: 'type', label: 'Type',
       render: (v: string) => (
         <span className="flex items-center gap-1.5 text-sm">
-          {v === 'email' ? <Mail className="w-3.5 h-3.5 text-blue-400" /> : <Phone className="w-3.5 h-3.5 text-purple-400" />}
+          {v === 'email' ? <Mail className="w-3.5 h-3.5 text-text-muted" /> : <Phone className="w-3.5 h-3.5 text-text-muted" />}
           {v === 'email' ? 'Email' : 'SMS'}
         </span>
       )
@@ -181,7 +181,7 @@ export default function Campaigns() {
                   <button className="px-3 py-1 text-xs rounded-md text-text-muted hover:text-text-main">Mobile</button>
                 </div>
               </div>
-              <div className="bg-white rounded-2xl shadow-[var(--shadow-luxury)] overflow-hidden border border-border/40">
+              <div className="bg-surface rounded-2xl shadow-[var(--shadow-luxury)] overflow-hidden border border-border/40">
                 {/* Email header */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-center">
                   <div className="inline-flex items-center gap-2 mb-2">
@@ -193,16 +193,16 @@ export default function Campaigns() {
                 </div>
                 {/* Hero */}
                 <div className="p-8 text-center bg-gradient-to-b from-blue-50 to-white">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-3">Exclusive Black Friday Offer 🎉</h2>
-                  <p className="text-slate-600 text-sm mb-6 leading-relaxed">Get 40% off all annual plans this weekend only. Automate your business and save thousands.</p>
+                  <h2 className="text-2xl font-bold text-text-main mb-3">Exclusive Black Friday Offer 🎉</h2>
+                  <p className="text-text-main text-sm mb-6 leading-relaxed">Get 40% off all annual plans this weekend only. Automate your business and save thousands.</p>
                   <a className="inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-sm font-bold no-underline hover:bg-indigo-700">Claim Your Discount →</a>
                 </div>
                 {/* Body */}
-                <div className="px-8 py-6 space-y-4 text-sm text-slate-600 leading-relaxed">
+                <div className="px-8 py-6 space-y-4 text-sm text-text-main leading-relaxed">
                   <p>Hi [First Name],</p>
                   <p>The Black Friday deal is here. For 72 hours only, every Stone AIO annual plan is 40% off. That's hundreds of dollars back in your pocket — and full access to our entire platform.</p>
-                  <p className="font-semibold text-slate-900">Here's what you get:</p>
-                  <ul className="list-disc list-inside space-y-1.5 text-slate-600">
+                  <p className="font-semibold text-text-main">Here's what you get:</p>
+                  <ul className="list-disc list-inside space-y-1.5 text-text-main">
                     <li>Unlimited AI voice & workflow agents</li>
                     <li>Full CRM + campaign builder</li>
                     <li>Priority 24/7 support</li>
@@ -210,9 +210,9 @@ export default function Campaigns() {
                   </ul>
                 </div>
                 {/* Footer */}
-                <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 text-center">
-                  <p className="text-xs text-slate-400">Stone AIO · 123 Business Ave · San Francisco, CA</p>
-                  <p className="text-xs text-slate-400 mt-1"><a href="#" className="underline">Unsubscribe</a> · <a href="#" className="underline">View in browser</a></p>
+                <div className="px-8 py-4 bg-surface-hover border-t border-border text-center">
+                  <p className="text-xs text-text-muted">Stone AIO · 123 Business Ave · San Francisco, CA</p>
+                  <p className="text-xs text-text-muted mt-1"><a href="#" className="underline">Unsubscribe</a> · <a href="#" className="underline">View in browser</a></p>
                 </div>
               </div>
             </div>

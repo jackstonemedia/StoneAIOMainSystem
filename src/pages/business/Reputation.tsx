@@ -15,8 +15,8 @@ function Stars({ rating }: { rating: number }) {
 }
 
 const SOURCE_CONFIG: Record<string,{label:string;color:string;bg:string}> = {
-  google:   {label:'Google',   color:'text-blue-400',   bg:'bg-blue-400/10'},
-  facebook: {label:'Facebook', color:'text-indigo-400', bg:'bg-indigo-400/10'},
+  google:   {label:'Google',   color:'text-text-muted',   bg:'bg-blue-400/10'},
+  facebook: {label:'Facebook', color:'text-text-muted', bg:'bg-indigo-400/10'},
   yelp:     {label:'Yelp',     color:'text-red-400',    bg:'bg-red-400/10'},
 };
 
@@ -186,7 +186,7 @@ export default function Reputation() {
                           <button
                             onClick={() => generateAIReply(review)}
                             disabled={aiLoading === review.id}
-                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-400/20 text-purple-400 bg-purple-400/5 hover:bg-purple-400/10 transition-all disabled:opacity-50"
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-400/20 text-text-muted bg-purple-400/5 hover:bg-purple-400/10 transition-all disabled:opacity-50"
                           >
                             <Bot className="w-3 h-3" />
                             {aiLoading === review.id ? 'Generating…' : 'AI Reply'}

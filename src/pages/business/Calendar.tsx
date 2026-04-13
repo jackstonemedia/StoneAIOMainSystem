@@ -11,8 +11,8 @@ const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const HOURS  = Array.from({length:10},(_,i)=>i+8); // 8am–5pm
 
 const typeConfig: Record<string,{icon:any;color:string;bg:string}> = {
-  call:    {icon:Phone, color:'text-blue-400',   bg:'bg-blue-400/10   border-blue-400/30'},
-  meeting: {icon:Users, color:'text-purple-400', bg:'bg-purple-400/10 border-purple-400/30'},
+  call:    {icon:Phone, color:'text-text-muted',   bg:'bg-blue-400/10   border-blue-400/30'},
+  meeting: {icon:Users, color:'text-text-muted', bg:'bg-purple-400/10 border-purple-400/30'},
   video:   {icon:Video, color:'text-teal-400',   bg:'bg-teal-400/10   border-teal-400/30'},
 };
 

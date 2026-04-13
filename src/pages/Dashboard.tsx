@@ -37,16 +37,16 @@ const stats = [
 ];
 
 const recentAgents = [
-  { id: '1', name: 'Invoice Processor',      type: 'Workflow',   status: 'Running', lastRun: '2 mins ago',  runs: 45,  credits: 120, emoji: '🧾' },
-  { id: '2', name: 'Sales Receptionist',     type: 'Voice',      status: 'Running', lastRun: 'Active now',  runs: 12,  credits: 280, emoji: '📞' },
-  { id: '3', name: 'Customer Support Triage',type: 'Autonomous', status: 'Running', lastRun: 'Just now',    runs: 89,  credits: 450, emoji: '🎧' },
+  { id: '1', name: 'Invoice Processor',      type: 'Workflow',   status: 'Running', lastRun: '2 mins ago',  runs: 45,  credits: 120, icon: FileText },
+  { id: '2', name: 'Sales Receptionist',     type: 'Voice',      status: 'Running', lastRun: 'Active now',  runs: 12,  credits: 280, icon: Mic },
+  { id: '3', name: 'Customer Support Triage',type: 'Autonomous', status: 'Running', lastRun: 'Just now',    runs: 89,  credits: 450, icon: Bot },
 ];
 
 const quickActions = [
-  { name: 'New Workflow',  desc: 'Build an automation',   icon: GitBranch,    path: '/agents?type=workflow',   accent: '#14B8A6' },
-  { name: 'Voice Agent',   desc: 'Deploy a phone agent',  icon: Mic,          path: '/agents?type=voice',      accent: '#8B5CF6' },
-  { name: 'AI Assistant',  desc: 'Chat with your AI',     icon: MessageSquare,path: '/assistant',              accent: '#3B82F6' },
-  { name: 'Autonomous',    desc: 'Launch a goal agent',   icon: Sparkles,     path: '/agents?type=autonomous', accent: '#F59E0B' },
+  { name: 'New Workflow',  desc: 'Build an automation',   icon: GitBranch,    path: '/agents?type=workflow',   accent: '#52677D' },
+  { name: 'Voice Agent',   desc: 'Deploy a phone agent',  icon: Mic,          path: '/agents?type=voice',      accent: '#10B981' },
+  { name: 'AI Assistant',  desc: 'Chat with your AI',     icon: MessageSquare,path: '/assistant',              accent: '#BDC4D4' },
+  { name: 'Autonomous',    desc: 'Launch a goal agent',   icon: Sparkles,     path: '/agents?type=autonomous', accent: '#52677D' },
 ];
 
 function getStatusColor(status: string) {
@@ -60,10 +60,10 @@ function getStatusColor(status: string) {
 
 function getTypeBadge(type: string): { bg: string; color: string; border: string } {
   switch (type) {
-    case 'Workflow':   return { bg: 'rgba(20,184,166,0.12)',  color: '#14B8A6', border: 'rgba(20,184,166,0.25)'  };
-    case 'Voice':      return { bg: 'rgba(139,92,246,0.12)',  color: '#8B5CF6', border: 'rgba(139,92,246,0.25)'  };
-    case 'Autonomous': return { bg: 'rgba(245,158,11,0.12)',  color: '#F59E0B', border: 'rgba(245,158,11,0.25)'  };
-    case 'Assistant':  return { bg: 'rgba(59,130,246,0.12)',  color: '#3B82F6', border: 'rgba(59,130,246,0.25)'  };
+    case 'Workflow':   return { bg: 'rgba(82,103,125,0.12)',  color: '#52677D', border: 'rgba(82,103,125,0.25)'  };
+    case 'Voice':      return { bg: 'rgba(16,185,129,0.12)',  color: '#10B981', border: 'rgba(16,185,129,0.25)'  };
+    case 'Autonomous': return { bg: 'rgba(189,196,212,0.12)', color: '#BDC4D4', border: 'rgba(189,196,212,0.25)' };
+    case 'Assistant':  return { bg: 'rgba(82,103,125,0.12)',  color: '#52677D', border: 'rgba(82,103,125,0.25)'  };
     default:           return { bg: 'var(--surface)',          color: 'var(--text-muted)', border: 'var(--border)' };
   }
 }
@@ -232,10 +232,10 @@ export default function Dashboard() {
                     <div className="flex items-center gap-4">
                       <div className="relative">
                         <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center text-base"
-                          style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                          className="w-9 h-9 rounded-xl flex items-center justify-center"
+                          style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}
                         >
-                          {agent.emoji}
+                          <agent.icon className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                         </div>
                         <div
                           className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"

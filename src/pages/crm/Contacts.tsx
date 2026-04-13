@@ -82,7 +82,7 @@ function SetupWizard({ onDone }: { onDone: (cfg: TableConfig) => void }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(16px)' }}>
       <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="w-full max-w-[620px] mx-4 rounded-3xl border border-border shadow-luxury bg-white/80 backdrop-blur-xl overflow-hidden">
+        className="w-full max-w-[620px] mx-4 rounded-3xl border border-border shadow-luxury bg-surface/90 backdrop-blur-xl overflow-hidden">
 
         {/* Progress */}
         <div className="h-1 bg-surface-hover">
@@ -185,7 +185,7 @@ function EditableCell({ value, onChange, width, placeholder = '' }: { value: str
   return (
     <MondayCell width={width}>
       {editing ? (
-        <input ref={ref} className="w-full bg-transparent outline-none text-[13px] text-slate-800 font-medium" value={draft}
+        <input ref={ref} className="w-full bg-transparent outline-none text-[13px] text-text-main font-medium" value={draft}
           placeholder={placeholder} onChange={e => setDraft(e.target.value)}
           onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }} />
       ) : (
@@ -208,10 +208,10 @@ function PriorityCell({ value, onChange, width }: { value: string; onChange: (v:
         <AnimatePresence>
           {open && (
             <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-              className="absolute top-full left-0 z-[100] mt-1 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[140px] py-1.5"
+              className="absolute top-full left-0 z-[100] mt-1 bg-surface border border-border rounded-xl shadow-xl min-w-[140px] py-1.5"
               onClick={e => e.stopPropagation()}>
               {(['High', 'Medium', 'Low', ''] as const).map(opt => (
-                <button key={opt || 'none'} className="w-full px-3 py-2 text-[12px] text-left hover:bg-slate-50 flex items-center gap-2.5 font-medium transition-colors"
+                <button key={opt || 'none'} className="w-full px-3 py-2 text-[12px] text-left hover:bg-surface-hover flex items-center gap-2.5 font-medium transition-colors"
                   onClick={() => { onChange(opt); setOpen(false); }}>
                   <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PRIORITY_COLORS[opt] || '#e0e0e0' }} />
                   {opt || 'None'}
@@ -240,10 +240,10 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
   };
   const field = (label: string, key: keyof typeof form, type = 'text', placeholder = '') => (
     <div className="space-y-1.5">
-      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{label}</label>
+      <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">{label}</label>
       <input type={type} value={form[key] as string} placeholder={placeholder}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073ea]/30 focus:border-[#0073ea]/50 transition-all placeholder:text-slate-400" />
+        className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[13px] text-text-main focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all placeholder:text-text-muted" />
     </div>
   );
   return (
@@ -254,13 +254,13 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
             className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-40" onClick={onClose} />
           <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-            className="fixed inset-y-0 right-0 w-[480px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            className="fixed inset-y-0 right-0 w-[480px] bg-surface border-l border-border shadow-2xl z-50 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border">
               <div>
-                <h2 className="text-[16px] font-bold text-slate-800">Create Contact</h2>
-                <p className="text-[12px] text-slate-500 mt-0.5">Add a new person to your CRM.</p>
+                <h2 className="text-[16px] font-bold text-text-main">Create Contact</h2>
+                <p className="text-[12px] text-text-muted mt-0.5">Add a new person to your CRM.</p>
               </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-slate-100 transition-colors">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -276,11 +276,11 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                 {field('Company', 'company', 'text', 'Acme Corp')}
                 {field('Location', 'location', 'text', 'New York, NY')}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Priority</label>
+                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Priority</label>
                   <div className="flex gap-2">
                     {(['High', 'Medium', 'Low'] as const).map(p => (
                       <button key={p} type="button" onClick={() => setForm(f => ({ ...f, priority: f.priority === p ? '' : p }))}
-                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.priority === p ? 'border-transparent text-white shadow-sm' : 'border-slate-200 text-slate-500 bg-slate-50 hover:bg-slate-100'}`}
+                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.priority === p ? 'border-transparent text-white shadow-sm' : 'border-border text-text-muted bg-surface-hover hover:bg-slate-100'}`}
                         style={form.priority === p ? { background: PRIORITY_COLORS[p] } : {}}>
                         {p}
                       </button>
@@ -288,21 +288,21 @@ function NewContactSlideOver({ isOpen, onClose, onSave }: { isOpen: boolean; onC
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</label>
+                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</label>
                   <div className="flex gap-2">
                     {(['Active', 'Inactive'] as const).map(s => (
                       <button key={s} type="button" onClick={() => setForm(f => ({ ...f, status: s }))}
-                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.status === s ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-200 text-slate-500 bg-slate-50 hover:bg-slate-100'}`}>
+                        className={`flex-1 py-2 rounded-lg text-[12px] font-semibold border transition-all ${form.status === s ? 'bg-slate-800 text-white border-slate-800' : 'border-border text-text-muted bg-surface-hover hover:bg-slate-100'}`}>
                         {s}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="p-5 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-                <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
+              <div className="p-5 border-t border-border flex items-center justify-end gap-3 bg-surface-hover">
+                <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100 transition-colors">Cancel</button>
                 <button type="submit" disabled={saving || !form.firstName.trim()}
-                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-[#0073ea] text-white hover:bg-[#0060c2] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
+                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
                   {saving ? 'Saving...' : 'Create Contact'}
                 </button>
               </div>
@@ -343,34 +343,34 @@ function ImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClose: 
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="fixed inset-0 flex items-center justify-center z-50 p-6">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[500px]">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-                <div><h2 className="text-[16px] font-bold text-slate-800">Import Contacts</h2><p className="text-[12px] text-slate-500 mt-0.5">Upload a CSV file.</p></div>
-                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100"><X className="w-4 h-4" /></button>
+            <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[500px]">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border">
+                <div><h2 className="text-[16px] font-bold text-text-main">Import Contacts</h2><p className="text-[12px] text-text-muted mt-0.5">Upload a CSV file.</p></div>
+                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:bg-slate-100"><X className="w-4 h-4" /></button>
               </div>
               <div className="p-6 space-y-4">
                 <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                   onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-[#0073ea] bg-[#e5f0ff]' : 'border-slate-200 hover:border-[#0073ea]/50 hover:bg-slate-50'}`}>
-                  <Upload className="w-8 h-8 text-slate-400" />
-                  <p className="text-[13px] font-medium text-slate-600">{fileName ? `✓ ${fileName} — ${parsed.length} contacts found` : 'Drag & drop CSV or click to browse'}</p>
+                  className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#e5f0ff]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
+                  <Upload className="w-8 h-8 text-text-muted" />
+                  <p className="text-[13px] font-medium text-text-main">{fileName ? `✓ ${fileName} — ${parsed.length} contacts found` : 'Drag & drop CSV or click to browse'}</p>
                   <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
                 </div>
                 {error && <p className="text-[12px] text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
                 {parsed.length > 0 && (
-                  <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-2 border-b border-slate-200"><span className="text-[12px] font-semibold text-slate-600">{parsed.length} contacts ready</span></div>
+                  <div className="bg-surface-hover rounded-xl border border-border overflow-hidden">
+                    <div className="px-4 py-2 border-b border-border"><span className="text-[12px] font-semibold text-text-main">{parsed.length} contacts ready</span></div>
                     <div className="max-h-[120px] overflow-y-auto divide-y divide-slate-100">
-                      {parsed.slice(0, 5).map((c, i) => (<div key={i} className="px-4 py-2 text-[12px] text-slate-700 flex gap-4"><span className="font-medium">{c.firstName} {c.lastName}</span><span className="text-slate-400">{c.email}</span></div>))}
-                      {parsed.length > 5 && <div className="px-4 py-2 text-[11px] text-slate-400">+{parsed.length - 5} more...</div>}
+                      {parsed.slice(0, 5).map((c, i) => (<div key={i} className="px-4 py-2 text-[12px] text-text-main flex gap-4"><span className="font-medium">{c.firstName} {c.lastName}</span><span className="text-text-muted">{c.email}</span></div>))}
+                      {parsed.length > 5 && <div className="px-4 py-2 text-[11px] text-text-muted">+{parsed.length - 5} more...</div>}
                     </div>
                   </div>
                 )}
               </div>
               <div className="px-6 pb-5 flex justify-end gap-3">
-                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-slate-500 hover:bg-slate-100">Cancel</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
                 <button disabled={parsed.length === 0} onClick={() => { onImport(parsed); onClose(); }}
-                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-[#0073ea] text-white hover:bg-[#0060c2] disabled:opacity-40 flex items-center gap-2">
+                  className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] disabled:opacity-40 flex items-center gap-2">
                   <Upload className="w-3.5 h-3.5" /> Import {parsed.length > 0 ? `${parsed.length} Contacts` : ''}
                 </button>
               </div>
@@ -683,7 +683,7 @@ export default function Contacts() {
     <AnimatePresence>
       {showConfigPanel && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-          className="absolute top-full right-0 mt-2 z-50 bg-white/95 backdrop-blur-xl border border-border rounded-2xl shadow-luxury p-4 w-[260px]">
+          className="absolute top-full right-0 mt-2 z-50 bg-surface/90 backdrop-blur-xl border border-border rounded-2xl shadow-luxury p-4 w-[260px]">
           <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1">Visible Columns</p>
           <p className="text-[11px] text-text-muted/60 mb-3">Email is always shown.</p>
           <div className="space-y-1">
@@ -716,7 +716,7 @@ export default function Contacts() {
   return (
     <div className="flex flex-col h-full w-full bg-bg relative styled-scrollbar">
       {/* Board Header */}
-      <div className="flex flex-col pt-6 pb-2 px-8 bg-white/70 backdrop-blur-xl shrink-0 border-b border-border sticky top-0 z-10 transition-all duration-300 shadow-sm">
+      <div className="flex flex-col pt-6 pb-2 px-8 bg-surface/90 backdrop-blur-xl shrink-0 border-b border-border sticky top-0 z-10 transition-all duration-300 shadow-sm">
         <div className="flex items-center gap-2 text-2xl font-bold text-text-main mb-4">
           Contacts <ChevronDown className="w-5 h-5 text-text-muted cursor-pointer hover:text-primary transition-colors" />
           <span className="ml-3 px-2 py-0.5 bg-surface rounded-full text-[12px] text-text-muted font-bold border border-border">{contacts.length} contacts</span>
@@ -767,7 +767,7 @@ export default function Contacts() {
             <AnimatePresence>
               {filterOpen && (
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="absolute top-full left-0 mt-2 z-50 bg-white/95 border border-border rounded-xl shadow-luxury p-2 min-w-[200px]">
+                  className="absolute top-full left-0 mt-2 z-50 bg-surface/90 border border-border rounded-xl shadow-luxury p-2 min-w-[200px]">
                   <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider px-2 py-1 mb-1">Filter by Tag</p>
                   <button key="all" onClick={() => { setFilterPriority(''); setFilterOpen(false); }}
                     className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all ${filterPriority === '' ? 'bg-primary/[0.06] text-primary' : 'text-text-muted hover:bg-surface-hover hover:text-text-main'}`}>
@@ -806,7 +806,7 @@ export default function Contacts() {
           {([['table', Table2], ['card', LayoutDashboard], ['compact', AlignJustify]] as [ViewMode, any][]).map(([mode, Icon]) => (
             <button key={mode} onClick={() => setView(mode)}
               className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
-                viewMode === mode ? 'bg-white text-primary shadow-[0_2px_8px_rgba(0,0,0,0.08)] scale-105' : 'text-text-muted hover:text-text-main hover:bg-white/50'
+                viewMode === mode ? 'bg-surface text-primary shadow-[0_2px_8px_rgba(0,0,0,0.08)] scale-105' : 'text-text-muted hover:text-text-main hover:bg-surface/90'
               }`}>
               <Icon className="w-4 h-4" />
             </button>
@@ -843,7 +843,7 @@ export default function Contacts() {
         {viewMode === 'card' ? (
           <div className="p-6">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <div className="flex flex-col items-center justify-center py-20 text-text-muted">
                 <Users className="w-12 h-12 mb-3 opacity-30" />
                 <p className="font-medium text-[14px]">No contacts found</p>
               </div>
@@ -958,7 +958,7 @@ export default function Contacts() {
               className="fixed inset-0 bg-black/10 backdrop-blur-[2px] z-40" onClick={() => setNewGroupOpen(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
               className="fixed inset-0 flex items-center justify-center z-50 p-6 pointer-events-none">
-              <div className="bg-white/95 backdrop-blur-xl rounded-2xl border border-border shadow-luxury w-full max-w-[420px] pointer-events-auto">
+              <div className="bg-surface/90 backdrop-blur-xl rounded-2xl border border-border shadow-luxury w-full max-w-[420px] pointer-events-auto">
                 <NewGroupForm 
                   initialName={editingGroup?.name} initialColor={editingGroup?.color}
                   onClose={() => { setNewGroupOpen(false); setEditingGroup(null); }}

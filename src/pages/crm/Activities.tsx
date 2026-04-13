@@ -42,7 +42,7 @@ export default function Activities() {
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative">
+    <div className="flex flex-col h-full w-full bg-surface relative">
       <MondayHeader title="Activities" />
       <MondayToolbar onAdd={() => console.log('new')} actionButtonText="New activity" />
 
@@ -68,10 +68,10 @@ export default function Activities() {
             return (
               <MondayRow key={a.id} groupColorClass="bg-[#579bfc]">
                 <MondayCell width="w-[300px]">
-                  <span className="font-medium text-slate-800">{a.title}</span>
+                  <span className="font-medium text-text-main">{a.title}</span>
                 </MondayCell>
                 <MondayCell width="w-[100px]" className="justify-center">
-                  <div className="w-7 h-7 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center text-slate-500 font-bold text-xs">
+                  <div className="w-7 h-7 rounded-full bg-slate-200 border border-border flex items-center justify-center text-text-muted font-bold text-xs">
                     {a.owner}
                   </div>
                 </MondayCell>
@@ -88,7 +88,7 @@ export default function Activities() {
                    <StatusPill color={a.status === 'Done' ? '#00c875' : '#c4c4c4'} label={a.status || 'Pending'} />
                 </MondayCell>
                 <MondayCell width="w-[180px]">
-                   <span className="text-slate-600 truncate p-1">{a.related || '-'}</span>
+                   <span className="text-text-main truncate p-1">{a.related || '-'}</span>
                 </MondayCell>
               </MondayRow>
             );

@@ -16,7 +16,7 @@ import VoicePickerModal from '../components/voice/VoicePickerModal';
 const SETTINGS_TABS = [
   { id: 'voice', label: 'Voice & Speech', icon: Volume2, color: 'text-teal' },
   { id: 'behavior', label: 'AI Behavior', icon: Brain, color: 'text-purple' },
-  { id: 'transcription', label: 'Transcription', icon: Headphones, color: 'text-blue-400' },
+  { id: 'transcription', label: 'Transcription', icon: Headphones, color: 'text-text-muted' },
   { id: 'call', label: 'Call Controls', icon: PhoneCall, color: 'text-green' },
   { id: 'analysis', label: 'Analytics', icon: BarChart3, color: 'text-amber' },
   { id: 'security', label: 'Security', icon: Shield, color: 'text-red' },

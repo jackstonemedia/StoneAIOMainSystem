@@ -95,13 +95,13 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center z-50 p-6">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[580px]">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div className="bg-surface rounded-2xl shadow-2xl border border-border w-full max-w-[580px]">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border">
                 <div>
-                  <h2 className="text-[16px] font-bold text-slate-800">Bulk Import Leads</h2>
-                  <p className="text-[12px] text-slate-500 mt-0.5">Upload CSV with columns: name, email, phone, company, title, source</p>
+                  <h2 className="text-[16px] font-bold text-text-main">Bulk Import Leads</h2>
+                  <p className="text-[12px] text-text-muted mt-0.5">Upload CSV with columns: name, email, phone, company, title, source</p>
                 </div>
-                <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-4 h-4" /></button>
+                <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:bg-slate-100"><X className="w-4 h-4" /></button>
               </div>
 
               <div className="p-6">
@@ -109,9 +109,9 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                   <>
                     <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}
                       onClick={() => fileRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-[#0073ea] bg-[#e5f0ff]' : 'border-slate-200 hover:border-[#0073ea]/50 hover:bg-slate-50'}`}>
+                      className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-primary bg-[#e5f0ff]' : 'border-border hover:border-primary/50 hover:bg-surface-hover'}`}>
                       <Upload className="w-10 h-10 text-slate-300" />
-                      <p className="text-[13px] font-medium text-slate-600">{fileName || 'Drop CSV file here or click to browse'}</p>
+                      <p className="text-[13px] font-medium text-text-main">{fileName || 'Drop CSV file here or click to browse'}</p>
                       <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
                     </div>
                     {error && <p className="text-[12px] text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</p>}
@@ -121,24 +121,24 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
                 {step === 'map' && (
                   <>
                     <div className="flex items-center justify-between mb-4">
-                      <p className="text-[13px] font-semibold text-slate-700">{parsed.length} leads ready to import from <span className="text-[#0073ea]">{fileName}</span></p>
-                      <button onClick={reset} className="text-[12px] text-slate-400 hover:text-slate-700 flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> Change file</button>
+                      <p className="text-[13px] font-semibold text-text-main">{parsed.length} leads ready to import from <span className="text-primary">{fileName}</span></p>
+                      <button onClick={reset} className="text-[12px] text-text-muted hover:text-text-main flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> Change file</button>
                     </div>
-                    <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden mb-4 max-h-[200px] overflow-y-auto">
-                      <div className="grid grid-cols-4 px-3 py-2 bg-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <div className="bg-surface-hover rounded-xl border border-border overflow-hidden mb-4 max-h-[200px] overflow-y-auto">
+                      <div className="grid grid-cols-4 px-3 py-2 bg-slate-100 text-[11px] font-bold text-text-muted uppercase tracking-wider">
                         <span>Name</span><span>Email</span><span>Company</span><span>Source</span>
                       </div>
                       {parsed.slice(0, 8).map((l, i) => (
-                        <div key={i} className="grid grid-cols-4 px-3 py-2 text-[12px] text-slate-700 border-t border-slate-100">
+                        <div key={i} className="grid grid-cols-4 px-3 py-2 text-[12px] text-text-main border-t border-border">
                           <span className="font-medium truncate">{l.name}</span>
-                          <span className="text-slate-500 truncate">{l.email}</span>
-                          <span className="text-slate-500 truncate">{l.company}</span>
-                          <span className="text-slate-500 truncate">{l.source}</span>
+                          <span className="text-text-muted truncate">{l.email}</span>
+                          <span className="text-text-muted truncate">{l.company}</span>
+                          <span className="text-text-muted truncate">{l.source}</span>
                         </div>
                       ))}
-                      {parsed.length > 8 && <div className="px-3 py-2 text-[11px] text-slate-400">+{parsed.length - 8} more rows...</div>}
+                      {parsed.length > 8 && <div className="px-3 py-2 text-[11px] text-text-muted">+{parsed.length - 8} more rows...</div>}
                     </div>
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-[12px] text-amber-700 font-medium">
+                    <div className="bg-amber-50 border border-border rounded-xl px-4 py-3 text-[12px] text-amber-700 font-medium">
                       Duplicate check: {parsed.filter(l => INITIAL_LEADS.some(ex => ex.email === l.email)).length} potential duplicates detected — they will be skipped.
                     </div>
                   </>
@@ -146,10 +146,10 @@ function BulkImportModal({ isOpen, onClose, onImport }: { isOpen: boolean; onClo
               </div>
 
               <div className="px-6 pb-5 flex justify-end gap-3">
-                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-slate-500 hover:bg-slate-100">Cancel</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl text-[13px] font-semibold text-text-muted hover:bg-slate-100">Cancel</button>
                 {step === 'map' && (
                   <button onClick={() => { onImport(parsed); onClose(); reset(); }}
-                    className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-[#0073ea] text-white hover:bg-[#0060c2] shadow-sm flex items-center gap-2">
+                    className="px-6 py-2 rounded-xl text-[13px] font-semibold bg-primary text-white hover:bg-[#0060c2] shadow-sm flex items-center gap-2">
                     <Upload className="w-3.5 h-3.5" /> Import {parsed.length} Leads
                   </button>
                 )}
@@ -175,7 +175,7 @@ function FunnelView({ leads }: { leads: Lead[] }) {
         const color = STATUS_COLORS[s];
         return (
           <div key={s} className="w-full">
-            <div className="flex justify-between text-[12px] text-slate-600 mb-1">
+            <div className="flex justify-between text-[12px] text-text-main mb-1">
               <span className="font-semibold">{s}</span>
               <span className="font-bold">{count} ({pct.toFixed(0)}%)</span>
             </div>
@@ -253,22 +253,22 @@ export default function Leads() {
   const qualified = leads.filter(l => l.status === 'Qualified').length;
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative">
+    <div className="flex flex-col h-full w-full bg-surface relative">
       {/* Header */}
-      <div className="flex flex-col pt-5 pb-2 px-8 bg-white shrink-0 border-b border-slate-200/60">
+      <div className="flex flex-col pt-5 pb-2 px-8 bg-surface shrink-0 border-b border-border/60">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-slate-800">Leads</h1>
-            <span className="text-[12px] text-slate-400 font-normal">{leads.length} total</span>
+            <h1 className="text-xl font-bold text-text-main">Leads</h1>
+            <span className="text-[12px] text-text-muted font-normal">{leads.length} total</span>
           </div>
           <div className="flex items-center gap-3">
             {[
               { label: 'Avg Score', value: avgScore, color: avgScore >= 70 ? '#00c875' : '#ffcb00' },
               { label: 'Qualified', value: qualified, color: '#00c875' },
             ].map(stat => (
-              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
+              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover border border-border rounded-xl">
                 <TrendingUp className="w-3.5 h-3.5" style={{ color: stat.color }} />
-                <span className="text-[12px] text-slate-500">{stat.label}:</span>
+                <span className="text-[12px] text-text-muted">{stat.label}:</span>
                 <span className="text-[13px] font-bold" style={{ color: stat.color }}>{stat.value}</span>
               </div>
             ))}
@@ -277,34 +277,34 @@ export default function Leads() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-8 py-2.5 bg-white border-b border-slate-100 shrink-0 flex-wrap">
-        <button onClick={() => setSlideOverOpen(true)} className="bg-[#0073ea] hover:bg-[#0060c2] text-white text-[13px] font-medium px-4 py-1.5 rounded-md transition-colors shadow-sm">
+      <div className="flex items-center gap-3 px-8 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
+        <button onClick={() => setSlideOverOpen(true)} className="bg-primary hover:bg-[#0060c2] text-white text-[13px] font-medium px-4 py-1.5 rounded-md transition-colors shadow-sm">
           + New lead
         </button>
-        <button onClick={() => setImportOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <button onClick={() => setImportOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
           <Upload className="w-4 h-4" /> Import
         </button>
-        <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
           <Download className="w-4 h-4" /> Export
         </button>
 
-        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 gap-2">
-          <Search className="w-4 h-4 text-slate-400" />
+        <div className="relative flex items-center bg-surface-hover border border-border rounded-lg px-3 py-1.5 gap-2">
+          <Search className="w-4 h-4 text-text-muted" />
           <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search leads..."
-            className="bg-transparent text-[13px] text-slate-700 outline-none w-36 placeholder:text-slate-400" />
-          {searchQuery && <button onClick={() => setSearchQuery('')}><X className="w-3.5 h-3.5 text-slate-400" /></button>}
+            className="bg-transparent text-[13px] text-text-main outline-none w-36 placeholder:text-text-muted" />
+          {searchQuery && <button onClick={() => setSearchQuery('')}><X className="w-3.5 h-3.5 text-text-muted" /></button>}
         </div>
 
         <div className="relative">
-          <button onClick={() => setFilterOpen(o => !o)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${filterStatus ? 'bg-[#e5f0ff] text-[#0073ea]' : 'text-slate-600 hover:bg-slate-50'}`}>
+          <button onClick={() => setFilterOpen(o => !o)} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${filterStatus ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
             <Filter className="w-4 h-4 opacity-70" /> {filterStatus || 'All Status'}
           </button>
           <AnimatePresence>
             {filterOpen && (
-              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 min-w-[160px]">
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 mt-1 z-50 bg-surface border border-border rounded-xl shadow-xl py-1.5 min-w-[160px]">
                 {['', 'New Lead', 'Contacted', 'Qualified', 'Disqualified'].map(s => (
                   <button key={s || 'all'} onClick={() => { setFilterStatus(s); setFilterOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[13px] font-medium flex items-center gap-2.5 transition-colors ${filterStatus === s ? 'bg-[#e5f0ff] text-[#0073ea]' : 'text-slate-700 hover:bg-slate-50'}`}>
+                    className={`w-full text-left px-3 py-2 text-[13px] font-medium flex items-center gap-2.5 transition-colors ${filterStatus === s ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
                     {s && <div className="w-2 h-2 rounded-full" style={{ background: STATUS_COLORS[s] }} />}
                     {s || 'All Status'}
                   </button>
@@ -315,14 +315,14 @@ export default function Leads() {
         </div>
 
         <button onClick={() => setSortBy(s => s === '' ? 'score' : s === 'score' ? 'name' : '')}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${sortBy ? 'bg-[#e5f0ff] text-[#0073ea]' : 'text-slate-600 hover:bg-slate-50'}`}>
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${sortBy ? 'bg-[#e5f0ff] text-primary' : 'text-text-main hover:bg-surface-hover'}`}>
           <SortAsc className="w-4 h-4 opacity-70" /> {sortBy === 'score' ? 'By Score' : sortBy === 'name' ? 'By Name' : 'Sort'}
         </button>
 
         <div className="ml-auto flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
           {([['table', Grid], ['card', LayoutGrid], ['funnel', Funnel]] as [ViewMode, any][]).map(([mode, Icon]) => (
             <button key={mode} onClick={() => setView(mode)}
-              className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${viewMode === mode ? 'bg-white text-[#0073ea] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              className={`w-7 h-7 flex items-center justify-center rounded-md transition-all ${viewMode === mode ? 'bg-surface text-primary shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
               <Icon className="w-4 h-4" />
             </button>
           ))}
@@ -333,10 +333,10 @@ export default function Leads() {
       <AnimatePresence>
         {selected.size > 0 && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-            className="flex items-center gap-3 px-8 py-2 bg-[#e5f0ff] border-b border-[#0073ea]/20 shrink-0">
-            <span className="text-[13px] font-semibold text-[#0073ea]">{selected.size} selected</span>
+            className="flex items-center gap-3 px-8 py-2 bg-[#e5f0ff] border-b border-primary/20 shrink-0">
+            <span className="text-[13px] font-semibold text-primary">{selected.size} selected</span>
             <button onClick={() => { persist(leads.filter(l => !selected.has(l.id))); setSelected(new Set()); }} className="text-[13px] font-semibold text-red-500 hover:text-red-700 px-3 py-1 hover:bg-red-50 rounded-lg">Delete</button>
-            <button onClick={() => setSelected(new Set())} className="ml-auto text-[12px] text-slate-500 hover:text-slate-700 flex items-center gap-1"><X className="w-3.5 h-3.5" /> Clear</button>
+            <button onClick={() => setSelected(new Set())} className="ml-auto text-[12px] text-text-muted hover:text-text-main flex items-center gap-1"><X className="w-3.5 h-3.5" /> Clear</button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -349,19 +349,19 @@ export default function Leads() {
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(l => (
               <motion.div key={l.id} layout initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-                className="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all group relative">
+                className="bg-surface border border-border rounded-2xl p-5 hover:shadow-md transition-all group relative">
                 <button onClick={() => deleteLead(l.id)} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400">
                   <X className="w-3.5 h-3.5" />
                 </button>
                 <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-[14px] mb-3" style={{ background: STATUS_COLORS[l.status] || '#94a3b8' }}>
                   {l.name[0]}
                 </div>
-                <p className="font-bold text-[14px] text-slate-800">{l.name}</p>
-                <p className="text-[12px] text-slate-500 mb-2">{l.title || l.company}</p>
+                <p className="font-bold text-[14px] text-text-main">{l.name}</p>
+                <p className="text-[12px] text-text-muted mb-2">{l.title || l.company}</p>
                 <div className="mb-3"><LeadScoreBar score={l.leadScore} /></div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: STATUS_COLORS[l.status] }}>{l.status}</span>
-                  <span className="text-[11px] text-slate-400">{l.source}</span>
+                  <span className="text-[11px] text-text-muted">{l.source}</span>
                 </div>
                 <button onClick={() => moveLead(l.id)} className="mt-3 w-full py-1.5 bg-green-500 hover:bg-green-600 text-white text-[12px] font-semibold rounded-lg transition-colors">
                   Move to Contacts
@@ -388,16 +388,16 @@ export default function Leads() {
             {filtered.map(l => (
               <MondayRow key={l.id} groupColorClass="bg-[#579bfc]">
                 <MondayCell width="w-[32px]">
-                  <button onClick={() => toggleSelect(l.id)} className="flex items-center justify-center w-5 h-5 text-slate-400 hover:text-[#0073ea]">
-                    {selected.has(l.id) ? <CheckSquare className="w-4 h-4 text-[#0073ea]" /> : <Square className="w-4 h-4" />}
+                  <button onClick={() => toggleSelect(l.id)} className="flex items-center justify-center w-5 h-5 text-text-muted hover:text-primary">
+                    {selected.has(l.id) ? <CheckSquare className="w-4 h-4 text-primary" /> : <Square className="w-4 h-4" />}
                   </button>
                 </MondayCell>
                 <MondayCell width="w-[220px]">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[11px] shrink-0" style={{ background: STATUS_COLORS[l.status] || '#94a3b8' }}>{l.name[0]}</div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-[13px] text-slate-800 truncate">{l.name}</p>
-                      {l.title && <p className="text-[11px] text-slate-400 truncate">{l.title}</p>}
+                      <p className="font-semibold text-[13px] text-text-main truncate">{l.name}</p>
+                      {l.title && <p className="text-[11px] text-text-muted truncate">{l.title}</p>}
                     </div>
                   </div>
                 </MondayCell>
@@ -406,29 +406,29 @@ export default function Leads() {
                 </MondayCell>
                 <MondayCell width="w-[120px]"><LeadScoreBar score={l.leadScore} /></MondayCell>
                 <MondayCell width="w-[130px]">
-                  <span className="text-[12px] text-slate-600 font-medium">{l.source}</span>
+                  <span className="text-[12px] text-text-main font-medium">{l.source}</span>
                 </MondayCell>
                 <MondayCell width="w-[160px]">
-                  <span className="text-[12px] text-slate-700 font-medium">{l.company || '—'}</span>
+                  <span className="text-[12px] text-text-main font-medium">{l.company || '—'}</span>
                 </MondayCell>
                 <MondayCell width="w-[160px]">
-                  <span className="text-[12px] text-[#0073ea] truncate">{l.email || '—'}</span>
+                  <span className="text-[12px] text-primary truncate">{l.email || '—'}</span>
                 </MondayCell>
                 <MondayCell width="w-[120px]">
                   <select value={l.assignedTo} onChange={e => persist(leads.map(lead => lead.id === l.id ? { ...lead, assignedTo: e.target.value } : lead))}
-                    className="text-[11px] font-semibold border-0 bg-transparent text-slate-600 focus:outline-none cursor-pointer w-full">
+                    className="text-[11px] font-semibold border-0 bg-transparent text-text-main focus:outline-none cursor-pointer w-full">
                     {REPS.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </MondayCell>
                 <MondayCell width="w-[100px]">
-                  <span className="text-[11px] text-slate-400">{l.createdAt}</span>
+                  <span className="text-[11px] text-text-muted">{l.createdAt}</span>
                 </MondayCell>
                 <MondayCell width="w-[160px]">
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => moveLead(l.id)} className="py-1 px-2.5 bg-green-500 hover:bg-green-600 text-white text-[11px] font-bold rounded-lg transition-colors">
                       → Contact
                     </button>
-                    <button onClick={() => deleteLead(l.id)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                    <button onClick={() => deleteLead(l.id)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -436,11 +436,11 @@ export default function Leads() {
               </MondayRow>
             ))}
 
-            <div className="flex border-b border-slate-200/80 bg-white hover:bg-[#f6f7f9] transition-colors cursor-pointer" onClick={() => setSlideOverOpen(true)}>
-              <div className="border-r border-slate-200/80 flex items-center justify-center p-2.5 w-[44px] shrink-0 relative">
+            <div className="flex border-b border-border/80 bg-surface hover:bg-surface-hover transition-colors cursor-pointer" onClick={() => setSlideOverOpen(true)}>
+              <div className="border-r border-border/80 flex items-center justify-center p-2.5 w-[44px] shrink-0 relative">
                 <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#579bfc]" />
               </div>
-              <div className="flex items-center p-2.5 text-[13px] text-slate-400 gap-2 hover:text-slate-600">
+              <div className="flex items-center p-2.5 text-[13px] text-text-muted gap-2 hover:text-text-main">
                 <Plus className="w-4 h-4" /> Add lead
               </div>
             </div>

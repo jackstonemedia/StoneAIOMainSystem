@@ -178,7 +178,7 @@ export default function Deals() {
       <MondayHeader title="Deals" subtitle={activePipeline.name} />
 
       {/* Forecast Bar */}
-      <div className="flex items-center gap-6 px-8 py-3 border-b border-border shrink-0 bg-white/70 backdrop-blur-md">
+      <div className="flex items-center gap-6 px-8 py-3 border-b border-border shrink-0 bg-surface/90 backdrop-blur-md">
         {[
           { label: 'Pipeline',         value: `$${totalPipeline.toLocaleString()}`,                icon: TrendingUp, color: 'var(--primary)' },
           { label: 'Weighted Forecast', value: `$${Math.round(weightedForecast).toLocaleString()}`, icon: Target,     color: 'var(--accent-teal)' },

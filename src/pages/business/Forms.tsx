@@ -124,7 +124,7 @@ export default function Forms() {
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={()=>{setSelectedForm(form);setTab('submissions');}} className="p-1.5 text-text-muted hover:text-primary rounded-lg hover:bg-primary/10 transition-colors"><BarChart3 className="w-3.5 h-3.5"/></button>
-                          <button onClick={()=>setTab('builder')} className="p-1.5 text-text-muted hover:text-blue-400 rounded-lg hover:bg-blue-400/10 transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
+                          <button onClick={()=>setTab('builder')} className="p-1.5 text-text-muted hover:text-text-muted rounded-lg hover:bg-blue-400/10 transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
                         </div>
                       </div>
                       <h3 className="font-semibold text-text-main mb-1">{form.name}</h3>

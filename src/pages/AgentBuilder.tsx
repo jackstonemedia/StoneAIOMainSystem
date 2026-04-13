@@ -767,7 +767,7 @@ export default function AgentBuilder() {
                               onClick={() => updateField(field.key, !val)}
                               className={`relative w-10 h-5 rounded-full transition-colors ${val ? 'bg-primary' : 'bg-border'}`}
                             >
-                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${val ? 'left-5' : 'left-0.5'}`} />
+                              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-surface shadow transition-transform ${val ? 'left-5' : 'left-0.5'}`} />
                             </button>
                           );
                         case 'textarea':
