@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Star, ThumbsUp, AlertCircle, Filter, Search, Plus, Send, Bot, ExternalLink, Globe } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useToast } from '../../components/ui/Toast';
@@ -27,16 +27,35 @@ function timeAgo(iso: string) {
 
 export default function Reputation() {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const [filter, setFilter] = useState<'all'|1|2|3|4|5>('all');
   const [search, setSearch] = useState('');
   const [replyOpen, setReplyOpen] = useState<string|null>(null);
   const [replyText, setReplyText] = useState('');
   const [requestOpen, setRequestOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState<string|null>(null);
+  const [replySaving, setReplySaving] = useState(false);
 
   const { data: reviews = [], isLoading } = useQuery<any[]>({
     queryKey: ['reviews'],
     queryFn: () => fetch('/api/business/reviews').then(r => r.ok ? r.json() : []),
+  });
+
+  const sendRequest = useMutation({
+    mutationFn: async (message: string) => {
+      const r = await fetch('/api/business/reviews/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      if (!r.ok) throw new Error();
+      return r.json();
+    },
+    onSuccess: () => {
+      toast('success', 'Review requests sent!', 'Sent to recent customers');
+      setRequestOpen(false);
+    },
+    onError: () => toast('error', 'Failed to send requests')
   });
 
   const filtered = reviews.filter((r:any) => {
@@ -211,8 +230,30 @@ export default function Reputation() {
                         />
                         <div className="flex justify-end gap-2 mt-2">
                           <button className="btn-secondary text-xs py-2 px-4" onClick={()=>{setReplyOpen(null);setReplyText('');}}>Cancel</button>
-                          <button onClick={()=>{toast('success','Reply sent');setReplyOpen(null);setReplyText('');}} className="btn-primary text-xs py-2 px-4">
-                            <Send className="w-3 h-3" /> Send Reply
+                          <button
+                            disabled={replySaving || !replyText.trim()}
+                            onClick={async () => {
+                              setReplySaving(true);
+                              try {
+                                const r = await fetch(`/api/business/reviews/${review.id}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ replied: true, replyText }),
+                                });
+                                if (!r.ok) throw new Error();
+                                qc.invalidateQueries({ queryKey: ['reviews'] });
+                                toast('success', 'Reply sent');
+                              } catch {
+                                toast('error', 'Failed to send reply');
+                              } finally {
+                                setReplySaving(false);
+                                setReplyOpen(null);
+                                setReplyText('');
+                              }
+                            }}
+                            className="btn-primary text-xs py-2 px-4"
+                          >
+                            <Send className="w-3 h-3" /> {replySaving ? 'Sending…' : 'Send Reply'}
                           </button>
                         </div>
                       </div>
@@ -232,12 +273,15 @@ export default function Reputation() {
           <div className="relative bg-surface border border-border rounded-2xl p-8 w-[480px] shadow-[var(--shadow-luxury)] animate-scale-in">
             <h3 className="font-bold text-lg mb-1">Request Reviews</h3>
             <p className="text-sm text-text-muted mb-6">Send a review request via SMS or Email to your recent customers.</p>
-            <textarea rows={4} defaultValue="Hi [Name], we'd love to hear your feedback about Stone AIO. Would you mind leaving us a quick review? It helps other businesses find us 🙏 — [Your Business]. Leave a review: https://stone.aio/review"
+            <textarea id="review-req-msg" rows={4} defaultValue="Hi [Name], we'd love to hear your feedback about Stone AIO. Would you mind leaving us a quick review? It helps other businesses find us 🙏 — [Your Business]. Leave a review: https://stone.aio/review"
               className="input-luxury resize-none mb-4" />
             <div className="flex justify-end gap-3">
-              <button className="btn-secondary text-sm py-2 px-4" onClick={()=>setRequestOpen(false)}>Cancel</button>
-              <button className="btn-primary text-sm py-2 px-4" onClick={()=>{toast('success','Review requests sent!','Sent to 142 recent customers');setRequestOpen(false);}}>
-                <Send className="w-4 h-4"/> Send to Recent Customers
+              <button className="btn-secondary text-sm py-2 px-4" onClick={()=>setRequestOpen(false)} disabled={sendRequest.isPending}>Cancel</button>
+              <button className="btn-primary text-sm py-2 px-4" disabled={sendRequest.isPending} onClick={()=>{
+                const msg = (document.getElementById('review-req-msg') as HTMLTextAreaElement).value;
+                sendRequest.mutate(msg);
+              }}>
+                <Send className="w-4 h-4"/> {sendRequest.isPending ? 'Sending...' : 'Send to Recent Customers'}
               </button>
             </div>
           </div>

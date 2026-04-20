@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Plus, Video, Phone, Users, Clock, Calendar as CalIcon, X, MapPin
 } from 'lucide-react';
@@ -30,12 +30,14 @@ function today() { return new Date().toISOString().split('T')[0]; }
 
 export default function Calendar() {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const now = new Date();
   const [viewYear, setViewYear]   = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [view, setView]           = useState<'month'|'week'>('week');
   const [newOpen, setNewOpen]     = useState(false);
   const [form, setForm]           = useState({ title:'', type:'call', date:'', time:'09:00', duration:60, attendee:'', location:'' });
+  const [saving, setSaving]       = useState(false);
 
   const { data: apts = [] } = useQuery<any[]>({
     queryKey: ['appointments'],
@@ -70,11 +72,35 @@ export default function Calendar() {
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y=>y-1); } else setViewMonth(m=>m-1); };
   const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y=>y+1); } else setViewMonth(m=>m+1); };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.title.trim() || !form.date) { toast('warning', 'Please fill in title and date'); return; }
-    toast('success', 'Appointment created', `${form.title} scheduled for ${form.date}`);
-    setNewOpen(false);
-    setForm({ title:'', type:'call', date:'', time:'09:00', duration:60, attendee:'', location:'' });
+    setSaving(true);
+    try {
+      const startTime = new Date(`${form.date}T${form.time}:00`);
+      const endTime   = new Date(startTime.getTime() + form.duration * 60000);
+      const body = {
+        title:     form.title,
+        type:      form.type,
+        location:  form.location || null,
+        startTime: startTime.toISOString(),
+        endTime:   endTime.toISOString(),
+        status:    'scheduled',
+      };
+      const r = await fetch('/api/business/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error('Server error');
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      toast('success', 'Appointment created', `${form.title} scheduled for ${form.date}`);
+      setNewOpen(false);
+      setForm({ title:'', type:'call', date:'', time:'09:00', duration:60, attendee:'', location:'' });
+    } catch (e) {
+      toast('error', 'Failed to create appointment');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -225,7 +251,7 @@ export default function Calendar() {
       <SlidePanel open={newOpen} onClose={() => setNewOpen(false)} title="New Event" subtitle="Schedule a call, meeting, or appointment"
         actions={<>
           <button className="btn-secondary text-sm py-2 px-4" onClick={() => setNewOpen(false)}>Cancel</button>
-          <button className="btn-primary text-sm py-2 px-4" onClick={handleCreate}>Create Event</button>
+          <button className="btn-primary text-sm py-2 px-4" onClick={handleCreate} disabled={saving}>{saving ? 'Saving...' : 'Create Event'}</button>
         </>}
       >
         <div className="p-6 space-y-5">

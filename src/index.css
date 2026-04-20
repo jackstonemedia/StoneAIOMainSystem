@@ -29,20 +29,25 @@
 
 @layer base {
 
-  /* ── Stone AIO Enterprise Navy (default) ── */
+  /* ── Stone AIO Enterprise Inset (Navy Panels on Dusty Canvas) ── */
   :root, .theme-stone {
-    --bg:               #0F1A2B;
-    --surface:          #1C2E4A;
-    --surface-hover:    #243858;
+    /* Main canvas background is now Slate 800 */
+    --bg:               #1e293b;
+    
+    /* Banners, sidebars, and tables are Navy Blue */
+    --surface:          #0F1A2B;
+    --surface-hover:    #132136; /* Subtle hover over Navy */
+    
     --border:           #2E4568;
     --border-subtle:    rgba(82, 103, 125, 0.25);
+    
     --text-main:        #D1CFC9;
     --text-muted:       #BDC4D4;
     --primary:          #52677D;
     --primary-hover:    #6B84A0;
     --primary-light:    rgba(82, 103, 125, 0.18);
 
-    /* CRM accent colors (preserved vivid for scannability) */
+    /* CRM accent colors */
     --accent-green:       #10B981;
     --accent-amber:       #F59E0B;
     --accent-purple:      #8B5CF6;
@@ -54,6 +59,8 @@
 
     --glow-color:           rgba(82, 103, 125, 0.20);
     --glow-color-strong:    rgba(82, 103, 125, 0.40);
+    
+    /* Sidebar remains Navy Blue */
     --sidebar-bg:           #0F1A2B;
     --sidebar-border:       #1C2E4A;
     --sidebar-active:       rgba(82, 103, 125, 0.18);

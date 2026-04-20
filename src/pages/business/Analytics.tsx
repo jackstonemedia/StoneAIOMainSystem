@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, DollarSign, Users, Bot, Zap, Mail, ArrowUpRight, ArrowDownRight, BarChart3, Activity, Download } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { DataTable } from '../../components/ui/DataTable';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -62,14 +63,10 @@ function FunnelChart({ stages }: { stages: { name: string; count: number; pct: n
 
 export default function Analytics() {
   const [period, setPeriod] = useState<typeof PERIODS[number]>('30d');
-  const [metrics, setMetrics] = useState<any>(null);
-
-  useEffect(() => {
-    fetch('/api/business/metrics')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setMetrics(d))
-      .catch(() => {});
-  }, []);
+  const { data: metrics, isLoading } = useQuery<any>({
+    queryKey: ['business_metrics'],
+    queryFn: () => fetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
+  });
 
   const agentPerformance = metrics?.agentPerformance || [
     { name: 'Lead Scorer',      runs: 1420, success: 98.2, avgTime: '1.2s',  credits: 2840  },

@@ -53,6 +53,9 @@ export default function Forms() {
     { id:'f3', type:'phone', label:'Phone Number', required:false },
     { id:'f4', type:'textarea',label:'Message',   required:false, placeholder:'Tell us how we can help…' },
   ]);
+  const [formName, setFormName] = useState('Contact Us');
+  const [formDesc, setFormDesc] = useState('Fill out the form and we\'ll be in touch within 24 hours.');
+  const [saving, setSaving]     = useState(false);
 
   const { data: forms = [], isLoading } = useQuery<any[]>({ queryKey:['forms'], queryFn:getForms });
 
@@ -171,8 +174,8 @@ export default function Forms() {
           <div className="flex-1 overflow-y-auto p-8 bg-surface-hover/20 flex flex-col items-center">
             <div className="w-full max-w-lg space-y-4">
               <div className="card-surface rounded-2xl p-6 mb-2">
-                <input defaultValue="Contact Us" className="text-xl font-bold text-text-main bg-transparent border-none outline-none w-full mb-1 focus:ring-0"/>
-                <input defaultValue="Fill out the form and we'll be in touch within 24 hours." className="text-sm text-text-muted bg-transparent border-none outline-none w-full focus:ring-0"/>
+                <input value={formName} onChange={e=>setFormName(e.target.value)} className="text-xl font-bold text-text-main bg-transparent border-none outline-none w-full mb-1 focus:ring-0"/>
+                <input value={formDesc} onChange={e=>setFormDesc(e.target.value)} className="text-sm text-text-muted bg-transparent border-none outline-none w-full focus:ring-0"/>
               </div>
 
               {fields.map((field,i)=>(
@@ -191,10 +194,38 @@ export default function Forms() {
               ))}
 
               <button
-                onClick={()=>{toast('success','Form saved','Your form has been published and is now live.');}}
+                disabled={saving}
+                onClick={async () => {
+                  if (!formName.trim()) { toast('warning', 'Form name required'); return; }
+                  setSaving(true);
+                  try {
+                    const r = await fetch('/api/business/forms', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: formName, description: formDesc, schema: fields }),
+                    });
+                    if (!r.ok) throw new Error();
+                    qc.invalidateQueries({ queryKey: ['forms'] });
+                    toast('success', 'Form published', `${formName} is now live.`);
+                    setTab('list');
+                    // Reset builder
+                    setFormName('Contact Us');
+                    setFormDesc('Fill out the form and we\'ll be in touch within 24 hours.');
+                    setFields([
+                      { id:'f1', type:'text',  label:'Full Name',  required:true  },
+                      { id:'f2', type:'email', label:'Email',       required:true  },
+                      { id:'f3', type:'phone', label:'Phone',       required:false },
+                      { id:'f4', type:'textarea',label:'Message',  required:false, placeholder:'Tell us how we can help…' },
+                    ]);
+                  } catch {
+                    toast('error', 'Failed to save form');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
                 className="btn-primary w-full py-3 text-sm mt-4"
               >
-                Save & Publish Form
+                {saving ? 'Saving…' : 'Save & Publish Form'}
               </button>
             </div>
           </div>

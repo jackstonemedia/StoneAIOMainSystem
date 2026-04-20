@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   TrendingUp, Users, Mail, DollarSign, Calendar, FileText,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Plus, Phone,
@@ -51,14 +52,13 @@ function AreaChart({ data, color }: { data: number[]; color: string }) {
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
-  const [metrics, setMetrics] = useState<any>(null);
 
-  useEffect(() => {
-    fetch('/api/business/metrics')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => setMetrics(d))
-      .catch(() => {});
-  }, []);
+  const { data: metrics, isLoading } = useQuery<any>({
+    queryKey: ['business_metrics'],
+    queryFn: () => fetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
+  });
+
+
 
   const pipeline = Array.isArray(metrics?.pipeline_stages) ? metrics.pipeline_stages : (metrics?.pipeline_stages || [
     { name:'Lead',        count:45, value:120000, color:'#52677D' },
@@ -68,6 +68,17 @@ export default function BusinessDashboard() {
     { name:'Won',         count:18, value:210000, color:'#10B981' },
   ]);
   const totalPipelineCount = (Array.isArray(pipeline) ? pipeline : []).reduce((s:number,p:any)=>s+(p.count || 0),0);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-bg p-8 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-surface border-t-primary rounded-full animate-spin"></div>
+          <div className="text-text-muted font-medium text-sm animate-pulse">Loading dashboard...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-bg">

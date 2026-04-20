@@ -1,6 +1,7 @@
 import { Users, CircleDollarSign, CalendarDays, Activity, ArrowUpRight, ArrowDownRight, Sparkles, Filter, TrendingUp, CheckCircle2, AlertCircle, GitBranch, Phone, Target } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface DashboardData {
   stats: {
@@ -16,24 +17,13 @@ interface DashboardData {
 }
 
 export default function CrmDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/crm/dashboard')
-      .then(res => {
-        if (!res.ok) throw new Error('API Error');
-        return res.json();
-      })
-      .then(data => {
-        setData(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch dashboard data:', err);
-        setLoading(false);
-      });
-  }, []);
+  const { data, isLoading: loading, error } = useQuery<DashboardData>({
+    queryKey: ['crm_dashboard'],
+    queryFn: () => fetch('/api/crm/dashboard').then(r => {
+      if (!r.ok) throw new Error('API Error');
+      return r.json();
+    }),
+  });
 
   if (loading || !data) {
     return (
