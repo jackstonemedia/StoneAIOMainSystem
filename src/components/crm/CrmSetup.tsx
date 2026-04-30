@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { SmartTable, Column, TableGroup } from './SmartTable';
 import { Mail, Building2, CircleDollarSign } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createContact } from '../../lib/api';
+import { crmApi } from '../../lib/api/crm';
 
 export default function CrmSetup() {
   const [names, setNames] = useState<string[]>(['', '']);
@@ -20,7 +20,7 @@ export default function CrmSetup() {
         const firstName = parts[0];
         const lastName = parts.length > 1 ? parts.slice(1).join(' ') : null;
         
-        await createContact({
+        await crmApi.createContact({
           firstName,
           lastName,
           email: `${firstName.toLowerCase()}@example.com`

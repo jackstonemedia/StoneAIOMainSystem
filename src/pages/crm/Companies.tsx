@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { ConfirmDelete } from '../../components/ui/ConfirmDelete';
 
 interface Company {
   id: string;
@@ -52,6 +54,7 @@ export default function Companies() {
   // Form States
   const [newSmartListName, setNewSmartListName] = useState('');
   const [newCompany, setNewCompany] = useState({ name: '', domain: '', industry: '', employees: '', location: '', description: '' });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string, name: string } | null>(null);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -86,7 +89,7 @@ export default function Companies() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
       {/* Header section */}
-      <div className="px-8 py-5 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border">
+      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
         <div className="flex items-center gap-4">
           <h1 className="text-[20px] font-bold text-text-main">Companies</h1>
           <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border">
@@ -107,7 +110,7 @@ export default function Companies() {
       </div>
 
       {/* Unified Toolbar */}
-      <div className="px-8 py-4 flex items-center justify-between border-b border-border bg-surface relative shadow-sm">
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
         <div className="flex items-center gap-2">
           {smartLists.map(list => (
             <div 
@@ -182,7 +185,7 @@ export default function Companies() {
                   </button>
                 </td>
                 <td className="p-3">
-                  <span className="text-[13px] font-semibold text-text-main cursor-pointer hover:text-primary transition-colors">{a.name}</span>
+                  <Link to={`/business/crm/companies/${a.id}`} className="text-[13px] font-semibold text-text-main hover:text-primary transition-colors cursor-pointer">{a.name}</Link>
                 </td>
                 <td className="p-3">
                   <a href={a.domain} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-primary hover:underline">{a.domain}</a>
@@ -202,7 +205,7 @@ export default function Companies() {
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-2">
                      <button className="text-text-muted hover:text-primary transition-colors"><Edit2 className="w-4 h-4" /></button>
-                     <button onClick={() => deleteCompany(a.id)} className="text-text-muted hover:text-accent-red transition-colors"><Trash2 className="w-4 h-4" /></button>
+                     <button onClick={() => setDeleteTarget({ id: a.id, name: a.name })} className="text-text-muted hover:text-accent-red transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
               </tr>
@@ -318,6 +321,21 @@ export default function Companies() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {deleteTarget && (
+          <ConfirmDelete
+            title={deleteTarget.name}
+            onConfirm={() => {
+              deleteCompanyMutation.mutate(deleteTarget.id);
+              if (selected.has(deleteTarget.id)) toggleSelect(deleteTarget.id);
+              setDeleteTarget(null);
+            }}
+            onClose={() => setDeleteTarget(null)}
+            loading={deleteCompanyMutation.isPending}
+          />
         )}
       </AnimatePresence>
     </div>

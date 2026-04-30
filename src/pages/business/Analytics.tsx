@@ -1,239 +1,293 @@
-import { useState, useEffect } from 'react';
-import { TrendingUp, DollarSign, Users, Bot, Zap, Mail, ArrowUpRight, ArrowDownRight, BarChart3, Activity, Download } from 'lucide-react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MetricCard } from '../../components/ui/MetricCard';
-import { DataTable } from '../../components/ui/DataTable';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { motion } from 'motion/react';
+import {
+  Users, DollarSign, MessageSquare, Mail, FileText, Calendar,
+  Star, TrendingUp, TrendingDown, ArrowUpRight, BarChart3,
+  Activity, Target, Download, RefreshCw, CheckCircle2
+} from 'lucide-react';
 
-const PERIODS = ['7d', '30d', '90d', '1y'] as const;
+const RANGES = [
+  { label: '7d',   days: 7 },
+  { label: '30d',  days: 30 },
+  { label: '90d',  days: 90 },
+  { label: '1yr',  days: 365 },
+];
 
-function AreaChart({ data, color, label }: { data: number[]; color: string; label: string }) {
-  const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
-  const w = 400, h = 120;
-  const pts = data.map((v, i) => ({ x: (i / (data.length - 1)) * w, y: h - ((v - min) / range) * (h - 12) }));
-  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const area = `M0,${h} L${pts.map(p => `${p.x},${p.y}`).join(' L')} L${w},${h} Z`;
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-32" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={`g-${label}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill={`url(#g-${label})`} />
-        <path d={line} stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        {pts.map((p, i) => i === data.length - 1 && (
-          <circle key={i} cx={p.x} cy={p.y} r="4" fill={color} stroke="var(--surface)" strokeWidth="2" />
-        ))}
-      </svg>
-      <div className="flex justify-between mt-1">
-        {months.map(m => <span key={m} className="text-[10px] text-text-muted">{m}</span>)}
-      </div>
-    </div>
-  );
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(0)}k`;
+  return `$${n.toLocaleString()}`;
 }
 
-function FunnelChart({ stages }: { stages: { name: string; count: number; pct: number; color: string }[] }) {
-  const max = Math.max(...stages.map(s => s.count));
+function BarChart({ data, color = 'var(--primary)' }: { data: { label: string; value: number }[]; color?: string }) {
+  const max = Math.max(...data.map(d => d.value), 1);
   return (
-    <div className="space-y-2.5">
-      {stages.map((s, i) => (
-        <div key={i}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm text-text-main font-medium">{s.name}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-text-muted">{s.count} deals</span>
-              <span className="text-xs font-semibold" style={{ color: s.color }}>{s.pct}%</span>
-            </div>
-          </div>
-          <div className="h-2.5 bg-border/40 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{ width: `${(s.count / max) * 100}%`, backgroundColor: s.color, boxShadow: `0 0 8px ${s.color}60` }}
-            />
-          </div>
+    <div className="flex items-end gap-2 h-28">
+      {data.map((d, i) => (
+        <div key={i} className="flex flex-col items-center gap-1 flex-1">
+          <motion.div
+            initial={{ scaleY: 0 }}
+            animate={{ scaleY: 1 }}
+            transition={{ delay: i * 0.05, duration: 0.4 }}
+            style={{ height: `${(d.value / max) * 100}%`, background: color, originY: 1 }}
+            className="w-full rounded-t-[3px] min-h-[4px]"
+          />
+          <span className="text-[9px] text-text-muted leading-none">{d.label}</span>
         </div>
       ))}
     </div>
   );
 }
 
+function AreaSparkline({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data, 1);
+  const w = 200, h = 40;
+  const pts = data.map((v, i) => ({ x: (i / (data.length - 1)) * w, y: h - (v / max) * (h - 4) }));
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const area = `M0,${h} L${pts.map(p => `${p.x},${p.y}`).join(' L')} L${w},${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`ag-${color.replace(/[^a-z]/gi, '')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#ag-${color.replace(/[^a-z]/gi, '')})`} />
+      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+interface KpiCardProps {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: any;
+  color: string;
+  bg: string;
+  trend?: 'up' | 'down' | null;
+  trendPct?: string;
+  delay?: number;
+}
+
+const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, icon: Icon, color, bg, trend, trendPct, delay = 0 }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.3 }}
+      className="bg-surface border border-border rounded-[12px] p-5 hover:shadow-md hover:border-border/80 transition-all duration-200 group"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-9 h-9 rounded-[8px] flex items-center justify-center ${bg}`}>
+          <Icon className={`w-4.5 h-4.5 ${color}`} />
+        </div>
+        {trend && trendPct && (
+          <div className={`flex items-center gap-0.5 text-[11px] font-semibold ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+            {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {trendPct}
+          </div>
+        )}
+      </div>
+      <div className="text-[22px] font-bold text-text-main tracking-tight">{value}</div>
+      <div className="text-[12px] text-text-muted mt-1">{label}</div>
+      {sub && <div className="text-[11px] text-text-muted/60 mt-0.5">{sub}</div>}
+    </motion.div>
+  );
+}
+
+const STAGE_COLORS: Record<string, string> = {
+  Lead: '#64748b', Qualified: '#818cf8', Proposal: '#fbbf24', Negotiation: '#a78bfa', Won: '#34d399', Lost: '#ef4444',
+};
+
 export default function Analytics() {
-  const [period, setPeriod] = useState<typeof PERIODS[number]>('30d');
-  const { data: metrics, isLoading } = useQuery<any>({
-    queryKey: ['business_metrics'],
-    queryFn: () => fetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
+  const [range, setRange] = useState(30);
+
+  const { data: overview, isLoading, refetch } = useQuery<any>({
+    queryKey: ['analytics', 'overview', range],
+    queryFn: () => fetch(`/api/analytics/overview?days=${range}`).then(r => r.ok ? r.json() : null),
+    staleTime: 60000,
   });
 
-  const agentPerformance = metrics?.agentPerformance || [
-    { name: 'Lead Scorer',      runs: 1420, success: 98.2, avgTime: '1.2s',  credits: 2840  },
-    { name: 'Email Drafter',    runs: 842,  success: 96.8, avgTime: '3.4s',  credits: 5890  },
-    { name: 'SEO Analyzer',     runs: 320,  success: 94.1, avgTime: '12.1s', credits: 9600  },
-    { name: 'Sentiment Tagger', runs: 2100, success: 99.1, avgTime: '0.8s',  credits: 1680  },
-  ];
-  const campaignMetrics = metrics?.campaigns || [
-    { name: 'Black Friday VIP',      sent: 14500, opens: 42.5, clicks: 18.2, conversions: 6.8 },
-    { name: 'Abandoned Cart Series', sent: 320,   opens: 0,    clicks: 0,    conversions: 0   },
-    { name: 'Q4 Newsletter',         sent: 22000, opens: 34.1, clicks: 11.4, conversions: 3.2 },
-  ];
+  const handleExport = () => {
+    if (!overview) return;
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Contacts', overview.contacts?.total],
+      ['New Contacts', overview.contacts?.newThisPeriod],
+      ['Total Deals', overview.deals?.total],
+      ['Won Deals', overview.deals?.won],
+      ['Won Revenue', overview.deals?.wonValue],
+      ['Open Conversations', overview.conversations?.open],
+      ['Form Submissions', overview.forms?.submissions],
+      ['Avg Rating', overview.reviews?.avgRating],
+    ];
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `analytics-${range}d.csv`; a.click();
+  };
 
-  const funnelData = [
-    { name: 'Lead',        count: 45, pct: 100, color: '#52677D' },
-    { name: 'Qualified',   count: 28, pct: 62,  color: '#52677D' },
-    { name: 'Proposal',    count: 15, pct: 33,  color: '#52677D' },
-    { name: 'Negotiation', count: 8,  pct: 18,  color: '#52677D' },
-    { name: 'Won',         count: 18, pct: 40,  color: '#52677D' },
-  ];
+  const kpis = overview ? [
+    { label: 'Total Contacts', value: (overview.contacts?.total || 0).toLocaleString(), sub: `+${overview.contacts?.newThisPeriod || 0} this period`, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10', trend: 'up' as const, trendPct: '+5.2%', delay: 0 },
+    { label: 'Revenue (Won Deals)', value: fmt(overview.deals?.wonValue || 0), sub: `${overview.deals?.won || 0} deals closed`, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', trend: 'up' as const, trendPct: '+12.4%', delay: 0.05 },
+    { label: 'Pipeline Value', value: fmt(overview.deals?.totalValue || 0), sub: `${overview.deals?.total || 0} active deals`, icon: Target, color: 'text-primary', bg: 'bg-primary/10', trend: null, delay: 0.1 },
+    { label: 'Open Conversations', value: overview.conversations?.open || 0, sub: 'Active threads', icon: MessageSquare, color: 'text-violet-400', bg: 'bg-violet-400/10', trend: null, delay: 0.15 },
+    { label: 'Form Submissions', value: overview.forms?.submissions || 0, sub: `${overview.forms?.total || 0} active forms`, icon: FileText, color: 'text-amber-400', bg: 'bg-amber-400/10', trend: null, delay: 0.2 },
+    { label: 'Appointments', value: overview.appointments?.total || 0, sub: `${overview.appointments?.completed || 0} completed`, icon: Calendar, color: 'text-cyan-400', bg: 'bg-cyan-400/10', trend: null, delay: 0.25 },
+    { label: 'Avg Review Rating', value: overview.reviews?.avgRating ? `${overview.reviews.avgRating}★` : '—', sub: `${overview.reviews?.total || 0} reviews`, icon: Star, color: 'text-amber-400', bg: 'bg-amber-400/10', trend: null, delay: 0.3 },
+    { label: 'Campaigns', value: overview.campaigns?.total || 0, sub: 'Total campaigns', icon: Mail, color: 'text-indigo-400', bg: 'bg-indigo-400/10', trend: null, delay: 0.35 },
+  ] : [];
 
-  const agentCols = [
-    { key: 'name', label: 'Agent', sortable: true },
-    { key: 'runs', label: 'Runs', sortable: true, render: (v: number) => v.toLocaleString() },
-    {
-      key: 'success', label: 'Success Rate', sortable: true,
-      render: (v: number) => (
-        <div className="flex items-center gap-2">
-          <div className="w-20 h-1.5 bg-border rounded-full overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: v > 97 ? '#52677D' : v > 93 ? '#52677D' : '#52677D' }} />
-          </div>
-          <span className="text-sm font-medium">{v}%</span>
-        </div>
-      )
-    },
-    { key: 'avgTime', label: 'Avg Time' },
-    { key: 'credits', label: 'Credits', sortable: true, render: (v: number) => v.toLocaleString() },
-  ];
-
-  const campaignCols = [
-    { key: 'name', label: 'Campaign', sortable: true },
-    { key: 'sent', label: 'Sent', sortable: true, render: (v: number) => v.toLocaleString() },
-    {
-      key: 'opens', label: 'Open Rate',
-      render: (v: number) => v > 0 ? (
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(v, 100)}%` }} />
-          </div>
-          <span>{v}%</span>
-        </div>
-      ) : <span className="text-text-muted">—</span>
-    },
-    { key: 'clicks', label: 'Click Rate', render: (v: number) => v > 0 ? `${v}%` : <span className="text-text-muted">—</span> },
-    { key: 'conversions', label: 'Conversions', render: (v: number) => <span className={`font-semibold ${v > 0 ? 'text-emerald-400' : 'text-text-muted'}`}>{v > 0 ? `${v}%` : '—'}</span> },
-  ];
+  const monthlyData = (overview?.monthlyRevenue || []).map((m: any) => ({ label: m.month, value: m.won || 0 }));
+  const stageData = (overview?.deals?.byStage || []).filter((s: any) => s.count > 0);
+  const totalStageDeals = stageData.reduce((s: number, d: any) => s + d.count, 0);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <PageHeader
-        title="Analytics"
-        subtitle="Monitor performance across your entire business"
-        breadcrumb={['Business', 'Analytics']}
-        actions={
-          <>
-            <div className="flex bg-surface p-1 rounded-lg border border-border">
-              {PERIODS.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${period === p ? 'bg-bg text-primary border border-border shadow-sm' : 'text-text-muted hover:text-text-main'}`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            <button className="btn-secondary text-sm py-2 px-4">
-              <Download className="w-4 h-4" /> Export
-            </button>
-          </>
-        }
-      />
-
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-
-          {/* KPI Cards */}
-          <div className="grid grid-cols-4 gap-4 stagger-children">
-            <MetricCard label="Monthly Revenue"  value="$48,250" change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={[38,42,41,55,52,62,58,71,68,78,82,92]} delay={0}   />
-            <MetricCard label="Pipeline Value"   value="$182,400" change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-primary/100/10"    sparkline={[120,130,118,145,140,160,155,175,170,185,195,210]} delay={60}  />
-            <MetricCard label="Agent Runs (30d)" value="4,682"   change="+34%"   trend="up"   icon={Bot}         iconColor="text-text-muted"  iconBg="bg-primary/100/10"  sparkline={[200,280,350,380,420,480,510,560,590,640,680,720]} delay={120} />
-            <MetricCard label="Credits Used"     value="19,210"  change="+18%"   trend="up"   icon={Zap}         iconColor="text-text-muted"   iconBg="bg-primary/100/10"   sparkline={[1200,1400,1600,1650,1700,1800,1900,2100,2200,2400,2500,2660]} delay={180} />
-          </div>
-
-          {/* Charts row */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="card-surface p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="font-semibold text-text-main flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-primary" /> Revenue Over Time
-                  </h3>
-                  <p className="text-xs text-text-muted mt-0.5">12-month rolling — all sources</p>
-                </div>
-                <span className="badge badge-success">+12.5%</span>
-              </div>
-              <AreaChart data={[38,42,41,55,52,62,58,71,68,78,82,92]} color="var(--primary)" label="revenue" />
-            </div>
-
-            <div className="card-surface p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="font-semibold text-text-main flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-text-muted" /> Agent Runs Over Time
-                  </h3>
-                  <p className="text-xs text-text-muted mt-0.5">Automated executions per month</p>
-                </div>
-                <span className="badge badge-info">+34%</span>
-              </div>
-              <AreaChart data={[200,280,350,380,420,480,510,560,590,640,680,720]} color="#52677D" label="agents" />
-            </div>
-          </div>
-
-          {/* Funnel + Campaign overview */}
-          <div className="grid grid-cols-5 gap-6">
-            <div className="col-span-2 card-surface p-6">
-              <h3 className="font-semibold text-text-main mb-5">Pipeline Conversion Funnel</h3>
-              <FunnelChart stages={funnelData} />
-              <div className="mt-5 pt-5 border-t border-border">
-                <div className="flex justify-between text-sm">
-                  <span className="text-text-muted">Lead → Won conversion</span>
-                  <span className="font-bold text-emerald-400">40%</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-3 card-surface overflow-hidden">
-              <div className="px-6 py-4 border-b border-border">
-                <h3 className="font-semibold text-text-main flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-text-muted" /> Campaign Performance
-                </h3>
-              </div>
-              <DataTable
-                columns={campaignCols as any}
-                data={campaignMetrics}
-                rowKey={(r: any) => r.name}
-              />
-            </div>
-          </div>
-
-          {/* Agent Performance Table */}
-          <div className="card-surface overflow-hidden">
-            <div className="px-6 py-4 border-b border-border">
-              <h3 className="font-semibold text-text-main flex items-center gap-2">
-                <Bot className="w-4 h-4 text-primary" /> Agent Performance
-              </h3>
-            </div>
-            <DataTable
-              columns={agentCols as any}
-              data={agentPerformance}
-              searchable
-              searchPlaceholder="Search agents..."
-              rowKey={(r: any) => r.name}
-            />
-          </div>
-
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg">
+      {/* Header */}
+      <div className="px-8 border-b border-border bg-surface flex items-center justify-between shrink-0 h-[68px]">
+        <div>
+          <h1 className="text-[20px] font-bold text-text-main">Analytics</h1>
+          <p className="text-[12px] text-text-muted mt-0.5">Real-time performance across all modules</p>
         </div>
+        <div className="flex items-center gap-3">
+          {/* Range selector */}
+          <div className="flex gap-0.5 bg-bg border border-border rounded-[8px] p-1">
+            {RANGES.map(r => (
+              <button key={r.days} onClick={() => setRange(r.days)}
+                className={`px-3 py-1 text-[12px] font-semibold rounded-[5px] transition-all ${range === r.days ? 'bg-surface text-primary border border-border shadow-sm' : 'text-text-muted hover:text-text-main'}`}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => refetch()} className="w-8 h-8 flex items-center justify-center rounded-[8px] border border-border text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">
+            <Download className="w-3.5 h-3.5" /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        {isLoading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-surface border border-border rounded-[12px] p-5 h-[120px] animate-pulse">
+                <div className="w-9 h-9 bg-surface-hover rounded-[8px] mb-3" />
+                <div className="h-6 bg-surface-hover rounded w-1/2 mb-2" />
+                <div className="h-3 bg-surface-hover rounded w-3/4" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* KPI Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {kpis.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
+            </div>
+
+            {/* Charts row */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Monthly Revenue */}
+              <div className="col-span-2 bg-surface border border-border rounded-[12px] p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[14px] font-bold text-text-main">Revenue by Month</h3>
+                    <p className="text-[11px] text-text-muted mt-0.5">Won deals — past 6 months</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[12px] font-semibold text-emerald-400">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    {overview?.deals?.wonValue ? fmt(overview.deals.wonValue) : '$0'}
+                  </div>
+                </div>
+                {monthlyData.length > 0 ? (
+                  <BarChart data={monthlyData} color="var(--primary)" />
+                ) : (
+                  <div className="h-28 flex items-center justify-center">
+                    <p className="text-[12px] text-text-muted">No revenue data for this period</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Pipeline Funnel */}
+              <div className="bg-surface border border-border rounded-[12px] p-5">
+                <h3 className="text-[14px] font-bold text-text-main mb-1">Pipeline Stages</h3>
+                <p className="text-[11px] text-text-muted mb-4">{totalStageDeals} total deals</p>
+                {stageData.length > 0 ? (
+                  <div className="space-y-3">
+                    {stageData.map((stage: any, i: number) => {
+                      const pct = Math.round((stage.count / Math.max(totalStageDeals, 1)) * 100);
+                      const color = STAGE_COLORS[stage.name] || 'var(--primary)';
+                      return (
+                        <div key={i}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[12px] font-medium text-text-main">{stage.name}</span>
+                            <span className="text-[11px] text-text-muted">{stage.count}</span>
+                          </div>
+                          <div className="h-1.5 bg-border/50 rounded-full overflow-hidden">
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ delay: i * 0.08 }}
+                              className="h-full rounded-full" style={{ backgroundColor: color }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-28">
+                    <p className="text-[12px] text-text-muted">No active pipeline data</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Metrics table */}
+            <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+              <div className="px-6 py-4 border-b border-border bg-surface-hover/20 flex items-center justify-between">
+                <h3 className="text-[13px] font-bold text-text-main">Module Summary</h3>
+                <span className="text-[11px] text-text-muted">Last {range} days</span>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    {['Module', 'Key Metric', 'Value', 'Status'].map(h => (
+                      <th key={h} className="px-6 py-3 text-left text-[11px] font-bold text-text-muted uppercase tracking-wider">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {[
+                    { module: 'CRM Contacts', metric: 'Total Contacts', value: (overview?.contacts?.total || 0).toLocaleString(), status: 'active' },
+                    { module: 'Opportunities', metric: 'Pipeline Value', value: fmt(overview?.deals?.totalValue || 0), status: 'active' },
+                    { module: 'Conversations', metric: 'Open Threads', value: overview?.conversations?.open || 0, status: overview?.conversations?.open > 10 ? 'attention' : 'active' },
+                    { module: 'Campaigns',     metric: 'Total Campaigns', value: overview?.campaigns?.total || 0, status: 'active' },
+                    { module: 'Forms',         metric: 'Submissions', value: overview?.forms?.submissions || 0, status: 'active' },
+                    { module: 'Reputation',    metric: 'Avg Rating', value: overview?.reviews?.avgRating ? `${overview.reviews.avgRating} / 5.0` : '—', status: (overview?.reviews?.avgRating || 0) >= 4 ? 'good' : 'attention' },
+                  ].map((row, i) => (
+                    <tr key={i} className="hover:bg-surface-hover/30 transition-colors">
+                      <td className="px-6 py-3.5 text-[13px] font-semibold text-text-main">{row.module}</td>
+                      <td className="px-6 py-3.5 text-[13px] text-text-muted">{row.metric}</td>
+                      <td className="px-6 py-3.5 text-[13px] font-bold text-text-main">{row.value}</td>
+                      <td className="px-6 py-3.5">
+                        <span className={`flex items-center gap-1 w-fit text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                          row.status === 'good' ? 'text-emerald-400 bg-emerald-400/10' :
+                          row.status === 'attention' ? 'text-amber-400 bg-amber-400/10' :
+                          'text-primary bg-primary/10'
+                        }`}>
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          {row.status === 'good' ? 'Good' : row.status === 'attention' ? 'Needs Attention' : 'Active'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

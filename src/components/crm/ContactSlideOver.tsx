@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, User, Building, Mail, Phone, MapPin, Briefcase } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createContact } from '../../lib/api';
+import { crmApi } from '../../lib/api/crm';
 
 interface ContactSlideOverProps {
   isOpen: boolean;
@@ -21,7 +21,7 @@ export default function ContactSlideOver({ isOpen, onClose }: ContactSlideOverPr
   });
 
   const mutation = useMutation({
-    mutationFn: createContact,
+    mutationFn: crmApi.createContact,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

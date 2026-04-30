@@ -5,9 +5,10 @@ import {
   BarChart3, Reply, FileText, FileSpreadsheet, Building2,
   Settings, HelpCircle, PanelLeftClose, ChevronDown, Zap,
   Users, Calendar, Star, GitBranch, MessageSquare,
-  Mic, Sparkles, LogOut, ChevronsUpDown, List
+  Mic, Sparkles, LogOut, ChevronsUpDown, List, Target
 } from 'lucide-react';
-import { useMode } from '../../store/modeStore';
+import { useMode } from '../../context/ModeContext';
+import { NotificationPanel } from '../ui/NotificationPanel';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -36,14 +37,15 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
   ];
 
   const businessMenu = [
-    { name: 'Dashboard',     path: '/business',                   icon: LayoutDashboard },
-    { name: 'CRM',           path: '/business/crm/contacts',      icon: Users },
-    { name: 'Conversations', path: '/conversations',              icon: MessageSquare },
-    { name: 'Campaigns',     path: '/business/campaigns',         icon: Reply },
-    { name: 'Calendar',      path: '/business/calendar',          icon: Calendar },
-    { name: 'Analytics',     path: '/business/analytics',         icon: BarChart3 },
-    { name: 'Forms',         path: '/business/forms',             icon: FileText },
-    { name: 'Reputation',    path: '/business/reputation',        icon: Star },
+    { name: 'Dashboard',      path: '/business',                   icon: LayoutDashboard },
+    { name: 'CRM',            path: '/business/crm/contacts',      icon: Users },
+    { name: 'Opportunities',  path: '/business/opportunities',     icon: Target },
+    { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
+    { name: 'Campaigns',      path: '/business/campaigns',         icon: Reply },
+    { name: 'Calendar',       path: '/business/calendar',          icon: Calendar },
+    { name: 'Analytics',      path: '/business/analytics',         icon: BarChart3 },
+    { name: 'Forms',          path: '/business/forms',             icon: FileText },
+    { name: 'Reputation',     path: '/business/reputation',        icon: Star },
   ];
 
   const NavItem = ({ item }: { item: { name: string; path: string; icon: any } }) => {
@@ -137,31 +139,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
               </span>
             )}
           </div>
-
-          {/* Collapse toggle */}
-          {!collapsed ? (
-            <button
-              onClick={() => setCollapsed(true)}
-              className="w-6 h-6 rounded-md flex items-center justify-center transition-colors hidden md:flex"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-main)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-            >
-              <PanelLeftClose className="w-[16px] h-[16px]" strokeWidth={1.5} />
-            </button>
-          ) : (
-            <button
-              onClick={() => setCollapsed(false)}
-              className="absolute -right-3 top-4 w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20 hidden md:flex transition-colors"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-muted)',
-              }}
-            >
-              <PanelLeftClose className="w-3 h-3 rotate-180" strokeWidth={1.5} />
-            </button>
-          )}
+          {!collapsed && <NotificationPanel />}
         </div>
 
         {/* ── Quick Search ── */}

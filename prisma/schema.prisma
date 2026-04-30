@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Workspace {
@@ -32,6 +32,9 @@ model Workspace {
   tasks         Task[]
   smartLists    SmartList[]
   notifications Notification[]
+  customFields  CustomField[]
+  tags          Tag[]
+  webhookEndpoints WebhookEndpoint[]
 
   @@map("workspaces")
 }
@@ -113,6 +116,10 @@ model Contact {
   location        String?
   title           String?
   leadScore       Int             @default(0) @map("lead_score")
+  healthScore     Int             @default(0) @map("health_score")
+  ownerId         String?         @map("owner_id")
+  dndEnabled      Boolean         @default(false) @map("dnd_enabled")
+  preferredChannel String         @default("email") @map("preferred_channel")
   about           String?
   tagsJson        String          @default("[]") @map("tags_json")
   source          String?
@@ -467,4 +474,45 @@ model Notification {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model CustomField {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  entityType  String   @map("entity_type") // "contact" | "company" | "deal"
+  label       String
+  type        String   // "text" | "number" | "date" | "select" | "boolean"
+  optionsJson String?  @map("options_json")
+  required    Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("custom_fields")
+}
+
+model Tag {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  color       String   @default("#52677D")
+  createdAt   DateTime @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@map("tags")
+}
+
+model WebhookEndpoint {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  agentId     String?  @map("agent_id")
+  url         String
+  secret      String
+  events      String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_endpoints")
 }

@@ -1,10 +1,13 @@
 /**
- * App Mode Store
+ * App Mode Context
  * Controls whether the user is in "Creator Studio" or "Business Hub" mode.
  * Persisted to localStorage so it survives page refresh.
+ *
+ * Moved from src/store/modeStore.ts — this is a Context API provider,
+ * not a Zustand store, so it belongs in src/context/.
  */
 
-import { createContext, useContext, useState, useEffect, type ReactNode, createElement } from 'react';
+import { createContext, useContext, useState, type ReactNode, createElement } from 'react';
 
 export type AppMode = 'creator' | 'business';
 
@@ -26,7 +29,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<AppMode>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return (stored === 'business' || stored === 'creator') ? stored : 'creator';
+      return stored === 'business' || stored === 'creator' ? stored : 'creator';
     } catch {
       return 'creator';
     }

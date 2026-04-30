@@ -1,3 +1,4 @@
+import React from 'react';
 import { Calendar, MoreHorizontal, Building2, Tag } from 'lucide-react';
 
 interface Deal {

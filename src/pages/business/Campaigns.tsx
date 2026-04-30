@@ -1,309 +1,373 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Mail, Phone, Send, Edit2, Trash2, BarChart3, Users, CheckCircle, Clock, FileText, ArrowLeft, Eye, PenLine } from 'lucide-react';
-import { DataTable } from '../../components/ui/DataTable';
-import { PageHeader } from '../../components/ui/PageHeader';
-import { SlidePanel } from '../../components/ui/SlidePanel';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Plus, Mail, Phone, Send, Edit2, Trash2, BarChart3, Users,
+  CheckCircle2, Clock, PenLine, MoreVertical, Copy, X,
+  Search, Filter, ArrowUpRight, Eye, AlertCircle, RefreshCw, Zap
+} from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 
-const API = '/api/business';
-const getCampaigns = () => fetch(`${API}/campaigns`).then(r => r.ok ? r.json() : []);
-const createCampaign = (data: any) => fetch(`${API}/campaigns`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) }).then(r=>r.json());
-
-const STATUS_CONFIG: Record<string,{label:string;color:string;icon:any}> = {
-  sent:      {label:'Sent',      color:'badge-success', icon:CheckCircle},
-  sending:   {label:'Sending',  color:'badge-info',    icon:Send},
-  scheduled: {label:'Scheduled',color:'badge-warning', icon:Clock},
-  draft:     {label:'Draft',    color:'badge-neutral', icon:PenLine},
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  sent:      { label: 'Sent',      color: 'text-emerald-400', bg: 'bg-emerald-400/10', icon: CheckCircle2 },
+  sending:   { label: 'Sending',   color: 'text-blue-400',    bg: 'bg-blue-400/10',    icon: RefreshCw },
+  scheduled: { label: 'Scheduled', color: 'text-amber-400',   bg: 'bg-amber-400/10',   icon: Clock },
+  draft:     { label: 'Draft',     color: 'text-text-muted',  bg: 'bg-surface-hover',  icon: PenLine },
 };
 
 function parseJSON(s: any) { try { return JSON.parse(s); } catch { return {}; } }
 
+function ConfirmDeleteModal({ name, onConfirm, onClose, loading }: { name: string; onConfirm: () => void; onClose: () => void; loading: boolean }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.15 }}
+        className="relative z-10 bg-surface border border-border rounded-[14px] shadow-2xl w-[400px] p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-[8px] bg-red-400/10 flex items-center justify-center">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-bold text-text-main">Delete Campaign</h3>
+            <p className="text-[12px] text-text-muted">This action cannot be undone</p>
+          </div>
+        </div>
+        <p className="text-[13px] text-text-muted mb-6">Are you sure you want to delete <strong className="text-text-main">"{name}"</strong>? All data including metrics will be permanently removed.</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-[7px] border border-border text-[13px] font-semibold text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">Cancel</button>
+          <button onClick={onConfirm} disabled={loading} className="px-4 py-2 rounded-[7px] bg-red-500 text-white text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-2">
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            Delete
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function Campaigns() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [view, setView] = useState<'list'|'builder'>('list');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [newOpen, setNewOpen] = useState(false);
-  const [form, setForm] = useState({ name:'', type:'email', subject:'', previewText:'' });
+  const [form, setForm] = useState({ name: '', type: 'email', subject: '', previewText: '', content: '' });
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const { data: campaigns = [], isLoading } = useQuery<any[]>({ queryKey:['campaigns'], queryFn:getCampaigns });
-
-  const createMutation = useMutation({
-    mutationFn: createCampaign,
-    onSuccess: () => { qc.invalidateQueries({queryKey:['campaigns']}); setNewOpen(false); toast('success','Campaign created'); },
-    onError: () => toast('error','Failed to create campaign'),
+  const { data: campaigns = [], isLoading } = useQuery<any[]>({
+    queryKey: ['campaigns'],
+    queryFn: () => fetch('/api/business/campaigns').then(r => r.ok ? r.json() : []),
   });
 
-  const columns = [
-    {
-      key: 'name', label: 'Campaign', sortable: true,
-      render: (v: string, r: any) => (
-        <div className="flex flex-col">
-          <span className="font-medium text-text-main">{v}</span>
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full w-fit mt-0.5 badge ${STATUS_CONFIG[r.status]?.color || 'badge-neutral'}`}>
-            {STATUS_CONFIG[r.status]?.label || r.status}
-          </span>
-        </div>
-      )
-    },
-    {
-      key: 'type', label: 'Type',
-      render: (v: string) => (
-        <span className="flex items-center gap-1.5 text-sm">
-          {v === 'email' ? <Mail className="w-3.5 h-3.5 text-text-muted" /> : <Phone className="w-3.5 h-3.5 text-text-muted" />}
-          {v === 'email' ? 'Email' : 'SMS'}
-        </span>
-      )
-    },
-    {
-      key: 'audience', label: 'Audience',
-      render: (v: string) => {
-        const a = parseJSON(v); return <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-text-muted" />{a.count?.toLocaleString() ?? '—'}</span>;
-      }
-    },
-    {
-      key: 'metrics', label: 'Open Rate',
-      render: (v: string, r: any) => {
-        const m = parseJSON(v);
-        if (!m.openRate) return <span className="text-text-muted">—</span>;
-        return (
-          <div className="flex items-center gap-2">
-            <div className="w-16 h-1.5 bg-border rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full" style={{width:`${Math.min(m.openRate,100)}%`}}/>
-            </div>
-            <span className="text-sm font-medium">{m.openRate}%</span>
-          </div>
-        );
-      }
-    },
-    {
-      key: 'metrics', label: 'Clicks',
-      render: (v: string) => {
-        const m = parseJSON(v);
-        return m.clickRate ? <span className="font-medium">{m.clickRate}%</span> : <span className="text-text-muted">—</span>;
-      }
-    },
-    {
-      key: 'updatedAt', label: 'Updated', sortable: true,
-      render: (v: string) => v ? new Date(v).toLocaleDateString() : '—'
-    },
-  ];
+  const createMutation = useMutation({
+    mutationFn: (data: any) => fetch('/api/business/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); setNewOpen(false); setForm({ name: '', type: 'email', subject: '', previewText: '', content: '' }); toast('success', 'Campaign created!'); },
+    onError: () => toast('error', 'Failed to create campaign'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => fetch(`/api/business/campaigns/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); setDeleteTarget(null); toast('success', 'Campaign deleted'); },
+    onError: () => toast('error', 'Failed to delete'),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: (id: string) => fetch(`/api/business/campaigns/${id}/duplicate`, { method: 'POST' }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast('success', 'Campaign duplicated'); },
+    onError: () => toast('error', 'Failed to duplicate'),
+  });
+
+  const sendCampaign = async (campaign: any) => {
+    setSendingId(campaign.id);
+    try {
+      const r = await fetch(`/api/business/campaigns/${campaign.id}/send`, { method: 'POST' });
+      if (!r.ok) throw new Error();
+      const data = await r.json();
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      toast('success', `Campaign sent!`, `Delivered to ${data.sent || 0} contacts`);
+    } catch {
+      toast('error', 'Failed to send campaign');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  const filtered = campaigns.filter(c => {
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'all' || c.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const totalSent = campaigns.filter(c => c.status === 'sent').length;
+  const totalDraft = campaigns.filter(c => c.status === 'draft').length;
+  const totalScheduled = campaigns.filter(c => c.status === 'scheduled').length;
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <PageHeader
-        title="Campaigns"
-        subtitle="Manage email and SMS campaigns"
-        breadcrumb={['Business','Campaigns']}
-        tabs={[
-          { id:'list', label:'All Campaigns', count: campaigns.length },
-          { id:'builder', label:'Campaign Builder' },
-        ]}
-        activeTab={view}
-        onTabChange={v => setView(v as any)}
-        actions={
-          <button className="btn-primary text-sm py-2 px-4" onClick={() => setNewOpen(true)}>
-            <Plus className="w-4 h-4" /> New Campaign
-          </button>
-        }
-      />
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg">
+      {/* Header */}
+      <div className="px-8 border-b border-border bg-surface flex items-center justify-between shrink-0 h-[68px]">
+        <div>
+          <h1 className="text-[20px] font-bold text-text-main">Campaigns</h1>
+          <p className="text-[12px] text-text-muted mt-0.5">Email and SMS campaigns for your contacts</p>
+        </div>
+        <button onClick={() => setNewOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 transition-opacity shadow-sm shadow-primary/20">
+          <Plus className="w-4 h-4" /> New Campaign
+        </button>
+      </div>
 
-      {view === 'list' ? (
-        <div className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-6xl mx-auto">
-            <DataTable
-              columns={columns as any}
-              data={campaigns}
-              isLoading={isLoading}
-              searchable
-              searchPlaceholder="Search campaigns…"
-              rowKey={(r: any) => r.id}
-              emptyState={
-                <div className="text-center py-8">
-                  <Mail className="w-10 h-10 mx-auto text-border mb-3" />
-                  <p className="font-medium text-text-main mb-1">No campaigns yet</p>
-                  <p className="text-sm text-text-muted mb-4">Create your first email or SMS campaign</p>
-                  <button className="btn-primary text-sm py-2 px-4" onClick={() => setNewOpen(true)}>
+      {/* Stats */}
+      <div className="px-8 py-4 border-b border-border bg-surface-hover/20 grid grid-cols-4 gap-4 shrink-0">
+        {[
+          { label: 'Total', value: campaigns.length, color: 'text-text-main' },
+          { label: 'Sent', value: totalSent, color: 'text-emerald-400' },
+          { label: 'Scheduled', value: totalScheduled, color: 'text-amber-400' },
+          { label: 'Draft', value: totalDraft, color: 'text-text-muted' },
+        ].map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+            className="bg-surface border border-border rounded-[10px] px-4 py-3">
+            <div className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">{s.label}</div>
+            <div className={`text-[22px] font-bold mt-0.5 ${s.color}`}>{s.value}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="px-8 py-3 border-b border-border bg-surface flex items-center gap-3 shrink-0">
+        <div className="flex gap-1">
+          {['all', 'sent', 'scheduled', 'draft'].map(f => (
+            <button key={f} onClick={() => setStatusFilter(f)}
+              className={`px-3 py-1 rounded-full text-[12px] font-medium capitalize transition-colors ${statusFilter === f ? 'bg-primary text-white' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border'}`}>
+              {f === 'all' ? 'All' : f}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1" />
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+          <input type="text" placeholder="Search campaigns..." value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 pr-4 py-1.5 w-[240px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary placeholder:text-text-muted" />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full">
+          <thead className="sticky top-0 border-b border-border bg-surface/90 backdrop-blur-sm z-10">
+            <tr>
+              {['Campaign', 'Type', 'Audience', 'Open Rate', 'Click Rate', 'Status', 'Updated', ''].map(h => (
+                <th key={h} className="px-6 py-3 text-left text-[11px] font-bold text-text-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}><td colSpan={8} className="px-6 py-4">
+                  <div className="h-4 bg-surface-hover rounded animate-pulse w-1/2" />
+                </td></tr>
+              ))
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={8}>
+                <div className="flex flex-col items-center justify-center py-24 gap-4">
+                  <div className="w-14 h-14 rounded-full bg-surface-hover border border-border flex items-center justify-center">
+                    <Mail className="w-7 h-7 text-text-muted" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[15px] font-bold text-text-main mb-1">No campaigns yet</p>
+                    <p className="text-[13px] text-text-muted">Create your first email or SMS campaign to reach your contacts.</p>
+                  </div>
+                  <button onClick={() => setNewOpen(true)}
+                    className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 transition-opacity">
                     <Plus className="w-4 h-4" /> Create Campaign
                   </button>
                 </div>
-              }
-            />
-          </div>
-        </div>
-      ) : (
-        /* Campaign Builder */
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left settings */}
-          <div className="w-72 shrink-0 border-r border-border overflow-y-auto p-6 space-y-6">
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Campaign Name</label>
-              <input className="input-luxury" placeholder="e.g. Black Friday Promo" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">From Name</label>
-              <input className="input-luxury" defaultValue="Jack @ Stone AIO" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Subject Line</label>
-              <input className="input-luxury" placeholder="Don't miss out on this…" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Preview Text</label>
-              <input className="input-luxury" placeholder="Extra details shown in inbox…" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Audience</label>
-              <select className="input-luxury">
-                <option>All Contacts (2,847)</option>
-                <option>Hot Leads (96)</option>
-                <option>Enterprise Accounts (28)</option>
-                <option>Custom Segment</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Send Time</label>
-              <select className="input-luxury">
-                <option>Send Immediately</option>
-                <option>Schedule for Later</option>
-                <option>Optimal Send Time (AI)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Center preview */}
-          <div className="flex-1 overflow-y-auto bg-surface-hover/30 p-8 flex flex-col items-center">
-            <div className="w-full max-w-lg">
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-xs text-text-muted font-medium">Email Preview</span>
-                <div className="flex gap-1 bg-bg border border-border rounded-lg p-0.5">
-                  <button className="px-3 py-1 text-xs rounded-md bg-surface text-primary border border-border font-semibold">Desktop</button>
-                  <button className="px-3 py-1 text-xs rounded-md text-text-muted hover:text-text-main">Mobile</button>
-                </div>
-              </div>
-              <div className="bg-surface rounded-2xl shadow-[var(--shadow-luxury)] overflow-hidden border border-border/40">
-                {/* Email header */}
-                <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-center">
-                  <div className="inline-flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                      <span className="text-white font-bold text-xs">S</span>
+              </td></tr>
+            ) : filtered.map(c => {
+              const sc = STATUS_CONFIG[c.status] || STATUS_CONFIG.draft;
+              const StatusIcon = sc.icon;
+              const metrics = parseJSON(c.metrics || c.metricsJson);
+              const audience = parseJSON(c.audience || c.audienceJson);
+              const isSending = sendingId === c.id;
+              return (
+                <motion.tr key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="hover:bg-surface-hover/30 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="text-[13px] font-semibold text-text-main">{c.name}</div>
+                    {c.subject && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[220px]">{c.subject}</div>}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="flex items-center gap-1.5 text-[12px] text-text-muted">
+                      {c.type === 'email' ? <Mail className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+                      {c.type === 'email' ? 'Email' : 'SMS'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="flex items-center gap-1.5 text-[12px] text-text-muted">
+                      <Users className="w-3.5 h-3.5" />
+                      {(audience.count || 0).toLocaleString()}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {metrics.openRate > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-14 h-1.5 bg-border rounded-full overflow-hidden">
+                          <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(metrics.openRate, 100)}%` }} />
+                        </div>
+                        <span className="text-[12px] font-semibold text-text-main">{metrics.openRate}%</span>
+                      </div>
+                    ) : <span className="text-[12px] text-text-muted">—</span>}
+                  </td>
+                  <td className="px-6 py-4">
+                    {metrics.clickRate > 0
+                      ? <span className="text-[12px] font-semibold text-text-main">{metrics.clickRate}%</span>
+                      : <span className="text-[12px] text-text-muted">—</span>}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-[11px] font-semibold ${sc.bg} ${sc.color}`}>
+                      <StatusIcon className={`w-3 h-3 ${sc.color === 'text-blue-400' ? 'animate-spin' : ''}`} />
+                      {sc.label}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-[12px] text-text-muted whitespace-nowrap">
+                    {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-6 py-4">
+                    {/* Row actions */}
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Send button for drafts/scheduled */}
+                      {(c.status === 'draft' || c.status === 'scheduled') && (
+                        <button onClick={() => sendCampaign(c)} disabled={isSending}
+                          className="w-7 h-7 rounded-[5px] flex items-center justify-center text-text-muted hover:text-emerald-400 hover:bg-emerald-400/10 transition-colors disabled:opacity-50">
+                          {isSending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                      {/* Duplicate */}
+                      <button onClick={() => duplicateMutation.mutate(c.id)}
+                        className="w-7 h-7 rounded-[5px] flex items-center justify-center text-text-muted hover:text-primary hover:bg-primary/10 transition-colors">
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                      {/* Delete */}
+                      <button onClick={() => setDeleteTarget(c)}
+                        className="w-7 h-7 rounded-[5px] flex items-center justify-center text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <span className="text-white font-bold text-sm">Stone AIO</span>
+                  </td>
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {filtered.length > 0 && (
+          <div className="px-6 py-3 border-t border-border flex items-center justify-between text-[12px] text-text-muted">
+            <span>{filtered.length} campaign{filtered.length !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+      </div>
+
+      {/* New Campaign Modal */}
+      <AnimatePresence>
+        {newOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setNewOpen(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.18 }}
+              className="relative z-10 bg-surface border border-border rounded-[16px] shadow-2xl w-[520px] max-h-[85vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-surface-hover/20">
+                <div>
+                  <h2 className="text-[16px] font-bold text-text-main">Create Campaign</h2>
+                  <p className="text-[12px] text-text-muted mt-0.5">Set up your email or SMS campaign</p>
+                </div>
+                <button onClick={() => setNewOpen(false)} className="w-7 h-7 flex items-center justify-center rounded-full text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Type */}
+                <div>
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-2">Campaign Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['email', 'sms'] as const).map(t => (
+                      <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
+                        className={`p-4 rounded-[10px] border flex flex-col items-center gap-2 transition-all ${form.type === t ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                        {t === 'email' ? <Mail className={`w-5 h-5 ${form.type === t ? 'text-primary' : 'text-text-muted'}`} /> : <Phone className={`w-5 h-5 ${form.type === t ? 'text-primary' : 'text-text-muted'}`} />}
+                        <span className={`text-[13px] font-semibold capitalize ${form.type === t ? 'text-primary' : 'text-text-muted'}`}>{t}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                {/* Hero */}
-                <div className="p-8 text-center bg-gradient-to-b from-blue-50 to-white">
-                  <h2 className="text-2xl font-bold text-text-main mb-3">Exclusive Black Friday Offer 🎉</h2>
-                  <p className="text-text-main text-sm mb-6 leading-relaxed">Get 40% off all annual plans this weekend only. Automate your business and save thousands.</p>
-                  <a className="inline-block bg-primary text-white px-6 py-3 rounded-full text-sm font-bold no-underline hover:bg-primary">Claim Your Discount →</a>
+
+                {/* Name */}
+                <div>
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Campaign Name <span className="text-red-400">*</span></label>
+                  <input type="text" placeholder="e.g. Black Friday Promo" value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted" />
                 </div>
-                {/* Body */}
-                <div className="px-8 py-6 space-y-4 text-sm text-text-main leading-relaxed">
-                  <p>Hi [First Name],</p>
-                  <p>The Black Friday deal is here. For 72 hours only, every Stone AIO annual plan is 40% off. That's hundreds of dollars back in your pocket — and full access to our entire platform.</p>
-                  <p className="font-semibold text-text-main">Here's what you get:</p>
-                  <ul className="list-disc list-inside space-y-1.5 text-text-main">
-                    <li>Unlimited AI voice & workflow agents</li>
-                    <li>Full CRM + campaign builder</li>
-                    <li>Priority 24/7 support</li>
-                    <li>API access + integrations</li>
-                  </ul>
-                </div>
-                {/* Footer */}
-                <div className="px-8 py-4 bg-surface-hover border-t border-border text-center">
-                  <p className="text-xs text-text-muted">Stone AIO · 123 Business Ave · San Francisco, CA</p>
-                  <p className="text-xs text-text-muted mt-1"><a href="#" className="underline">Unsubscribe</a> · <a href="#" className="underline">View in browser</a></p>
+
+                {/* Email-only fields */}
+                {form.type === 'email' && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Subject Line</label>
+                      <input type="text" placeholder="What's this email about?" value={form.subject}
+                        onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted" />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Preview Text</label>
+                      <input type="text" placeholder="Short summary shown in inbox..." value={form.previewText}
+                        onChange={e => setForm(f => ({ ...f, previewText: e.target.value }))}
+                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted" />
+                    </div>
+                  </>
+                )}
+
+                {/* Content */}
+                <div>
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                    {form.type === 'email' ? 'Email Body' : 'SMS Message'}
+                  </label>
+                  <textarea rows={4} placeholder={form.type === 'email' ? 'Write your email content here...' : 'Your SMS message (160 chars max)'}
+                    value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted resize-none" />
+                  {form.type === 'sms' && (
+                    <p className={`text-[11px] mt-1 ${form.content.length > 160 ? 'text-red-400' : 'text-text-muted'}`}>
+                      {form.content.length}/160 characters
+                    </p>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Right AI panel */}
-          <div className="w-64 shrink-0 border-l border-border overflow-y-auto p-5 space-y-5">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-teal flex items-center justify-center">
-                <BarChart3 className="w-3 h-3 text-white" />
-              </div>
-              <h3 className="font-semibold text-sm text-text-main">AI Optimization</h3>
-            </div>
-
-            <div className="card-surface p-3">
-              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Deliverability Score</div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 rounded-full" style={{width:'87%'}}/>
-                </div>
-                <span className="text-sm font-bold text-emerald-400">87</span>
-              </div>
-            </div>
-
-            <div className="card-surface p-3">
-              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Subject A/B Ideas</div>
-              <div className="space-y-2">
-                {["Don't miss out — 40% off ends soon", "Your exclusive Black Friday deal is here", "⏰ 72 hours only — save 40% today"].map((s,i) => (
-                  <button key={i} className="w-full text-left text-xs p-2 rounded-lg bg-bg border border-border hover:border-primary/30 text-text-muted hover:text-text-main transition-all">
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="card-surface p-3">
-              <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wide">Send Time</div>
-              <div className="text-xs font-medium text-emerald-400">Tuesday · 10am–11am</div>
-              <p className="text-[10px] text-text-muted mt-0.5">Based on your audience engagement history</p>
-            </div>
-
-            <div className="mt-auto pt-4 space-y-2">
-              <button className="btn-primary w-full text-sm py-2.5">
-                <Send className="w-4 h-4" /> Send Campaign
-              </button>
-              <button className="btn-secondary w-full text-sm py-2.5">
-                <Clock className="w-4 h-4" /> Schedule
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Campaign Slide Panel */}
-      <SlidePanel open={newOpen} onClose={() => setNewOpen(false)} title="Create Campaign" subtitle="Start a new email or SMS campaign"
-        actions={
-          <>
-            <button className="btn-secondary text-sm py-2 px-4" onClick={() => setNewOpen(false)}>Cancel</button>
-            <button className="btn-primary text-sm py-2 px-4" onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending}>
-              Create Campaign
-            </button>
-          </>
-        }
-      >
-        <div className="p-6 space-y-5">
-          <div>
-            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Campaign Name *</label>
-            <input className="input-luxury" placeholder="e.g. Black Friday Promo"
-              value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))} />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 block">Type</label>
-            <div className="grid grid-cols-2 gap-3">
-              {(['email','sms'] as const).map(t => (
-                <button key={t} onClick={() => setForm(f=>({...f,type:t}))}
-                  className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${form.type===t?'border-primary bg-primary/5':'border-border hover:border-primary/30'}`}>
-                  {t==='email' ? <Mail className={`w-5 h-5 ${form.type===t?'text-primary':'text-text-muted'}`}/> : <Phone className={`w-5 h-5 ${form.type===t?'text-primary':'text-text-muted'}`}/>}
-                  <span className={`text-sm font-semibold capitalize ${form.type===t?'text-primary':'text-text-muted'}`}>{t}</span>
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/20 shrink-0">
+                <button onClick={() => setNewOpen(false)} className="px-4 py-2 rounded-[7px] border border-border text-[13px] font-semibold text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">Cancel</button>
+                <button onClick={() => form.name.trim() && createMutation.mutate(form)} disabled={!form.name.trim() || createMutation.isPending}
+                  className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-[7px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity">
+                  {createMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  Create Campaign
                 </button>
-              ))}
-            </div>
+              </div>
+            </motion.div>
           </div>
-          {form.type === 'email' && (
-            <div>
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5 block">Subject Line</label>
-              <input className="input-luxury" placeholder="What's the email about?"
-                value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} />
-            </div>
-          )}
-        </div>
-      </SlidePanel>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirm */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <ConfirmDeleteModal
+            name={deleteTarget.name}
+            onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+            onClose={() => setDeleteTarget(null)}
+            loading={deleteMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

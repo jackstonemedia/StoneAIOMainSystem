@@ -716,4 +716,97 @@
 
   .preserve-3d      { transform-style: preserve-3d; }
   .perspective-1000 { perspective: 1000px; }
+
+  /* ── Micro-animation helpers ── */
+
+  /* Card hover lift — use on any clickable card */
+  .card-hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card-hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    border-color: var(--primary);
+  }
+
+  /* Subtle row highlight on hover */
+  .interactive-row {
+    transition: background-color 0.12s ease;
+    cursor: pointer;
+  }
+  .interactive-row:hover {
+    background-color: var(--surface-hover);
+  }
+
+  /* Focus ring for accessibility */
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* Danger button */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: rgba(239,68,68,0.12);
+    color: #ef4444;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 600;
+    border: 1px solid rgba(239,68,68,0.3);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-danger:hover {
+    background: rgba(239,68,68,0.2);
+    transform: translateY(-1px);
+  }
+
+  /* Shimmer glow on primary buttons */
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.08) 50%, transparent 65%);
+    background-size: 200% 100%;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .btn-primary:hover::after { opacity: 1; }
+
+  /* Ambient breathing for active indicators */
+  @keyframes breath {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.04); }
+  }
+  .animate-breath { animation: breath 2.4s ease-in-out infinite; }
+
+  /* Slide up for table rows entering */
+  @keyframes row-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-row-enter { animation: row-enter 0.25s ease-out forwards; }
+
+  /* Attention shake for errors */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%       { transform: translateX(-6px); }
+    40%       { transform: translateX(6px); }
+    60%       { transform: translateX(-4px); }
+    80%       { transform: translateX(4px); }
+  }
+  .animate-shake { animation: shake 0.4s ease-out; }
+
+  /* Notification badge pop */
+  @keyframes badge-pop {
+    0%   { transform: scale(0.5); opacity: 0; }
+    70%  { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-badge-pop { animation: badge-pop 0.25s ease-out forwards; }
 }

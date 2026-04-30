@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Target, DollarSign, Calendar, BarChart, Bell } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createDeal } from '../../lib/api';
+import { crmApi } from '../../lib/api/crm';
 
 interface DealSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
+  dealId?: string | null;
+  onSave?: () => void;
 }
 
-export default function DealSlideOver({ isOpen, onClose }: DealSlideOverProps) {
+export default function DealSlideOver({ isOpen, onClose, dealId, onSave }: DealSlideOverProps) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     title: '',
@@ -20,7 +22,7 @@ export default function DealSlideOver({ isOpen, onClose }: DealSlideOverProps) {
   });
 
   const mutation = useMutation({
-    mutationFn: createDeal,
+    mutationFn: crmApi.createDeal as any, // Cast to any to handle type mismatch if any
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

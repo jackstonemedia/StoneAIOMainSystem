@@ -44,10 +44,14 @@ async function main() {
     db.contact.upsert({ where: { id: 'ct_bob' },    update: {}, create: { id: 'ct_bob',    workspaceId: WORKSPACE_ID, companyId: 'co_techstart', firstName: 'Bob',    lastName: 'Smith',   email: 'bob@techstart.io',   phone: '+1 (555) 987-6543', location: 'Austin, TX',         title: 'Director of IT',      leadScore: 74, status: 'warm',    tagsJson: JSON.stringify(['smb']),                     source: 'Inbound',     about: 'Looking to upgrade their current infrastructure.',     color: '#c4b5fd' } }),
     db.contact.upsert({ where: { id: 'ct_carol' },  update: {}, create: { id: 'ct_carol',  workspaceId: WORKSPACE_ID, companyId: 'co_global',   firstName: 'Carol',  lastName: 'Nguyen',  email: 'carol@globalsol.com', phone: '+1 (555) 234-5678', location: 'Chicago, IL',        title: 'CEO',                 leadScore: 92, status: 'hot',     tagsJson: JSON.stringify(['enterprise','ceo']),        source: 'Referral',    about: 'Interested in our enterprise tier.',                  color: '#86efac' } }),
     db.contact.upsert({ where: { id: 'ct_david' },  update: {}, create: { id: 'ct_david',  workspaceId: WORKSPACE_ID, companyId: 'co_nexus',    firstName: 'David',  lastName: 'Park',    email: 'david@nexusllc.com', phone: '+1 (555) 345-6789', location: 'Seattle, WA',        title: 'Head of Procurement', leadScore: 61, status: 'warm',    tagsJson: JSON.stringify(['mid-market']),              source: 'Google',      about: 'Evaluating vendors for Q4 purchase.',                 color: '#fde68a' } }),
-    db.contact.upsert({ where: { id: 'ct_elena' },  update: {}, create: { id: 'ct_elena',  workspaceId: WORKSPACE_ID, companyId: 'co_bright',   firstName: 'Elena',  lastName: 'Torres',  email: 'elena@brightco.com', phone: '+1 (555) 456-7890', location: 'Miami, FL',          title: 'Marketing Director',  leadScore: 55, status: 'neutral', tagsJson: JSON.stringify(['marketing']),               source: 'LinkedIn',    about: 'Interested in our marketing automation.',             color: '#93c5fd' } }),
-    db.contact.upsert({ where: { id: 'ct_frank' },  update: {}, create: { id: 'ct_frank',  workspaceId: WORKSPACE_ID, companyId: 'co_acme',     firstName: 'Frank',  lastName: 'Muller',  email: 'frank@apex.com',      phone: '+1 (555) 567-8901', location: 'New York, NY',       title: 'CTO',                 leadScore: 88, status: 'hot',     tagsJson: JSON.stringify(['enterprise','cto']),        source: 'Conference',  about: 'Met at SaaStr. Very interested in API access.',        color: '#d1d5db' } }),
-    db.contact.upsert({ where: { id: 'ct_grace' },  update: {}, create: { id: 'ct_grace',  workspaceId: WORKSPACE_ID, companyId: 'co_techstart', firstName: 'Grace',  lastName: 'Kim',     email: 'grace@techstart.io', phone: '+1 (555) 678-9012', location: 'Austin, TX',         title: 'Product Manager',     leadScore: 49, status: 'cold',    tagsJson: JSON.stringify(['smb']),                     source: 'Inbound',     about: 'Evaluated last quarter but no budget then.',          color: '#a5b4fc' } }),
-    db.contact.upsert({ where: { id: 'ct_henry' },  update: {}, create: { id: 'ct_henry',  workspaceId: WORKSPACE_ID, companyId: 'co_acme',     firstName: 'Henry',  lastName: 'Walsh',   email: 'henry@acmecorp.com',  phone: '+1 (555) 789-0123', location: 'San Francisco, CA', title: 'CFO',                 leadScore: 71, status: 'warm',    tagsJson: JSON.stringify(['enterprise','finance']),    source: 'Outbound',    about: 'Controls budget approvals for Acme.',                 color: '#fca5a5' } }),
+    db.contact.upsert({ where: { id: 'ct_elena' },  update: {}, create: { id: 'ct_elena',  workspaceId: WORKSPACE_ID, companyId: 'co_bright',   firstName: 'Elena',  lastName: 'Torres',  email: 'elena@brightco.com', phone: '+1 (555) 456-7890', location: 'Miami, FL',          title: 'Marketing Director',  leadScore: 55, status: 'neutral', tagsJson: JSON.stringify(['marketing']),               source: 'LinkedIn',    about: 'Interested in our marketing automation.',             color: '#93c5fd', healthScore: 70, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_frank' },  update: {}, create: { id: 'ct_frank',  workspaceId: WORKSPACE_ID, companyId: 'co_acme',     firstName: 'Frank',  lastName: 'Muller',  email: 'frank@apex.com',      phone: '+1 (555) 567-8901', location: 'New York, NY',       title: 'CTO',                 leadScore: 88, status: 'hot',     tagsJson: JSON.stringify(['enterprise','cto']),        source: 'Conference',  about: 'Met at SaaStr. Very interested in API access.',        color: '#d1d5db', healthScore: 85, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_grace' },  update: {}, create: { id: 'ct_grace',  workspaceId: WORKSPACE_ID, companyId: 'co_techstart', firstName: 'Grace',  lastName: 'Kim',     email: 'grace@techstart.io', phone: '+1 (555) 678-9012', location: 'Austin, TX',         title: 'Product Manager',     leadScore: 49, status: 'cold',    tagsJson: JSON.stringify(['smb']),                     source: 'Inbound',     about: 'Evaluated last quarter but no budget then.',          color: '#a5b4fc', healthScore: 40, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_henry' },  update: {}, create: { id: 'ct_henry',  workspaceId: WORKSPACE_ID, companyId: 'co_acme',     firstName: 'Henry',  lastName: 'Walsh',   email: 'henry@acmecorp.com',  phone: '+1 (555) 789-0123', location: 'San Francisco, CA', title: 'CFO',                 leadScore: 71, status: 'warm',    tagsJson: JSON.stringify(['enterprise','finance']),    source: 'Outbound',    about: 'Controls budget approvals for Acme.',                 color: '#fca5a5', healthScore: 75, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_irene' },  update: {}, create: { id: 'ct_irene',  workspaceId: WORKSPACE_ID, companyId: 'co_nexus',    firstName: 'Irene',  lastName: 'Chang',   email: 'irene@nexusllc.com',  phone: '+1 (555) 890-1234', location: 'Seattle, WA',        title: 'VP of Operations',    leadScore: 65, status: 'warm',    tagsJson: JSON.stringify(['mid-market','ops']),        source: 'Webinar',     about: 'Looking to streamline warehouse operations.',         color: '#fdba74', healthScore: 80, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_jack' },   update: {}, create: { id: 'ct_jack',   workspaceId: WORKSPACE_ID, companyId: 'co_global',   firstName: 'Jack',   lastName: 'OConnor', email: 'jack@globalsol.com',  phone: '+1 (555) 901-2345', location: 'Chicago, IL',        title: 'Partner',             leadScore: 85, status: 'hot',     tagsJson: JSON.stringify(['enterprise','partner']),    source: 'Referral',    about: 'Introduced by Carol. Wants a demo.',                  color: '#6ee7b7', healthScore: 90, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_karen' },  update: {}, create: { id: 'ct_karen',  workspaceId: WORKSPACE_ID, companyId: 'co_bright',   firstName: 'Karen',  lastName: 'Lee',     email: 'karen@brightco.com',  phone: '+1 (555) 012-3456', location: 'Miami, FL',          title: 'Account Executive',   leadScore: 40, status: 'neutral', tagsJson: JSON.stringify(['marketing','sales']),       source: 'Inbound',     about: 'Interested in CRM tools for her team.',               color: '#f9a8d4', healthScore: 60, ownerId: OWNER_ID } }),
+    db.contact.upsert({ where: { id: 'ct_liam' },   update: {}, create: { id: 'ct_liam',   workspaceId: WORKSPACE_ID, companyId: 'co_techstart', firstName: 'Liam',   lastName: 'Patel',   email: 'liam@techstart.io',  phone: '+1 (555) 123-9876', location: 'Austin, TX',         title: 'Lead Developer',      leadScore: 50, status: 'cold',    tagsJson: JSON.stringify(['smb','tech']),              source: 'Github',      about: 'Checking out our open source components.',            color: '#d8b4fe', healthScore: 55, ownerId: OWNER_ID } }),
   ]);
   console.log(`✅ Contacts: ${contacts.length}`);
 
@@ -88,6 +92,7 @@ async function main() {
     db.task.upsert({ where: { id: 'tk_3' }, update: {}, create: { id: 'tk_3', workspaceId: WORKSPACE_ID, contactId: 'ct_carol', title: 'Initial discovery call',           type: 'call',      priority: 'medium', status: 'pending', dueDate: new Date(now.getTime() + 86400000) } }),
     db.task.upsert({ where: { id: 'tk_4' }, update: {}, create: { id: 'tk_4', workspaceId: WORKSPACE_ID, contactId: 'ct_david', title: 'Demo scheduling for procurement',  type: 'meeting',   priority: 'medium', status: 'pending', dueDate: new Date(now.getTime() + 172800000) } }),
     db.task.upsert({ where: { id: 'tk_5' }, update: {}, create: { id: 'tk_5', workspaceId: WORKSPACE_ID, contactId: 'ct_elena', title: 'Send pricing breakdown',          type: 'email',     priority: 'low',    status: 'pending', dueDate: new Date(now.getTime() + 259200000) } }),
+    db.task.upsert({ where: { id: 'tk_6' }, update: {}, create: { id: 'tk_6', workspaceId: WORKSPACE_ID, contactId: 'ct_frank', title: 'Confirm technical requirements',  type: 'task',      priority: 'high',   status: 'completed', dueDate: new Date(now.getTime() - 172800000) } }),
   ]);
   console.log(`✅ Tasks: ${tasks.length}`);
 
@@ -98,6 +103,11 @@ async function main() {
     db.activity.upsert({ where: { id: 'ac_3' }, update: {}, create: { id: 'ac_3', workspaceId: WORKSPACE_ID, dealId: 'dl_4', contactId: 'ct_carol', type: 'meeting', title: 'Product demo — Enterprise tier' } }),
     db.activity.upsert({ where: { id: 'ac_4' }, update: {}, create: { id: 'ac_4', workspaceId: WORKSPACE_ID, dealId: 'dl_5', contactId: 'ct_david', type: 'note',    title: 'Added follow-up note' } }),
     db.activity.upsert({ where: { id: 'ac_5' }, update: {}, create: { id: 'ac_5', workspaceId: WORKSPACE_ID, dealId: 'dl_3', contactId: 'ct_elena', type: 'call',    title: 'Negotiation call' } }),
+    db.activity.upsert({ where: { id: 'ac_6' }, update: {}, create: { id: 'ac_6', workspaceId: WORKSPACE_ID, dealId: 'dl_6', contactId: 'ct_grace', type: 'email',   title: 'Sent API documentation' } }),
+    db.activity.upsert({ where: { id: 'ac_7' }, update: {}, create: { id: 'ac_7', workspaceId: WORKSPACE_ID, dealId: 'dl_7', contactId: 'ct_frank', type: 'meeting', title: 'Technical review meeting' } }),
+    db.activity.upsert({ where: { id: 'ac_8' }, update: {}, create: { id: 'ac_8', workspaceId: WORKSPACE_ID, dealId: 'dl_8', contactId: 'ct_elena', type: 'note',    title: 'Onboarding kickoff complete' } }),
+    db.activity.upsert({ where: { id: 'ac_9' }, update: {}, create: { id: 'ac_9', workspaceId: WORKSPACE_ID, dealId: 'dl_1', contactId: 'ct_henry', type: 'email',   title: 'Sent vendor assessment form' } }),
+    db.activity.upsert({ where: { id: 'ac_10' }, update: {}, create: { id: 'ac_10', workspaceId: WORKSPACE_ID, dealId: 'dl_5', contactId: 'ct_irene', type: 'call',    title: 'Introductory call with operations' } }),
   ]);
   console.log(`✅ Activities: ${activities.length}`);
 
@@ -166,6 +176,33 @@ async function main() {
     db.conversationMessage.upsert({ where: { id: 'msg_9' }, update: {}, create: { id: 'msg_9', conversationId: 'cv_4', sender: 'contact', body: 'Yes, we need a formal quote sent to our procurement team.', direction: 'inbound' } }),
   ]);
   console.log(`✅ Conversations: ${convos.length}`);
+
+  // ── Custom Fields ──────────────────────────────────────
+  const customFields = await Promise.all([
+    db.customField.upsert({ where: { id: 'cf_1' }, update: {}, create: { id: 'cf_1', workspaceId: WORKSPACE_ID, entityType: 'contact', label: 'Birthday', type: 'date', order: 0 } }),
+    db.customField.upsert({ where: { id: 'cf_2' }, update: {}, create: { id: 'cf_2', workspaceId: WORKSPACE_ID, entityType: 'contact', label: 'VIP Level', type: 'select', optionsJson: JSON.stringify(['Gold', 'Silver', 'Bronze']), order: 1 } }),
+    db.customField.upsert({ where: { id: 'cf_3' }, update: {}, create: { id: 'cf_3', workspaceId: WORKSPACE_ID, entityType: 'deal', label: 'Expected ARR', type: 'number', order: 0 } }),
+    db.customField.upsert({ where: { id: 'cf_4' }, update: {}, create: { id: 'cf_4', workspaceId: WORKSPACE_ID, entityType: 'deal', label: 'Competitors', type: 'text', order: 1 } }),
+    db.customField.upsert({ where: { id: 'cf_5' }, update: {}, create: { id: 'cf_5', workspaceId: WORKSPACE_ID, entityType: 'company', label: 'Registration Number', type: 'text', order: 0 } }),
+  ]);
+  console.log(`✅ Custom Fields: ${customFields.length}`);
+
+  // ── Tags ───────────────────────────────────────────────
+  const tags = await Promise.all([
+    db.tag.upsert({ where: { workspaceId_name: { workspaceId: WORKSPACE_ID, name: 'hot' } }, update: {}, create: { id: 'tg_1', workspaceId: WORKSPACE_ID, name: 'hot', color: '#ef4444' } }),
+    db.tag.upsert({ where: { workspaceId_name: { workspaceId: WORKSPACE_ID, name: 'vip' } }, update: {}, create: { id: 'tg_2', workspaceId: WORKSPACE_ID, name: 'vip', color: '#eab308' } }),
+    db.tag.upsert({ where: { workspaceId_name: { workspaceId: WORKSPACE_ID, name: 'follow-up' } }, update: {}, create: { id: 'tg_3', workspaceId: WORKSPACE_ID, name: 'follow-up', color: '#3b82f6' } }),
+    db.tag.upsert({ where: { workspaceId_name: { workspaceId: WORKSPACE_ID, name: 'enterprise' } }, update: {}, create: { id: 'tg_4', workspaceId: WORKSPACE_ID, name: 'enterprise', color: '#8b5cf6' } }),
+  ]);
+  console.log(`✅ Tags: ${tags.length}`);
+
+  // ── Smart Lists ────────────────────────────────────────
+  const smartLists = await Promise.all([
+    db.smartList.upsert({ where: { id: 'sl_1' }, update: {}, create: { id: 'sl_1', workspaceId: WORKSPACE_ID, name: 'Hot Leads', filtersJson: JSON.stringify([{ field: 'leadScore', operator: 'gt', value: 80 }]) } }),
+    db.smartList.upsert({ where: { id: 'sl_2' }, update: {}, create: { id: 'sl_2', workspaceId: WORKSPACE_ID, name: 'Enterprise Contacts', filtersJson: JSON.stringify([{ field: 'tags', operator: 'contains', value: 'enterprise' }]) } }),
+    db.smartList.upsert({ where: { id: 'sl_3' }, update: {}, create: { id: 'sl_3', workspaceId: WORKSPACE_ID, name: 'Recently Active', filtersJson: JSON.stringify([{ field: 'status', operator: 'in', value: ['warm', 'hot'] }]) } }),
+  ]);
+  console.log(`✅ Smart Lists: ${smartLists.length}`);
 
   console.log('\n✨ Seed complete! Database is ready.\n');
   console.log(`   Workspace ID : ${WORKSPACE_ID}`);

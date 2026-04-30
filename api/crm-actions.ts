@@ -39,7 +39,7 @@ router.post('/sms', async (req, res) => {
         type: 'sms',
         title: 'Outbound SMS',
         content: message,
-        metadata: JSON.stringify({ twilioMessageId: twilioResponse.sid, status: twilioResponse.status })
+        metadataJson: JSON.stringify({ twilioMessageId: twilioResponse.sid, status: twilioResponse.status })
       }
     });
 
@@ -82,7 +82,7 @@ router.post('/email', async (req, res) => {
         type: 'email',
         title: `Email: ${subject}`,
         content: body,
-        metadata: JSON.stringify({ resendId: resendResponse.data?.id, status: resendResponse.error ? 'error' : 'sent' })
+        metadataJson: JSON.stringify({ resendId: resendResponse.data?.id, status: resendResponse.error ? 'error' : 'sent' })
       }
     });
 

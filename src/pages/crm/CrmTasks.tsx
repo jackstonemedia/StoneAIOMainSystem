@@ -73,7 +73,7 @@ export default function CrmTasks() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
       {/* Header */}
-      <div className="px-8 py-5 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border">
+      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
         <h1 className="text-[20px] font-bold text-text-main">Tasks</h1>
         <button onClick={() => setPanelOpen('new_task')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[14px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface active:scale-95">
           <Plus className="w-4 h-4" /> New Task
@@ -81,7 +81,7 @@ export default function CrmTasks() {
       </div>
 
       {/* Unified Toolbar */}
-      <div className="px-8 py-4 flex items-center justify-between border-b border-border bg-surface relative shadow-sm">
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
         <div className="flex items-center gap-2">
           {[
             { id: 'all', label: 'All' },

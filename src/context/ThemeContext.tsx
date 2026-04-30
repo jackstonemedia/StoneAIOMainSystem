@@ -25,8 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY) as ThemeName | null;
-      // Migrate old 'light' preference to 'stone'
-      if (saved === 'light' || !saved) return 'stone';
+      if (!saved || (saved as string) === 'light') return 'stone';
       return saved in THEMES.reduce((acc, t) => ({ ...acc, [t.id]: true }), {} as Record<string, boolean>)
         ? saved
         : 'stone';
@@ -42,11 +41,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
-    // Remove all theme classes
     THEMES.forEach(t => root.classList.remove(`theme-${t.id}`));
-    // Remove legacy classes
     root.classList.remove('theme-light', 'dark');
-    // Apply new theme
     root.classList.add(`theme-${theme}`);
   }, [theme]);
 

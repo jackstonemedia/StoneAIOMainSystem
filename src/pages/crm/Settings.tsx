@@ -70,10 +70,10 @@ export default function CrmSettings() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
+      <header className="flex items-center justify-between px-8 border-b border-border bg-surface shrink-0 h-[68px]">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">CRM Settings</h1>
-          <p className="text-sm text-text-muted mt-1">Manage your CRM configuration and preferences.</p>
+          <h1 className="text-[20px] font-bold text-text-main">CRM Settings</h1>
+          <p className="text-[12px] text-text-muted mt-0.5">Manage your CRM configuration and preferences.</p>
         </div>
       </header>
 

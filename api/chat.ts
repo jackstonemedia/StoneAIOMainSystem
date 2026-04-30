@@ -1,16 +1,11 @@
 import { Router } from 'express';
 import { GoogleGenAI, Type } from '@google/genai';
-import { db } from '../src/lib/db';
+import { db } from '../infrastructure/database/client.js';
+import { tryGetAIClient, DEFAULT_MODEL } from '../packages/ai/client.js';
 
 const router = Router();
+const ai = tryGetAIClient();
 
-// Ensure API key is available
-const apiKey = process.env.GOOGLE_AI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-
-// Mock user config (To be replaced by Clerk Auth via headers in production)
-const MOCK_USER_ID = 'user_123';
-const MOCK_WORKSPACE_ID = 'workspace_123';
 
 /**
  * GET /api/conversations
@@ -19,7 +14,7 @@ const MOCK_WORKSPACE_ID = 'workspace_123';
 router.get('/', async (req, res) => {
   try {
     const agents = await db.agent.findMany({
-      where: { workspaceId: MOCK_WORKSPACE_ID, type: 'assistant' }
+      where: { workspaceId: req.workspaceId, type: 'assistant' }
     });
     res.json(agents.map(a => ({ id: a.id, title: a.name, updatedAt: a.updatedAt })));
   } catch (error) {
@@ -51,7 +46,7 @@ router.post('/', async (req, res) => {
   try {
     const agent = await db.agent.create({
       data: {
-        workspaceId: MOCK_WORKSPACE_ID,
+        workspaceId: req.workspaceId,
         name: 'New Conversation',
         type: 'assistant',
         config: {}
@@ -86,7 +81,7 @@ router.post('/:id/messages', async (req, res) => {
     await db.agentMessage.create({
       data: {
         agentId: conversationId,
-        userId: MOCK_USER_ID,
+        userId: req.userId,
         role: 'user',
         content: message
       }
@@ -170,7 +165,7 @@ router.post('/:id/messages', async (req, res) => {
           if (call.name === 'get_contacts') {
             const query = call.args?.query as string;
             const contacts = await db.contact.findMany({
-              where: query ? { workspaceId: MOCK_WORKSPACE_ID, firstName: { contains: query, mode: 'insensitive' } } : { workspaceId: MOCK_WORKSPACE_ID },
+              where: query ? { workspaceId: req.workspaceId, firstName: { contains: query, mode: 'insensitive' } } : { workspaceId: req.workspaceId },
               take: 5
             });
             const resultText = `\n\n*Executed tool: ${call.name}* - Found ${contacts.length} contacts.`;
@@ -182,7 +177,7 @@ router.post('/:id/messages', async (req, res) => {
             
             await db.deal.create({
               data: {
-                workspaceId: MOCK_WORKSPACE_ID,
+                workspaceId: req.workspaceId,
                 title,
                 amount,
                 stage: 'lead',
@@ -208,7 +203,7 @@ router.post('/:id/messages', async (req, res) => {
       await db.agentMessage.create({
         data: {
           agentId: conversationId,
-          userId: MOCK_USER_ID,
+          userId: req.userId,
           role: 'assistant',
           content: fullResponseText
         }

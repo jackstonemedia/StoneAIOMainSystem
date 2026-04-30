@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Cpu, Building2, Check, Sparkles } from 'lucide-react';
-import { THEMES, type ThemeName } from '../lib/ThemeContext';
+import { THEMES, type ThemeName } from '../context/ThemeContext';
 
 const BUSINESS_TYPES = [
   { id: 'agency', label: 'Agency', icon: '🎯', desc: 'Marketing, design, or consulting agency' },

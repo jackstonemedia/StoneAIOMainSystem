@@ -1,18 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { z } from 'zod';
-import { db } from '../src/lib/db.js';
+import { db } from '../infrastructure/database/client.js';
 import axios from 'axios';
 import twilio from 'twilio';
 
 const router = Router();
-const DEV_WORKSPACE_ID = 'ws_default_stone_aio';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. GET ALL INTEGRATIONS
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const integrations = await db.integration.findMany({ where: { workspaceId: DEV_WORKSPACE_ID } });
+    const integrations = await db.integration.findMany({ where: { workspaceId: req.workspaceId } });
     const formatted = integrations.reduce((acc, intg) => {
       acc[intg.provider] = true;
       return acc;
@@ -96,9 +94,9 @@ router.get('/callback/:provider', async (req: Request, res: Response): Promise<a
     if (!accessToken) throw new Error("Token exchange yielded empty token");
 
     await db.integration.upsert({
-      where: { workspaceId_provider: { workspaceId: DEV_WORKSPACE_ID, provider } },
+      where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } },
       update: { accessToken, updatedAt: new Date() },
-      create: { workspaceId: DEV_WORKSPACE_ID, provider, accessToken }
+      create: { workspaceId: req.workspaceId, provider, accessToken }
     });
 
     res.redirect('/business/conversations/chat?integration_success=true');
@@ -114,7 +112,7 @@ router.get('/callback/:provider', async (req: Request, res: Response): Promise<a
 router.delete('/:provider', async (req, res) => {
   const { provider } = req.params;
   try {
-    await db.integration.delete({ where: { workspaceId_provider: { workspaceId: DEV_WORKSPACE_ID, provider } } });
+    await db.integration.delete({ where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } } });
     res.json({ success: true });
   } catch (err) {
     res.json({ success: true }); // Ignore if not exists
@@ -150,7 +148,7 @@ router.post('/messages/send', async (req: Request, res: Response): Promise<any> 
     // GRAPH API (Facebook / Instagram) VIA AXIOS
     if (channel === 'facebook' || channel === 'instagram') {
       const integration = await db.integration.findUnique({
-        where: { workspaceId_provider: { workspaceId: DEV_WORKSPACE_ID, provider: channel } }
+        where: { workspaceId_provider: { workspaceId: req.workspaceId, provider: channel } }
       });
       if (!integration || !integration.accessToken) {
         return res.status(403).json({ error: `You must connect your ${channel} account first.` });
@@ -214,20 +212,20 @@ router.post('/webhooks/meta', async (req, res) => {
         
         if (webhookEvent.message) {
           const senderId = webhookEvent.sender.id;  // The user who sent the message
-          const recipientId = webhookEvent.recipient.id; // Your Page ID
+          const _recipientId = webhookEvent.recipient.id; // Your Page ID
           const msgText = webhookEvent.message.text;
 
           // 1. Locate or Create conversation
           // Note: Full mapping requires grabbing User Profile via Graph API if they are new
           let convo = await db.conversation.findFirst({
-             where: { contactId: senderId, workspaceId: DEV_WORKSPACE_ID }
+             where: { contactId: senderId, workspaceId: req.workspaceId }
           });
           
           if (!convo) {
             // Very rudimentary mock creation for real world user ID
             convo = await db.conversation.create({
               data: {
-                workspaceId: DEV_WORKSPACE_ID,
+                workspaceId: req.workspaceId,
                 channel: body.object === 'instagram' ? 'instagram' : 'facebook',
                 contactId: senderId // WARNING: Requires proper Contact syncing in prod
               }

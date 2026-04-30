@@ -146,7 +146,7 @@ export default function SmartLists() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
       {/* Header section */}
-      <div className="px-8 py-5 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border">
+      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
         <div className="flex items-center gap-4">
           <h1 className="text-[20px] font-bold text-text-main">Smart Lists</h1>
           <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border">
@@ -170,7 +170,7 @@ export default function SmartLists() {
       </div>
 
       {/* Unified Toolbar */}
-      <div className="px-8 py-4 flex items-center justify-between border-b border-border bg-surface relative shadow-sm">
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer text-text-main bg-bg border border-border shadow-sm">
             <ListIcon className="w-4 h-4 text-primary" />

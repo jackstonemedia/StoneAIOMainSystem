@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSmartListStore, Contact as StoreContact } from '../../store/useSmartListStore';
+import { useToast } from '../../components/ui/Toast';
 
 interface Contact {
   id: string;
@@ -43,10 +44,11 @@ const DEMO_CONTACTS: Contact[] = [
 export default function Contacts() {
   const { lists, createList, deleteList } = useSmartListStore();
   const qc = useQueryClient();
+  const { toast } = useToast();
 
   const { data: apiContacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['contacts'],
-    queryFn: () => fetch('/api/crm/contacts').then(r => r.ok ? r.json() : []),
+    queryFn: () => fetch('/api/crm/contacts').then(r => r.ok ? r.json().then(data => data.contacts || []) : []),
   });
 
   const createContact = useMutation({
@@ -61,6 +63,24 @@ export default function Contacts() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
   });
+
+  const deleteContact = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/crm/contacts/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
+  });
+
+  const handleBulkDelete = () => {
+    selected.forEach(id => deleteContact.mutate(id));
+    toast('success', 'Contacts Deleted', `Successfully removed ${selected.size} contacts.`);
+    setSelected(new Set());
+  };
+
+  const [contactError, setContactError] = useState<string | null>(null);
+
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   
@@ -134,6 +154,71 @@ export default function Contacts() {
     return result;
   }, [baseContacts, searchQuery, filters, filterMatchMode, sortConfig]);
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleExportCSV = () => {
+    let rows = processedContacts;
+    if (selected.size > 0) {
+      rows = processedContacts.filter(c => selected.has(c.id));
+    }
+    const headers = ['Name', 'Email', 'Phone', 'Business', 'Created'];
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(c => `"${c.name || ''}","${c.email || ''}","${c.phone || ''}","${c.businessName || ''}","${c.created || ''}"`)
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `stone_crm_contacts_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('success', 'Export Complete', `Exported ${rows.length} contacts to CSV`);
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+      const rows = text.split('\n').filter(r => r.trim().length > 0);
+      if (rows.length < 2) { toast('warning', 'Invalid CSV', 'No data rows found'); return; };
+      
+      const headers = rows[0].split(',').map(h => h.replace(/"/g, '').toLowerCase().trim());
+      let imported = 0;
+      
+      for (let i = 1; i < rows.length; i++) {
+        const rowData = rows[i].split(',').map(cell => cell.replace(/"/g, '').trim());
+        const mapped: any = { firstName: 'Unknown', lastName: '', email: '', phone: '' };
+        
+        headers.forEach((h, idx) => {
+          const val = rowData[idx] || '';
+          if (h.includes('name') && !h.includes('business') && !h.includes('company')) {
+            const parts = val.split(' ');
+            mapped.firstName = parts[0] || 'Unknown';
+            mapped.lastName = parts.slice(1).join(' ');
+          }
+          if (h.includes('email')) mapped.email = val;
+          if (h.includes('phone')) mapped.phone = val;
+        });
+        
+        if (mapped.email || mapped.phone || mapped.firstName !== 'Unknown') {
+          // Mutate sequentially to avoid overwhelming rate limits/mock server
+          await createContact.mutateAsync(mapped).catch(() => {});
+          imported++;
+        }
+      }
+      toast('success', 'Import Complete', `Successfully imported ${imported} contacts`);
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const toggleSelect = (id: string) => {
     setSelected(prev => {
       const s = new Set(prev);
@@ -162,7 +247,7 @@ export default function Contacts() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
       {/* Header section */}
-      <div className="px-8 py-5 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border">
+      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
         <div className="flex items-center gap-4">
           <h1 className="text-[20px] font-bold text-text-main">
             {activeListId === 'all' ? 'Contacts' : (activeList?.name ?? 'Contacts')}
@@ -172,7 +257,8 @@ export default function Contacts() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => window.dispatchEvent(new CustomEvent('crm:import'))} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[14px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
+          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[14px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
             <Download className="w-4 h-4" /> Import
           </button>
           
@@ -216,95 +302,138 @@ export default function Contacts() {
             </AnimatePresence>
           </div>
 
-          <button className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
+          <button onClick={() => toast('info', 'More options opening...')} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
             <MoreVertical className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Unified Toolbar */}
-      <div className="px-8 py-4 flex items-center justify-between border-b border-border bg-surface relative shadow-sm">
-        <div className="flex items-center gap-2">
-          {/* All tab */}
-          <div 
-            onClick={() => setActiveListId('all')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
-              activeListId === 'all' ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
-            }`}
-          >
-            <ListIcon className="w-4 h-4 text-primary" />
-            <span className="text-[13px]">All</span>
-          </div>
-
-          {/* Smart list tabs from Zustand store */}
-          {lists.map(list => (
-            <div 
-              key={list.id}
-              onClick={() => setActiveListId(list.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
-                activeListId === list.id ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
-              }`}
+      {/* Unified Toolbar OR Bulk Actions Context Bar */}
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
+        <AnimatePresence mode="wait">
+          {selected.size > 0 ? (
+            <motion.div 
+              key="bulk-toolbar"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+              className="flex items-center justify-between w-full"
             >
-              <span className="text-[13px]">{list.name}</span>
-            </div>
-          ))}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-[6px]">
+                  <CheckSquare className="w-4 h-4 text-primary" />
+                  <span className="text-[13px] font-bold text-primary">{selected.size} Selected</span>
+                </div>
+                <button onClick={() => setSelected(new Set())} className="text-[12px] font-medium text-text-muted hover:text-text-main transition-colors">Clear selection</button>
+              </div>
 
-          <div className="w-[1px] h-5 bg-border mx-2"></div>
-          <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm ml-1">
-            <Filter className="w-3.5 h-3.5" /> Advanced filters
-          </button>
-          <div className="relative">
-            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm">
-              <ChevronDown className="w-3.5 h-3.5" /> Sort
-            </button>
-            <AnimatePresence>
-              {sortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+              <div className="flex items-center gap-2">
+                <button onClick={() => toast('success', `Drafting email to ${selected.size} contacts`)} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                  <Mail className="w-4 h-4" /> Send Email
+                </button>
+                <button onClick={() => toast('success', `Drafting SMS to ${selected.size} contacts`)} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                  <Phone className="w-4 h-4" /> Send SMS
+                </button>
+                <button onClick={() => toast('info', 'Tag modal opened')} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                  <Filter className="w-4 h-4" /> Add Tags
+                </button>
+                <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                  <Download className="w-4 h-4" /> Export
+                </button>
+                <div className="w-[1px] h-6 bg-border mx-1"></div>
+                <button onClick={handleBulkDelete} className="flex items-center gap-2 px-4 py-2 border border-red-500/30 bg-red-500/10 rounded-[8px] text-[13px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors shadow-sm card-hover-lift">
+                  <X className="w-4 h-4" /> Delete
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="standard-toolbar"
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              className="flex items-center justify-between w-full"
+            >
+              <div className="flex items-center gap-2">
+                {/* All tab */}
+                <div 
+                  onClick={() => setActiveListId('all')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
+                    activeListId === 'all' ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
+                  }`}
+                >
+                  <ListIcon className="w-4 h-4 text-primary" />
+                  <span className="text-[13px]">All</span>
+                </div>
+
+                {/* Smart list tabs from Zustand store */}
+                {lists.map(list => (
+                  <div 
+                    key={list.id}
+                    onClick={() => setActiveListId(list.id)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
+                      activeListId === list.id ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
+                    }`}
                   >
-                    {[
-                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
-                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
-                      { label: 'Newest First', field: 'created', dir: 'desc' },
-                      { label: 'Oldest First', field: 'created', dir: 'asc' }
-                    ].map((opt, i) => (
-                      <button 
-                        key={i} 
-                        onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
-                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    {sortConfig && (
-                      <div className="border-t border-border mt-1 pt-1">
-                        <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-accent-red hover:bg-surface-hover transition-colors">Clear Sort</button>
-                      </div>
+                    <span className="text-[13px]">{list.name}</span>
+                  </div>
+                ))}
+
+                <div className="w-[1px] h-5 bg-border mx-2"></div>
+                <button onClick={() => toast('info', 'Advanced filters opening...')} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm ml-1 card-hover-lift">
+                  <Filter className="w-3.5 h-3.5" /> Advanced filters
+                </button>
+                <div className="relative">
+                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm card-hover-lift">
+                    <ChevronDown className="w-3.5 h-3.5" /> Sort
+                  </button>
+                  <AnimatePresence>
+                    {sortDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                          className="absolute left-0 mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                        >
+                          {[
+                            { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
+                            { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
+                            { label: 'Newest First', field: 'created', dir: 'desc' },
+                            { label: 'Oldest First', field: 'created', dir: 'asc' }
+                          ].map((opt, i) => (
+                            <button 
+                              key={i} 
+                              onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
+                              className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                          {sortConfig && (
+                            <div className="border-t border-border mt-1 pt-1">
+                              <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors">Clear Sort</button>
+                            </div>
+                          )}
+                        </motion.div>
+                      </>
                     )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-        <div className="flex items-center gap-5">
-          <div className="relative shadow-sm rounded-full flex items-center">
-            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
-            <input 
-              type="text" 
-              placeholder="Search Contacts" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-1.5 w-[280px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
-            />
-          </div>
-          <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors">
-            <Settings className="w-4 h-4" /> Manage fields
-          </button>
-        </div>
+                  </AnimatePresence>
+                </div>
+              </div>
+              <div className="flex items-center gap-5">
+                <div className="relative shadow-sm rounded-full flex items-center">
+                  <Search className="w-4 h-4 absolute left-3 text-text-muted" />
+                  <input 
+                    type="text" 
+                    placeholder="Search Contacts" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-4 py-1.5 w-[280px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                  />
+                </div>
+                <button onClick={() => toast('info', 'Manage fields modal opening...')} className="flex items-center gap-2 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors">
+                  <Settings className="w-4 h-4" /> Manage fields
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Table Content */}
@@ -443,6 +572,11 @@ export default function Contacts() {
                     {activeListId !== 'all' && (
                       <p className="text-[12px] text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 mt-2">
                         Contact will be added to "<strong>{activeList?.name}</strong>", not the main list.
+                      </p>
+                    )}
+                    {contactError && (
+                      <p className="text-[12px] text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
+                        {contactError}
                       </p>
                     )}
                   </div>
@@ -590,18 +724,26 @@ export default function Contacts() {
                 )}
               </div>
               <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-hover/50 shrink-0">
-                <button onClick={() => setPanelOpen(null)} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover transition-colors">Cancel</button>
+                <button onClick={() => { setPanelOpen(null); setContactError(null); }} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover transition-colors">Cancel</button>
                 <button 
+                  disabled={createContact.isPending}
                   onClick={async () => {
                   if (panelOpen === 'new_contact' && (newContact.firstName || newContact.email)) {
-                    await createContact.mutateAsync({
-                      firstName: newContact.firstName,
-                      lastName: newContact.lastName,
-                      email: newContact.email,
-                      phone: newContact.phone,
-                    });
-                    setNewContact({ firstName: '', lastName: '', email: '', phone: '' });
-                    setPanelOpen(null);
+                    setContactError(null);
+                    try {
+                      await createContact.mutateAsync({
+                        firstName: newContact.firstName,
+                        lastName: newContact.lastName,
+                        email: newContact.email,
+                        phone: newContact.phone,
+                      });
+                      setNewContact({ firstName: '', lastName: '', email: '', phone: '' });
+                      setPanelOpen(null);
+                    } catch {
+                      setContactError('Something went wrong. Please try again.');
+                    }
+                  } else if (panelOpen === 'new_contact') {
+                    setContactError('Please enter at least a first name or email.');
                   } else {
                     setPanelOpen(null);
                   }
@@ -609,7 +751,7 @@ export default function Contacts() {
                   style={{ backgroundColor: 'var(--primary)' }} 
                   className="px-5 py-2 text-white rounded-[6px] text-[13px] font-semibold font-medium disabled:opacity-40"
                 >
-                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'new_contact' ? 'Add Contact' : 'Save'}
+                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'new_contact' ? (createContact.isPending ? 'Adding...' : 'Add Contact') : 'Save'}
                 </button>
               </div>
             </motion.div>

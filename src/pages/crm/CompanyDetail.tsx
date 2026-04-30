@@ -43,7 +43,7 @@ export default function CompanyDetail() {
   useEffect(() => {
     Promise.all([
       fetch(`/api/crm/companies/${id}`).then(res => res.json()),
-      fetch('/api/crm/contacts').then(res => res.json()),
+      fetch('/api/crm/contacts').then(res => res.json().then((data: any) => data.contacts || [])),
       fetch('/api/crm/deals').then(res => res.json())
     ])
       .then(([companyData, contactsData, dealsData]) => {

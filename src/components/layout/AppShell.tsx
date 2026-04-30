@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { ThemeProvider } from '../../lib/ThemeContext';
-import { ModeProvider } from '../../store/modeStore';
+import { ThemeProvider } from '../../context/ThemeContext';
+import { ModeProvider } from '../../context/ModeContext';
 import { Menu, X, Zap } from 'lucide-react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 
