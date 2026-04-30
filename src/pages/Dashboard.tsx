@@ -53,24 +53,21 @@ export default function Dashboard() {
   });
 
   const activeAgentsCount = agents.filter(a => a.status === 'active' || a.status === 'Running').length;
-  
-  // Fake some metrics if missing from API, otherwise use them
-  const totalRuns = agents.length > 0 ? 142 : 0; 
-  const totalCredits = agents.length > 0 ? 850 : 0;
-  const successRate = agents.length > 0 ? '98.5%' : '0%';
+
+  const totalRuns   = metrics?.runsToday ?? (agents.length > 0 ? '—' : '0');
+  const creditsUsed = metrics?.creditsUsed ?? '—';
+  const successRate = metrics?.successRate ? `${metrics.successRate}%` : '—';
 
   const stats = [
-    { label: 'Active Agents', value: activeAgentsCount.toString(), icon: Bot, change: '+1 this week', trend: 'up' as const },
-    { label: 'Runs Today', value: totalRuns.toString(), icon: Activity, change: '+18%', trend: 'up' as const },
-    { label: 'Credits Used', value: totalCredits.toString(), icon: Zap, change: '1,150 remaining', trend: 'neutral' as const },
-    { label: 'Success Rate', value: successRate, icon: TrendingUp, change: '+0.3%', trend: 'up' as const },
+    { label: 'Active Agents', value: activeAgentsCount.toString(), icon: Bot, change: `${agents.length} total`, trend: 'up' as const },
+    { label: 'Runs Today',   value: String(totalRuns),   icon: Activity, change: metrics?.runsDelta ?? '',   trend: 'up' as const },
+    { label: 'Credits Used', value: String(creditsUsed), icon: Zap,      change: metrics?.creditsRemaining ? `${metrics.creditsRemaining} remaining` : '', trend: 'neutral' as const },
+    { label: 'Success Rate', value: successRate,          icon: TrendingUp, change: metrics?.successDelta ?? '', trend: 'up' as const },
   ];
 
   const recentAgents = agents.slice(0, 5).map(a => ({
     ...a,
     icon: getIcon(a.type),
-    runs: Math.floor(Math.random() * 100), // Placeholder
-    credits: Math.floor(Math.random() * 500) // Placeholder
   }));
 
   return (

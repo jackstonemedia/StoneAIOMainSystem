@@ -1,18 +1,15 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Bot, GitMerge, Mic, Sparkles, MoreVertical, Play, Pause, Settings, Trash2, Clock, Zap, Layers, MessageSquare } from 'lucide-react';
+import { useAgents, useUpdateAgent } from '../hooks/useAgents';
 
 export default function AgentsList() {
   const [searchParams] = useSearchParams();
   const typeFilter = searchParams.get('type') || 'all';
   const [search, setSearch] = useState('');
 
-  const agents = [
-    { id: '1', name: 'Invoice Processor', type: 'workflow', status: 'active', lastRun: '2 mins ago', runs: 1240, credits: 3400, description: 'Extracts invoice data from emails and updates accounting system', emoji: '🧾' },
-    { id: '2', name: 'Sales Receptionist', type: 'voice', status: 'active', lastRun: 'Active now', runs: 356, credits: 8200, description: 'Handles inbound sales calls and qualifies leads', emoji: '📞' },
-    { id: '4', name: 'Weekly Report Generator', type: 'workflow', status: 'paused', lastRun: '3 days ago', runs: 52, credits: 150, description: 'Generates weekly performance reports from analytics data', emoji: '📊' },
-    { id: '6', name: 'Meeting Scheduler', type: 'voice', status: 'paused', lastRun: '1 day ago', runs: 89, credits: 920, description: 'Handles appointment booking via phone calls', emoji: '📅' },
-  ];
+  const { data: agents = [], isLoading, isError } = useAgents();
+  const updateAgent = useUpdateAgent();
 
   const filteredAgents = agents.filter(a => {
     const matchesType = typeFilter === 'all' || a.type === typeFilter;
@@ -34,6 +31,10 @@ export default function AgentsList() {
 
   const getStatusDot = (status: string) => {
     return status === 'active' ? 'bg-green' : status === 'paused' ? 'bg-amber' : 'bg-red';
+  };
+
+  const handleToggleStatus = (id: string, status: string) => {
+    updateAgent.mutate({ id, data: { status: status === 'active' ? 'paused' : 'active' } });
   };
 
   // Determine the creation route based on active tab
@@ -110,7 +111,29 @@ export default function AgentsList() {
         </div>
 
         {/* Agent Grid */}
-        {filteredAgents.length === 0 ? (
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-surface/40 border border-border/60 rounded-2xl p-6 animate-pulse">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-surface-hover rounded-xl" />
+                  <div className="space-y-2">
+                    <div className="w-32 h-3 bg-surface-hover rounded" />
+                    <div className="w-20 h-2 bg-surface-hover rounded" />
+                  </div>
+                </div>
+                <div className="w-full h-3 bg-surface-hover rounded mb-2" />
+                <div className="w-3/4 h-3 bg-surface-hover rounded" />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <Bot className="w-12 h-12 text-text-muted opacity-30 mb-4" />
+            <h3 className="font-semibold text-text-main mb-1">Could not load agents</h3>
+            <p className="text-sm text-text-muted">Check your connection or try refreshing the page.</p>
+          </div>
+        ) : filteredAgents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 px-6 relative animate-in fade-in slide-in-from-bottom-8 duration-500">
             {/* Background Glows based on type */}
             {typeFilter === 'workflow' && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-teal/10 rounded-full blur-3xl opacity-50" />}
@@ -205,10 +228,12 @@ export default function AgentsList() {
 
                   {/* Footer Actions */}
                   <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                    <span className="text-xs text-text-muted">{agent.credits.toLocaleString()} credits</span>
+                    <span className="text-xs text-text-muted capitalize">{agent.status}</span>
                     <div className="flex items-center gap-1">
                       <button 
-                        className={`p-1.5 rounded-lg transition-colors ${
+                        onClick={() => handleToggleStatus(agent.id, agent.status)}
+                        disabled={updateAgent.isPending}
+                        className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
                           agent.status === 'active' ? 'text-amber hover:bg-amber/10' : 'text-green hover:bg-green/10'
                         }`}
                         title={agent.status === 'active' ? 'Pause' : 'Start'}
