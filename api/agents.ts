@@ -6,7 +6,6 @@
 import { Router } from 'express';
 import * as agentsService from './services/agents.service.js';
 import { tryGetAIClient, DEFAULT_MODEL } from '../packages/ai/client.js';
-import { buildCarouselPrompt } from '../packages/ai/prompts/carousel.v1.js';
 import { db } from '../infrastructure/database/client.js';
 
 const router = Router();
@@ -15,53 +14,6 @@ console.log('📦 Loading Agents API Router...');
 router.get('/ping', (_req, res) => {
   console.log('🏓 Pong!');
   res.send('pong');
-});
-
-// ── Generators ────────────────────────────────────────────────────────────────
-
-router.post('/generate-carousel', async (req, res) => {
-  console.log('🌟 [POST] /api/agents/generate-carousel | Topic:', req.body.topic);
-  try {
-    const { topic, description, designPrompt, autoResearch, platform, contentStyle, contentLength, slideCount } = req.body;
-    const ai = tryGetAIClient();
-    
-    if (!topic && !autoResearch) {
-      return res.status(400).json({ error: 'Topic is required.' });
-    }
-
-    if (!ai) {
-      console.error('❌ AI Key Missing');
-      return res.status(500).json({ error: 'Google AI API key is not configured in environment variables.' });
-    }
-
-    const creativeSeed = Math.floor(Math.random() * 100000);
-    const prompt = buildCarouselPrompt({ topic, description, designPrompt, platform, contentStyle, contentLength, slideCount, creativeSeed });
-    const tools = autoResearch ? [{ google_search: {} }] : undefined;
-
-    console.log('🤖 Calling Gemini...');
-    const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: prompt,
-      config: { responseMimeType: 'application/json', tools: tools as any },
-    });
-
-    let text = response.text || '[]';
-    if (text.includes('```')) {
-      const match = text.match(/```(?:json)?([\s\S]*?)```/);
-      if (match) text = match[1].trim();
-    }
-
-    try {
-      const slides = JSON.parse(text);
-      console.log('✅ Generation Success. Pages:', slides.length);
-      return res.json({ slides });
-    } catch (parseErr) {
-      console.error('JSON Parse Error. Raw Text Content:', text);
-      return res.status(500).json({ error: 'AI returned malformed JSON. Please try again.' });
-    }
-  } catch (error: any) {
-    return res.status(500).json({ error: `Generation failed: ${error.message}` });
-  }
 });
 
 // ── Agent CRUD ────────────────────────────────────────────────────────────────

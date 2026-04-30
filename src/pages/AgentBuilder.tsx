@@ -23,6 +23,8 @@ import { WorkflowCustomNode } from '../components/builder/WorkflowCustomNode';
 import AIBuilderChat from '../components/builder/AIBuilderChat';
 import NodeInspector from '../components/builder/NodeInspector';
 import NodeLibrary from '../components/builder/NodeLibrary';
+import ExecutionLogsPanel from '../components/builder/ExecutionLogsPanel';
+import AgentConfigPanel from '../components/builder/AgentConfigPanel';
 
 const nodeTypes = {
   custom: WorkflowCustomNode,
@@ -352,28 +354,11 @@ export default function AgentBuilder() {
               </ReactFlow>
               
               {showLogs && (
-                <div className="absolute bottom-0 left-0 right-0 h-64 bg-surface/95 backdrop-blur-xl border-t border-border z-40 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom-5">
-                  <div className="p-3 border-b border-border flex items-center justify-between bg-bg/80">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-green" />
-                      <h3 className="text-sm font-semibold">Execution Logs</h3>
-                      {isExecuting && <span className="flex h-2 w-2 relative ml-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green"></span></span>}
-                    </div>
-                    <button onClick={() => setShowLogs(false)} className="text-text-muted hover:text-text-main p-1 rounded-md hover:bg-surface-hover">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-2">
-                    {executionLogs.length === 0 && <div className="text-text-muted flex items-center gap-2"><div className="w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" /> Waiting for execution to start...</div>}
-                    {executionLogs.map((log, i) => (
-                      <div key={i} className={`flex items-start gap-4 p-2 rounded border ${log.status === 'running' ? 'border-primary/30 bg-primary/5 text-primary' : log.status === 'success' ? 'border-green/30 bg-green/5 text-green' : 'border-red/30 bg-red/5 text-red'}`}>
-                        <span className="text-text-muted shrink-0">[{log.time}]</span>
-                        <span className="flex-1 font-medium">{log.message}</span>
-                        {log.status === 'running' && <span className="animate-pulse">...</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <ExecutionLogsPanel
+                  logs={executionLogs}
+                  isExecuting={isExecuting}
+                  onClose={() => setShowLogs(false)}
+                />
               )}
             </div>
           ) : (
@@ -456,33 +441,10 @@ export default function AgentBuilder() {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold flex items-center gap-2"><Box className="w-4 h-4 text-green" /> Attached Tools</h3>
-                      <button className="text-xs font-medium text-primary hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Add</button>
-                    </div>
-                    <div className="space-y-2">
-                      {attachedTools.map((tool, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-bg border border-border rounded-lg group">
-                          <div className="flex items-center gap-3"><div className="w-8 h-8 rounded bg-green/10 flex items-center justify-center text-green shrink-0"><Box className="w-4 h-4" /></div><span className="text-sm font-medium">{tool}</span></div>
-                          <button className="text-text-muted hover:text-red transition-colors opacity-0 group-hover:opacity-100"><X className="w-4 h-4" /></button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-surface/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.06)] relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold flex items-center gap-2"><Database className="w-4 h-4 text-amber" /> Knowledge Base</h3>
-                      <button className="text-xs font-medium text-primary hover:underline flex items-center gap-1"><Plus className="w-3 h-3" /> Add</button>
-                    </div>
-                    <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-border rounded-lg bg-bg text-center px-4">
-                      <Database className="w-6 h-6 text-text-muted mb-2" />
-                      <p className="text-xs text-text-muted">No knowledge sources attached. Add documents or URLs to give your agent context.</p>
-                    </div>
-                  </div>
-                </div>
+                <AgentConfigPanel
+                  attachedTools={attachedTools}
+                  onRemoveTool={(i) => setAttachedTools(prev => prev.filter((_, idx) => idx !== i))}
+                />
               </div>
             </div>
           )}

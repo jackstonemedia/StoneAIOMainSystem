@@ -2,7 +2,7 @@
  * Agent & AI domain types — mirrors the Prisma Agent schema.
  */
 
-export type AgentType = 'workflow' | 'voice' | 'autonomous' | 'carousel';
+export type AgentType = 'workflow' | 'voice' | 'autonomous';
 export type AgentStatus = 'draft' | 'active' | 'paused' | 'error';
 
 export interface Agent {

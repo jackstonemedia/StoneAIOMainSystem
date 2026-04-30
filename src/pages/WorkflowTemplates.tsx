@@ -41,16 +41,8 @@ const templates = [
     nodes: 6,
     plays: '3.9k'
   },
-  {
-    id: 'marketing-carousel',
-    category: 'Marketing',
-    title: 'Carousel Post Generator',
-    description: 'Create engaging multi-page carousel content for Instagram and LinkedIn automatically from trending topics and news.',
-    icons: [Users, LineChart, Bot],
-    nodes: 4,
-    plays: '8.4k'
-  }
 ];
+
 
 export default function WorkflowTemplates() {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -140,7 +132,7 @@ export default function WorkflowTemplates() {
                   <span className="flex items-center gap-1.5"><Database className="w-3.5 h-3.5" /> {template.nodes} nodes</span>
                 </div>
                 <Link 
-                  to={template.id.includes('carousel') ? '/agents/carousel/new' : '/agents/new'} 
+                  to="/agents/new" 
                   className="p-2 bg-primary/10 text-primary rounded-lg group-hover:bg-primary group-hover:text-white transition-all shadow-sm"
                 >
                   <ArrowRight className="w-4 h-4 group-hover:-rotate-45 transition-transform" />

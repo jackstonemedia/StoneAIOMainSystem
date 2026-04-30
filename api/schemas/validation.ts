@@ -64,7 +64,7 @@ export const BulkActionSchema = z.object({
 
 export const AgentSchema = z.object({
   name: z.string().min(1).optional(),
-  type: z.enum(['workflow', 'voice', 'autonomous', 'carousel']).optional(),
+  type: z.enum(['workflow', 'voice', 'autonomous']).optional(),
   status: z.enum(['draft', 'active', 'paused', 'error']).optional(),
   config: z.any().optional(),
 });
