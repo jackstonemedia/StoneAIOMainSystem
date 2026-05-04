@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { 
   ChevronLeft, Plus, Phone, 
-  Clock, CheckCircle2, Edit2, Calendar, Mail, 
+  Clock, CheckCircle2, Edit2, Mail, 
   ChevronDown, Lock, Smile, FileText, Sparkles,
   RefreshCw, Send
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ActivityTimeline from '../../components/crm/ActivityTimeline';
+import ContactTasksTab from '../../components/crm/ContactTasksTab';
+import ContactFilesTab from '../../components/crm/ContactFilesTab';
+import ContactDealsTab from '../../components/crm/ContactDealsTab';
+import ContactSequencesTab from '../../components/crm/ContactSequencesTab';
 import { useToast } from '../../components/ui/Toast';
 
 export default function ContactDetail() {
@@ -335,7 +339,7 @@ export default function ContactDetail() {
           
           {/* Main Content Tabs */}
           <div className="px-8 pt-4 flex items-center gap-6 border-b border-border/50 bg-transparent shrink-0 z-[4] overflow-x-auto styled-scrollbar">
-            {['Activity', 'Notes', 'Emails', 'Calls', 'Tasks', 'Deals', 'Files', 'Sequences'].map(tab => (
+            {['Activity', 'Notes', 'Emails', 'Calls', 'Tasks', 'Deals', 'Files', 'Sequences', 'Forms', 'Automations'].map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase())} 
@@ -463,37 +467,70 @@ export default function ContactDetail() {
                 </div>
               )}
 
-              {/* Deals Placeholder */}
-              {activeTab === 'deals' && (
+              {/* Deals Tab */}
+              {activeTab === 'deals' && id && (
                 <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
-                  <div className="flex justify-between items-center mb-6 border-b border-border/50 pb-4">
-                    <h3 className="text-[15px] font-bold text-text-main">Linked Deals</h3>
-                    <button onClick={() => toast('success', 'Opening Deal creation modal...')} className="px-3 py-1.5 bg-primary text-white text-[12px] font-bold rounded-[6px] shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1.5"><Plus className="w-3.5 h-3.5"/> Create Deal</button>
-                  </div>
-                  <div className="p-5 bg-bg border border-border rounded-[8px] flex justify-between items-center group cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all">
-                    <div>
-                      <h4 className="text-[15px] font-bold text-text-main group-hover:text-primary transition-colors">Enterprise Plan Upgrade</h4>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-[11px] font-bold text-blue bg-blue/10 px-2 py-0.5 rounded-[4px]">Needs Analysis</span>
-                        <span className="text-[12px] text-text-muted font-medium">Pipeline: Standard Sales</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[16px] font-bold text-green">$12,500</p>
-                      <p className="text-[11px] font-medium text-text-muted mt-1">Close Date: Next Month</p>
-                    </div>
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Linked Deals</h3>
+                  <ContactDealsTab contactId={id} />
+                </div>
+              )}
+
+              {/* Tasks Tab */}
+              {activeTab === 'tasks' && id && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Tasks</h3>
+                  <ContactTasksTab contactId={id} />
+                </div>
+              )}
+
+              {/* Files Tab */}
+              {activeTab === 'files' && id && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Files & Attachments</h3>
+                  <ContactFilesTab contactId={id} />
+                </div>
+              )}
+
+              {/* Sequences Tab */}
+              {activeTab === 'sequences' && id && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Sequences</h3>
+                  <ContactSequencesTab contactId={id} />
+                </div>
+              )}
+
+              {/* Emails Tab */}
+              {activeTab === 'emails' && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Email Threads</h3>
+                  <div className="text-center py-12 border border-dashed border-border rounded-[10px]">
+                    <Mail className="w-10 h-10 mx-auto mb-3 text-text-muted/30" />
+                    <p className="text-[13px] font-semibold text-text-muted">No email threads yet</p>
+                    <p className="text-[12px] text-text-muted/60 mt-1">Connect your email via Settings to sync threads automatically</p>
                   </div>
                 </div>
               )}
 
-              {/* General Structural Placeholders */}
-              {['tasks', 'files', 'sequences', 'forms', 'automations'].includes(activeTab) && (
-                <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-20 h-20 mb-5 rounded-full bg-bg border border-border flex items-center justify-center shadow-sm">
-                    <span className="text-[24px] opacity-50">🚧</span>
+              {/* Calls Tab */}
+              {activeTab === 'calls' && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <h3 className="text-[15px] font-bold text-text-main mb-4">Call Log</h3>
+                  <div className="text-center py-12 border border-dashed border-border rounded-[10px]">
+                    <Phone className="w-10 h-10 mx-auto mb-3 text-text-muted/30" />
+                    <p className="text-[13px] font-semibold text-text-muted">No calls logged</p>
+                    <p className="text-[12px] text-text-muted/60 mt-1">Use the composer above to log a call</p>
                   </div>
-                  <h3 className="text-[16px] font-bold text-text-main mb-2 capitalize">{activeTab} Integration</h3>
-                  <p className="text-[13px] font-medium text-text-muted max-w-[300px]">This module is fully integrated into the backend and is awaiting its UI layout connection.</p>
+                </div>
+              )}
+
+              {/* Forms & Automations — Coming Soon with proper UX */}
+              {['forms', 'automations'].includes(activeTab) && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <Sparkles className="w-7 h-7 text-primary" />
+                  </div>
+                  <h3 className="text-[16px] font-bold text-text-main mb-2 capitalize">{activeTab}</h3>
+                  <p className="text-[13px] text-text-muted max-w-[280px] mx-auto">This module is connected to the backend. Full UI is being built as part of the implementation plan.</p>
                 </div>
               )}
 

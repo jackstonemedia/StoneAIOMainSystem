@@ -389,4 +389,53 @@ router.post('/import', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// ── Sequences ─────────────────────────────────────────────────────────────────
+router.get('/sequences', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    res.json(await db.sequence.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { createdAt: 'desc' },
+    }));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.put('/sequences/enrollments/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    res.json(await db.sequenceEnrollment.update({
+      where: { id: req.params.id },
+      data: { status: req.body.status },
+    }));
+  } catch (e) { dbErr(res, e); }
+});
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+router.get('/attachments', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const where: any = { workspaceId: req.workspaceId };
+    if (req.query.entityType) where.entityType = String(req.query.entityType);
+    if (req.query.entityId) where.entityId = String(req.query.entityId);
+    res.json(await db.attachment.findMany({ where, orderBy: { createdAt: 'desc' } }));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/attachments', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    res.json(await db.attachment.create({
+      data: { ...req.body, workspaceId: req.workspaceId },
+    }));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.delete('/attachments/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    await db.attachment.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    res.json({ success: true });
+  } catch (e) { dbErr(res, e); }
+});
+
 export default router;

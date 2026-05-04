@@ -40,6 +40,7 @@ model Workspace {
   products         Product[]
   quotes           Quote[]
   automationRules  AutomationRule[]
+  attachments      Attachment[]
 
   @@map("workspaces")
 }
@@ -116,8 +117,13 @@ model Contact {
   companyId             String?              @map("company_id")
   firstName             String               @map("first_name")
   lastName              String               @map("last_name")
+  middleName            String?              @map("middle_name")
+  suffix                String?
+  avatarUrl             String?              @map("avatar_url")
   email                 String?
+  emailsJson            String?              @map("emails_json")
   phone                 String?
+  phonesJson            String?              @map("phones_json")
   location              String?
   title                 String?
   leadScore             Int                  @default(0) @map("lead_score")
@@ -163,6 +169,7 @@ model Company {
   id          String    @id @default(uuid())
   workspaceId String    @map("workspace_id")
   name        String
+  logoUrl     String?   @map("logo_url")
   website     String?
   industry    String?
   location    String?
@@ -171,9 +178,12 @@ model Company {
   description String?
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+  customFieldsJson String?   @map("custom_fields_json")
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contacts    Contact[]
   deals       Deal[]
+  tasks       Task[]
+  activities  Activity[]
 
   @@map("companies")
 }
@@ -202,11 +212,13 @@ model Deal {
   updatedAt           DateTime       @updatedAt @map("updated_at")
   workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   company             Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  customFieldsJson    String?        @map("custom_fields_json")
   contact             Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
   pipelineStage       PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   activities          Activity[]
   lineItems           LineItem[]
   quotes              Quote[]
+  tasks               Task[]
 
   @@map("deals")
 }
@@ -215,6 +227,8 @@ model Task {
   id          String    @id @default(uuid())
   workspaceId String    @map("workspace_id")
   contactId   String?   @map("contact_id")
+  companyId   String?   @map("company_id")
+  dealId      String?   @map("deal_id")
   title       String
   description String?
   type        String    @default("follow_up")
@@ -226,6 +240,8 @@ model Task {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
 }
@@ -235,6 +251,7 @@ model Activity {
   workspaceId String?  @map("workspace_id")
   dealId      String?  @map("deal_id")
   contactId   String?  @map("contact_id")
+  companyId   String?  @map("company_id")
   type        String
   title       String
   notes       String?
@@ -242,6 +259,7 @@ model Activity {
   outcome     String?
   createdAt   DateTime @default(now()) @map("created_at")
   deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("activities")
 }
@@ -653,4 +671,20 @@ model AutomationRule {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("automation_rules")
+}
+
+model Attachment {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  entityType  String    @map("entity_type") // contact, deal, company, task, activity
+  entityId    String    @map("entity_id")
+  fileName    String    @map("file_name")
+  fileUrl     String    @map("file_url")
+  fileSize    Int?      @map("file_size")
+  fileType    String?   @map("file_type")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@map("attachments")
 }

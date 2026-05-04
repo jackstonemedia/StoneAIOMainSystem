@@ -7,8 +7,13 @@ import { z } from 'zod';
 export const ContactSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().optional().nullable(),
+  middleName: z.string().optional().nullable(),
+  suffix: z.string().optional().nullable(),
+  avatarUrl: z.string().optional().nullable(),
   email: z.union([z.string().email(), z.literal('')]).optional().nullable(),
+  emailsJson: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
+  phonesJson: z.string().optional().nullable(),
   companyId: z.string().optional().nullable(),
   businessName: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
@@ -21,6 +26,8 @@ export const ContactSchema = z.object({
 
 export const CompanySchema = z.object({
   name: z.string().min(1),
+  logoUrl: z.string().optional().nullable(),
+  customFieldsJson: z.string().optional().nullable(),
   domain: z.string().optional().nullable(),
   industry: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
@@ -39,6 +46,7 @@ export const DealSchema = z.object({
   companyId: z.string().optional().nullable(),
   contactId: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
+  customFieldsJson: z.string().optional().nullable(),
 });
 
 export const TaskSchema = z.object({
@@ -47,6 +55,8 @@ export const TaskSchema = z.object({
   dueDate: z.union([z.string(), z.literal('')]).optional().nullable(),
   assigneeId: z.string().optional().nullable(),
   contactId: z.string().optional().nullable(),
+  companyId: z.string().optional().nullable(),
+  dealId: z.string().optional().nullable(),
   status: z.enum(['pending', 'completed']).optional().nullable(),
   priority: z.enum(['low', 'medium', 'high']).optional().nullable(),
   type: z.string().optional().nullable(),

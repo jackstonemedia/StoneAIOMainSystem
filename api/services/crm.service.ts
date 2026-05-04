@@ -16,8 +16,13 @@ export interface ContactFilters {
 export interface ContactCreateInput {
   firstName: string;
   lastName?: string | null;
+  middleName?: string | null;
+  suffix?: string | null;
+  avatarUrl?: string | null;
   email?: string | null;
+  emailsJson?: string | null;
   phone?: string | null;
+  phonesJson?: string | null;
   companyId?: string | null;
   title?: string | null;
   tagsJson?: string | null;
@@ -45,6 +50,8 @@ export interface TaskCreateInput {
   dueDate?: string | null;
   assigneeId?: string | null;
   contactId?: string | null;
+  companyId?: string | null;
+  dealId?: string | null;
   status?: 'pending' | 'completed' | null;
   priority?: 'low' | 'medium' | 'high' | null;
   type?: string | null;
@@ -212,8 +219,13 @@ export async function createContact(workspaceId: string, data: any) {
       workspaceId,
       firstName: data.firstName ?? '',
       lastName: data.lastName ?? '',
+      middleName: data.middleName ?? null,
+      suffix: data.suffix ?? null,
+      avatarUrl: data.avatarUrl ?? null,
       email: data.email ?? null,
+      emailsJson: data.emailsJson ?? null,
       phone: data.phone ?? null,
+      phonesJson: data.phonesJson ?? null,
       companyId: finalCompanyId,
       title: data.title ?? null,
       tagsJson: data.tagsJson ?? '[]',
@@ -460,6 +472,8 @@ export async function createTask(workspaceId: string, data: TaskCreateInput) {
       status: data.status ?? 'pending',
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
       contactId: data.contactId ?? null,
+      companyId: data.companyId ?? null,
+      dealId: data.dealId ?? null,
       description: data.description ?? null,
       assigneeId: data.assigneeId ?? null,
     },
