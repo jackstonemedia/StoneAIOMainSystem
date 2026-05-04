@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, List as ListIcon, Filter, ChevronDown, Search, Settings, Edit2, Trash2, Check, Clock, X, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Filter, ChevronDown, Search, Settings, Edit2, Trash2, Check, Clock, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 

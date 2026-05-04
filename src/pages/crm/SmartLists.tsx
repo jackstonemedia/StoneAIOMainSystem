@@ -130,7 +130,7 @@ export default function SmartLists() {
     return lists.filter(l => l.name.toLowerCase().includes(q));
   }, [lists, searchQuery]);
 
-  const selectCls = 'bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-main focus:outline-none focus:border-primary px-2.5 py-1.5';
+
 
   if (isLoading) {
     return (
@@ -490,7 +490,7 @@ export default function SmartLists() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleCreate}
+                  onClick={handleSubmit}
                   disabled={!newName.trim()}
                   className="px-5 py-2 text-white rounded-[8px] text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--primary)' }}

@@ -14,16 +14,21 @@ interface Props {
   fallback?: ReactNode;
 }
 
+interface State {
+  hasError: boolean;
+  errorMessage: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Class component (React.lazy + Suspense require class-based error boundaries)
 // ─────────────────────────────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class ErrorBoundary extends (Component as any) {
-  declare props: Props;
-  hasError = false;
-  errorMessage = '';
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, errorMessage: error.message };
   }
 
@@ -32,11 +37,8 @@ export class ErrorBoundary extends (Component as any) {
   }
 
   render(): ReactNode {
-    const s = this.state as { hasError?: boolean; errorMessage?: string } | null;
-    const p = this.props as Props;
-
-    if (!s?.hasError) return p.children;
-    if (p.fallback) return p.fallback;
+    if (!this.state.hasError) return this.props.children;
+    if (this.props.fallback) return this.props.fallback;
 
     return (
       <div
@@ -58,11 +60,11 @@ export class ErrorBoundary extends (Component as any) {
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
         <p style={{ margin: 0, fontSize: '14px' }}>Something went wrong. Please refresh the page.</p>
-        {s?.errorMessage && (
+        {this.state.errorMessage && (
           <details style={{ fontSize: '12px', maxWidth: '400px', textAlign: 'center' }}>
             <summary style={{ cursor: 'pointer' }}>Error details</summary>
             <pre style={{ marginTop: '8px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {s.errorMessage}
+              {this.state.errorMessage}
             </pre>
           </details>
         )}

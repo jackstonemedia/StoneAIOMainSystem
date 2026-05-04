@@ -212,7 +212,6 @@ router.post('/webhooks/meta', async (req, res) => {
         
         if (webhookEvent.message) {
           const senderId = webhookEvent.sender.id;  // The user who sent the message
-          const _recipientId = webhookEvent.recipient.id; // Your Page ID
           const msgText = webhookEvent.message.text;
 
           // 1. Locate or Create conversation

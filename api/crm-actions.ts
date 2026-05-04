@@ -1,7 +1,7 @@
 import express from 'express';
 import twilio from 'twilio';
 import { Resend } from 'resend';
-import { db } from '../src/lib/db.js';
+import { db } from '../infrastructure/database/client.js';
 
 const router = express.Router();
 

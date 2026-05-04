@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Search, Filter, List as ListIcon, Plus, Download, MoreVertical, 
   Settings, ChevronDown, Check, Edit2, Trash2, X
@@ -70,10 +70,6 @@ export default function Companies() {
     else setSelected(new Set(companies.map(c => c.id)));
   };
 
-  const deleteCompany = (id: string) => {
-    deleteCompanyMutation.mutate(id);
-    if (selected.has(id)) toggleSelect(id);
-  };
 
   if (isLoading) {
     return (
@@ -185,7 +181,7 @@ export default function Companies() {
                   </button>
                 </td>
                 <td className="p-3">
-                  <Link to={`/business/crm/companies/${a.id}`} className="text-[13px] font-semibold text-text-main hover:text-primary transition-colors cursor-pointer">{a.name}</Link>
+                  <Link to={`/crm/companies/${a.id}`} className="text-[13px] font-semibold text-text-main hover:text-primary transition-colors cursor-pointer">{a.name}</Link>
                 </td>
                 <td className="p-3">
                   <a href={a.domain} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-primary hover:underline">{a.domain}</a>
@@ -327,6 +323,7 @@ export default function Companies() {
       <AnimatePresence>
         {deleteTarget && (
           <ConfirmDelete
+            isOpen={true}
             title={deleteTarget.name}
             onConfirm={() => {
               deleteCompanyMutation.mutate(deleteTarget.id);
@@ -334,7 +331,7 @@ export default function Companies() {
               setDeleteTarget(null);
             }}
             onClose={() => setDeleteTarget(null)}
-            loading={deleteCompanyMutation.isPending}
+            isLoading={deleteCompanyMutation.isPending}
           />
         )}
       </AnimatePresence>

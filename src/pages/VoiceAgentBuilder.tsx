@@ -1,13 +1,14 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Save, Bot, Volume2, Mic, PhoneOff, Settings, Globe,
+  ArrowLeft, Save, Bot, Volume2, Mic, PhoneOff, Globe,
   Shield, ChevronDown, Headphones, BarChart3, Webhook, Puzzle,
   Brain, PhoneCall
 } from 'lucide-react';
 import VoicePickerModal from '../components/voice/VoicePickerModal';
 import VoiceSettingsPanel from '../components/voice/VoiceSettingsPanel';
 import { VoiceBuilderProvider, useVoiceBuilder } from '../context/VoiceBuilderContext';
+import { useToast } from '../components/ui/Toast';
 
 const SETTINGS_TABS = [
   { id: 'voice', label: 'Voice & Speech', icon: Volume2, color: 'text-teal' },
@@ -22,15 +23,46 @@ const SETTINGS_TABS = [
 
 function VoiceAgentBuilderInner() {
   const ctx = useVoiceBuilder();
+  const { id: agentId } = useParams<{ id: string }>();
+  const { toast } = useToast();
+  // Keep a stable ref to the retell client so cleanup doesn't re-run on every render
+  const retellRef = ctx.retellClientRef;
+
+  // Load existing agent config when editing
+  useEffect(() => {
+    if (!agentId) return;
+    fetch(`/api/agents/${agentId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((agent: any) => {
+        if (!agent) return;
+        if (agent.name) ctx.setAgentName(agent.name);
+        const cfg = typeof agent.config === 'object' ? agent.config : {};
+        if (cfg.llmModel)               ctx.setLlmModel(cfg.llmModel);
+        if (cfg.voiceId)                ctx.setVoiceId(cfg.voiceId);
+        if (cfg.voiceProfile)           ctx.setVoiceProfile(cfg.voiceProfile);
+        if (cfg.language)               ctx.setLanguage(cfg.language);
+        if (cfg.systemPrompt)           ctx.setSystemPrompt(cfg.systemPrompt);
+        if (cfg.welcomeMessage)         ctx.setWelcomeMessage(cfg.welcomeMessage);
+        if (cfg.startSpeaker)           ctx.setStartSpeaker(cfg.startSpeaker);
+        if (cfg.ambientSound)           ctx.setAmbientSound(cfg.ambientSound);
+        if (cfg.responsiveness != null) ctx.setResponsiveness(cfg.responsiveness);
+        if (cfg.interruptionSensitivity != null) ctx.setInterruptionSensitivity(cfg.interruptionSensitivity);
+        if (cfg.webhookUrl)             ctx.setWebhookUrl(cfg.webhookUrl);
+      })
+      .catch(() => {}); // silently ignore load errors
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId]);
 
   useEffect(() => {
-    const client = ctx.retellClientRef.current;
+    const client = retellRef.current;
     if (!client) return;
     client.on('call_started', () => { ctx.setIsTestCallActive(true); ctx.setCallDuration(0); });
     client.on('call_ended', () => { ctx.setIsTestCallActive(false); });
     client.on('error', (error: any) => { console.error('Retell error:', error); ctx.setIsTestCallActive(false); });
-    return () => { client.stopCall(); };
-  }, [ctx.retellClientRef, ctx.setIsTestCallActive, ctx.setCallDuration]);
+    // Only stop the call when the component actually unmounts
+    return () => { retellRef.current?.stopCall(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retellRef]);
 
   useEffect(() => {
     if (!ctx.isTestCallActive) return;
@@ -74,28 +106,44 @@ function VoiceAgentBuilderInner() {
   const handleDeploy = async () => {
     ctx.setIsSaving(true); ctx.setSaveStatus('idle');
     try {
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: ctx.agentName, type: 'voice', status: 'active',
-          config: JSON.stringify({
-            llmModel: ctx.llmModel, voiceId: ctx.voiceId, voiceProfile: ctx.voiceProfile, language: ctx.language, systemPrompt: ctx.systemPrompt, welcomeMessage: ctx.welcomeMessage,
-            startSpeaker: ctx.startSpeaker, pauseBeforeSpeaking: ctx.pauseBeforeSpeaking, ambientSound: ctx.ambientSound, ambientSoundVolume: ctx.ambientSoundVolume,
-            responsiveness: ctx.responsiveness, enableDynamicResponsiveness: ctx.enableDynamicResponsiveness, interruptionSensitivity: ctx.interruptionSensitivity,
-            enableSpeechNormalization: ctx.enableSpeechNormalization, reminderTriggerSec: ctx.reminderTriggerSec, reminderMaxCount: ctx.reminderMaxCount,
-            denoisingMode: ctx.denoisingMode, sttMode: ctx.sttMode, vocabSpecialization: ctx.vocabSpecialization, boostedKeywords: ctx.boostedKeywords,
-            enableVoicemailDetection: ctx.enableVoicemailDetection, voicemailResponse: ctx.voicemailResponse, voicemailMessage: ctx.voicemailMessage,
-            enableIvrHangup: ctx.enableIvrHangup, allowUserDtmf: ctx.allowUserDtmf, dtmfTimeout: ctx.dtmfTimeout, dtmfTerminationKey: ctx.dtmfTerminationKey,
-            dtmfDigitLimit: ctx.dtmfDigitLimit, endCallAfterSilenceSec: ctx.endCallAfterSilenceSec, postCallAnalysisModel: ctx.postCallAnalysisModel,
-            postCallFields: ctx.postCallFields, dataStorageSetting: ctx.dataStorageSetting, dataRetention: ctx.dataRetention, optInSignedUrl: ctx.optInSignedUrl,
-            fallbackVoiceMode: ctx.fallbackVoiceMode, webhookUrl: ctx.webhookUrl, webhookTimeoutSec: ctx.webhookTimeoutSec, functions: ctx.functions,
-          })
-        })
+      const configPayload = JSON.stringify({
+        llmModel: ctx.llmModel, voiceId: ctx.voiceId, voiceProfile: ctx.voiceProfile,
+        language: ctx.language, systemPrompt: ctx.systemPrompt, welcomeMessage: ctx.welcomeMessage,
+        startSpeaker: ctx.startSpeaker, pauseBeforeSpeaking: ctx.pauseBeforeSpeaking,
+        ambientSound: ctx.ambientSound, ambientSoundVolume: ctx.ambientSoundVolume,
+        responsiveness: ctx.responsiveness, enableDynamicResponsiveness: ctx.enableDynamicResponsiveness,
+        interruptionSensitivity: ctx.interruptionSensitivity, enableSpeechNormalization: ctx.enableSpeechNormalization,
+        reminderTriggerSec: ctx.reminderTriggerSec, reminderMaxCount: ctx.reminderMaxCount,
+        denoisingMode: ctx.denoisingMode, sttMode: ctx.sttMode, vocabSpecialization: ctx.vocabSpecialization,
+        boostedKeywords: ctx.boostedKeywords, enableVoicemailDetection: ctx.enableVoicemailDetection,
+        voicemailResponse: ctx.voicemailResponse, voicemailMessage: ctx.voicemailMessage,
+        enableIvrHangup: ctx.enableIvrHangup, allowUserDtmf: ctx.allowUserDtmf,
+        dtmfTimeout: ctx.dtmfTimeout, dtmfTerminationKey: ctx.dtmfTerminationKey,
+        dtmfDigitLimit: ctx.dtmfDigitLimit, endCallAfterSilenceSec: ctx.endCallAfterSilenceSec,
+        postCallAnalysisModel: ctx.postCallAnalysisModel, postCallFields: ctx.postCallFields,
+        dataStorageSetting: ctx.dataStorageSetting, dataRetention: ctx.dataRetention,
+        optInSignedUrl: ctx.optInSignedUrl, fallbackVoiceMode: ctx.fallbackVoiceMode,
+        webhookUrl: ctx.webhookUrl, webhookTimeoutSec: ctx.webhookTimeoutSec, functions: ctx.functions,
       });
-      if (res.ok) { ctx.setSaveStatus('saved'); setTimeout(() => ctx.setSaveStatus('idle'), 3000); }
-    } catch (error) { console.error('Failed to save:', error); }
-    finally { ctx.setIsSaving(false); }
+
+      const method = agentId ? 'PUT' : 'POST';
+      const url = agentId ? `/api/agents/${agentId}` : '/api/agents';
+      const body = agentId
+        ? JSON.stringify({ name: ctx.agentName, status: 'active', config: configPayload })
+        : JSON.stringify({ name: ctx.agentName, type: 'voice', status: 'active', config: configPayload });
+
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+      if (res.ok) {
+        ctx.setSaveStatus('saved');
+        toast('success', agentId ? 'Voice agent updated' : 'Voice agent published!');
+        setTimeout(() => ctx.setSaveStatus('idle'), 3000);
+      } else {
+        throw new Error('Server error');
+      }
+    } catch (error) {
+      console.error('Failed to save:', error);
+      toast('error', 'Failed to publish voice agent');
+    } finally { ctx.setIsSaving(false); }
   };
 
   return (

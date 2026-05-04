@@ -151,14 +151,17 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   }
   if (status) where.status = status;
 
-  const skip = (Number(page) - 1) * Number(limit);
+  const parsedPage = Math.max(1, parseInt(String(page)) || 1);
+  const parsedLimit = Math.max(1, parseInt(String(limit)) || 50);
+  const skip = (parsedPage - 1) * parsedLimit;
+  
   const [contacts, total] = await Promise.all([
     db.contact.findMany({
       where,
       include: { company: true },
       orderBy: { createdAt: 'desc' },
       skip,
-      take: Number(limit),
+      take: parsedLimit,
     }),
     db.contact.count({ where }),
   ]);
@@ -186,7 +189,24 @@ export async function getContact(id: string, workspaceId: string) {
   return formatContact(contact);
 }
 
-export async function createContact(workspaceId: string, data: ContactCreateInput) {
+export async function createContact(workspaceId: string, data: any) {
+  let finalCompanyId = data.companyId ?? null;
+
+  if (data.businessName) {
+    const bName = String(data.businessName).trim();
+    if (bName) {
+      let comp = await db.company.findFirst({
+        where: { name: bName, workspaceId }
+      });
+      if (!comp) {
+        comp = await db.company.create({
+          data: { name: bName, workspaceId }
+        });
+      }
+      finalCompanyId = comp.id;
+    }
+  }
+
   const c = await db.contact.create({
     data: {
       workspaceId,
@@ -194,14 +214,15 @@ export async function createContact(workspaceId: string, data: ContactCreateInpu
       lastName: data.lastName ?? '',
       email: data.email ?? null,
       phone: data.phone ?? null,
-      companyId: data.companyId ?? null,
+      companyId: finalCompanyId,
       title: data.title ?? null,
       tagsJson: data.tagsJson ?? '[]',
       color: data.color ?? '#7dd3fc',
       source: data.source ?? null,
-      status: data.status ?? null,
+      status: data.status ?? 'Lead',
       about: data.about ?? null,
     },
+    include: { company: true }
   });
   return formatContact(c);
 }
@@ -211,7 +232,29 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
   if (data.tagsJson && Array.isArray(data.tagsJson)) {
     data.tagsJson = JSON.stringify(data.tagsJson);
   }
-  const c = await db.contact.update({ where: { id, workspaceId }, data });
+
+  if (businessName !== undefined) {
+    const bName = String(businessName).trim();
+    if (!bName) {
+      data.companyId = null;
+    } else {
+      let comp = await db.company.findFirst({
+        where: { name: bName, workspaceId }
+      });
+      if (!comp) {
+        comp = await db.company.create({
+          data: { name: bName, workspaceId }
+        });
+      }
+      data.companyId = comp.id;
+    }
+  }
+
+  const c = await db.contact.update({ 
+    where: { id, workspaceId }, 
+    data,
+    include: { company: true } 
+  });
   return formatContact(c);
 }
 
@@ -473,4 +516,60 @@ export async function getSmartListContacts(id: string, workspaceId: string) {
   });
 
   return matched.map((c) => formatContact(c));
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────────
+
+export async function renameTag(id: string, workspaceId: string, newName: string) {
+  const tag = await db.tag.findUnique({ where: { id, workspaceId } });
+  if (!tag) throw new Error('Tag not found');
+  const oldName = tag.name;
+
+  await db.tag.update({ where: { id }, data: { name: newName } });
+
+  const contacts = await db.contact.findMany({ where: { workspaceId } });
+  for (const c of contacts) {
+    const tags = JSON.parse(c.tagsJson ?? '[]');
+    if (tags.includes(oldName)) {
+      const newTags = tags.map((t: string) => t === oldName ? newName : t);
+      await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+    }
+  }
+  return { success: true };
+}
+
+export async function deleteTag(id: string, workspaceId: string) {
+  const tag = await db.tag.findUnique({ where: { id, workspaceId } });
+  if (!tag) return { success: false };
+
+  await db.tag.delete({ where: { id } });
+
+  const contacts = await db.contact.findMany({ where: { workspaceId } });
+  for (const c of contacts) {
+    const tags = JSON.parse(c.tagsJson ?? '[]');
+    if (tags.includes(tag.name)) {
+      const newTags = tags.filter((t: string) => t !== tag.name);
+      await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+    }
+  }
+  return { success: true };
+}
+
+export async function mergeTags(sourceTagId: string, targetTagId: string, workspaceId: string) {
+  const sourceTag = await db.tag.findUnique({ where: { id: sourceTagId, workspaceId } });
+  const targetTag = await db.tag.findUnique({ where: { id: targetTagId, workspaceId } });
+  if (!sourceTag || !targetTag) throw new Error('Tag not found');
+
+  const contacts = await db.contact.findMany({ where: { workspaceId } });
+  for (const c of contacts) {
+    const tags = JSON.parse(c.tagsJson ?? '[]');
+    if (tags.includes(sourceTag.name)) {
+      const newTags = tags.filter((t: string) => t !== sourceTag.name);
+      if (!newTags.includes(targetTag.name)) newTags.push(targetTag.name);
+      await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+    }
+  }
+
+  await db.tag.delete({ where: { id: sourceTagId } });
+  return { success: true };
 }

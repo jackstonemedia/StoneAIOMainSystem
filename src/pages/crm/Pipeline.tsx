@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TrendingUp, Plus, BarChart3, List, LayoutGrid, RefreshCw,
-  DollarSign, Target, ChevronDown, Filter,
+  DollarSign, Target,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useToast } from '../../components/ui/Toast';
@@ -29,7 +29,6 @@ export default function Pipeline() {
   const [view, setView] = useState<ViewMode>('kanban');
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
-  const [filterStage, setFilterStage] = useState<string>('all');
 
   const { data: pipelines = [], isLoading: loadingPipelines } = useQuery({
     queryKey: ['pipelines'],
@@ -196,7 +195,7 @@ export default function Pipeline() {
             <tbody className="divide-y divide-border/50">
               {deals.map(deal => {
                 const raw = rawDeals.find((d: any) => d.id === deal.id);
-                const stageInfo = stages.find(s => s.name === deal.stage);
+                const stageInfo = stages.find((s: any) => s.name === deal.stage);
                 return (
                   <tr
                     key={deal.id}

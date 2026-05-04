@@ -9,8 +9,8 @@ export interface Contact {
   phone: string;
   email: string;
   businessName: string;
-  created: string;
-  lastActivity: string;
+  createdAt: string;
+  updatedAt: string;
   tags: string[];
   color: string;
 }
@@ -51,7 +51,7 @@ const DEFAULT_COLUMNS = ['Contact name', 'Phone', 'Email', 'Business name', 'Cre
 
 export const useSmartListStore = create<SmartListStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       lists: [],
 
       createList: (list) => {

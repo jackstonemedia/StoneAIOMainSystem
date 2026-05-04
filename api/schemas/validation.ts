@@ -10,6 +10,7 @@ export const ContactSchema = z.object({
   email: z.union([z.string().email(), z.literal('')]).optional().nullable(),
   phone: z.string().optional().nullable(),
   companyId: z.string().optional().nullable(),
+  businessName: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
   tagsJson: z.string().optional().nullable(),
   color: z.string().optional().nullable(),

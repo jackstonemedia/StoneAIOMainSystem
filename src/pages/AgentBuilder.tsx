@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Link, useSearchParams, useParams } from 'react-router-dom';
+import { useToast } from '../components/ui/Toast';
 import { 
   ReactFlow, 
   Controls, 
@@ -43,8 +44,11 @@ const initialEdges = [
 
 export default function AgentBuilder() {
   const [searchParams] = useSearchParams();
+  const { id: agentIdFromParams } = useParams<{ id: string }>();
   const agentType = searchParams.get('type') || 'workflow';
   const isCanvasType = agentType === 'workflow';
+  const { toast } = useToast();
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Canvas State
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -101,9 +105,10 @@ export default function AgentBuilder() {
     [reactFlowInstance, setNodes]
   );
 
-  const agentId = searchParams.get('id') || 'default';
+  const agentId = agentIdFromParams || searchParams.get('id') || 'default';
 
-  const handleSaveWorkflow = async () => {
+  const handleSaveWorkflow = async (): Promise<boolean> => {
+    setSaveStatus('saving');
     try {
       const res = await fetch(`/api/agents/${agentId}/workflow`, {
         method: 'PUT',
@@ -111,10 +116,32 @@ export default function AgentBuilder() {
         body: JSON.stringify({ nodes, edges })
       });
       if (!res.ok) throw new Error('Failed to save');
-      alert('Workflow saved successfully!');
+      setSaveStatus('saved');
+      toast('success', 'Workflow saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+      return true;
     } catch (err) {
       console.error(err);
-      alert('Error saving workflow');
+      setSaveStatus('error');
+      toast('error', 'Failed to save workflow');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+      return false;
+    }
+  };
+
+  const handleDeploy = async () => {
+    const saved = await handleSaveWorkflow();
+    if (!saved) return;
+    try {
+      const res = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+      if (!res.ok) throw new Error('Failed to deploy');
+      toast('success', 'Agent deployed & active!');
+    } catch (err) {
+      toast('error', 'Failed to deploy agent');
     }
   };
 
@@ -295,15 +322,46 @@ export default function AgentBuilder() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs text-text-muted flex items-center gap-1"><Save className="w-3.5 h-3.5" /> Saved just now</span>
+          {saveStatus === 'saving' && (
+            <span className="text-xs text-text-muted flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-text-muted/30 border-t-text-muted rounded-full animate-spin" /> Saving...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-xs text-green flex items-center gap-1">
+              <Save className="w-3.5 h-3.5" /> Saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-xs text-red flex items-center gap-1">
+              <Save className="w-3.5 h-3.5" /> Save failed
+            </span>
+          )}
+          {saveStatus === 'idle' && (
+            <span className="text-xs text-text-muted flex items-center gap-1">
+              <Save className="w-3.5 h-3.5" /> Auto-saved
+            </span>
+          )}
           <div className="h-6 w-px bg-border mx-1" />
-          <button onClick={handleSaveWorkflow} className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2">
+          <button
+            onClick={handleSaveWorkflow}
+            disabled={saveStatus === 'saving'}
+            className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
             <Save className="w-4 h-4" /> Save Config
           </button>
-          <button onClick={handleTestRun} disabled={isExecuting} className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2 disabled:opacity-50">
+          <button
+            onClick={handleTestRun}
+            disabled={isExecuting || saveStatus === 'saving'}
+            className="px-3 py-1.5 rounded-md text-sm font-medium text-text-main hover:bg-surface-hover border border-border transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
             <Play className="w-4 h-4" /> {isExecuting ? 'Running...' : 'Test Run'}
           </button>
-          <button className="bg-primary text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
+          <button
+            onClick={handleDeploy}
+            disabled={saveStatus === 'saving'}
+            className="bg-primary text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
             Deploy
           </button>
         </div>

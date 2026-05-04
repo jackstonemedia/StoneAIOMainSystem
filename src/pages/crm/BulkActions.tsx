@@ -1,5 +1,4 @@
-import React from 'react';
-import { Calendar, ChevronDown, Search, Filter, Info, Play, Pause, X, Server } from 'lucide-react';
+import { ChevronDown, Search, Filter, Server } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function BulkActions() {
@@ -61,7 +60,7 @@ export default function BulkActions() {
                     <p className="text-[14px] mb-6 text-center max-w-sm text-text-muted">
                       Bulk actions allow you to update, tag, or email multiple contacts at once. Select multiple contacts in the Contacts view to start a bulk action.
                     </p>
-                    <Link to="/business/crm/contacts" className="px-5 py-2 rounded-[6px] text-[13px] font-bold text-bg transition-colors shadow-sm active:scale-95" style={{ backgroundColor: 'var(--primary)' }}>
+                    <Link to="/crm/contacts" className="px-5 py-2 rounded-[6px] text-[13px] font-bold text-bg transition-colors shadow-sm active:scale-95" style={{ backgroundColor: 'var(--primary)' }}>
                       Go to Contacts
                     </Link>
                   </div>

@@ -30,5 +30,5 @@ export function errorHandler(
   }
 
   console.error(`[UnhandledError] ${req.method} ${req.path}`, err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: 'Internal server error', details: err.stack || err.message || String(err) });
 }

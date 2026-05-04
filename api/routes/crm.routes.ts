@@ -19,7 +19,7 @@ const router = Router();
 const dbErr = (res: any, e: unknown) => {
   console.error('[CRM]', e);
   if (e instanceof ZodError) return res.status(400).json({ error: 'Validation error', details: e.flatten() });
-  res.status(500).json({ error: 'Database error' });
+  res.status(500).json({ error: 'Database error', details: e instanceof Error ? e.stack || e.message : String(e) });
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -59,6 +59,34 @@ router.put('/contacts/:id', async (req, res) => {
 router.delete('/contacts/:id', async (req, res) => {
   try { await crm.deleteContact(req.params.id, req.workspaceId); res.json({ success: true }); }
   catch (e) { dbErr(res, e); }
+});
+
+router.get('/contacts/:id/events', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const events = await db.contactEvent.findMany({
+      where: { contactId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json(events);
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/contacts/:id/events', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const event = await db.contactEvent.create({
+      data: {
+        contactId: req.params.id,
+        type: req.body.type,
+        title: req.body.title,
+        content: req.body.content,
+        metadataJson: req.body.metadataJson
+      }
+    });
+    res.json(event);
+  } catch (e) { dbErr(res, e); }
 });
 
 // ── Companies ──────────────────────────────────────────────────────────────────
@@ -316,11 +344,21 @@ router.post('/tags', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+router.put('/tags/:id', async (req, res) => {
+  try {
+    res.json(await crm.renameTag(req.params.id, req.workspaceId, req.body.name));
+  } catch (e) { dbErr(res, e); }
+});
+
 router.delete('/tags/:id', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    await db.tag.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
-    res.json({ success: true });
+    res.json(await crm.deleteTag(req.params.id, req.workspaceId));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/tags/merge', async (req, res) => {
+  try {
+    res.json(await crm.mergeTags(req.body.sourceTagId, req.body.targetTagId, req.workspaceId));
   } catch (e) { dbErr(res, e); }
 });
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef } from 'react';
 import { RetellWebClient } from 'retell-client-js-sdk';
 
 export const VoiceBuilderContext = createContext<any>(null);

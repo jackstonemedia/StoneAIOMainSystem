@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Settings, Users, Database, Bell, Shield, Webhook, ChevronRight, Check } from 'lucide-react';
+import { Settings, Users, Database, Bell, Shield, Webhook, ChevronRight, Check, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { TagsSettings } from './TagsSettings';
 
-type SectionId = 'general' | 'users' | 'data' | 'notifications' | 'security' | 'integrations';
+type SectionId = 'general' | 'users' | 'data' | 'tags' | 'notifications' | 'security' | 'integrations';
 
 interface Section {
   id: SectionId;
@@ -16,6 +17,7 @@ const sections: Section[] = [
   { id: 'general',        title: 'General',         icon: Settings,   description: 'Basic CRM settings and preferences.',      available: true  },
   { id: 'users',          title: 'Users & Teams',   icon: Users,      description: 'Manage team access and role permissions.',  available: true  },
   { id: 'data',           title: 'Data Management', icon: Database,   description: 'Import, export, and manage custom fields.', available: true  },
+  { id: 'tags',           title: 'Tag Management',  icon: Tag,        description: 'Rename, delete, and merge contact tags.',   available: true  },
   { id: 'notifications',  title: 'Notifications',   icon: Bell,       description: 'Configure email and in-app alerts.',        available: true  },
   { id: 'security',       title: 'Security',        icon: Shield,     description: 'Permissions, audit logs, and 2FA.',         available: false },
   { id: 'integrations',   title: 'Integrations',    icon: Webhook,    description: 'Connect external tools and webhooks.',      available: false },
@@ -43,6 +45,7 @@ const SECTION_CONTENT: Record<SectionId, { fields: { label: string; type: string
       { label: 'Custom Field 2', type: 'text', placeholder: 'Field name…' },
     ],
   },
+  tags: { fields: [] },
   notifications: {
     fields: [
       { label: 'Notify on new lead',   type: 'toggle', defaultValue: 'true' },
@@ -137,7 +140,9 @@ export default function CrmSettings() {
                 </div>
 
                 <div className="space-y-4">
-                  {content.fields.map((field, i) => (
+                  {activeSection === 'tags' ? (
+                    <TagsSettings />
+                  ) : content.fields.map((field, i) => (
                     <div key={i}>
                       <label className="block text-[12px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">
                         {field.label}
@@ -159,15 +164,17 @@ export default function CrmSettings() {
                   ))}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-border flex justify-end">
-                  <button
-                    onClick={handleSave}
-                    className="flex items-center gap-2 px-5 py-2 rounded-[8px] text-[13px] font-semibold text-white transition-all"
-                    style={{ backgroundColor: 'var(--primary)' }}
-                  >
-                    {saved ? <><Check className="w-4 h-4" /> Saved!</> : 'Save Changes'}
-                  </button>
-                </div>
+                {activeSection !== 'tags' && (
+                  <div className="mt-6 pt-4 border-t border-border flex justify-end">
+                    <button
+                      onClick={handleSave}
+                      className="flex items-center gap-2 px-5 py-2 rounded-[8px] text-[13px] font-semibold text-white transition-all"
+                      style={{ backgroundColor: 'var(--primary)' }}
+                    >
+                      {saved ? <><Check className="w-4 h-4" /> Saved!</> : 'Save Changes'}
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

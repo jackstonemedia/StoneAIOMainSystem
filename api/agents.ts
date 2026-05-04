@@ -5,8 +5,6 @@
  */
 import { Router } from 'express';
 import * as agentsService from './services/agents.service.js';
-import { tryGetAIClient, DEFAULT_MODEL } from '../packages/ai/client.js';
-import { db } from '../infrastructure/database/client.js';
 
 const router = Router();
 console.log('📦 Loading Agents API Router...');
@@ -38,8 +36,49 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const agent = await agentsService.getAgent(req.params.id);
-    if (agent) res.json(agent);
-    else res.status(404).json({ error: 'Agent not found' });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    // Parse config from JSON string → object so the frontend receives a typed object
+    let parsedConfig: Record<string, unknown> = {};
+    try { parsedConfig = JSON.parse(agent.config as string); } catch { /* keep empty */ }
+    res.json({ ...agent, config: parsedConfig });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── Partial update (status toggle, name rename, etc.) ─────────────────────────
+router.patch('/:id', async (req, res) => {
+  try {
+    const agent = await agentsService.updateAgent(req.params.id, req.body);
+    res.json(agent);
+  } catch (err) {
+    console.error('Failed to patch agent:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── Delete agent ──────────────────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  try {
+    await agentsService.deleteAgent(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete agent:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── Execution run history ─────────────────────────────────────────────────────
+router.get('/:id/runs', async (req, res) => {
+  try {
+    const { db } = await import('../infrastructure/database/client.js');
+    const runs = await db.agentRun.findMany({
+      where: { agentId: req.params.id },
+      include: { steps: { orderBy: { startedAt: 'asc' } } },
+      orderBy: { startedAt: 'desc' },
+      take: 20,
+    });
+    res.json(runs);
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }

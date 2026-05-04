@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { db } from '../../infrastructure/database/client.js';
+import Stripe from 'stripe';
 
 const router = Router();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
+  apiVersion: '2026-04-22.dahlia' as any,
+});
 
 // Public form submission (no auth)
 router.post('/forms/:id/submit', async (req, res) => {
@@ -26,12 +30,113 @@ router.post('/forms/:id/submit', async (req, res) => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// Stripe stubs
+// Stripe endpoints
 router.post('/stripe/create-payment-intent', async (req, res) => {
-  const { amount, dealId } = req.body;
-  if (!amount) return res.status(400).json({ error: 'Amount is required' });
-  res.json({ clientSecret: `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substring(7)}`, dealId, amount });
+  try {
+    const { amount, dealId } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Amount is required' });
+
+    let contactEmail = 'customer@example.com';
+    let deal = null;
+
+    if (dealId) {
+      deal = await db.deal.findUnique({
+        where: { id: dealId },
+        include: { contact: true }
+      });
+      if (deal?.contact?.email) {
+        contactEmail = deal.contact.email;
+      }
+    }
+
+    if (!process.env.STRIPE_SECRET_KEY) {
+      // Mock mode if no key provided
+      return res.json({ 
+        success: true, 
+        message: 'Mock invoice sent (No Stripe key configured)' 
+      });
+    }
+
+    // 1. Create or retrieve customer
+    const customer = await stripe.customers.create({
+      email: contactEmail,
+      name: deal?.contact ? `${deal.contact.firstName} ${deal.contact.lastName}` : 'Client',
+    });
+
+    // 2. Create invoice item
+    await stripe.invoiceItems.create({
+      customer: customer.id,
+      amount: Math.round(amount * 100),
+      currency: 'usd',
+      description: deal?.title || 'Stone AIO Services',
+    });
+
+    // 3. Create and finalize invoice
+    const invoice = await stripe.invoices.create({
+      customer: customer.id,
+      collection_method: 'send_invoice',
+      days_until_due: 7,
+      metadata: { dealId: dealId || '' }
+    });
+
+    // 4. Send invoice
+    await stripe.invoices.sendInvoice(invoice.id);
+
+    res.json({ success: true, invoiceId: invoice.id });
+  } catch (error: any) {
+    console.error('Stripe error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate invoice' });
+  }
 });
-router.post('/stripe/webhook', (req, res) => res.json({ received: true }));
+
+// Webhook listener for Stripe events
+router.post('/stripe/webhook', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    if (endpointSecret && sig) {
+      // requires body parser as raw buffer, but express.json() is used globally.
+      // Assuming we handle raw body via a middleware or skipping signature in dev for now
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } else {
+      event = req.body;
+    }
+  } catch (err: any) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  try {
+    if (event.type === 'invoice.paid') {
+      const invoice = event.data.object;
+      const dealId = invoice.metadata?.dealId;
+
+      if (dealId) {
+        // Mark the deal as Won or add an Activity
+        await db.deal.update({
+          where: { id: dealId },
+          data: {
+            pipelineStageId: 'won' // Just an example, maybe we just add activity
+          }
+        }).catch(() => {});
+
+        await db.activity.create({
+          data: {
+            dealId,
+            type: 'payment',
+            title: 'Invoice Paid',
+            notes: `Stripe invoice ${invoice.id} for $${(invoice.amount_paid / 100).toFixed(2)} was paid.`,
+          }
+        });
+      }
+    }
+    res.json({ received: true });
+  } catch (e) {
+    console.error('Webhook processing error:', e);
+    res.status(500).send('Server Error');
+  }
+});
 
 export default router;

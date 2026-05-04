@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Globe, MapPin, Users, CircleDollarSign, Edit2, MoreHorizontal, Mail, Phone, Save, X } from 'lucide-react';
+import { ArrowLeft, Globe, MapPin, Users, CircleDollarSign, Edit2, MoreHorizontal, Mail, Save, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface Company {
@@ -47,6 +47,11 @@ export default function CompanyDetail() {
       fetch('/api/crm/deals').then(res => res.json())
     ])
       .then(([companyData, contactsData, dealsData]) => {
+        if (companyData.error) {
+          setCompany(null);
+          setLoading(false);
+          return;
+        }
         setCompany(companyData);
         setEditForm(companyData);
         setContacts(contactsData.filter((c: Contact) => c.companyId === id));
@@ -93,7 +98,7 @@ export default function CompanyDetail() {
       {/* Header */}
       <header className="flex items-center justify-between p-6 border-b border-border bg-surface shrink-0">
         <div className="flex items-center gap-4">
-          <Link to="/business/crm/companies" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
+          <Link to="/crm/companies" className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex items-center gap-4">
@@ -255,7 +260,7 @@ export default function CompanyDetail() {
                   <div className="col-span-full text-sm text-text-muted p-4 text-center border border-dashed border-border rounded-lg">No contacts found for this company.</div>
                 ) : (
                   contacts.map(contact => (
-                    <Link key={contact.id} to={`/business/crm/contacts/${contact.id}`} className="flex items-start gap-3 p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
+                    <Link key={contact.id} to={`/crm/contacts/${contact.id}`} className="flex items-start gap-3 p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors group">
                       <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
                         {contact.name.split(' ').map(n => n[0]).join('')}
                       </div>
@@ -284,7 +289,7 @@ export default function CompanyDetail() {
                   <div className="text-sm text-text-muted p-4 text-center border border-dashed border-border rounded-lg">No deals found for this company.</div>
                 ) : (
                   deals.map(deal => (
-                    <Link key={deal.id} to={`/business/crm/deals/${deal.id}`} className="flex items-center justify-between p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors">
+                    <Link key={deal.id} to={`/crm/pipeline/${deal.id}`} className="flex items-center justify-between p-4 bg-bg border border-border rounded-lg hover:border-primary/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${deal.stage === 'Won' ? 'bg-green/10' : 'bg-amber/10'}`}>
                           <CircleDollarSign className={`w-5 h-5 ${deal.stage === 'Won' ? 'text-green' : 'text-amber'}`} />

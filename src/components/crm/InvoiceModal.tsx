@@ -17,17 +17,23 @@ export function InvoiceModal({ isOpen, onClose, dealId, amount }: InvoiceModalPr
     setLoading(true);
     try {
       // Phase 3 Stripe Intent API Call
-      await fetch('/api/stripe/create-payment-intent', {
+      const res = await fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, dealId })
       });
-      setTimeout(() => {
-        setSuccess(true);
-        setLoading(false);
-        setTimeout(() => onClose(), 2000);
-      }, 1000);
-    } catch (e) {
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to issue invoice');
+      }
+
+      setSuccess(true);
+      setLoading(false);
+      setTimeout(() => onClose(), 2000);
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Error communicating with billing server');
       setLoading(false);
     }
   };

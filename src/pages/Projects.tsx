@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   FileText, LayoutGrid, Plus, Search, MoreHorizontal, 
-  Settings, FolderOpen, Calendar, Users, Tags 
+  FolderOpen, Calendar, Tags 
 } from 'lucide-react';
 
 export default function Projects() {

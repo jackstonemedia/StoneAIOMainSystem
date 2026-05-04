@@ -1,9 +1,9 @@
 import type React from 'react';
 import { useState } from 'react';
 import { 
-  MessageSquare, Folder, Zap, Settings, Plus, Maximize2, 
-  FileText, Terminal, BarChart2, CheckCircle2, Bot, ArrowUp,
-  Image as ImageIcon, Sparkles, Hash, GripVertical, X
+  MessageSquare, Folder, Settings, Plus, Maximize2, 
+  FileText, Terminal, BarChart2, Bot, ArrowUp,
+  Sparkles, Hash, X
 } from 'lucide-react';
 
 export default function ComputerDashboard() {

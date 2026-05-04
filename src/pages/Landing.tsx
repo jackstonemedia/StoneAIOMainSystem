@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Bot, Zap, Mic, ArrowRight, Play, Sparkles, GitMerge, MessageSquare, Server } from 'lucide-react';
+import { Bot, Mic, ArrowRight, Play, Sparkles, GitMerge, MessageSquare, Server } from 'lucide-react';
 
 export default function Landing() {
   return (

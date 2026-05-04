@@ -7,10 +7,10 @@ import {
   Plus, Search, Filter, ChevronDown, MoreVertical, X,
   LayoutGrid, List, Download, Phone, Mail, MessageSquare,
   Calendar, CheckSquare, Trash2, Edit2, GripVertical,
-  Settings, ChevronLeft, ChevronRight, DollarSign, Building2,
-  AlertCircle, Check, Target, TrendingUp, Zap, Users,
-  ArrowRight, PlayCircle, PauseCircle, Clock, CheckCircle2,
-  XCircle, Activity, RefreshCw, GitBranch,
+  Settings, ChevronLeft, ChevronRight,
+  AlertCircle, Check, Target, TrendingUp, Zap,
+  PlayCircle, PauseCircle, CheckCircle2,
+  XCircle, Activity, GitBranch, MoreHorizontal, ArrowUpDown
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,11 +70,49 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
     onError: () => setError('Failed to create opportunity. Please try again.'),
   });
 
-  const submit = () => {
+  const [isCreatingContact, setIsCreatingContact] = useState(false);
+
+  const submit = async () => {
     if (!form.title.trim()) { setError('Opportunity name is required.'); return; }
     if (!form.stageId) { setError('Please select a stage.'); return; }
     setError('');
-    mut.mutate({ title: form.title, amount: parseFloat(form.amount) || 0, pipelineStageId: form.stageId, contactId: form.contactId || null, source: form.source || null, status: form.status, priority: 'medium', probability: stages.find(s => s.id === form.stageId)?.probability ?? 30 });
+
+    let finalContactId = form.contactId || null;
+
+    if (!finalContactId && (contactSearch || form.email || form.phone)) {
+      setIsCreatingContact(true);
+      try {
+        const contactReq = await fetch('/api/crm/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: contactSearch.trim() || (form.email ? form.email.split('@')[0] : 'Unknown'),
+            email: form.email || null,
+            phone: form.phone || null,
+          }),
+        });
+        if (contactReq.ok) {
+          const contactData = await contactReq.json();
+          finalContactId = contactData.id;
+          qc.invalidateQueries({ queryKey: ['contacts'] });
+        }
+      } catch (err) {
+        console.error('Failed to auto-create contact', err);
+      } finally {
+        setIsCreatingContact(false);
+      }
+    }
+
+    mut.mutate({
+      title: form.title,
+      amount: parseFloat(form.amount) || 0,
+      pipelineStageId: form.stageId,
+      contactId: finalContactId,
+      source: form.source || null,
+      status: form.status,
+      priority: 'medium',
+      probability: stages.find(s => s.id === form.stageId)?.probability ?? 30
+    });
   };
 
   return (
@@ -207,8 +245,8 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30 shrink-0">
           <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-muted border border-border hover:bg-surface-hover transition-colors">Cancel</button>
-          <button onClick={submit} disabled={mut.isPending} className="px-5 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50">
-            {mut.isPending ? 'Creating...' : 'Create'}
+          <button onClick={submit} disabled={mut.isPending || isCreatingContact} className="px-5 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50">
+            {mut.isPending || isCreatingContact ? 'Creating...' : 'Create'}
           </button>
         </div>
       </motion.div>
@@ -463,7 +501,7 @@ function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipel
 // Icon aliases
 const GitBranch2 = GitBranch;
 
-function PipelinesTab({ pipelines, onRefresh }: { pipelines: Pipeline[]; onRefresh: () => void }) {
+function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[]; onRefresh: () => void; onBack: () => void }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -482,9 +520,14 @@ function PipelinesTab({ pipelines, onRefresh }: { pipelines: Pipeline[]; onRefre
     <div className="flex-1 overflow-auto p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-[22px] font-bold text-text-main">Pipelines</h2>
-          <p className="text-[13px] text-text-muted mt-1 max-w-xl">Manage your sales pipelines and configure stages. Each pipeline can have its own stages, colors, and win probabilities.</p>
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 -ml-2 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-full transition-colors">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-[22px] font-bold text-text-main">Pipelines</h2>
+            <p className="text-[13px] text-text-muted mt-1 max-w-xl">Manage your sales pipelines and configure stages. Each pipeline can have its own stages, colors, and win probabilities.</p>
+          </div>
         </div>
         <button onClick={() => setCreateOpen(true)}
           className="flex items-center gap-2 px-5 py-2.5 rounded-[8px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
@@ -536,7 +579,7 @@ function PipelinesTab({ pipelines, onRefresh }: { pipelines: Pipeline[]; onRefre
             <p className="text-[14px] font-semibold text-text-main mb-1">No pipelines found</p>
             <p className="text-[12px] text-text-muted">Create your first pipeline to start tracking deals.</p>
           </div>
-        ) : filtered.map((pipeline, i) => (
+        ) : filtered.map(pipeline => (
           <div key={pipeline.id}
             className="grid grid-cols-[1fr_120px_200px_80px] items-center px-5 py-4 border-b border-border/40 last:border-b-0 hover:bg-surface-hover/20 transition-colors"
           >
@@ -698,7 +741,7 @@ function BulkActionsTab() {
                   </div>
                   <h2 className="text-[16px] font-bold text-text-main">No Bulk Actions</h2>
                   <p className="text-[13px] text-text-muted text-center max-w-sm">Select multiple contacts in the Contacts view to run a bulk action.</p>
-                  <a href="/business/crm/contacts" className="mt-2 px-5 py-2 rounded-[6px] text-[13px] font-bold text-white bg-primary hover:opacity-90 transition-opacity shadow-sm">Go to Contacts</a>
+                  <a href="/crm/contacts" className="mt-2 px-5 py-2 rounded-[6px] text-[13px] font-bold text-white bg-primary hover:opacity-90 transition-opacity shadow-sm">Go to Contacts</a>
                 </div>
               </td></tr>
             ) : filtered.map(action => {
@@ -817,7 +860,6 @@ export default function Opportunities() {
   };
 
   const totalDeals = deals.length;
-  const totalValue = deals.reduce((s, d) => s + (d.amount || 0), 0);
   const isLoading = loadingPipelines || loadingDeals;
 
   const TABS: { id: TabMode; label: string }[] = [
@@ -827,30 +869,20 @@ export default function Opportunities() {
   ];
   return (
     <div className="flex flex-col h-full w-full bg-bg relative">
-      {/* Header & Sub-nav */}
-      <div className="px-8 flex items-center bg-surface border-b border-border h-[68px] sticky top-0 z-10 shrink-0 shadow-sm relative">
-        <h1 className="text-[20px] font-bold text-text-main mr-8">Opportunities</h1>
-        <div className="flex items-center gap-6 h-full">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`h-full text-[14px] font-medium transition-all relative whitespace-nowrap ${tab === t.id ? 'text-primary' : 'text-text-muted hover:text-text-main'}`}
-            >
-              {t.label}
-              {tab === t.id && <div className="absolute bottom-0 left-0 right-0 h-[3px] rounded-t-full bg-primary" />}
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       {tab === 'pipelines' ? (
-        <PipelinesTab pipelines={pipelines} onRefresh={() => qc.invalidateQueries({ queryKey: ['pipelines'] })} />
+        <PipelinesTab pipelines={pipelines} onRefresh={() => qc.invalidateQueries({ queryKey: ['pipelines'] })} onBack={() => setTab('opportunities')} />
       ) : tab === 'bulk' ? (
         <BulkActionsTab />
       ) : (
         <>
           {/* Main Toolbar */}
-          <div className="px-8 flex items-center justify-between bg-surface h-[68px] border-b border-border shrink-0">
+          <div className="px-8 flex items-center justify-between bg-surface h-[68px] border-b border-border shrink-0 sticky top-0 z-10">
             <div className="flex items-center gap-4">
+              <button onClick={() => setTab('pipelines')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[8px] text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
+                <Settings className="w-3.5 h-3.5" /> Pipeline Config
+              </button>
               {/* Pipeline selector */}
               <div className="relative">
                 <button onClick={() => setPipelineDropOpen(!pipelineDropOpen)}

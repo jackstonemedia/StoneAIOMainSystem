@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, AlertCircle, Filter, Search, Plus, Send, Bot, ExternalLink, RefreshCw, X, MessageSquare, ThumbsUp, Settings, Mail } from 'lucide-react';
+import { Star, Search, Plus, Send, Bot, ExternalLink, RefreshCw, X, MessageSquare, ThumbsUp, Settings, Mail } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 
 function Stars({ rating, interactive = false, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {

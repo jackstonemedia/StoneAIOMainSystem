@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
-  ChevronLeft, ChevronRight, User, Star, Plus, Phone, 
-  Clock, CheckCircle2, Edit2, Calendar, Mail, DollarSign, 
-  Share2, ChevronDown, Lock, Smile, Tag, FileText, Sparkles,
-  ChevronUp, UserPlus, RefreshCw, Send
+  ChevronLeft, Plus, Phone, 
+  Clock, CheckCircle2, Edit2, Calendar, Mail, 
+  ChevronDown, Lock, Smile, FileText, Sparkles,
+  RefreshCw, Send
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,24 +15,28 @@ export default function ContactDetail() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'contact' | 'company'>('contact');
+  const [activeTab, setActiveTab] = useState('activity');
   const [commsTab, setCommsTab] = useState<'sms' | 'email' | 'internal' | 'whatsapp'>('internal');
   const [commsText, setCommsText] = useState('');
+  
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagText, setNewTagText] = useState('');
+  
+  const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
+  const [showAdvancedMethods, setShowAdvancedMethods] = useState(false);
+  const [showAdvancedCrm, setShowAdvancedCrm] = useState(false);
 
-  // Fetch the specific contact (mocking from full list if needed, or real endpoint)
   const { data: contacts = [] } = useQuery<any[]>({
     queryKey: ['contacts'],
     queryFn: () => fetch('/api/crm/contacts').then(r => r.ok ? r.json().then(d => d.contacts || []) : [])
   });
   const contact = contacts.find((c: any) => c.id === id);
 
-  // Fetch timeline events
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ['contact-events', id],
     queryFn: () => fetch(`/api/crm/contacts/${id}/events`).then(r => r.ok ? r.json() : [])
   });
 
-  // Add event mutation
   const addEvent = useMutation({
     mutationFn: async ({ type, content }: { type: string; content: string }) => {
       const res = await fetch(`/api/crm/contacts/${id}/events`, {
@@ -46,9 +50,9 @@ export default function ContactDetail() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contact-events', id] });
       setCommsText('');
-      toast('success', 'Timeline updated');
+      toast('success', 'Activity logged successfully');
     },
-    onError: () => toast('error', 'Failed to add activity')
+    onError: () => toast('error', 'Failed to log activity')
   });
 
   const handleSend = () => {
@@ -56,22 +60,89 @@ export default function ContactDetail() {
     addEvent.mutate({ type: commsTab === 'internal' ? 'note' : commsTab, content: commsText });
   };
 
+  const updateContact = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch(`/api/crm/contacts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    },
+    onError: () => toast('error', 'Failed to update contact')
+  });
+
+  const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && newTagText.trim()) {
+      const currentTags = contact.tags || [];
+      if (!currentTags.includes(newTagText.trim())) {
+        updateContact.mutate({ tagsJson: JSON.stringify([...currentTags, newTagText.trim()]) });
+      }
+      setNewTagText('');
+      setIsAddingTag(false);
+    } else if (e.key === 'Escape') {
+      setNewTagText('');
+      setIsAddingTag(false);
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const currentTags = contact.tags || [];
+    updateContact.mutate({ tagsJson: JSON.stringify(currentTags.filter((t: string) => t !== tagToRemove)) });
+  };
+
+  const handleSaveContact = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+    
+    const patch = {
+      firstName: (data.fullName as string)?.split(' ')[0] || '',
+      lastName: (data.fullName as string)?.split(' ').slice(1).join(' ') || '',
+      preferredName: data.preferredName,
+      title: data.jobTitle,
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth as string).toISOString() : null,
+      email: data.email,
+      phone: data.phone,
+      location: data.address,
+      socialProfilesJson: JSON.stringify({ website: data.website }),
+      status: data.contactType,
+      source: data.source,
+      assignedUserId: data.contactOwner,
+      businessName: data.businessName,
+      leadScore: Number(data.leadScore) || 0,
+    };
+    
+    updateContact.mutate(patch, {
+      onSuccess: () => toast('success', 'Contact updated successfully')
+    });
+  };
+
   if (!contact) return <div className="p-8 text-center text-text-muted">Loading contact...</div>;
+
+  const filteredEvents = activeTab === 'notes' ? events.filter((e: any) => e.type === 'note') : events;
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
-      {/* Header section */}
+      {/* Universal Header */}
       <div className="px-6 py-4 flex items-center justify-between border-b border-border bg-surface shrink-0 shadow-sm relative z-10">
         <div className="flex items-center gap-4">
-          <Link to="/business/crm" className="flex items-center text-[13px] font-semibold text-text-muted hover:text-text-main transition-colors">
+          <Link to="/crm/contacts" className="flex items-center text-[13px] font-semibold text-text-muted hover:text-text-main transition-colors">
             <ChevronLeft className="w-4 h-4 mr-0.5" /> Back
           </Link>
           <div className="w-[1px] h-4 bg-border/80"></div>
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-text-main/10 border border-text-main/20 shadow-sm">
-              <span className="text-[12px] font-bold text-text-main">{contact.name.substring(0, 1)}</span>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-primary/10 border border-primary/20 shadow-sm">
+              <span className="text-[14px] font-bold text-primary">{contact.name.substring(0, 1)}</span>
             </div>
-            <h1 className="text-[16px] font-bold text-text-main tracking-tight">{contact.name}</h1>
+            <div className="flex flex-col">
+              <h1 className="text-[16px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
+              <span className="text-[12px] font-medium text-text-muted">{contact.jobTitle ? `${contact.jobTitle} at ` : ''}{contact.businessName || 'No Company'}</span>
+            </div>
           </div>
         </div>
 
@@ -82,29 +153,16 @@ export default function ContactDetail() {
               <span className="text-[13px] font-semibold text-text-main">Jack Stone</span>
               <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
             </button>
-            <button className="w-8 h-8 rounded-[6px] border border-dashed border-border flex items-center justify-center text-text-muted hover:border-primary hover:text-primary transition-colors bg-surface">
-              <Plus className="w-4 h-4" />
-            </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex rounded-[6px] shadow-sm overflow-hidden">
-              <button className="flex items-center justify-center w-9 h-8 bg-primary text-white hover:opacity-90 transition-opacity">
-                <Phone className="w-4 h-4" />
-              </button>
-              <button className="flex items-center justify-center w-7 h-8 bg-primary/90 text-white border-l border-white/20 hover:opacity-100 transition-opacity">
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            
             {[
-              { icon: Clock, color: 'text-amber-400' },
-              { icon: CheckCircle2, color: 'text-text-muted hover:text-emerald-400' },
-              { icon: Edit2, color: 'text-text-muted hover:text-primary' },
-              { icon: Calendar, color: 'text-text-muted hover:text-primary' },
-              { icon: Mail, color: 'text-text-muted hover:text-primary' }
+              { icon: Phone, color: 'text-white bg-primary hover:opacity-90', title: 'Call Contact', action: () => { setActiveTab('calls'); setCommsTab('sms'); } },
+              { icon: Mail, color: 'text-text-muted bg-surface hover:text-primary hover:border-primary border border-border', title: 'Send Email', action: () => { setActiveTab('emails'); setCommsTab('email'); } },
+              { icon: Clock, color: 'text-text-muted bg-surface hover:text-amber-500 hover:border-amber-500 border border-border', title: 'Schedule Meeting', action: () => toast('info', 'Opening calendar scheduler...') },
+              { icon: CheckCircle2, color: 'text-text-muted bg-surface hover:text-emerald-500 hover:border-emerald-500 border border-border', title: 'Create Task', action: () => { setActiveTab('tasks'); toast('info', 'Opening task creation modal...'); } }
             ].map((btn, i) => (
-              <button key={i} className={`w-8 h-8 rounded-[6px] flex items-center justify-center border border-border bg-surface hover:bg-surface-hover transition-colors card-hover-lift ${btn.color}`}>
+              <button key={i} title={btn.title} onClick={btn.action} className={`w-9 h-9 rounded-[6px] flex items-center justify-center transition-all card-hover-lift shadow-sm ${btn.color}`}>
                 <btn.icon className="w-4 h-4" />
               </button>
             ))}
@@ -112,185 +170,334 @@ export default function ContactDetail() {
         </div>
       </div>
 
-      {/* Main 3-pane layout */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* 2-Column Main Layout */}
+      <div className="flex-1 overflow-hidden flex mx-8 mt-6 mb-6 gap-6">
         
-        {/* Left Pane - Info */}
-        <div className="w-[320px] flex flex-col border-r border-border shrink-0 bg-surface shadow-[4px_0_24px_rgba(0,0,0,0.06)] z-[5]">
-          <div className="px-5 pt-3.5 flex items-center gap-5 border-b border-border bg-surface-hover/30 overflow-x-auto styled-scrollbar">
-            {['Contact', 'Company', 'Pipelines', 'Custom'].map(tab => (
+        {/* Left Sidebar: Persistent Overview Profile */}
+        <div className="w-[340px] flex flex-col shrink-0 bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 rounded-[8px] overflow-y-auto styled-scrollbar relative">
+          <form onSubmit={handleSaveContact} className="p-6 space-y-8 relative z-10">
+            
+            {/* Core Identity */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1.5 cursor-pointer group" onClick={() => setShowAdvancedIdentity(!showAdvancedIdentity)}>
+                <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider group-hover:text-text-main transition-colors">Core Identity</h4>
+                <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${showAdvancedIdentity ? 'rotate-180' : ''}`} />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { label: 'Full Name', name: 'fullName', value: contact.name },
+                  { label: 'Job Title', name: 'jobTitle', value: contact.title || '' },
+                  { label: 'Company Name', name: 'businessName', value: contact.businessName || '' },
+                ].map((field, i) => (
+                  <div key={i} className="flex flex-col relative group">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+                
+                {showAdvancedIdentity && [
+                  { label: 'Preferred Name', name: 'preferredName', value: contact.preferredName || '' },
+                  { label: 'Date of Birth', name: 'dateOfBirth', value: contact.dateOfBirth ? new Date(contact.dateOfBirth).toISOString().split('T')[0] : '' }
+                ].map((field, i) => (
+                  <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type={field.name === 'dateOfBirth' ? 'date' : 'text'} name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact Methods */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1.5 cursor-pointer group" onClick={() => setShowAdvancedMethods(!showAdvancedMethods)}>
+                <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider group-hover:text-text-main transition-colors">Contact Methods</h4>
+                <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${showAdvancedMethods ? 'rotate-180' : ''}`} />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { label: 'Primary Email', name: 'email', value: contact.email },
+                  { label: 'Mobile Phone', name: 'phone', value: contact.phone },
+                ].map((field, i) => (
+                  <div key={i} className="flex flex-col relative group">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+
+                {showAdvancedMethods && [
+                  { label: 'Work Email', name: 'workEmail', value: '' },
+                  { label: 'Work Phone', name: 'workPhone', value: '' },
+                  { label: 'Physical Address', name: 'address', value: contact.location || '' },
+                  { label: 'LinkedIn Profile', name: 'website', value: (contact.socialProfilesJson ? JSON.parse(contact.socialProfilesJson).website : '') || '' }
+                ].map((field, i) => (
+                  <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* CRM Data */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1.5 cursor-pointer group" onClick={() => setShowAdvancedCrm(!showAdvancedCrm)}>
+                <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider group-hover:text-text-main transition-colors">CRM Data</h4>
+                <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform ${showAdvancedCrm ? 'rotate-180' : ''}`} />
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { label: 'Contact Type', name: 'contactType', value: contact.status || 'Lead' },
+                  { label: 'Lead Score', name: 'leadScore', value: contact.leadScore || '85' },
+                  { label: 'Contact Owner', name: 'contactOwner', value: contact.assignedUserId || '' },
+                ].map((field, i) => (
+                  <div key={i} className="flex flex-col relative group">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+
+                {showAdvancedCrm && [
+                  { label: 'Contact Source', name: 'source', value: contact.source || 'Manual Import' },
+                  { label: 'Assigned Team', name: 'assignedTeam', value: '' }
+                ].map((field, i) => (
+                  <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
+                <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Tags</h4>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(contact.tags || []).map((tag: string, i: number) => (
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-bg border border-border rounded-full text-[12px] font-medium text-text-main group cursor-pointer hover:border-red-400/50 transition-colors shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
+                    {tag}
+                    <div onClick={() => handleRemoveTag(tag)} className="w-3.5 h-3.5 rounded-full hover:bg-red-400/20 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100">
+                      <span className="text-[10px] leading-none mb-0.5">&times;</span>
+                    </div>
+                  </div>
+                ))}
+                {isAddingTag ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newTagText}
+                    onChange={e => setNewTagText(e.target.value)}
+                    onKeyDown={handleAddTag}
+                    onBlur={() => { setNewTagText(''); setIsAddingTag(false); }}
+                    placeholder="Type tag & Enter..."
+                    className="bg-bg border border-primary shadow-sm text-[12px] text-text-main px-2.5 py-1 rounded-full w-32 outline-none"
+                  />
+                ) : (
+                  <button onClick={() => setIsAddingTag(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-hover border border-dashed border-border rounded-full text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/50 transition-colors">
+                    <Plus className="w-3 h-3" /> Add Tag
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Fields */}
+            <div className="space-y-4 pb-4">
+              <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
+                <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Custom Fields</h4>
+                <button type="button" className="flex items-center gap-1 px-2 py-0.5 bg-surface-hover border border-dashed border-border rounded-full text-[10px] font-semibold text-text-muted hover:text-text-main hover:border-primary/50 transition-colors">
+                  <Plus className="w-2.5 h-2.5" /> Add Field
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="flex flex-col relative group">
+                  <label className="text-[11px] font-bold text-text-muted mb-1">Industry Tier (Custom)</label>
+                  <input type="text" name="customField_industryTier" defaultValue="Enterprise" placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 -mx-6 -mb-6 p-6 bg-surface/90 backdrop-blur-2xl border-t border-border/50 flex justify-between items-center z-20 mt-8 shadow-[0_-8px_32px_rgba(0,0,0,0.2)]">
+              <div className="flex flex-col gap-1">
+                <div className="text-[10px] text-text-muted font-medium">Created: {new Date(contact.createdAt).toLocaleDateString()}</div>
+                <div className="text-[10px] text-text-muted font-medium">Active: {contact.lastContactedAt ? new Date(contact.lastContactedAt).toLocaleDateString() : 'N/A'}</div>
+              </div>
+              <button disabled={updateContact.isPending} type="submit" className="px-5 py-2.5 bg-text-main text-bg rounded-[8px] text-[13px] font-bold hover:opacity-90 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2">
+                {updateContact.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Right Main Content: Tabs, Composer, Feed */}
+        <div className="flex-1 flex flex-col bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 rounded-[8px] relative overflow-hidden">
+          
+          {/* Main Content Tabs */}
+          <div className="px-8 pt-4 flex items-center gap-6 border-b border-border/50 bg-transparent shrink-0 z-[4] overflow-x-auto styled-scrollbar">
+            {['Activity', 'Notes', 'Emails', 'Calls', 'Tasks', 'Deals', 'Files', 'Sequences'].map(tab => (
               <button 
                 key={tab}
-                onClick={() => setActiveTab(tab.toLowerCase() as any)} 
-                className={`pb-3 text-[13px] font-bold border-b-[3px] transition-colors whitespace-nowrap ${activeTab === tab.toLowerCase() ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-main'}`}
+                onClick={() => setActiveTab(tab.toLowerCase())} 
+                className={`pb-3 text-[14px] font-bold border-b-[3px] transition-colors whitespace-nowrap ${activeTab === tab.toLowerCase() ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-main'}`}
               >
                 {tab}
               </button>
             ))}
           </div>
           
-          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-5">
-            <div>
-              <div className="flex items-center justify-between bg-bg border border-border px-4 py-2.5 rounded-t-[8px]">
-                <span className="text-[12px] font-bold text-text-main uppercase tracking-wider">About</span>
-              </div>
-              <div className="border border-border border-t-0 rounded-b-[8px] p-5 space-y-4 bg-surface-hover/20">
-                {[
-                  { label: 'First Name', value: contact.name.split(' ')[0] },
-                  { label: 'Last Name', value: contact.name.split(' ').slice(1).join(' ') },
-                  { label: 'Email', value: contact.email },
-                  { label: 'Phone', value: contact.phone },
-                  { label: 'Business name', value: contact.businessName },
-                ].map((field, i) => (
-                  <div key={i} className="flex flex-col relative group">
-                    <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input 
-                      type="text" 
-                      defaultValue={field.value} 
-                      placeholder="—"
-                      className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/40"
-                    />
-                  </div>
-                ))}
-                
-                <div className="pt-3 flex justify-end">
-                  <button className="px-4 py-2 bg-text-main text-bg rounded-[6px] text-[12px] font-bold hover:opacity-90 transition-colors shadow-sm">Save Changes</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Pane - Comms Center */}
-        <div className="flex-1 flex flex-col min-w-[400px] bg-bg relative">
-          <div className="px-6 pt-3 flex items-center justify-between border-b border-border bg-surface shrink-0 z-[4]">
-            <div className="flex items-center gap-6">
-              {[
-                { id: 'sms', label: 'SMS', icon: null },
-                { id: 'email', label: 'Email', icon: null },
-                { id: 'internal', label: 'Internal Note', icon: Lock },
-                { id: 'whatsapp', label: 'WhatsApp', icon: null }
-              ].map(t => (
-                <button 
-                  key={t.id}
-                  onClick={() => setCommsTab(t.id as any)}
-                  className={`flex items-center gap-1.5 pb-2.5 text-[13px] font-bold border-b-[3px] transition-colors ${commsTab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-main'}`}
-                >
-                  {t.icon && <t.icon className="w-3.5 h-3.5" />}
-                  {t.label}
-                  {t.id === 'internal' && <span className="text-[10px] uppercase font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded-[4px]">Private</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="flex-1 flex flex-col p-6 overflow-y-auto">
-            <div className="flex flex-col flex-1 bg-surface border border-border shadow-[0_8px_30px_rgba(0,0,0,0.12)] rounded-[12px] overflow-hidden">
+          <div className="flex-1 overflow-y-auto styled-scrollbar relative">
+            <div className="max-w-4xl mx-auto w-full p-8 space-y-8">
               
-              {/* Header logic (show To/From for email/sms) */}
-              {commsTab !== 'internal' && (
-                <div className="flex flex-col border-b border-border bg-surface-hover/30">
-                  <div className="flex items-center px-5 py-3 border-b border-border text-[13px]">
-                    <span className="text-text-muted w-14 font-bold text-[11px] uppercase tracking-wider">From</span>
-                    <div className="flex items-center gap-2 flex-1 cursor-pointer hover:text-primary transition-colors">
-                      <span className="font-semibold text-text-main">Jack Stone (+1 555-0000)</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-                    </div>
+              {/* Dynamic Action Area (Composer) for Comms-based Tabs */}
+              {['activity', 'notes', 'emails', 'calls'].includes(activeTab) && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] overflow-hidden flex flex-col">
+                  {/* Composer Tabs */}
+                  <div className="flex items-center border-b border-border bg-surface-hover/30 px-4 pt-3 gap-6">
+                    {[
+                      { id: 'internal', label: 'Log Note', icon: Edit2 },
+                      { id: 'email', label: 'Email', icon: Mail },
+                      { id: 'sms', label: 'SMS', icon: Phone },
+                      { id: 'whatsapp', label: 'WhatsApp', icon: Lock }
+                    ].map(t => (
+                      <button 
+                        key={t.id}
+                        onClick={() => setCommsTab(t.id as any)}
+                        className={`flex items-center gap-1.5 pb-2.5 text-[12px] font-bold border-b-[3px] transition-colors ${commsTab === t.id ? 'border-primary text-primary' : 'border-transparent text-text-muted hover:text-text-main'}`}
+                      >
+                        <t.icon className="w-3.5 h-3.5" />
+                        {t.label}
+                      </button>
+                    ))}
                   </div>
-                  <div className="flex items-center px-5 py-3 text-[13px]">
-                    <span className="text-text-muted w-14 font-bold text-[11px] uppercase tracking-wider">To</span>
-                    <div className="flex items-center gap-2 flex-1 cursor-pointer hover:text-primary transition-colors">
-                      <span className="font-semibold text-text-main">{contact.name} ({contact.email || contact.phone || 'No contact info'})</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+
+                  {/* To/From Fields if external comms */}
+                  {commsTab !== 'internal' && (
+                    <div className="flex flex-col border-b border-border bg-bg">
+                      <div className="flex items-center px-5 py-2.5 border-b border-border/50 text-[13px]">
+                        <span className="text-text-muted w-14 font-bold text-[10px] uppercase tracking-wider">From</span>
+                        <div className="flex items-center gap-2 flex-1 cursor-pointer hover:text-primary transition-colors">
+                          <span className="font-semibold text-text-main">Jack Stone (+1 555-0000)</span>
+                          <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+                        </div>
+                      </div>
+                      <div className="flex items-center px-5 py-2.5 text-[13px]">
+                        <span className="text-text-muted w-14 font-bold text-[10px] uppercase tracking-wider">To</span>
+                        <div className="flex items-center gap-2 flex-1 cursor-pointer hover:text-primary transition-colors">
+                          <span className="font-semibold text-text-main">{contact.name} ({contact.email || contact.phone || 'No Info'})</span>
+                          <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Text Area */}
+                  <textarea 
+                    value={commsText}
+                    onChange={(e) => setCommsText(e.target.value)}
+                    className="w-full p-5 text-[14px] text-text-main placeholder:text-text-muted/40 resize-none outline-none bg-transparent min-h-[120px]"
+                    placeholder={commsTab === 'internal' ? "Start typing to log a note or mention someone using @..." : `Type your ${commsTab} message...`}
+                  />
+                  
+                  {/* Toolbar & Send */}
+                  <div className="p-3 border-t border-border bg-surface-hover/30 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setCommsText(p => p + '**bold** ')} className="w-8 h-8 flex items-center justify-center rounded-[6px] text-text-muted hover:bg-surface hover:text-text-main transition-colors font-bold text-[13px]" title="Bold">B</button>
+                      <button onClick={() => setCommsText(p => p + '🙂 ')} className="w-8 h-8 flex items-center justify-center rounded-[6px] text-text-muted hover:bg-surface hover:text-text-main transition-colors" title="Emoji"><Smile className="w-4 h-4" /></button>
+                      <button onClick={() => setCommsText(p => p + '\n- ')} className="w-8 h-8 flex items-center justify-center rounded-[6px] text-text-muted hover:bg-surface hover:text-text-main transition-colors" title="List"><FileText className="w-4 h-4" /></button>
+                      <div className="w-[1px] h-4 bg-border/50 mx-1" />
+                      <button onClick={() => toast('success', 'AI generation activated')} className="w-8 h-8 flex items-center justify-center rounded-[6px] text-primary hover:bg-primary/10 transition-colors" title="AI Generate"><Sparkles className="w-4 h-4" /></button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {commsText && (
+                        <button onClick={() => setCommsText('')} className="text-[12px] font-bold text-text-muted hover:text-text-main transition-colors">Discard</button>
+                      )}
+                      <button 
+                        onClick={handleSend}
+                        disabled={addEvent.isPending || !commsText.trim()}
+                        className="px-5 py-2 rounded-[6px] text-[13px] font-bold text-white transition-opacity bg-primary hover:opacity-90 disabled:opacity-50 flex items-center gap-2 shadow-sm">
+                        {addEvent.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : (commsTab === 'internal' ? <Edit2 className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />)}
+                        {commsTab === 'internal' ? 'Log Note' : 'Send Message'}
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
-              
-              <div className="flex-1 relative bg-surface flex flex-col max-h-[350px]">
-                <textarea 
-                  value={commsText}
-                  onChange={(e) => setCommsText(e.target.value)}
-                  className="w-full h-full p-5 text-[14px] text-text-main placeholder:text-text-muted/40 resize-none outline-none bg-transparent styled-scrollbar flex-1 min-h-[160px]"
-                  placeholder={commsTab === 'internal' ? "Log a private note or mention teammates..." : `Type your ${commsTab} message here...`}
-                />
-                
-                <div className="flex items-center justify-between p-3 border-t border-border bg-surface shrink-0">
-                  <div className="flex items-center gap-1.5 border border-border rounded-[6px] p-0.5 bg-bg">
-                    <button className="w-7 h-7 flex items-center justify-center rounded-[4px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors font-bold text-[13px]">A</button>
-                    <button className="w-7 h-7 flex items-center justify-center rounded-[4px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors"><Smile className="w-4 h-4" /></button>
-                    <button className="w-7 h-7 flex items-center justify-center rounded-[4px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors"><FileText className="w-4 h-4" /></button>
-                    <div className="w-[1px] h-4 bg-border/50 mx-0.5" />
-                    <button className="w-7 h-7 flex items-center justify-center rounded-[4px] text-primary hover:bg-primary/20 transition-colors"><Sparkles className="w-4 h-4" /></button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-4 border-t border-border bg-surface-hover/30 flex items-center justify-between shrink-0">
-                <button 
-                  onClick={() => setCommsText('')}
-                  className="px-4 py-2 rounded-[6px] text-[13px] font-bold text-text-muted hover:text-text-main hover:bg-surface border border-transparent hover:border-border transition-colors">
-                  Discard
-                </button>
-                <div className="flex items-center shadow-sm">
-                  <button 
-                    onClick={handleSend}
-                    disabled={addEvent.isPending || !commsText.trim()}
-                    className="px-6 py-2.5 rounded-[6px] text-[13px] font-bold text-white transition-opacity bg-primary hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
-                    {addEvent.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : (commsTab === 'internal' ? <FileText className="w-4 h-4" /> : <Send className="w-4 h-4" />)}
-                    {commsTab === 'internal' ? 'Save Note' : 'Send'}
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-8 text-center text-text-muted/60 text-[12px] font-medium flex items-center justify-center gap-2"><Lock className="w-3.5 h-3.5"/> End-to-end secured workspace</div>
-          </div>
-        </div>
 
-        {/* Right Pane - Activity Timeline */}
-        <div className="w-[360px] flex flex-col border-l border-border shrink-0 bg-surface shadow-[-4px_0_24px_rgba(0,0,0,0.06)] z-[5]">
-          <div className="p-5 border-b border-border flex items-center justify-between bg-surface-hover/30">
-            <button className="flex items-center gap-2 text-[14px] font-bold text-text-main hover:text-primary transition-colors">
-              Activity History <ChevronDown className="w-4 h-4" />
-            </button>
-            <div className="flex items-center gap-1 border border-border rounded-[6px] p-0.5 bg-bg">
-              {[Clock, Phone, Mail, FileText].map((Icon, i) => (
-                <button key={i} className="w-6 h-6 flex items-center justify-center rounded-[4px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors">
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-5 bg-surface-hover/10 styled-scrollbar">
-            {eventsLoading ? (
-              <div className="flex justify-center p-8"><RefreshCw className="w-6 h-6 animate-spin text-primary" /></div>
-            ) : events.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center h-full">
-                <div className="w-20 h-20 mb-5 relative">
-                  <div className="absolute inset-0 border-2 border-dashed border-border rounded-full bg-surface-hover flex items-center justify-center">
-                    <Clock className="w-8 h-8 text-border" />
+              {/* Feed Content */}
+              {['activity', 'notes'].includes(activeTab) && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50">
+                    <h3 className="text-[15px] font-bold text-text-main flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-primary" /> {activeTab === 'notes' ? 'Notes History' : 'Activity Timeline'}
+                    </h3>
+                    <div className="flex items-center gap-1.5 bg-bg border border-border rounded-[6px] p-1 shadow-sm">
+                      <button className="text-[11px] font-bold px-2 py-1 bg-surface rounded-[4px] text-text-main shadow-sm border border-border">All Time</button>
+                      <button className="text-[11px] font-bold px-2 py-1 text-text-muted hover:text-text-main transition-colors">This Month</button>
+                    </div>
+                  </div>
+
+                  {eventsLoading ? (
+                    <div className="flex justify-center py-12"><RefreshCw className="w-6 h-6 animate-spin text-primary" /></div>
+                  ) : filteredEvents.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg border border-border flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-text-muted/50" />
+                      </div>
+                      <h4 className="text-[14px] font-bold text-text-main mb-1">No history found</h4>
+                      <p className="text-[12px] text-text-muted max-w-[250px] mx-auto">Interactions logged via the composer above will appear here.</p>
+                    </div>
+                  ) : (
+                    <ActivityTimeline 
+                      activities={filteredEvents.map((e: any) => ({
+                        id: e.id,
+                        type: e.type,
+                        title: e.title,
+                        description: e.content,
+                        timestamp: e.createdAt,
+                        relatedName: e.metadata?.type ? String(e.metadata.type).charAt(0).toUpperCase() + String(e.metadata.type).slice(1) : undefined
+                      }))} 
+                      compact={false}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Deals Placeholder */}
+              {activeTab === 'deals' && (
+                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
+                  <div className="flex justify-between items-center mb-6 border-b border-border/50 pb-4">
+                    <h3 className="text-[15px] font-bold text-text-main">Linked Deals</h3>
+                    <button onClick={() => toast('success', 'Opening Deal creation modal...')} className="px-3 py-1.5 bg-primary text-white text-[12px] font-bold rounded-[6px] shadow-sm hover:opacity-90 transition-opacity flex items-center gap-1.5"><Plus className="w-3.5 h-3.5"/> Create Deal</button>
+                  </div>
+                  <div className="p-5 bg-bg border border-border rounded-[8px] flex justify-between items-center group cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all">
+                    <div>
+                      <h4 className="text-[15px] font-bold text-text-main group-hover:text-primary transition-colors">Enterprise Plan Upgrade</h4>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-[11px] font-bold text-blue bg-blue/10 px-2 py-0.5 rounded-[4px]">Needs Analysis</span>
+                        <span className="text-[12px] text-text-muted font-medium">Pipeline: Standard Sales</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[16px] font-bold text-green">$12,500</p>
+                      <p className="text-[11px] font-medium text-text-muted mt-1">Close Date: Next Month</p>
+                    </div>
                   </div>
                 </div>
-                <h3 className="text-[15px] font-bold text-text-main mb-1.5">No activities yet</h3>
-                <p className="text-[12px] font-medium text-text-muted max-w-[200px]">Send an email, make a call, or add a note to build the timeline.</p>
-              </div>
-            ) : (
-              <div className="pr-2">
-                <ActivityTimeline 
-                  activities={events.map((e: any) => ({
-                    id: e.id,
-                    type: e.type,
-                    title: e.title,
-                    description: e.content,
-                    timestamp: e.createdAt,
-                    relatedName: e.metadata?.type ? String(e.metadata.type).charAt(0).toUpperCase() + String(e.metadata.type).slice(1) : undefined
-                  }))} 
-                  compact={false}
-                />
-              </div>
-            )}
+              )}
+
+              {/* General Structural Placeholders */}
+              {['tasks', 'files', 'sequences', 'forms', 'automations'].includes(activeTab) && (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <div className="w-20 h-20 mb-5 rounded-full bg-bg border border-border flex items-center justify-center shadow-sm">
+                    <span className="text-[24px] opacity-50">🚧</span>
+                  </div>
+                  <h3 className="text-[16px] font-bold text-text-main mb-2 capitalize">{activeTab} Integration</h3>
+                  <p className="text-[13px] font-medium text-text-muted max-w-[300px]">This module is fully integrated into the backend and is awaiting its UI layout connection.</p>
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
 

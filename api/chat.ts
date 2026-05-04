@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import { db } from '../infrastructure/database/client.js';
-import { tryGetAIClient, DEFAULT_MODEL } from '../packages/ai/client.js';
+import { tryGetAIClient } from '../packages/ai/client.js';
 
 const router = Router();
 const ai = tryGetAIClient();
@@ -49,7 +49,7 @@ router.post('/', async (req, res) => {
         workspaceId: req.workspaceId,
         name: 'New Conversation',
         type: 'assistant',
-        config: {}
+        config: "{}"
       }
     });
     res.json({ id: agent.id, title: agent.name });
@@ -81,7 +81,7 @@ router.post('/:id/messages', async (req, res) => {
     await db.agentMessage.create({
       data: {
         agentId: conversationId,
-        userId: req.userId,
+        userId: req.userId || 'system',
         role: 'user',
         content: message
       }
@@ -106,7 +106,7 @@ router.post('/:id/messages', async (req, res) => {
     });
 
     // 4. Define Tools (Functions the AI can call)
-    const geminiTools = [{
+    const geminiTools: any[] = [{
       functionDeclarations: [
         {
           name: 'get_contacts',
@@ -165,7 +165,9 @@ router.post('/:id/messages', async (req, res) => {
           if (call.name === 'get_contacts') {
             const query = call.args?.query as string;
             const contacts = await db.contact.findMany({
-              where: query ? { workspaceId: req.workspaceId, firstName: { contains: query, mode: 'insensitive' } } : { workspaceId: req.workspaceId },
+              where: query
+                ? { workspaceId: req.workspaceId, firstName: { contains: query } }
+                : { workspaceId: req.workspaceId },
               take: 5
             });
             const resultText = `\n\n*Executed tool: ${call.name}* - Found ${contacts.length} contacts.`;
@@ -180,7 +182,6 @@ router.post('/:id/messages', async (req, res) => {
                 workspaceId: req.workspaceId,
                 title,
                 amount,
-                stage: 'lead',
                 description: 'Created by AI Assistant'
               }
             });
@@ -203,7 +204,7 @@ router.post('/:id/messages', async (req, res) => {
       await db.agentMessage.create({
         data: {
           agentId: conversationId,
-          userId: req.userId,
+          userId: req.userId || 'system',
           role: 'assistant',
           content: fullResponseText
         }

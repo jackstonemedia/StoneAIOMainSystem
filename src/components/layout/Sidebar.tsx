@@ -38,8 +38,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
   const businessMenu = [
     { name: 'Dashboard',      path: '/business',                   icon: LayoutDashboard },
-    { name: 'CRM',            path: '/business/crm/contacts',      icon: Users },
-    { name: 'Opportunities',  path: '/business/opportunities',     icon: Target },
+    { name: 'CRM',            path: '/crm/contacts',               icon: Users },
     { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
     { name: 'Campaigns',      path: '/business/campaigns',         icon: Reply },
     { name: 'Calendar',       path: '/business/calendar',          icon: Calendar },
@@ -312,7 +311,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
                 {/* Account */}
                 <button
-                  onClick={() => { setProfileMenuOpen(false); navigate('/business/crm/smart-lists'); }}
+                  onClick={() => { setProfileMenuOpen(false); navigate('/crm/smart-lists'); }}
                   className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
                 >
                   <List className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />

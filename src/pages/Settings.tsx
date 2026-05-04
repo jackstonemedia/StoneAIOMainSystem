@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  User, Palette, Bell, Key, Users, Shield, Save, Check, Building2,
-  Plug, Globe, Phone, Mail, Mic, Copy, Eye, EyeOff, Plus, Trash2,
-  ChevronRight, Edit2, RefreshCw, AlertCircle, CheckCircle2, X
+  Palette, Bell, Users, Shield, Save, Check, Building2,
+  Plug, Globe, Phone, Mail, Mic, Copy, Eye, EyeOff, Plus,
+  ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
+  QrCode, Monitor, Trash2
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
@@ -107,13 +108,29 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('general');
   const [wsName, setWsName] = useState('Stone AIO');
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(
     Object.fromEntries(NOTIF_PREFS.map(n => [n.key, true]))
   );
   const [expandedIntegration, setExpandedIntegration] = useState<string | null>(null);
 
-  const { data: workspace } = useQuery<any>({
+  // Invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+
+  // Security modals
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false);
+  const [showSessionsModal, setShowSessionsModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [twoFACode, setTwoFACode] = useState('');
+  const [twoFASetup, setTwoFASetup] = useState<{ qrCodeUrl: string; secret: string } | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+
+  useQuery<any>({
     queryKey: ['settings', 'workspace'],
     queryFn: () => fetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
     onSuccess: (d: any) => { if (d?.name) setWsName(d.name); }
@@ -137,10 +154,33 @@ export default function SettingsPage() {
 
   const saveKey = useMutation({
     mutationFn: ({ provider, key }: { provider: string; key: string }) =>
-      fetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => r.json()),
+      fetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
     onSuccess: () => { toast('success', 'API key saved!'); qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] }); },
     onError: () => toast('error', 'Failed to save key'),
   });
+
+  const inviteMember = useMutation({
+    mutationFn: ({ email, role }: { email: string; role: string }) =>
+      fetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+    onSuccess: () => { toast('success', 'Invitation sent!'); qc.invalidateQueries({ queryKey: ['settings', 'team'] }); setShowInviteModal(false); setInviteEmail(''); },
+    onError: () => toast('error', 'Failed to send invitation'),
+  });
+
+  const changePassword = useMutation({
+    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
+      fetch('/api/settings/password', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+    onSuccess: () => { toast('success', 'Password updated!'); setShowPasswordModal(false); setPwForm({ current: '', next: '', confirm: '' }); },
+    onError: () => toast('error', 'Failed to update password'),
+  });
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast('error', 'Image must be under 2MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setLogoPreview(reader.result as string); toast('success', 'Logo updated!'); };
+    reader.readAsDataURL(file);
+  };
 
   const isConnected = (id: string) => savedKeys.some((k: any) => k.provider.startsWith(id));
 
@@ -157,11 +197,14 @@ export default function SettingsPage() {
           </div>
           <div className="p-6 space-y-5">
             <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary shrink-0 select-none">
-                {wsName.charAt(0)}
+              <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary shrink-0 select-none overflow-hidden">
+                {logoPreview ? <img src={logoPreview} alt="logo" className="w-full h-full object-cover" /> : wsName.charAt(0)}
               </div>
               <div>
-                <button className="text-[13px] font-semibold text-primary hover:opacity-80 transition-opacity">Upload logo</button>
+                <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={handleLogoUpload} />
+                <button onClick={() => logoInputRef.current?.click()} className="flex items-center gap-1.5 text-[13px] font-semibold text-primary hover:opacity-80 transition-opacity">
+                  <Upload className="w-3.5 h-3.5" /> Upload logo
+                </button>
                 <p className="text-[11px] text-text-muted mt-0.5">PNG, JPG or SVG. Max 2MB.</p>
               </div>
             </div>
@@ -284,11 +327,13 @@ export default function SettingsPage() {
                           </div>
                         ))}
                         <button
-                          onClick={() => {
-                            const promises = intg.fields.map(f =>
-                              keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                            );
-                            Promise.all(promises);
+                          onClick={async () => {
+                            try {
+                              const promises = intg.fields.map(f =>
+                                keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
+                              );
+                              await Promise.all(promises);
+                            } catch { toast('error', 'One or more keys failed to save'); }
                           }}
                           disabled={saveKey.isPending}
                           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
@@ -353,7 +398,7 @@ export default function SettingsPage() {
         <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
           <div className="px-6 py-4 border-b border-border bg-surface-hover/20 flex items-center justify-between">
             <h3 className="text-[13px] font-bold text-text-main">Members ({members.length || 1})</h3>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity">
+            <button onClick={() => setShowInviteModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity">
               <Plus className="w-3.5 h-3.5" /> Invite Member
             </button>
           </div>
@@ -388,28 +433,170 @@ export default function SettingsPage() {
         </div>
         <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
           <div className="divide-y divide-border/40">
-            {[
-              { label: 'Change Password', desc: 'Update your account password', action: 'Change' },
-              { label: 'Two-Factor Authentication', desc: '2FA is not enabled — add extra security', action: 'Enable' },
-              { label: 'Active Sessions', desc: 'Manage where you are logged in', action: 'View' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
-                <div>
-                  <div className="text-[13px] font-semibold text-text-main">{item.label}</div>
-                  <div className="text-[11px] text-text-muted mt-0.5">{item.desc}</div>
-                </div>
-                <button className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">
-                  {item.action}
-                </button>
+            <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Change Password</div>
+                <div className="text-[11px] text-text-muted mt-0.5">Update your account password</div>
               </div>
-            ))}
+              <button onClick={() => setShowPasswordModal(true)} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Change</button>
+            </div>
+            <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Two-Factor Authentication</div>
+                <div className="text-[11px] text-text-muted mt-0.5">2FA adds an extra layer of security</div>
+              </div>
+              <button onClick={() => { fetch('/api/settings/2fa/setup').then(r=>r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
+            </div>
+            <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Active Sessions</div>
+                <div className="text-[11px] text-text-muted mt-0.5">Manage where you are logged in</div>
+              </div>
+              <button onClick={() => { fetch('/api/settings/sessions').then(r=>r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
+            </div>
           </div>
         </div>
       </div>
     ),
   };
 
+  // ── Modals ────────────────────────────────────────────────────────────────
+  const modalBase = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4';
+  const card = 'bg-surface border border-border rounded-[16px] w-full max-w-md p-6 shadow-2xl';
+
   return (
+    <>
+    {/* Invite Member Modal */}
+    {showInviteModal && (
+      <div className={modalBase} onClick={() => setShowInviteModal(false)}>
+        <div className={card} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-[16px] font-bold text-text-main">Invite Team Member</h3>
+            <button onClick={() => setShowInviteModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Email Address</label>
+              <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
+                className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary" />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Role</label>
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary">
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={() => setShowInviteModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+            <button onClick={() => { if (inviteEmail) inviteMember.mutate({ email: inviteEmail, role: inviteRole }); }} disabled={!inviteEmail || inviteMember.isPending}
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {inviteMember.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</> : 'Send Invite'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Change Password Modal */}
+    {showPasswordModal && (
+      <div className={modalBase} onClick={() => setShowPasswordModal(false)}>
+        <div className={card} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-[16px] font-bold text-text-main">Change Password</h3>
+            <button onClick={() => setShowPasswordModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="space-y-4">
+            {(['current','next','confirm'] as const).map(k => (
+              <div key={k}>
+                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                  {k === 'current' ? 'Current Password' : k === 'next' ? 'New Password' : 'Confirm New Password'}
+                </label>
+                <input type="password" value={pwForm[k]} onChange={e => setPwForm(p => ({ ...p, [k]: e.target.value }))}
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary" />
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+            <button
+              onClick={() => {
+                if (pwForm.next !== pwForm.confirm) { toast('error', 'Passwords do not match'); return; }
+                changePassword.mutate({ currentPassword: pwForm.current, newPassword: pwForm.next });
+              }}
+              disabled={!pwForm.current || !pwForm.next || changePassword.isPending}
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+              {changePassword.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...</> : 'Update Password'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 2FA Setup Modal */}
+    {showTwoFAModal && twoFASetup && (
+      <div className={modalBase} onClick={() => setShowTwoFAModal(false)}>
+        <div className={card} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-[16px] font-bold text-text-main">Enable Two-Factor Auth</h3>
+            <button onClick={() => setShowTwoFAModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+          </div>
+          <p className="text-[12px] text-text-muted mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.).</p>
+          <div className="flex justify-center mb-4">
+            <img src={twoFASetup.qrCodeUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg border border-border" />
+          </div>
+          <p className="text-[11px] text-text-muted text-center mb-4">Manual key: <code className="font-mono text-primary">{twoFASetup.secret}</code></p>
+          <div>
+            <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Verification Code</label>
+            <input type="text" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g,''))}
+              placeholder="000000" className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] font-mono tracking-widest text-center focus:outline-none focus:border-primary" />
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={() => setShowTwoFAModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+            <button
+              onClick={() => fetch('/api/settings/2fa/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code: twoFACode }) }).then(r=>r.json()).then(d => { if(d.success) { toast('success','2FA enabled!'); setShowTwoFAModal(false); } else toast('error','Invalid code'); })}
+              disabled={twoFACode.length !== 6}
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
+              Verify & Enable
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Active Sessions Modal */}
+    {showSessionsModal && (
+      <div className={modalBase} onClick={() => setShowSessionsModal(false)}>
+        <div className={card} onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-[16px] font-bold text-text-main">Active Sessions</h3>
+            <button onClick={() => setShowSessionsModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="space-y-3">
+            {sessions.map((s: any) => (
+              <div key={s.id} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-[8px]">
+                <Monitor className="w-4 h-4 text-text-muted shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-text-main flex items-center gap-2">
+                    {s.device} {s.isCurrent && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full">Current</span>}
+                  </div>
+                  <div className="text-[11px] text-text-muted">{s.location} · {s.ip}</div>
+                </div>
+                {!s.isCurrent && (
+                  <button onClick={() => fetch(`/api/settings/sessions/${s.id}`, {method:'DELETE'}).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success','Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setShowSessionsModal(false)} className="w-full mt-4 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Close</button>
+        </div>
+      </div>
+    )}
+
     <div className="flex-1 flex overflow-hidden bg-bg">
       {/* Left sidebar */}
       <div className="w-[220px] shrink-0 border-r border-border bg-surface/30 flex flex-col overflow-y-auto">
@@ -452,5 +639,6 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
