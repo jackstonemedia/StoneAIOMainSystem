@@ -11,6 +11,50 @@ export interface ContactFilters {
   status?: string;
   page?: number;
   limit?: number;
+  filtersJson?: string;
+}
+
+export function buildPrismaWhere(group: any): any {
+  if (!group) return {};
+  if (Array.isArray(group)) {
+    if (group.length === 0) return {};
+    return { AND: group.map(buildRule) };
+  }
+  if (group.matchMode) {
+    if (!group.rules || group.rules.length === 0) return {};
+    const arr = group.rules.filter((r: any) => r.value || r.operator === 'not_empty' || r.operator === 'is not empty').map(buildPrismaWhere);
+    if (arr.length === 0) return {};
+    return group.matchMode === 'any' ? { OR: arr } : { AND: arr };
+  }
+  return buildRule(group);
+}
+
+function buildRule(f: any): any {
+  const { field, operator, value } = f;
+  
+  // Support both 'not_empty' and 'is not empty' operator naming
+  if (operator === 'not_empty' || operator === 'is not empty') {
+    if (field === 'name') return { OR: [{ firstName: { not: null } }, { lastName: { not: null } }] };
+    return { [field]: { not: null } };
+  }
+
+  const val = String(value || '');
+  if (!val) return {}; // skip empty value rules
+  
+  if (field === 'name') {
+    if (operator === 'contains') return { OR: [{ firstName: { contains: val } }, { lastName: { contains: val } }] };
+    if (operator === 'equals') return { OR: [{ firstName: { equals: val } }, { lastName: { equals: val } }] };
+    if (operator === 'starts_with' || operator === 'starts with') return { OR: [{ firstName: { startsWith: val } }, { lastName: { startsWith: val } }] };
+  }
+
+  let pOp = 'equals';
+  if (operator === 'contains') pOp = 'contains';
+  if (operator === 'starts_with' || operator === 'starts with') pOp = 'startsWith';
+
+  if (field === 'tags') return { tagsJson: { contains: val } };
+  if (field === 'businessName') return { company: { name: { [pOp]: val } } };
+
+  return { [field]: { [pOp]: val } };
 }
 
 export interface ContactCreateInput {
@@ -162,6 +206,18 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   const parsedLimit = Math.max(1, parseInt(String(limit)) || 50);
   const skip = (parsedPage - 1) * parsedLimit;
   
+  if (filters.filtersJson) {
+    try {
+      const parsedFilters = JSON.parse(filters.filtersJson);
+      const builtWhere = buildPrismaWhere(parsedFilters);
+      if (builtWhere.AND || builtWhere.OR || Object.keys(builtWhere).length > 0) {
+        Object.assign(where, builtWhere);
+      }
+    } catch (e) {
+      console.error('Filter parsing error', e);
+    }
+  }
+
   const [contacts, total] = await Promise.all([
     db.contact.findMany({
       where,
@@ -496,40 +552,64 @@ export async function deleteTask(id: string, workspaceId: string) {
 export async function listSmartLists(workspaceId: string) {
   return db.smartList.findMany({
     where: { workspaceId },
+    orderBy: { createdAt: 'desc' },
     include: { _count: { select: { items: true } } },
   });
 }
 
-export async function getSmartListContacts(id: string, workspaceId: string) {
+export async function createSmartList(workspaceId: string, data: any) {
+  // Normalize the filters — can come in as { matchMode, rules } object or plain array
+  const filtersPayload = data.filters ?? [];
+  const matchMode = data.matchMode || (filtersPayload?.matchMode) || 'all';
+  const rules = Array.isArray(filtersPayload) ? filtersPayload : (filtersPayload?.rules ?? []);
+  
+  return db.smartList.create({
+    data: {
+      workspaceId,
+      name: data.name,
+      description: data.description || '',
+      filtersJson: JSON.stringify(rules),
+      matchMode,
+      viewMode: data.viewMode || 'table',
+      columnsJson: JSON.stringify(data.columns || []),
+      author: data.author || 'Jack Stone',
+    },
+    include: { _count: { select: { items: true } } },
+  });
+}
+
+export async function updateSmartList(id: string, workspaceId: string, data: any) {
+  const filtersPayload = data.filters ?? undefined;
+  const matchMode = data.matchMode || (filtersPayload?.matchMode) || undefined;
+  const rules = filtersPayload ? (Array.isArray(filtersPayload) ? filtersPayload : (filtersPayload?.rules ?? [])) : undefined;
+
+  return db.smartList.update({
+    where: { id, workspaceId },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(rules !== undefined && { filtersJson: JSON.stringify(rules) }),
+      ...(matchMode !== undefined && { matchMode }),
+      ...(data.viewMode !== undefined && { viewMode: data.viewMode }),
+      ...(data.columns !== undefined && { columnsJson: JSON.stringify(data.columns) }),
+    },
+    include: { _count: { select: { items: true } } },
+  });
+}
+
+export async function deleteSmartList(id: string, workspaceId: string) {
+  return db.smartList.delete({ where: { id, workspaceId } });
+}
+
+export async function getSmartListContacts(id: string, workspaceId: string, page = 1, limit = 50) {
   const list = await db.smartList.findUnique({ where: { id, workspaceId } });
   if (!list) return null;
 
-  const filters: any[] = JSON.parse((list as any).filtersJson ?? '[]');
-  const all = await db.contact.findMany({ where: { workspaceId }, include: { company: true } });
-
-  const matched = all.filter((c) => {
-    if (!filters.length) return true;
-    return filters.every((f) => {
-      const val =
-        f.field === 'tags'
-          ? JSON.parse((c as any).tagsJson ?? '[]')
-          : f.field === 'company'
-            ? c.company?.name
-            : (c as any)[f.field];
-      switch (f.operator) {
-        case 'is': return val === f.value;
-        case 'is_not': return val !== f.value;
-        case 'contains': return String(val).toLowerCase().includes(String(f.value).toLowerCase());
-        case 'gt': return Number(val) > Number(f.value);
-        case 'lt': return Number(val) < Number(f.value);
-        case 'in': return Array.isArray(f.value) ? f.value.includes(val) : Array.isArray(val) ? val.includes(f.value) : false;
-        case 'not_in': return Array.isArray(f.value) ? !f.value.includes(val) : true;
-        default: return true;
-      }
-    });
-  });
-
-  return matched.map((c) => formatContact(c));
+  // Build a group from stored matchMode + filtersJson
+  const rules = JSON.parse(list.filtersJson || '[]');
+  const group = { matchMode: list.matchMode || 'all', rules };
+  const filtersJson = JSON.stringify(group);
+  return listContacts(workspaceId, { filtersJson, page, limit });
 }
 
 // ── Tags ──────────────────────────────────────────────────────────────────────

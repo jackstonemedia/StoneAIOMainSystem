@@ -481,14 +481,19 @@ model Project {
 }
 
 model SmartList {
-  id          String          @id @default(uuid())
-  workspaceId String          @map("workspace_id")
-  name        String
-  filtersJson String          @default("[]") @map("filters_json")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  items       SmartListItem[]
+  id             String          @id @default(uuid())
+  workspaceId    String          @map("workspace_id")
+  name           String
+  description    String?         @default("")
+  filtersJson    String          @default("[]") @map("filters_json")
+  matchMode      String          @default("all") @map("match_mode")
+  viewMode       String          @default("table") @map("view_mode")
+  columnsJson    String          @default("[]") @map("columns_json")
+  author         String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items          SmartListItem[]
 
   @@map("smart_lists")
 }

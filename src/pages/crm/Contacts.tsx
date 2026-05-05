@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { 
   Search, Filter, List as ListIcon, Plus, Download, MoreVertical, 
   Settings, Phone, Mail, ChevronDown, Check,
-  User, CheckSquare, X, Table2, LayoutGrid, Columns, Eye, EyeOff, Map as MapIcon
+  User, CheckSquare, X, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSmartListStore } from '../../store/useSmartListStore';
 import { useToast } from '../../components/ui/Toast';
 
 interface Contact {
@@ -22,18 +21,36 @@ interface Contact {
   color: string;
 }
 
-type ViewMode = 'table' | 'card' | 'kanban' | 'map';
-
 const ALL_COLUMNS = ['Contact name', 'Phone', 'Email', 'Business name', 'Created (EDT)', 'Last activity (EDT)', 'Tags'];
 
 export default function Contacts() {
-  const { lists } = useSmartListStore();
   const qc = useQueryClient();
   const { toast } = useToast();
 
+  const [activeListId, setActiveListId] = useState<string>('all');
+  const [filters, setFilters] = useState<{id: string; field: string; operator: string; value: string}[]>([]);
+  const [filterMatchMode, setFilterMatchMode] = useState<'all' | 'any'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [smartListNameInput, setSmartListNameInput] = useState('');
+
+  const { data: smartLists = [] } = useQuery<any[]>({
+    queryKey: ['smart-lists'],
+    queryFn: () => fetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
+  });
+
   const { data: apiContacts = [], isLoading } = useQuery<Contact[]>({
-    queryKey: ['contacts'],
-    queryFn: () => fetch('/api/crm/contacts').then(r => r.ok ? r.json().then(data => data.contacts || []) : []),
+    queryKey: ['contacts', { activeListId, filters, filterMatchMode, searchQuery }],
+    queryFn: () => {
+      if (activeListId !== 'all') {
+        return fetch(`/api/crm/smart-lists/${activeListId}/contacts`).then(r => r.ok ? r.json().then(d => d.contacts || d || []) : []);
+      }
+      const q = new URLSearchParams();
+      if (searchQuery) q.append('search', searchQuery);
+      if (filters.length > 0) {
+        q.append('filtersJson', JSON.stringify({ matchMode: filterMatchMode, rules: filters }));
+      }
+      return fetch(`/api/crm/contacts?${q.toString()}`).then(r => r.ok ? r.json().then(data => data.contacts || []) : []);
+    },
   });
 
   const createContact = useMutation({
@@ -56,6 +73,23 @@ export default function Contacts() {
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
+  });
+
+  const createSmartList = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch('/api/crm/smart-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['smart-lists'] });
+      setSmartListNameInput('');
+      toast('success', 'Smart List Created!');
+    },
   });
 
   const bulkAction = useMutation({
@@ -87,12 +121,8 @@ export default function Contacts() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   
-  const [activeListId, setActiveListId] = useState<string>('all');
-  const [filters, setFilters] = useState<{id: string; field: string; operator: string; value: string}[]>([]);
-  const [filterMatchMode, setFilterMatchMode] = useState<'all' | 'any'>('all');
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(ALL_COLUMNS));
   const [sortConfig, setSortConfig] = useState<{ field: keyof Contact, direction: 'asc' | 'desc' } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   
   // Panel states
   const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
@@ -102,7 +132,6 @@ export default function Contacts() {
 
   const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc' });
   const [bulkTagInput, setBulkTagInput] = useState('');
-  const [smartListNameInput, setSmartListNameInput] = useState('');
 
   // Find duplicates
   const duplicateGroups = React.useMemo(() => {
@@ -119,46 +148,12 @@ export default function Contacts() {
     });
     return Object.values(groups).filter(g => g.length > 1);
   }, [apiContacts]);
-  const activeList = lists.find(l => l.id === activeListId);
-  const baseContacts: Contact[] = activeListId === 'all'
-    ? apiContacts
-    : (activeList?.contacts ?? []) as Contact[];
+  const activeList = smartLists.find(l => l.id === activeListId);
+  const baseContacts = apiContacts;
 
-  // Computations
+  // Computations (sorting is client-side for now, DB handles filtering)
   const processedContacts = React.useMemo(() => {
     let result = [...baseContacts];
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(c => 
-        (c.name || '').toLowerCase().includes(q) || 
-        (c.email || '').toLowerCase().includes(q) || 
-        (c.phone || '').toLowerCase().includes(q)
-      );
-    }
-
-    if (filters.length > 0) {
-      result = result.filter(c => {
-        const check = (f: typeof filters[0]) => {
-          let fieldVal = '';
-          if (f.field === 'name') fieldVal = c.name || '';
-          else if (f.field === 'email') fieldVal = c.email || '';
-          else if (f.field === 'phone') fieldVal = c.phone || '';
-          else if (f.field === 'businessName') fieldVal = c.businessName || '';
-          else if (f.field === 'tags') fieldVal = (c.tags || []).join(', ');
-          else if (f.field === 'createdAt') fieldVal = new Date(c.createdAt).toLocaleString();
-          fieldVal = String(fieldVal).toLowerCase();
-          const q = f.value.toLowerCase();
-          if (f.operator === 'contains')    return fieldVal.includes(q);
-          if (f.operator === 'equals')      return fieldVal === q;
-          if (f.operator === 'not_empty')   return fieldVal !== '';
-          if (f.operator === 'starts_with') return fieldVal.startsWith(q);
-          return true;
-        };
-        const results = filters.map(check);
-        return filterMatchMode === 'all' ? results.every(Boolean) : results.some(Boolean);
-      });
-    }
 
     if (sortConfig) {
       result.sort((a, b) => {
@@ -179,7 +174,7 @@ export default function Contacts() {
     }
 
     return result;
-  }, [baseContacts, searchQuery, filters, filterMatchMode, sortConfig]);
+  }, [baseContacts, sortConfig]);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -391,8 +386,8 @@ export default function Contacts() {
                   <span className="text-[13px]">All</span>
                 </div>
 
-                {/* Smart list tabs from Zustand store */}
-                {lists.map(list => (
+                {/* Smart list tabs from backend */}
+                {smartLists.map((list: any) => (
                   <div 
                     key={list.id}
                     onClick={() => setActiveListId(list.id)}
@@ -877,23 +872,18 @@ export default function Contacts() {
                         <div className="flex items-center gap-2">
                           <input type="text" placeholder="Smart List Name..." value={smartListNameInput} onChange={e => setSmartListNameInput(e.target.value)} className="flex-1 bg-surface-hover border border-border text-text-main text-[12px] rounded-[6px] px-3 py-2 outline-none focus:border-primary placeholder:text-text-muted" />
                           <button 
+                            disabled={createSmartList.isPending}
                             onClick={() => {
                               if (!smartListNameInput.trim()) return;
-                              useSmartListStore.getState().createList({
+                              createSmartList.mutate({
                                 name: smartListNameInput.trim(),
-                                contacts: processedContacts,
-                                filters,
-                                matchMode: filterMatchMode,
-                                viewMode: 'table',
-                                columns: Array.from(visibleCols),
-                                author: 'Current User'
+                                filters: { matchMode: filterMatchMode, rules: filters },
+                                viewConfig: { columns: Array.from(visibleCols) },
                               });
-                              setSmartListNameInput('');
-                              toast('success', 'Smart List Created!');
                             }}
-                            className="bg-primary text-white px-3 py-2 rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity"
+                            className="bg-primary text-white px-3 py-2 rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                           >
-                            Save
+                            {createSmartList.isPending ? 'Saving...' : 'Save'}
                           </button>
                         </div>
                       </div>

@@ -438,4 +438,33 @@ router.delete('/attachments/:id', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// ── Smart Lists ───────────────────────────────────────────────────────────────
+router.get('/smart-lists', async (req, res) => {
+  try { res.json(await crm.listSmartLists(req.workspaceId)); }
+  catch (e) { dbErr(res, e); }
+});
+
+router.post('/smart-lists', async (req, res) => {
+  try { res.json(await crm.createSmartList(req.workspaceId, req.body)); }
+  catch (e) { dbErr(res, e); }
+});
+
+router.put('/smart-lists/:id', async (req, res) => {
+  try { res.json(await crm.updateSmartList(req.params.id, req.workspaceId, req.body)); }
+  catch (e) { dbErr(res, e); }
+});
+
+router.delete('/smart-lists/:id', async (req, res) => {
+  try { res.json(await crm.deleteSmartList(req.params.id, req.workspaceId)); }
+  catch (e) { dbErr(res, e); }
+});
+
+router.get('/smart-lists/:id/contacts', async (req, res) => {
+  try { 
+    const { page, limit } = req.query;
+    res.json(await crm.getSmartListContacts(req.params.id, req.workspaceId, Number(page) || 1, Number(limit) || 50)); 
+  }
+  catch (e) { dbErr(res, e); }
+});
+
 export default router;

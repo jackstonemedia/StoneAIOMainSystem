@@ -239,7 +239,8 @@ export default function SmartLists() {
             </thead>
             <tbody>
               {processedLists.map((l) => {
-                const parsedFilters = typeof l.filters === 'string' ? JSON.parse(l.filters||'[]') : (l.filters||[]);
+                const filtersJsonStr = typeof l.filtersJson === 'string' ? l.filtersJson : JSON.stringify(l.filtersJson || '[]');
+                const parsedFilters = (() => { try { return JSON.parse(filtersJsonStr); } catch { return []; } })();
                 const activeFilters = parsedFilters.filter((f: any) => f.value || f.operator === 'is not empty').length;
                 return (
                   <tr key={l.id} className={`border-b border-border/50 transition-colors ${selected.has(l.id) ? 'bg-primary/5' : 'hover:bg-surface-hover/50'}`}>
@@ -258,7 +259,7 @@ export default function SmartLists() {
                     </td>
                     <td className="p-3">
                       <span className="px-2.5 py-1 rounded-[6px] text-[12px] font-bold shadow-sm border border-border bg-surface text-text-main">
-                        {l._count?.items || 0}
+                        {l._count?.items ?? 0}
                       </span>
                     </td>
                     <td className="p-3 text-[13px] font-medium text-text-muted">{l.createdAt ? new Date(l.createdAt).toLocaleDateString() : '—'}</td>
@@ -269,7 +270,14 @@ export default function SmartLists() {
                           onClick={() => { 
                             setEditingListId(l.id); 
                             setNewName(l.name);
-                            if (parsedFilters.length > 0) setConditions(parsedFilters);
+                            const parsedRules = typeof l.filtersJson === 'string' ? JSON.parse(l.filtersJson || '[]') : (l.filtersJson || []);
+                            if (parsedRules.length > 0) setConditions(parsedRules);
+                            setNewMatchMode((l.matchMode as 'all' | 'any') || 'all');
+                            setNewViewMode((l.viewMode as any) || 'table');
+                            try {
+                              const cols = typeof l.columnsJson === 'string' ? JSON.parse(l.columnsJson || '[]') : (l.columnsJson || []);
+                              if (cols.length > 0) setNewColumns(new Set(cols));
+                            } catch {}
                             setPanelOpen(true);
                           }} 
                           className="text-text-muted hover:text-primary transition-colors"
