@@ -14,8 +14,8 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
   try {
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
-      req.workspaceId = 'ws_default_stone_aio';
-      req.userId = 'user_stone_aio_dev';
+      req.workspaceId = 'workspace_123';
+      req.userId = 'user_123';
       return next();
     }
 

@@ -4,6 +4,7 @@
  */
 import { Router } from 'express';
 import * as biz from '../services/business.service.js';
+import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
 
@@ -100,6 +101,34 @@ router.post('/forms/:id/submissions', async (req, res) => {
 router.get('/reviews', async (req, res) => {
   try { res.json(await biz.listReviews(req.workspaceId)); }
   catch (e) { err500(res, e); }
+});
+
+router.post('/reviews', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const { platform, rating, body, reviewerName } = req.body;
+    const review = await db.review.create({
+      data: {
+        workspaceId: req.workspaceId,
+        source: platform ?? 'google',
+        rating: rating ?? 5,
+        text: body ?? '',
+        author: reviewerName ?? 'Anonymous',
+        date: new Date()
+      }
+    });
+
+    emitTrigger(req.workspaceId, 'review.received', {
+      reviewId: review.id,
+      platform: review.source,
+      rating: review.rating,
+      body: review.text,
+      reviewerName: review.author,
+      receivedAt: review.date.toISOString(),
+    }).catch(console.error);
+
+    res.json(review);
+  } catch (e) { err500(res, e); }
 });
 
 router.put('/reviews/:id', async (req, res) => {

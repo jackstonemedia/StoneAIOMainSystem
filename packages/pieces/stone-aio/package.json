@@ -1,0 +1,16 @@
+{
+  "name": "@activepieces/piece-stone-aio",
+  "version": "0.1.0",
+  "description": "Stone AIO CRM integration for Activepieces",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@activepieces/pieces-framework": "^0.2.14"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

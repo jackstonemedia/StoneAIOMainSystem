@@ -44,4 +44,14 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.conversations.all, id] as const,
     messages: (id: string) => [...queryKeys.conversations.all, id, 'messages'] as const,
   },
+
+  workflows: {
+    all: ['workflows'] as const,
+    list: () => [...queryKeys.workflows.all, 'list'] as const,
+    detail: (id: string) => [...queryKeys.workflows.all, id] as const,
+    runs: (flowId: string) => [...queryKeys.workflows.all, flowId, 'runs'] as const,
+    runDetail: (runId: string) => [...queryKeys.workflows.all, 'runs', runId] as const,
+    nodes: () => [...queryKeys.workflows.all, 'nodes'] as const,
+    connections: () => [...queryKeys.workflows.all, 'connections'] as const,
+  },
 };

@@ -22,8 +22,25 @@ export default function CrmSetup() {
         
         await crmApi.createContact({
           firstName,
-          lastName,
-          email: `${firstName.toLowerCase()}@example.com`
+          lastName: lastName ?? '',
+          email: `${firstName.toLowerCase()}@example.com`,
+          // Required fields with safe defaults
+          phone: null,
+          location: null,
+          title: null,
+          leadScore: 0,
+          healthScore: 0,
+          ownerId: null,
+          dndEnabled: false,
+          preferredChannel: 'email',
+          about: null,
+          tags: [],
+          source: null,
+          status: null,
+          color: '#7dd3fc',
+          companyId: null,
+          assignedUserId: null,
+          lastContactedAt: null,
         });
       }
       queryClient.invalidateQueries({ queryKey: ['contacts'] });

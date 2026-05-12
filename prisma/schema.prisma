@@ -7,14 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Workspace {
-  id               String            @id @default(uuid())
+  id               String                 @id @default(uuid())
   name             String
-  ownerId          String            @map("owner_id")
-  plan             String            @default("free")
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
+  ownerId          String                 @map("owner_id")
+  plan             String                 @default("free")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
   members          WorkspaceMember[]
   agents           Agent[]
   contacts         Contact[]
@@ -41,8 +40,29 @@ model Workspace {
   quotes           Quote[]
   automationRules  AutomationRule[]
   attachments      Attachment[]
+  engineConfig     WorkspaceEngineConfig?
+
+  apProject         APProject?
+  workflows         Workflow[]
+  workflowRuns      WorkflowRun[]
+  apConnections     APConnection[]
+  automationFolders AutomationFolder[]
+  automationTables  AutomationTable[]
+  Release           Release[]
 
   @@map("workspaces")
+}
+
+model WorkspaceEngineConfig {
+  id                    String    @id @default(uuid())
+  workspaceId           String    @unique @map("workspace_id")
+  activepiecesProjectId String    @map("activepieces_project_id")
+  activepiecesToken     String    @map("activepieces_token")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_engine_configs")
 }
 
 model WorkspaceMember {
@@ -166,24 +186,24 @@ model Contact {
 }
 
 model Company {
-  id          String    @id @default(uuid())
-  workspaceId String    @map("workspace_id")
-  name        String
-  logoUrl     String?   @map("logo_url")
-  website     String?
-  industry    String?
-  location    String?
-  employees   String?
-  revenue     String?
-  description String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  customFieldsJson String?   @map("custom_fields_json")
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contacts    Contact[]
-  deals       Deal[]
-  tasks       Task[]
-  activities  Activity[]
+  id               String     @id @default(uuid())
+  workspaceId      String     @map("workspace_id")
+  name             String
+  logoUrl          String?    @map("logo_url")
+  website          String?
+  industry         String?
+  location         String?
+  employees        String?
+  revenue          String?
+  description      String?
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  customFieldsJson String?    @map("custom_fields_json")
+  workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts         Contact[]
+  deals            Deal[]
+  tasks            Task[]
+  activities       Activity[]
 
   @@map("companies")
 }
@@ -481,19 +501,19 @@ model Project {
 }
 
 model SmartList {
-  id             String          @id @default(uuid())
-  workspaceId    String          @map("workspace_id")
-  name           String
-  description    String?         @default("")
-  filtersJson    String          @default("[]") @map("filters_json")
-  matchMode      String          @default("all") @map("match_mode")
-  viewMode       String          @default("table") @map("view_mode")
-  columnsJson    String          @default("[]") @map("columns_json")
-  author         String?
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  items          SmartListItem[]
+  id          String          @id @default(uuid())
+  workspaceId String          @map("workspace_id")
+  name        String
+  description String?         @default("")
+  filtersJson String          @default("[]") @map("filters_json")
+  matchMode   String          @default("all") @map("match_mode")
+  viewMode    String          @default("table") @map("view_mode")
+  columnsJson String          @default("[]") @map("columns_json")
+  author      String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  items       SmartListItem[]
 
   @@map("smart_lists")
 }
@@ -692,4 +712,151 @@ model Attachment {
 
   @@index([entityType, entityId])
   @@map("attachments")
+}
+
+// ── Activepieces Integration Models ─────────────────────────────────────────
+
+model APProject {
+  id            String    @id @default(uuid())
+  workspaceId   String    @unique @map("workspace_id")
+  apProjectId   String    @map("ap_project_id")
+  apProjectName String    @map("ap_project_name")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("ap_projects")
+}
+
+model Workflow {
+  id               String        @id @default(uuid())
+  workspaceId      String        @map("workspace_id")
+  apFlowId         String        @map("ap_flow_id")
+  apProjectId      String        @map("ap_project_id")
+  apVersionId      String?       @map("ap_version_id")
+  name             String
+  description      String?
+  status           String        @default("draft")
+  triggerType      String?       @map("trigger_type")
+  triggerPieceName String?       @map("trigger_piece_name")
+  webhookUrl       String?       @map("webhook_url")
+  folderName       String?       @map("folder_name")
+  tags             String        @default("[]")
+  stepsJson        String        @default("{}") @map("steps_json")
+  isFavorite       Boolean       @default(false) @map("is_favorite")
+  folderId         String?       @map("folder_id")
+  lastRunAt        DateTime?     @map("last_run_at")
+  lastRunStatus    String?       @map("last_run_status")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs             WorkflowRun[]
+
+  @@index([workspaceId])
+  @@map("workflows")
+}
+
+model WorkflowRun {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  workflowId   String    @map("workflow_id")
+  apRunId      String    @unique @map("ap_run_id")
+  status       String
+  durationMs   Int?      @map("duration_ms")
+  stepCount    Int       @default(0) @map("step_count")
+  triggerData  String?   @map("trigger_data")
+  errorMessage String?   @map("error_message")
+  startedAt    DateTime  @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow     Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([workspaceId])
+  @@map("workflow_runs")
+}
+
+model APConnection {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  apConnectionId String    @unique @map("ap_connection_id")
+  pieceName      String    @map("piece_name")
+  displayName    String    @map("display_name")
+  status         String    @default("active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, pieceName])
+  @@map("ap_connections")
+}
+
+// ── Automation Module — Folders ──────────────────────────────────────────────
+
+model AutomationFolder {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("automation_folders")
+}
+
+// ── Automation Module — Tables ────────────────────────────────────────────────
+
+model AutomationTable {
+  id          String                  @id @default(uuid())
+  workspaceId String                  @map("workspace_id")
+  name        String
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+  workspace   Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fields      AutomationTableField[]
+  records     AutomationTableRecord[]
+
+  @@index([workspaceId])
+  @@map("automation_tables")
+}
+
+model AutomationTableField {
+  id        String          @id @default(uuid())
+  tableId   String          @map("table_id")
+  name      String
+  type      String          @default("TEXT") // TEXT | NUMBER | DATE | STATIC_DROPDOWN
+  options   String          @default("[]") // JSON: [{label,value}]
+  order     Int             @default(0)
+  createdAt DateTime        @default(now()) @map("created_at")
+  table     AutomationTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId])
+  @@map("automation_table_fields")
+}
+
+model AutomationTableRecord {
+  id        String          @id @default(uuid())
+  tableId   String          @map("table_id")
+  cells     String          @default("{}") // JSON: fieldId -> value
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  table     AutomationTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId])
+  @@map("automation_table_records")
+}
+
+// ── Automation Module — Releases ──────────────────────────────────────────────
+
+model Release {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  description String?
+  status      String    @default("PUBLISHED") // PUBLISHED, ARCHIVED
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("automation_releases")
 }

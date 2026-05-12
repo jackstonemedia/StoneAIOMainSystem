@@ -18,6 +18,9 @@ import businessRouter   from './api/routes/business.routes.js';
 import settingsRouter   from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter    from './api/routes/billing.routes.js';
+import workflowRouter   from './api/workflows.js';
+import internalWebhookRouter from './api/routes/internal-webhook.routes.js';
+import tablesRouter     from './api/tables.js';
 
 // ── API feature modules ───────────────────────────────────────────────────────
 import workflowAiRouter   from './api/workflow-ai.js';
@@ -26,6 +29,8 @@ import agentsRouter       from './api/agents.js';
 import voiceAgentsRouter  from './api/voice-agents.js';
 import crmActionsRouter   from './api/crm-actions.js';
 import integrationsRouter from './api/integrations.js';
+import { piecesRouter }   from './api/pieces.js';
+import { releasesRouter } from './api/releases.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -52,6 +57,9 @@ async function startServer() {
     }
   });
 
+  // ── Internal Webhook (Activepieces → Stone AIO, no workspace ctx needed) ──
+  app.use('/api/internal', internalWebhookRouter);
+
   // ── Workspace Resolution ──────────────────────────────────────────────────
   app.use('/api', resolveWorkspace);
 
@@ -62,6 +70,8 @@ async function startServer() {
   app.use('/api/agents',         agentsRouter);
   app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/integrations',   integrationsRouter);
+  app.use('/api/pieces',         piecesRouter);
+  app.use('/api/releases',       releasesRouter);
 
   // ── Domain routes ─────────────────────────────────────────────────────────
   app.use('/api/crm',            crmRouter);
@@ -70,6 +80,8 @@ async function startServer() {
   app.use('/api/settings',       settingsRouter);
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api',                billingRouter); // stripe + public forms
+  app.use('/api/workflows',      workflowRouter);
+  app.use('/api/tables',         tablesRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {

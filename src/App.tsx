@@ -25,6 +25,23 @@ import Onboarding from './pages/Onboarding';
 // Creator Studio
 const Dashboard          = lazy(() => import('./pages/Dashboard'));
 const AgentsList         = lazy(() => import('./pages/AgentsList'));
+const Workflows          = lazy(() => import('./pages/Workflows'));
+const Automations        = lazy(() => import('./pages/automations/Automations'));
+const AutomationsLayout  = lazy(() => import('./pages/automations/AutomationsLayout'));
+const AutomationsRuns    = lazy(() => import('./pages/automations/AutomationsRuns'));
+const AutomationsConns   = lazy(() => import('./pages/automations/AutomationsConnections'));
+const AutomationsTables  = lazy(() => import('./pages/automations/AutomationsTables'));
+const AutomationsTableDetail = lazy(() => import('./pages/automations/AutomationsTableDetail'));
+const AutomationsReleases = lazy(() => import('./pages/automations/AutomationsReleases'));
+const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSettings'));
+const WorkflowBuilder    = lazy(() => import('./pages/automations/WorkflowBuilder'));
+
+// Admin
+const PlatformAdminLayout = lazy(() => import('./pages/admin/PlatformAdminLayout'));
+import { 
+  AdminProjects, AdminUsers, AdminRoles, AdminAudit, AdminPieces, 
+  AdminAI, AdminInfra, AdminSecurity, AdminBranding, AdminSSO 
+} from './pages/admin/AdminPages';
 const AgentTypePicker    = lazy(() => import('./pages/AgentTypePicker'));
 const AgentBuilder       = lazy(() => import('./pages/AgentBuilder'));      // 49KB
 const VoiceAgentBuilder  = lazy(() => import('./pages/VoiceAgentBuilder')); // 40KB
@@ -69,8 +86,13 @@ const PUBLISHABLE_KEY = (import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY || '
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
-      retry: 1,
+      staleTime: 10_000,
+      retry: (failureCount, error: any) => {
+        // Don't retry on 404 - it's a real not-found
+        if (error?.response?.status === 404) return false;
+        return failureCount < 2;
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
     },
   },
 });
@@ -104,9 +126,39 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route path="/agents/new"         element={<ErrorBoundary><Protect><AgentTypePicker /></Protect></ErrorBoundary>} />
           <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
           <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-          <Route path="/agents/workflow/new" element={<ErrorBoundary><Protect><AgentBuilder /></Protect></ErrorBoundary>} />
+          <Route path="/agents/workflow/new" element={<Navigate to="/automations" replace />} />
           <Route path="/agents/:id/build"   element={<ErrorBoundary><Protect><AgentBuilder /></Protect></ErrorBoundary>} />
+          <Route path="/workflows"          element={<Navigate to="/automations" replace />} />
+          <Route path="/workflows/new/builder" element={<Navigate to="/automations" replace />} />
+          <Route path="/workflows/:id/builder" element={<Navigate to="/automations/:id" replace />} />
           <Route path="/templates"          element={<ErrorBoundary><Protect><WorkflowTemplates /></Protect></ErrorBoundary>} />
+          <Route path="/automations/:id"      element={<ErrorBoundary><Protect><WorkflowBuilder /></Protect></ErrorBoundary>} />
+
+          {/* Automations sub-pages (with sidebar layout) */}
+          <Route path="/automations" element={<ErrorBoundary><Protect><AutomationsLayout /></Protect></ErrorBoundary>}>
+            <Route index element={<Automations />} />
+            <Route path="runs" element={<AutomationsRuns />} />
+            <Route path="connections" element={<AutomationsConns />} />
+            <Route path="tables" element={<AutomationsTables />} />
+            <Route path="tables/:tableId" element={<AutomationsTableDetail />} />
+            <Route path="releases" element={<AutomationsReleases />} />
+            <Route path="settings" element={<AutomationsSettings />} />
+          </Route>
+
+          {/* Platform Admin */}
+          <Route path="/admin" element={<ErrorBoundary><Protect><PlatformAdminLayout /></Protect></ErrorBoundary>}>
+            <Route index element={<Navigate to="projects" replace />} />
+            <Route path="projects" element={<AdminProjects />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="roles" element={<AdminRoles />} />
+            <Route path="audit" element={<AdminAudit />} />
+            <Route path="pieces" element={<AdminPieces />} />
+            <Route path="ai" element={<AdminAI />} />
+            <Route path="infrastructure" element={<AdminInfra />} />
+            <Route path="security" element={<AdminSecurity />} />
+            <Route path="branding" element={<AdminBranding />} />
+            <Route path="sso" element={<AdminSSO />} />
+          </Route>
 
           {/* Conversations (Business Hub) */}
           <Route path="/conversations" element={<ErrorBoundary><Protect><ConversationsLayout /></Protect></ErrorBoundary>}>

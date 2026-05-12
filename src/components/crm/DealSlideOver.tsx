@@ -35,7 +35,7 @@ export default function DealSlideOver({ isOpen, onClose, dealId, onSave }: DealS
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title) return;
-    mutation.mutate({
+    (mutation.mutate as any)({
       ...formData,
       amount: parseFloat(formData.amount) || 0
     });

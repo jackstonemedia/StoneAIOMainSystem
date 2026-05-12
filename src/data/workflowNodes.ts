@@ -440,6 +440,21 @@ const commSlack: WorkflowNodeDefinition = {
   ]
 };
 
+const commDiscord: WorkflowNodeDefinition = {
+  id: 'comm-discord', category: 'Communication', name: 'Discord Webhook', description: 'Send a message via Discord Webhook',
+  type: 'output', icon: MessageSquare,
+  colorClass: 'text-indigo-500', bgClass: 'bg-indigo-500/10', borderClass: 'hover:border-indigo-500/50',
+  outputs: [],
+  configFields: [
+    { key: 'webhook_url', label: 'Webhook URL', type: 'text', default: '', required: true, placeholder: 'https://discord.com/api/webhooks/...' },
+    { key: 'content', label: 'Message Content', type: 'textarea', default: '', required: true, placeholder: 'Hello from Stone AIO!' },
+    { key: 'username', label: 'Username', type: 'text', default: '', advanced: true, placeholder: 'Bot Name' },
+    { key: 'avatar_url', label: 'Avatar URL', type: 'text', default: '', advanced: true, placeholder: 'https://...' },
+    { key: 'embeds', label: 'Embeds (JSON)', type: 'json', default: '[]', advanced: true },
+    { key: 'tts', label: 'Text to speech', type: 'toggle', default: false, advanced: true },
+  ]
+};
+
 // ────────────────────────────────────────────────────────
 //  INTEGRATIONS
 // ────────────────────────────────────────────────────────
@@ -595,7 +610,7 @@ export const WORKFLOW_NODES: WorkflowNodeDefinition[] = [
   // Data & CRM
   dataCode, dataJson, crmContact, crmTask, dbQuery, dataFilter,
   // Communication
-  commEmail, commSms, commVoice, commSlack,
+  commEmail, commSms, commVoice, commSlack, commDiscord,
   // Integrations
   intHttp, intStripe, intShopify, intGithub, intTwitter, intLinkedin, intDrive,
 ];

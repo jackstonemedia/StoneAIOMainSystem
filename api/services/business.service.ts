@@ -3,6 +3,7 @@
  * conversations, forms, and analytics.
  */
 import { db } from '../../infrastructure/database/client.js';
+import { emitTrigger } from './trigger-emitter.service.js';
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ export async function listAppointments(workspaceId: string) {
 
 export async function createAppointment(workspaceId: string, data: any) {
   const { title, description, type, location, contactId, startTime, endTime, status } = data;
-  return db.appointment.create({
+  const appointment = await db.appointment.create({
     data: {
       workspaceId,
       title: title ?? 'Meeting',
@@ -140,13 +141,44 @@ export async function createAppointment(workspaceId: string, data: any) {
     },
     include: { contact: true },
   });
+
+  emitTrigger(workspaceId, 'appointment.booked', {
+    appointmentId: appointment.id,
+    contactId: appointment.contactId,
+    title: appointment.title,
+    startTime: appointment.startTime,
+    endTime: appointment.endTime,
+    type: appointment.type,
+  }).catch(console.error);
+
+  return appointment;
 }
 
 export async function updateAppointment(id: string, raw: any) {
   const { contact, ...data } = raw;
   if (data.startTime) data.startTime = new Date(data.startTime);
   if (data.endTime) data.endTime = new Date(data.endTime);
-  return db.appointment.update({ where: { id }, data, include: { contact: true } });
+
+  const prev = await db.appointment.findUnique({ where: { id } });
+  const appointment = await db.appointment.update({ where: { id }, data, include: { contact: true } });
+
+  if (prev && prev.status !== appointment.status) {
+    if (appointment.status === 'cancelled') {
+      emitTrigger(appointment.workspaceId, 'appointment.cancelled', {
+        appointmentId: appointment.id,
+        contactId: appointment.contactId,
+        reason: (appointment as any).cancellationReason,
+      }).catch(console.error);
+    } else if (appointment.status === 'completed') {
+      emitTrigger(appointment.workspaceId, 'appointment.completed', {
+        appointmentId: appointment.id,
+        contactId: appointment.contactId,
+        notes: (appointment as any).notes,
+      }).catch(console.error);
+    }
+  }
+
+  return appointment;
 }
 
 export async function deleteAppointment(id: string) {
@@ -233,7 +265,30 @@ export async function sendConversationMessage(
   const msg = await db.conversationMessage.create({
     data: { conversationId, sender: sender ?? 'user', body, direction: direction ?? 'outbound' },
   });
-  await db.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }).catch(() => {});
+  const conversation = await db.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }).catch(() => null);
+
+  if (conversation) {
+    if (msg.direction === 'inbound') {
+      emitTrigger(conversation.workspaceId, 'conversation.message_received', {
+        conversationId: conversation.id,
+        messageId: msg.id,
+        contactId: conversation.contactId,
+        channel: (conversation as any).channel ?? 'chat',
+        body: msg.body,
+        receivedAt: new Date().toISOString(),
+      }).catch(console.error);
+    } else {
+      emitTrigger(conversation.workspaceId, 'conversation.message_sent', {
+        conversationId: conversation.id,
+        messageId: msg.id,
+        contactId: conversation.contactId,
+        channel: (conversation as any).channel ?? 'chat',
+        body: msg.body,
+        sentAt: new Date().toISOString(),
+      }).catch(console.error);
+    }
+  }
+
   return msg;
 }
 

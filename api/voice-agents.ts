@@ -4,6 +4,7 @@
  */
 import { Router } from 'express';
 import * as voiceService from './services/voice.service.js';
+import { emitTrigger } from './services/trigger-emitter.service.js';
 
 const router = Router();
 
@@ -54,6 +55,40 @@ router.post('/voices/add', async (req, res) => {
     res.json(voice);
   } catch (error: any) {
     console.error('[Retell] Error adding voice:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+router.post('/webhook', async (req, res) => {
+  try {
+    const { event, call } = req.body;
+    const workspaceId = call?.metadata?.workspaceId || (req as any).workspaceId || 'default';
+
+    if (event === 'call_started') {
+      emitTrigger(workspaceId, 'agent.call_started', {
+        callId: call?.call_id,
+        agentId: call?.agent_id,
+        contactPhone: call?.to_number,
+        startedAt: new Date().toISOString(),
+      }).catch(console.error);
+    } else if (event === 'call_ended') {
+      emitTrigger(workspaceId, 'agent.call_ended', {
+        callId: call?.call_id,
+        agentId: call?.agent_id,
+        contactPhone: call?.to_number,
+        duration: call?.duration_ms,
+        transcript: call?.transcript,
+        summary: call?.call_analysis?.call_summary,
+        sentiment: call?.call_analysis?.user_sentiment,
+        endedAt: new Date().toISOString(),
+      }).catch(console.error);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error: any) {
+    console.error('[Retell] Webhook error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -34,7 +34,28 @@ export default function ContactSlideOver({ isOpen, onClose }: ContactSlideOverPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.firstName) return;
-    mutation.mutate(formData);
+    mutation.mutate({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email || null,
+      phone: formData.phone || null,
+      title: formData.title || null,
+      location: formData.location || null,
+      // Required fields with safe defaults
+      leadScore: 0,
+      healthScore: 0,
+      ownerId: null,
+      dndEnabled: false,
+      preferredChannel: 'email',
+      about: null,
+      tags: [],
+      source: null,
+      status: null,
+      color: '#7dd3fc',
+      companyId: null,
+      assignedUserId: null,
+      lastContactedAt: null,
+    });
   };
 
   return (

@@ -3,6 +3,7 @@
  * Routes call these functions and handle HTTP concerns only.
  */
 import { db } from '../../infrastructure/database/client.js';
+import { emitTrigger } from './trigger-emitter.service.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,16 @@ export async function createContact(workspaceId: string, data: any) {
     },
     include: { company: true }
   });
+
+  emitTrigger(workspaceId, 'contact.created', {
+    contactId: c.id,
+    name: `${c.firstName} ${c.lastName ?? ''}`.trim(),
+    email: c.email,
+    phone: c.phone,
+    source: c.source,
+    tags: JSON.parse(c.tagsJson ?? '[]'),
+  }).catch(err => console.error('[trigger]', err));
+
   return formatContact(c);
 }
 
@@ -323,16 +334,36 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
     data,
     include: { company: true } 
   });
-  return formatContact(c);
+
+  const formatted = formatContact(c);
+  emitTrigger(workspaceId, 'contact.updated', {
+    contactId: formatted.id,
+    updatedFields: Object.keys(data),
+    contact: formatted,
+  }).catch(err => console.error('[trigger]', err));
+
+  return formatted;
 }
 
 export async function deleteContact(id: string, workspaceId: string) {
-  await db.contact.delete({ where: { id, workspaceId } });
+  const deletedContact = await db.contact.delete({ where: { id, workspaceId } });
+
+  emitTrigger(workspaceId, 'contact.deleted', {
+    contactId: deletedContact.id,
+    name: `${deletedContact.firstName} ${deletedContact.lastName ?? ''}`.trim(),
+  }).catch(err => console.error('[trigger]', err));
 }
 
 export async function bulkContacts(workspaceId: string, action: string, contactIds: string[], payload: any) {
   if (action === 'delete') {
+    const cs = await db.contact.findMany({ where: { id: { in: contactIds }, workspaceId } });
     await db.contact.deleteMany({ where: { id: { in: contactIds }, workspaceId } });
+    for (const c of cs) {
+      emitTrigger(workspaceId, 'contact.deleted', {
+        contactId: c.id,
+        name: `${c.firstName} ${(c as any).lastName ?? ''}`.trim(),
+      }).catch(err => console.error('[trigger]', err));
+    }
     return { success: true, affected: contactIds.length };
   }
 
@@ -340,8 +371,16 @@ export async function bulkContacts(workspaceId: string, action: string, contactI
     const cs = await db.contact.findMany({ where: { id: { in: contactIds }, workspaceId } });
     for (const c of cs) {
       const tags: string[] = JSON.parse((c as any).tagsJson ?? '[]');
-      if (!tags.includes(payload.tag)) tags.push(payload.tag);
-      await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(tags) } });
+      if (!tags.includes(payload.tag)) {
+        tags.push(payload.tag);
+        await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(tags) } });
+        
+        emitTrigger(workspaceId, 'contact.tag_added', {
+          contactId: c.id,
+          tag: payload.tag,
+          allTags: tags,
+        }).catch(err => console.error('[trigger]', err));
+      }
     }
     return { success: true, affected: cs.length };
   }
@@ -439,7 +478,7 @@ export async function listDeals(workspaceId: string, filters: Record<string, str
 }
 
 export async function createDeal(workspaceId: string, userId: string, data: DealCreateInput) {
-  return db.deal.create({
+  const deal = await db.deal.create({
     data: {
       workspaceId,
       title: data.title,
@@ -455,6 +494,17 @@ export async function createDeal(workspaceId: string, userId: string, data: Deal
     },
     include: { company: true, pipelineStage: true },
   });
+
+  emitTrigger(workspaceId, 'deal.created', {
+    dealId: deal.id,
+    title: deal.title,
+    value: deal.amount,
+    contactId: deal.contactId,
+    stageId: deal.pipelineStageId,
+    pipelineId: deal.pipelineStage?.pipelineId,
+  }).catch(err => console.error('[trigger]', err));
+
+  return deal;
 }
 
 export async function updateDeal(id: string, workspaceId: string, raw: any) {
@@ -462,11 +512,43 @@ export async function updateDeal(id: string, workspaceId: string, raw: any) {
   if (data.amount !== undefined) data.amount = parseFloat(data.amount);
   if (data.probability !== undefined) data.probability = parseInt(data.probability);
   if (data.closeDate !== undefined) data.closeDate = new Date(data.closeDate);
-  return db.deal.update({
+
+  const previousDeal = await db.deal.findUnique({ where: { id, workspaceId } });
+
+  const deal = await db.deal.update({
     where: { id, workspaceId },
     data,
     include: { company: true, pipelineStage: true },
   });
+
+  if (previousDeal && previousDeal.pipelineStageId !== deal.pipelineStageId) {
+    emitTrigger(workspaceId, 'deal.stage_changed', {
+      dealId: deal.id,
+      title: deal.title,
+      previousStageId: previousDeal.pipelineStageId,
+      newStageId: deal.pipelineStageId,
+      value: deal.amount,
+      contactId: deal.contactId,
+    }).catch(err => console.error('[trigger]', err));
+
+    if (deal.pipelineStage?.name === 'Won') {
+      emitTrigger(workspaceId, 'deal.won', {
+        dealId: deal.id,
+        title: deal.title,
+        value: deal.amount,
+        contactId: deal.contactId,
+      }).catch(err => console.error('[trigger]', err));
+    } else if (deal.pipelineStage?.name === 'Lost') {
+      emitTrigger(workspaceId, 'deal.lost', {
+        dealId: deal.id,
+        title: deal.title,
+        reason: (deal as any).lostReason,
+        contactId: deal.contactId,
+      }).catch(err => console.error('[trigger]', err));
+    }
+  }
+
+  return deal;
 }
 
 export async function deleteDeal(id: string, workspaceId: string) {

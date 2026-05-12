@@ -36,6 +36,7 @@ COMMUNICATION:
 - comm-sms: Send SMS. Keys: to, message, from, mediaUrl
 - comm-voice: Make Voice Call. Keys: agentId, phoneNumber, firstMessage, maxDuration, recordCall
 - comm-slack: Slack Message. Keys: channel, message, asBot, threadTs, blocks
+- comm-discord: Discord Webhook. Keys: webhook_url, content, username, avatar_url, embeds, tts
 
 INTEGRATIONS:
 - int-http: HTTP Request. Keys: method, url, headers, body, auth, bearerToken, timeout, retryOnFail, retryCount, parseResponse

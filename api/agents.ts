@@ -183,6 +183,36 @@ router.post('/:id/run', async (req, res) => {
         } else if (nodeDefId === 'logic-delay') {
           await new Promise((resolve) => setTimeout(resolve, 1500));
           nodeOutput = { delayed: true };
+        } else if (nodeDefId === 'comm-discord') {
+          const webhookUrl = node.data?.webhook_url;
+          const content = node.data?.content;
+          
+          if (!webhookUrl || !content) {
+            throw new Error('Discord Webhook URL and Content are required');
+          }
+
+          const payload: any = { content };
+          if (node.data?.username) payload.username = node.data.username;
+          if (node.data?.avatar_url) payload.avatar_url = node.data.avatar_url;
+          if (node.data?.tts) payload.tts = node.data.tts;
+          if (node.data?.embeds) {
+            try {
+              payload.embeds = typeof node.data.embeds === 'string' ? JSON.parse(node.data.embeds) : node.data.embeds;
+            } catch (e) {
+              console.warn('Invalid embeds JSON for discord webhook', e);
+            }
+          }
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
+          }
+          nodeOutput = { status: 'success', delivered: true };
         } else {
           await new Promise((resolve) => setTimeout(resolve, 500));
           nodeOutput = { status: 'success' };

@@ -33,6 +33,14 @@ const envSchema = z.object({
 
   // Email
   RESEND_API_KEY: z.string().optional(),
+
+  // Activepieces
+  ACTIVEPIECES_URL: z.string().default('http://localhost:3000'),
+  ACTIVEPIECES_PLATFORM_ID: z.string().optional(),
+  ACTIVEPIECES_PROJECT_ID: z.string().optional(),
+  ACTIVEPIECES_ADMIN_EMAIL: z.string().optional(),
+  ACTIVEPIECES_ADMIN_PASSWORD: z.string().optional(),
+  ACTIVEPIECES_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

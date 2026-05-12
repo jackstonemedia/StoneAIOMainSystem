@@ -29,7 +29,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     { name: 'Dashboard',     path: '/dashboard',          icon: LayoutDashboard },
     { name: 'AI Agents',     path: '/agents',             icon: Sparkles },
     { name: 'Voice Agents',  path: '/agents?type=voice',  icon: Mic },
-    { name: 'Workflows',     path: '/agents?type=workflow',icon: GitBranch },
+    { name: 'Automations',   path: '/automations',         icon: Zap },
     { name: 'AI Assistant',  path: '/assistant',          icon: MessageSquare },
     { name: 'Cloud Computer',path: '/computer',           icon: Server },
     { name: 'Templates',     path: '/templates',          icon: FileSpreadsheet },

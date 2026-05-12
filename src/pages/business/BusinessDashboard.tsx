@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   TrendingUp, Users, Mail, DollarSign, Calendar, FileText,
-  ArrowUpRight, ArrowDownRight, BarChart3, Zap, Plus, Phone,
-  MessageSquare, ChevronRight, Activity, Star, Bot, Target
+  BarChart3, Plus,
+  MessageSquare, ChevronRight, Star, Bot
 } from 'lucide-react';
 import { MetricCard } from '../../components/ui/MetricCard';
 
