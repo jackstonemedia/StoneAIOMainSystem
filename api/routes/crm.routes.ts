@@ -12,6 +12,7 @@ import {
   BulkActionSchema,
 } from '../schemas/validation.js';
 import * as crm from '../services/crm.service.js';
+import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
 
@@ -39,7 +40,9 @@ router.get('/contacts', async (req, res) => {
 router.post('/contacts', async (req, res) => {
   try {
     const v = ContactSchema.parse(req.body);
-    res.json(await crm.createContact(req.workspaceId, v));
+    const contact = await crm.createContact(req.workspaceId, v);
+    emitTrigger(req.workspaceId, 'contact.created', contact as Record<string, unknown>).catch(console.error);
+    res.json(contact);
   } catch (e) { dbErr(res, e); }
 });
 
@@ -52,12 +55,19 @@ router.get('/contacts/:id', async (req, res) => {
 });
 
 router.put('/contacts/:id', async (req, res) => {
-  try { res.json(await crm.updateContact(req.params.id, req.workspaceId, req.body)); }
-  catch (e) { dbErr(res, e); }
+  try {
+    const updated = await crm.updateContact(req.params.id, req.workspaceId, req.body);
+    emitTrigger(req.workspaceId, 'contact.updated', { updated }).catch(console.error);
+    res.json(updated);
+  } catch (e) { dbErr(res, e); }
 });
 
 router.delete('/contacts/:id', async (req, res) => {
-  try { await crm.deleteContact(req.params.id, req.workspaceId); res.json({ success: true }); }
+  try { 
+    await crm.deleteContact(req.params.id, req.workspaceId); 
+    emitTrigger(req.workspaceId, 'contact.deleted', { id: req.params.id }).catch(console.error);
+    res.json({ success: true }); 
+  }
   catch (e) { dbErr(res, e); }
 });
 
@@ -132,7 +142,9 @@ router.get('/deals', async (req, res) => {
 router.post('/deals', async (req, res) => {
   try {
     const v = DealSchema.parse(req.body);
-    res.json(await crm.createDeal(req.workspaceId, req.userId!, v as any));
+    const deal = await crm.createDeal(req.workspaceId, req.userId!, v as any);
+    emitTrigger(req.workspaceId, 'deal.created', deal as Record<string, unknown>).catch(console.error);
+    res.json(deal);
   } catch (e) { dbErr(res, e); }
 });
 
@@ -149,8 +161,14 @@ router.get('/deals/:id', async (req, res) => {
 });
 
 router.put('/deals/:id', async (req, res) => {
-  try { res.json(await crm.updateDeal(req.params.id, req.workspaceId, req.body)); }
-  catch (e) { dbErr(res, e); }
+  try { 
+    const deal = await crm.updateDeal(req.params.id, req.workspaceId, req.body); 
+    if (req.body.stageId) emitTrigger(req.workspaceId, 'deal.stage_changed', { deal, newStage: req.body.stageId }).catch(console.error);
+    if (req.body.status === 'won') emitTrigger(req.workspaceId, 'deal.won', deal as Record<string, unknown>).catch(console.error);
+    if (req.body.status === 'lost') emitTrigger(req.workspaceId, 'deal.lost', deal as Record<string, unknown>).catch(console.error);
+    emitTrigger(req.workspaceId, 'deal.updated', { deal }).catch(console.error);
+    res.json(deal);
+  } catch (e) { dbErr(res, e); }
 });
 
 router.delete('/deals/:id', async (req, res) => {

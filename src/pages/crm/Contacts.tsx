@@ -40,6 +40,7 @@ export default function Contacts() {
 
   const { data: apiContacts = [], isLoading } = useQuery<Contact[]>({
     queryKey: ['contacts', { activeListId, filters, filterMatchMode, searchQuery }],
+    placeholderData: (prev) => prev,
     queryFn: () => {
       if (activeListId !== 'all') {
         return fetch(`/api/crm/smart-lists/${activeListId}/contacts`).then(r => r.ok ? r.json().then(d => d.contacts || d || []) : []);
@@ -126,7 +127,7 @@ export default function Contacts() {
   
   // Panel states
   const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
-  const [addContactDropdownOpen, setAddContactDropdownOpen] = useState(false);
+  const [moreActionsDropdownOpen, setMoreActionsDropdownOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [advancedContactOptionsOpen, setAdvancedContactOptionsOpen] = useState(false);
 
@@ -268,73 +269,11 @@ export default function Contacts() {
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
-      {/* Header section */}
-      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
-        <div className="flex items-center gap-4">
-          <h1 className="text-[20px] font-bold text-text-main">
-            {activeListId === 'all' ? 'Contacts' : (activeList?.name ?? 'Contacts')}
-          </h1>
-          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border">
-            {processedContacts.length} {activeListId === 'all' ? 'Contacts' : 'Members'}
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[14px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
-            <Download className="w-4 h-4" /> Import
-          </button>
-          
-          <div className="relative">
-            <div className="flex items-center gap-2 relative">
-              <button 
-                onClick={() => setPanelOpen('new_contact')} 
-                className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-border text-[14px] font-medium text-text-muted hover:text-text-main transition-colors active:scale-95 shadow-sm bg-surface"
-              >
-                <Plus className="w-4 h-4" /> Add Contact
-              </button>
-              <button 
-                onClick={() => setAddContactDropdownOpen(!addContactDropdownOpen)}
-                className="px-2 py-1.5 border border-border rounded-[4px] text-text-muted hover:text-text-main transition-colors flex items-center justify-center bg-surface active:scale-95 shadow-sm"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <AnimatePresence>
-              {addContactDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setAddContactDropdownOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                    className="absolute right-0 top-[calc(100%+8px)] w-[240px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    <div className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1">More Customizations</div>
-                    <button onClick={() => { setAddContactDropdownOpen(false); setPanelOpen('new_contact'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                      <User className="w-4 h-4 shrink-0" /> Open Full Contact Form
-                    </button>
-                    <button onClick={() => { setAddContactDropdownOpen(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                      <ListIcon className="w-4 h-4 shrink-0" /> Import via CSV Array
-                    </button>
-                    <button onClick={() => { setAddContactDropdownOpen(false); setPanelOpen('duplicates'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                      <Search className="w-4 h-4 shrink-0" /> Find Duplicates
-                    </button>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="relative">
-            <button onClick={() => setPanelOpen(panelOpen === 'manage' ? null : 'manage')} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
-              <MoreVertical className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Header section removed */}
 
       {/* Unified Toolbar OR Bulk Actions Context Bar */}
-      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
-        <AnimatePresence mode="wait">
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
+        <AnimatePresence mode="wait" initial={false}>
           {selected.size > 0 ? (
             <motion.div 
               key="bulk-toolbar"
@@ -378,34 +317,33 @@ export default function Contacts() {
                 {/* All tab */}
                 <div 
                   onClick={() => setActiveListId('all')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
-                    activeListId === 'all' ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-[4px] cursor-pointer border transition-colors text-[13px] font-medium ${
+                    activeListId === 'all' ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
                   }`}
                 >
-                  <ListIcon className="w-4 h-4 text-primary" />
-                  <span className="text-[13px]">All</span>
+                  <ListIcon className="w-3.5 h-3.5 text-primary" />
+                  <span>All</span>
                 </div>
 
-                {/* Smart list tabs from backend */}
                 {smartLists.map((list: any) => (
                   <div 
                     key={list.id}
                     onClick={() => setActiveListId(list.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
-                      activeListId === list.id ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] cursor-pointer border transition-colors text-[13px] font-medium ${
+                      activeListId === list.id ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
                     }`}
                   >
-                    <span className="text-[13px]">{list.name}</span>
+                    <span>{list.name}</span>
                   </div>
                 ))}
 
                 <div className="w-[1px] h-5 bg-border mx-2"></div>
-                <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm ml-1 card-hover-lift">
-                  <Filter className="w-3.5 h-3.5" /> Advanced filters
+                <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm ml-1">
+                  <Filter className="w-4 h-4" /> Advanced filters
                 </button>
                 <div className="relative">
-                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm card-hover-lift">
-                    <ChevronDown className="w-3.5 h-3.5" /> Sort
+                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
+                    <ChevronDown className="w-4 h-4" /> Sort
                   </button>
                   <AnimatePresence>
                     {sortDropdownOpen && (
@@ -440,20 +378,66 @@ export default function Contacts() {
                   </AnimatePresence>
                 </div>
               </div>
-              <div className="flex items-center gap-5">
-                <div className="relative shadow-sm rounded-full flex items-center">
+              <div className="flex items-center gap-3">
+                <div className="relative shadow-sm rounded-full flex items-center mr-2">
                   <Search className="w-4 h-4 absolute left-3 text-text-muted" />
                   <input 
                     type="text" 
                     placeholder="Search Contacts" 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-1.5 w-[280px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                    className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
                   />
                 </div>
-                <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors">
-                  <Settings className="w-4 h-4" /> Manage fields
+                
+                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
+                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+                  <Download className="w-4 h-4" /> Import
                 </button>
+                
+                <div className="relative flex items-center gap-1">
+                  <button 
+                    onClick={() => setPanelOpen('new_contact')} 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-border text-[13px] font-medium text-text-muted hover:text-text-main transition-colors active:scale-95 shadow-sm bg-surface"
+                  >
+                    <Plus className="w-4 h-4" /> Add Contact
+                  </button>
+                </div>
+
+                <div className="w-[1px] h-5 bg-border mx-1"></div>
+
+                <div className="relative flex items-center gap-2">
+                  <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
+                    <Settings className="w-4 h-4" /> Manage fields
+                  </button>
+                  <div className="relative">
+                    <button onClick={() => setMoreActionsDropdownOpen(!moreActionsDropdownOpen)} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
+                    <AnimatePresence>
+                      {moreActionsDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setMoreActionsDropdownOpen(false)} />
+                          <motion.div 
+                            initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                            className="absolute right-0 top-[calc(100%+8px)] w-[240px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                          >
+                            <div className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1">More Actions</div>
+                            <button onClick={() => { setMoreActionsDropdownOpen(false); setPanelOpen('new_contact'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+                              <User className="w-4 h-4 shrink-0" /> Open Full Contact Form
+                            </button>
+                            <button onClick={() => { setMoreActionsDropdownOpen(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+                              <ListIcon className="w-4 h-4 shrink-0" /> Import via CSV Array
+                            </button>
+                            <button onClick={() => { setMoreActionsDropdownOpen(false); setPanelOpen('duplicates'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+                              <Search className="w-4 h-4 shrink-0" /> Find Duplicates
+                            </button>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -519,7 +503,7 @@ export default function Contacts() {
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm" style={{ backgroundColor: c.color }}>
                         {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
                       </div>
-                      <span className="text-[13px] font-semibold transition-colors hover:text-primary text-text-main truncate">{c.name || 'Unknown'}</span>
+                      <span className="text-[13px] font-medium transition-colors hover:text-primary text-text-main truncate">{c.name || 'Unknown'}</span>
                     </Link>
                   </td>
                 )}
@@ -566,7 +550,14 @@ export default function Contacts() {
 
       {/* Footer Paginator */}
       <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0">
-        <div className="font-semibold text-text-muted">Page 1 of 1</div>
+        <div className="font-semibold text-text-muted flex items-center gap-3">
+          Page 1 of 1
+          <div className="w-[1px] h-4 bg-border"></div>
+          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+            {processedContacts.length} {activeListId === 'all' ? 'Contacts' : 'Members'}
+          </span>
+        </div>
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-1.5 border border-border rounded-[4px] px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />

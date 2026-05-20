@@ -8,9 +8,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from './components/ui/Toast';
-import { ModeProvider } from './context/ModeContext';          // ← moved from store/
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import PageLoader from './components/common/PageLoader';
+import { AuthTokenProvider } from './lib/AuthTokenProvider';
 
 // Layout (keep eager — needed immediately on every route)
 import AppShell from './components/layout/AppShell';
@@ -19,22 +19,17 @@ import AppShell from './components/layout/AppShell';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import SSOCallback from './pages/SSOCallback';
 import Onboarding from './pages/Onboarding';
 
-// ── Lazy imports — code split by route ───────────────────────────────────────
-// Creator Studio
-const Dashboard          = lazy(() => import('./pages/Dashboard'));
-const AgentsList         = lazy(() => import('./pages/AgentsList'));
+// CRM / Automations
 const Workflows          = lazy(() => import('./pages/Workflows'));
-const Automations        = lazy(() => import('./pages/automations/Automations'));
 const AutomationsLayout  = lazy(() => import('./pages/automations/AutomationsLayout'));
-const AutomationsRuns    = lazy(() => import('./pages/automations/AutomationsRuns'));
-const AutomationsConns   = lazy(() => import('./pages/automations/AutomationsConnections'));
 const AutomationsTables  = lazy(() => import('./pages/automations/AutomationsTables'));
 const AutomationsTableDetail = lazy(() => import('./pages/automations/AutomationsTableDetail'));
 const AutomationsReleases = lazy(() => import('./pages/automations/AutomationsReleases'));
 const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSettings'));
-const WorkflowBuilder    = lazy(() => import('./pages/automations/WorkflowBuilder'));
+const WorkflowBuilder = lazy(() => import('./pages/automations/WorkflowBuilder'));
 
 // Admin
 const PlatformAdminLayout = lazy(() => import('./pages/admin/PlatformAdminLayout'));
@@ -45,13 +40,8 @@ import {
 const AgentTypePicker    = lazy(() => import('./pages/AgentTypePicker'));
 const AgentBuilder       = lazy(() => import('./pages/AgentBuilder'));      // 49KB
 const VoiceAgentBuilder  = lazy(() => import('./pages/VoiceAgentBuilder')); // 40KB
-const AIAssistant        = lazy(() => import('./pages/AIAssistant'));
-const Projects           = lazy(() => import('./pages/Projects'));
-const ComputerSetup      = lazy(() => import('./pages/ComputerSetup'));
-const ComputerDashboard  = lazy(() => import('./pages/ComputerDashboard'));
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
-const WorkflowTemplates  = lazy(() => import('./pages/WorkflowTemplates'));
 const Marketplace        = lazy(() => import('./pages/Marketplace'));
 
 // Business Hub
@@ -105,104 +95,102 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
   }
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Routes>
-        {/* ── Public ─────────────────────────────────────────────────────── */}
-        <Route path="/"           element={<Landing />} />
-        <Route path="/login"      element={<Login />} />
-        <Route path="/signup"     element={<Signup />} />
-        <Route path="/onboarding" element={<Onboarding />} />
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* ── Public ─────────────────────────────────────────────────────── */}
+          <Route path="/"           element={<Landing />} />
+          <Route path="/login"      element={<Login />} />
+          <Route path="/signup"     element={<Signup />} />
+          <Route path="/sso-callback" element={<SSOCallback />} />
+          <Route path="/onboarding" element={<Onboarding />} />
 
-        {/* ── Protected shell ────────────────────────────────────────────── */}
-        <Route element={<AppShell />}>
+          {/* ── Protected shell ────────────────────────────────────────────── */}
+          <Route element={<AppShell />}>
 
-          {/* Creator Studio */}
-          <Route path="/dashboard"          element={<ErrorBoundary><Protect><Dashboard /></Protect></ErrorBoundary>} />
-          <Route path="/assistant"          element={<ErrorBoundary><Protect><AIAssistant /></Protect></ErrorBoundary>} />
-          <Route path="/projects"           element={<ErrorBoundary><Protect><Projects /></Protect></ErrorBoundary>} />
-          <Route path="/computer/setup"     element={<ErrorBoundary><Protect><ComputerSetup /></Protect></ErrorBoundary>} />
-          <Route path="/computer"           element={<ErrorBoundary><Protect><ComputerDashboard /></Protect></ErrorBoundary>} />
-          <Route path="/agents"             element={<ErrorBoundary><Protect><AgentsList /></Protect></ErrorBoundary>} />
-          <Route path="/agents/new"         element={<ErrorBoundary><Protect><AgentTypePicker /></Protect></ErrorBoundary>} />
-          <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-          <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-          <Route path="/agents/workflow/new" element={<Navigate to="/automations" replace />} />
-          <Route path="/agents/:id/build"   element={<ErrorBoundary><Protect><AgentBuilder /></Protect></ErrorBoundary>} />
-          <Route path="/workflows"          element={<Navigate to="/automations" replace />} />
-          <Route path="/workflows/new/builder" element={<Navigate to="/automations" replace />} />
-          <Route path="/workflows/:id/builder" element={<Navigate to="/automations/:id" replace />} />
-          <Route path="/templates"          element={<ErrorBoundary><Protect><WorkflowTemplates /></Protect></ErrorBoundary>} />
-          <Route path="/automations/:id"      element={<ErrorBoundary><Protect><WorkflowBuilder /></Protect></ErrorBoundary>} />
+            {/* Unified CRM Routes */}
+            <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/workflows"          element={<ErrorBoundary><Protect><Workflows /></Protect></ErrorBoundary>} />
+            <Route path="/automations/:id"      element={<ErrorBoundary><Protect><WorkflowBuilder /></Protect></ErrorBoundary>} />
 
-          {/* Automations sub-pages (with sidebar layout) */}
-          <Route path="/automations" element={<ErrorBoundary><Protect><AutomationsLayout /></Protect></ErrorBoundary>}>
-            <Route index element={<Automations />} />
-            <Route path="runs" element={<AutomationsRuns />} />
-            <Route path="connections" element={<AutomationsConns />} />
-            <Route path="tables" element={<AutomationsTables />} />
-            <Route path="tables/:tableId" element={<AutomationsTableDetail />} />
-            <Route path="releases" element={<AutomationsReleases />} />
-            <Route path="settings" element={<AutomationsSettings />} />
+            {/* Automations sub-pages (with sidebar layout) */}
+            <Route path="/automations" element={<ErrorBoundary><Protect><AutomationsLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<Navigate to="/workflows" replace />} />
+              <Route path="runs" element={<Navigate to="/workflows" replace />} />
+              <Route path="connections" element={<Navigate to="/workflows" replace />} />
+              <Route path="tables" element={<AutomationsTables />} />
+              <Route path="tables/:tableId" element={<AutomationsTableDetail />} />
+              <Route path="releases" element={<AutomationsReleases />} />
+              <Route path="settings" element={<AutomationsSettings />} />
+            </Route>
+
+            {/* Platform Admin */}
+            <Route path="/admin" element={<ErrorBoundary><Protect><PlatformAdminLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<Navigate to="projects" replace />} />
+              <Route path="projects" element={<AdminProjects />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="roles" element={<AdminRoles />} />
+              <Route path="audit" element={<AdminAudit />} />
+              <Route path="pieces" element={<AdminPieces />} />
+              <Route path="ai" element={<AdminAI />} />
+              <Route path="infrastructure" element={<AdminInfra />} />
+              <Route path="security" element={<AdminSecurity />} />
+              <Route path="branding" element={<AdminBranding />} />
+              <Route path="sso" element={<AdminSSO />} />
+            </Route>
+
+            {/* Conversations (Business Hub) */}
+            <Route path="/conversations" element={<ErrorBoundary><Protect><ConversationsLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<Navigate to="chat" replace />} />
+              <Route path="chat"           element={<ConversationsTab />} />
+              <Route path="manual-actions" element={<ManualActionsTab />} />
+              <Route path="snippets"       element={<SnippetsTab />} />
+              <Route path="trigger-links"  element={<TriggerLinksTab />} />
+            </Route>
+
+            {/* Business Hub */}
+            <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
+              <Route index          element={<BusinessDashboard />} />
+              <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
+              <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
+              <Route path="forms"       element={<ErrorBoundary><Forms /></ErrorBoundary>} />
+              <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+              <Route path="reputation"  element={<ErrorBoundary><Reputation /></ErrorBoundary>} />
+            </Route>
+
+            {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
+            <Route path="/crm" element={<ErrorBoundary><Protect><CrmLayout /></Protect></ErrorBoundary>}>
+              <Route index                  element={<Navigate to="contacts" replace />} />
+              <Route path="contacts"        element={<ErrorBoundary><Contacts /></ErrorBoundary>} />
+              <Route path="contacts/:id"    element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
+              <Route path="companies"       element={<ErrorBoundary><Companies /></ErrorBoundary>} />
+              <Route path="companies/:id"   element={<ErrorBoundary><CompanyDetail /></ErrorBoundary>} />
+              <Route path="tasks"           element={<ErrorBoundary><CrmTasks /></ErrorBoundary>} />
+              <Route path="smart-lists"     element={<ErrorBoundary><SmartLists /></ErrorBoundary>} />
+              <Route path="bulk-actions"    element={<ErrorBoundary><BulkActions /></ErrorBoundary>} />
+              <Route path="pipeline"        element={<ErrorBoundary><Opportunities /></ErrorBoundary>} />
+              <Route path="settings"        element={<ErrorBoundary><CrmSettings /></ErrorBoundary>} />
+            </Route>
+
+            {/* Shared */}
+            <Route path="/marketplace" element={<ErrorBoundary><Protect><Marketplace /></Protect></ErrorBoundary>} />
+            <Route path="/billing"     element={<ErrorBoundary><Protect><Billing /></Protect></ErrorBoundary>} />
+            <Route path="/settings"    element={<ErrorBoundary><Protect><SettingsPage /></Protect></ErrorBoundary>} />
           </Route>
 
-          {/* Platform Admin */}
-          <Route path="/admin" element={<ErrorBoundary><Protect><PlatformAdminLayout /></Protect></ErrorBoundary>}>
-            <Route index element={<Navigate to="projects" replace />} />
-            <Route path="projects" element={<AdminProjects />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="roles" element={<AdminRoles />} />
-            <Route path="audit" element={<AdminAudit />} />
-            <Route path="pieces" element={<AdminPieces />} />
-            <Route path="ai" element={<AdminAI />} />
-            <Route path="infrastructure" element={<AdminInfra />} />
-            <Route path="security" element={<AdminSecurity />} />
-            <Route path="branding" element={<AdminBranding />} />
-            <Route path="sso" element={<AdminSSO />} />
-          </Route>
-
-          {/* Conversations (Business Hub) */}
-          <Route path="/conversations" element={<ErrorBoundary><Protect><ConversationsLayout /></Protect></ErrorBoundary>}>
-            <Route index element={<Navigate to="chat" replace />} />
-            <Route path="chat"           element={<ConversationsTab />} />
-            <Route path="manual-actions" element={<ManualActionsTab />} />
-            <Route path="snippets"       element={<SnippetsTab />} />
-            <Route path="trigger-links"  element={<TriggerLinksTab />} />
-          </Route>
-
-          {/* Business Hub */}
-          <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
-            <Route index          element={<BusinessDashboard />} />
-            <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
-            <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
-            <Route path="forms"       element={<ErrorBoundary><Forms /></ErrorBoundary>} />
-            <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-            <Route path="reputation"  element={<ErrorBoundary><Reputation /></ErrorBoundary>} />
-          </Route>
-
-          {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
-          <Route path="/crm" element={<ErrorBoundary><Protect><CrmLayout /></Protect></ErrorBoundary>}>
-            <Route index                  element={<Navigate to="contacts" replace />} />
-            <Route path="contacts"        element={<ErrorBoundary><Contacts /></ErrorBoundary>} />
-            <Route path="contacts/:id"    element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
-            <Route path="companies"       element={<ErrorBoundary><Companies /></ErrorBoundary>} />
-            <Route path="companies/:id"   element={<ErrorBoundary><CompanyDetail /></ErrorBoundary>} />
-            <Route path="tasks"           element={<ErrorBoundary><CrmTasks /></ErrorBoundary>} />
-            <Route path="smart-lists"     element={<ErrorBoundary><SmartLists /></ErrorBoundary>} />
-            <Route path="bulk-actions"    element={<ErrorBoundary><BulkActions /></ErrorBoundary>} />
-            <Route path="pipeline"        element={<ErrorBoundary><Opportunities /></ErrorBoundary>} />
-            <Route path="settings"        element={<ErrorBoundary><CrmSettings /></ErrorBoundary>} />
-          </Route>
-
-          {/* Shared */}
-          <Route path="/marketplace" element={<ErrorBoundary><Protect><Marketplace /></Protect></ErrorBoundary>} />
-          <Route path="/billing"     element={<ErrorBoundary><Protect><Billing /></Protect></ErrorBoundary>} />
-          <Route path="/settings"    element={<ErrorBoundary><Protect><SettingsPage /></Protect></ErrorBoundary>} />
-        </Route>
-
-        {/* Redirect unknown routes to sign-in (Clerk mode only) */}
-        {withAuth && <Route path="*" element={<SignedOut><RedirectToSignIn /></SignedOut>} />}
-      </Routes>
-    </Suspense>
+          {/* Redirect unknown routes */}
+          {withAuth && (
+            <Route path="*" element={
+              <>
+                <SignedOut><RedirectToSignIn /></SignedOut>
+                <SignedIn><Navigate to="/crm" replace /></SignedIn>
+              </>
+            } />
+          )}
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
@@ -212,21 +200,27 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ModeProvider>
-        <ToastProvider>
-          {isDevBypass ? (
-            <BrowserRouter>
-              <AppRoutes withAuth={false} />
-            </BrowserRouter>
-          ) : (
-            <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <ToastProvider>
+        {isDevBypass ? (
+          <BrowserRouter>
+            <AppRoutes withAuth={false} />
+          </BrowserRouter>
+        ) : (
+          <ClerkProvider 
+            publishableKey={PUBLISHABLE_KEY}
+            signInUrl="/login"
+            signUpUrl="/signup"
+            afterSignInUrl="/crm"
+            afterSignUpUrl="/crm"
+          >
+            <AuthTokenProvider>
               <BrowserRouter>
                 <AppRoutes withAuth={true} />
               </BrowserRouter>
-            </ClerkProvider>
-          )}
-        </ToastProvider>
-      </ModeProvider>
+            </AuthTokenProvider>
+          </ClerkProvider>
+        )}
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

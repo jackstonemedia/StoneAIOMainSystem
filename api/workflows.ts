@@ -1,25 +1,10 @@
 import { Router } from 'express';
 import { db } from '../infrastructure/database/client.js';
-import { ensureAPProject } from './services/ap-workspace-sync.service.js';
-import {
-  getAPFlow, createAPFlow, updateAPFlow,
-  publishAPFlow, disableAPFlow, deleteAPFlow, duplicateAPFlow,
-  listAPFlowRuns, getAPFlowRun, triggerAPTestRun,
-  listAPPieces, getAPPiece, getAPWebhookUrl, getAPDynamicOptions,
-  listAPConnections, createAPConnection, deleteAPConnection,
-} from './services/activepieces.service.js';
 
 const router = Router();
 
 
-function deriveTriggerType(trigger?: any): string | null {
-  if (!trigger) return null;
-  const piece = trigger.settings?.pieceName ?? '';
-  if (piece.includes('schedule')) return 'schedule';
-  if (piece.includes('webhook')) return 'webhook';
-  if (trigger.type === 'PIECE') return 'app_event';
-  return 'manual';
-}
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // WORKFLOWS CRUD
@@ -130,7 +115,7 @@ router.get('/runs', async (req, res) => {
     const [runs, total] = await Promise.all([
       db.workflowRun.findMany({
         where,
-        include: { workflow: { select: { name: true, apFlowId: true } } },
+        include: { workflow: { select: { name: true } } },
         orderBy: { startedAt: 'desc' },
         take: parseInt(limit),
         skip,
@@ -140,9 +125,7 @@ router.get('/runs', async (req, res) => {
 
     res.json({
       data: runs.map((r) => ({
-        id: r.apRunId,
         localId: r.id,
-        flowId: r.workflow.apFlowId,
         workflowId: r.workflowId,
         flowName: r.workflow.name,
         status: r.status,
@@ -162,108 +145,140 @@ router.get('/runs', async (req, res) => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// PIECE CATALOG
+// NATIVE: CREDENTIALS & WEBHOOKS & TEMPLATES (Must be before /:id)
 // ═════════════════════════════════════════════════════════════════════════════
 
-// GET /api/workflows/pieces — All available pieces
-router.get('/pieces', async (req, res) => {
+// GET /api/workflows/webhooks
+router.get('/webhooks', async (req, res) => {
   try {
-    const { search, tags } = req.query as Record<string, string>;
-    const pieces = await listAPPieces({
-      searchQuery: search,
-      tags: tags ? tags.split(',') : undefined,
+    const webhooks = await db.workflowWebhook.findMany({
+      where: { workspaceId: req.workspaceId },
+      include: { workflow: { select: { name: true } } }
     });
-    res.json(pieces);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+    res.json(webhooks);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/workflows/pieces/:pieceName — Single piece with full props schema
-router.get('/pieces/:pieceName', async (req, res) => {
+// POST /api/workflows/webhooks/:webhookId/test
+router.post('/webhooks/:webhookId/test', async (req, res) => {
   try {
-    const piece = await getAPPiece(decodeURIComponent(req.params.pieceName));
-    res.json(piece);
-  } catch (e: any) {
-    res.status(404).json({ error: 'Piece not found' });
-  }
+    const hook = await db.workflowWebhook.findUnique({
+      where: { id: req.params.webhookId, workspaceId: req.workspaceId }
+    });
+    if (!hook) return res.status(404).json({ error: 'Not found' });
+    
+    const { queueService } = await import('./services/workflow-engine/queue.service.js');
+    await queueService.enqueue({
+      workspaceId: req.workspaceId!,
+      workflowId: hook.workflowId,
+      triggerData: req.body,
+      mode: 'test'
+    });
+    
+    res.json({ success: true, message: 'Test payload queued' });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/workflows/pieces/:pieceName/options — Dynamic options
-router.post('/pieces/:pieceName/options', async (req, res) => {
+// GET /api/workflows/credentials
+router.get('/credentials', async (req, res) => {
   try {
-    const options = await getAPDynamicOptions(decodeURIComponent(req.params.pieceName), req.body);
-    res.json(options);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+    const creds = await (db as any).workflowCredential?.findMany({
+      where: { workspaceId: req.workspaceId },
+      select: { id: true, name: true, type: true, createdAt: true, updatedAt: true } // Exclude encryptedData
+    }) ?? [];
+    res.json(creds);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// ═════════════════════════════════════════════════════════════════════════════
-// CONNECTIONS
-// ═════════════════════════════════════════════════════════════════════════════
-
-// GET /api/workflows/connections — List connections for workspace
-router.get('/connections', async (req, res) => {
+// POST /api/workflows/credentials
+router.post('/credentials', async (req, res) => {
   try {
-    const apProjectId = await ensureAPProject(req.workspaceId);
-    const { pieceName } = req.query as Record<string, string>;
-    const { data: connections } = await listAPConnections(apProjectId, pieceName);
-    res.json(connections);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// POST /api/workflows/connections — Create connection
-router.post('/connections', async (req, res) => {
-  try {
-    const apProjectId = await ensureAPProject(req.workspaceId);
-    const { pieceName, name, type, value } = req.body;
-
-    const connection = await createAPConnection(apProjectId, { pieceName, name, type, value });
-
-    // Mirror in local DB
-    await db.aPConnection.upsert({
-      where: { apConnectionId: connection.id } as any,
-      update: { status: 'active', displayName: name },
-      create: {
+    const { name, type, data } = req.body;
+    
+    // Encrypt data
+    const algorithm = 'aes-256-cbc';
+    const key = Buffer.from((process.env.ENCRYPTION_KEY || '12345678901234567890123456789012').substring(0, 32));
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const encryptedData = `${iv.toString('hex')}:${encrypted}`;
+    
+    const cred = await (db as any).workflowCredential?.create({
+      data: {
         workspaceId: req.workspaceId,
-        apConnectionId: connection.id,
-        pieceName,
-        displayName: name,
-        status: 'active',
-      },
+        name,
+        type,
+        encryptedData
+      }
     });
-
-    res.status(201).json(connection);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+    res.json({ id: cred?.id, name, type });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/workflows/connections/:connectionId
-router.delete('/connections/:connectionId', async (req, res) => {
+// DELETE /api/workflows/credentials/:id
+router.delete('/credentials/:id', async (req, res) => {
   try {
-    await deleteAPConnection(req.params.connectionId);
-    await db.aPConnection.deleteMany({ where: { apConnectionId: req.params.connectionId } });
+    await (db as any).workflowCredential?.delete({
+      where: { id: req.params.id, workspaceId: req.workspaceId }
+    });
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/workflows/:id — Get single workflow with full AP flow data
+// GET /api/workflows/templates
+router.get('/templates', async (req, res) => {
+  try {
+    const templates = await db.workflow.findMany({
+      where: { isSystem: true, status: 'published' }
+    });
+    res.json(templates);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/workflows/from-template/:templateId
+router.post('/from-template/:templateId', async (req, res) => {
+  try {
+    const template = await db.workflow.findUnique({
+      where: { id: req.params.templateId }
+    });
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+    
+    const tplDef = await db.nativeWorkflowDefinition.findUnique({
+      where: { workflowId: template.id }
+    });
+    
+    const workflow = await db.workflow.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        name: `${template.name} (Copy)`,
+        description: template.description,
+        engineType: template.engineType,
+        status: 'draft'
+      }
+    });
+    
+    if (tplDef) {
+      await db.nativeWorkflowDefinition.create({
+        data: {
+          workflowId: workflow.id,
+          nodesJson: tplDef.nodesJson,
+          edgesJson: tplDef.edgesJson
+        }
+      });
+    }
+    
+    res.json(workflow);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/workflows/:id — Get single workflow
 router.get('/:id', async (req, res) => {
   try {
     const workflow = await db.workflow.findFirstOrThrow({
       where: { id: req.params.id, workspaceId: req.workspaceId },
     });
-
-    // Fetch live AP flow data (includes full step config)
-    const apFlow = await getAPFlow(workflow.apFlowId);
-
-    res.json({ ...workflow, apFlow });
+    res.json(workflow);
   } catch (e: any) {
     res.status(404).json({ error: 'Workflow not found' });
   }
@@ -274,32 +289,22 @@ router.post('/', async (req, res) => {
   try {
     const { name = 'Untitled Workflow', description } = req.body;
 
-    // 1. Ensure AP project exists for this workspace
-    const apProjectId = await ensureAPProject(req.workspaceId);
-
-    // 2. Create flow in AP
-    const apFlow = await createAPFlow(apProjectId, name);
-
-    // 3. Save reference in our DB
     const workflow = await db.workflow.create({
       data: {
-        workspaceId: req.workspaceId,
-        apFlowId: apFlow.id,
-        apProjectId,
-        apVersionId: apFlow.version?.id,
+        workspaceId: req.workspaceId!,
         name,
         description,
         status: 'draft',
       },
     });
 
-    res.status(201).json({ ...workflow, apFlow });
+    res.status(201).json(workflow);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// PUT /api/workflows/:id — Update workflow (name, flow definition, trigger, etc.)
+// PUT /api/workflows/:id — Update workflow
 router.put('/:id', async (req, res) => {
   try {
     const workflow = await db.workflow.findFirstOrThrow({
@@ -308,16 +313,6 @@ router.put('/:id', async (req, res) => {
 
     const { name, description, trigger, tags } = req.body;
 
-    // Update AP flow (displayName, trigger)
-    const updatePayload: any = {};
-    if (name) updatePayload.displayName = name;
-    if (trigger) updatePayload.trigger = trigger;
-
-    let apFlow;
-    if (Object.keys(updatePayload).length > 0) {
-      apFlow = await updateAPFlow(workflow.apFlowId, updatePayload);
-    }
-
     // Update local record
     const updated = await db.workflow.update({
       where: { id: workflow.id },
@@ -325,16 +320,10 @@ router.put('/:id', async (req, res) => {
         name: name ?? workflow.name,
         description: description ?? workflow.description,
         tags: tags ? JSON.stringify(tags) : workflow.tags,
-        apVersionId: apFlow?.version?.id ?? workflow.apVersionId,
-        triggerType: trigger ? deriveTriggerType(trigger) : workflow.triggerType,
-        triggerPieceName: trigger?.settings?.pieceName ?? workflow.triggerPieceName,
-        webhookUrl: trigger?.settings?.pieceName?.includes('webhook')
-          ? await getAPWebhookUrl(workflow.apFlowId)
-          : workflow.webhookUrl,
       },
     });
 
-    res.json({ ...updated, apFlow });
+    res.json(updated);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
@@ -347,7 +336,6 @@ router.delete('/:id', async (req, res) => {
       where: { id: req.params.id, workspaceId: req.workspaceId },
     });
 
-    await deleteAPFlow(workflow.apFlowId);
     await db.workflow.delete({ where: { id: workflow.id } });
 
     res.json({ success: true });
@@ -356,201 +344,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/workflows/:id/publish — Go live
-router.post('/:id/publish', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
 
-    const apFlow = await publishAPFlow(workflow.apFlowId);
-    const updated = await db.workflow.update({
-      where: { id: workflow.id },
-      data: { status: 'published', apVersionId: apFlow.version?.id },
-    });
-
-    res.json(updated);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// POST /api/workflows/:id/disable — Pause/disable
-router.post('/:id/disable', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
-
-    await disableAPFlow(workflow.apFlowId);
-    const updated = await db.workflow.update({
-      where: { id: workflow.id },
-      data: { status: 'paused' },
-    });
-
-    res.json(updated);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// POST /api/workflows/:id/duplicate
-router.post('/:id/duplicate', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
-
-    const apFlow = await duplicateAPFlow(workflow.apFlowId);
-
-    const newWorkflow = await db.workflow.create({
-      data: {
-        workspaceId: req.workspaceId,
-        apFlowId: apFlow.id,
-        apProjectId: workflow.apProjectId,
-        apVersionId: apFlow.version?.id,
-        name: `${workflow.name} (Copy)`,
-        description: workflow.description,
-        status: 'draft',
-        triggerType: workflow.triggerType,
-        triggerPieceName: workflow.triggerPieceName,
-      },
-    });
-
-    res.status(201).json(newWorkflow);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ═════════════════════════════════════════════════════════════════════════════
-// FLOW RUNS
-// ═════════════════════════════════════════════════════════════════════════════
-
-// POST /api/workflows/:id/test — Trigger a test run
-router.post('/:id/test', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
-
-    const run = await triggerAPTestRun(workflow.apFlowId, req.body.payload ?? {});
-    res.json(run);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET /api/workflows/:id/runs
-router.get('/:id/runs', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
-
-    const apProjectId = await ensureAPProject(req.workspaceId);
-    const { data: runs } = await listAPFlowRuns(apProjectId, {
-      flowId: workflow.apFlowId,
-      limit: parseInt((req.query.limit as string) ?? '20'),
-    });
-
-    // Upsert runs to local DB for persistence + search
-    for (const run of runs) {
-      await db.workflowRun.upsert({
-        where: { apRunId: run.id } as any,
-        update: {
-          status: run.status,
-          durationMs: run.duration ?? null,
-          finishedAt: run.finishTime ? new Date(run.finishTime) : null,
-          errorMessage: run.status === 'FAILED'
-            ? Object.values(run.steps ?? {}).find((s: any) => s.errorMessage)?.errorMessage ?? null
-            : null,
-        },
-        create: {
-          workspaceId: req.workspaceId,
-          workflowId: workflow.id,
-          apRunId: run.id,
-          status: run.status,
-          durationMs: run.duration ?? null,
-          stepCount: Object.keys(run.steps ?? {}).length,
-          startedAt: new Date(run.startTime),
-          finishedAt: run.finishTime ? new Date(run.finishTime) : null,
-        },
-      });
-    }
-
-    // Fetch all runs from DB to ensure mock runs are included
-    const dbRuns = await db.workflowRun.findMany({
-      where: { workflowId: workflow.id },
-      orderBy: { startedAt: 'desc' },
-      take: parseInt((req.query.limit as string) ?? '20'),
-    });
-
-    // Format them to match the APFlowRun interface expected by the frontend
-    const formattedRuns = dbRuns.map(run => ({
-      id: run.apRunId,
-      flowId: workflow.apFlowId,
-      projectId: apProjectId,
-      status: run.status,
-      startTime: run.startedAt.toISOString(),
-      finishTime: run.finishedAt?.toISOString(),
-      duration: run.durationMs,
-      steps: {}, // Full steps are fetched individually
-    }));
-
-    res.json({ data: formattedRuns });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET /api/workflows/:id/runs/:runId — Full step details
-router.get('/:id/runs/:runId', async (req, res) => {
-  try {
-    const run = await getAPFlowRun(req.params.runId);
-    res.json(run);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// POST /api/workflows/:id/test — Trigger a test run
-router.post('/:id/test', async (req, res) => {
-  try {
-    const workflow = await db.workflow.findFirstOrThrow({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-    });
-
-    const run = await triggerAPTestRun(workflow.apFlowId, req.body.payload ?? {});
-    
-    // Save the test run immediately so it appears in history
-    await db.workflowRun.upsert({
-      where: { apRunId: run.id } as any,
-      update: {
-        status: run.status,
-        durationMs: run.duration ?? null,
-        finishedAt: run.finishTime ? new Date(run.finishTime) : null,
-        errorMessage: run.status === 'FAILED'
-          ? Object.values(run.steps ?? {}).find((s: any) => s.errorMessage)?.errorMessage ?? null
-          : null,
-      },
-      create: {
-        workspaceId: req.workspaceId,
-        workflowId: workflow.id,
-        apRunId: run.id,
-        status: run.status,
-        durationMs: run.duration ?? null,
-        stepCount: Object.keys(run.steps ?? {}).length,
-        startedAt: new Date(run.startTime),
-        finishedAt: run.finishTime ? new Date(run.finishTime) : null,
-      },
-    });
-
-    res.json(run);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // PATCH /api/workflows/:id/favorite — toggle star/favorite
 router.patch('/:id/favorite', async (req, res) => {
@@ -591,5 +385,210 @@ router.patch('/:id/folder', async (req, res) => {
   }
 });
 
-export default router;
+// ═════════════════════════════════════════════════════════════════════════════
+// NATIVE ENGINE ROUTES
+// ═════════════════════════════════════════════════════════════════════════════
 
+import { nodeRegistry } from './services/workflow-engine/node-runner.js';
+import crypto from 'crypto';
+
+// GET /api/workflows/:id/definition — Native workflow definition
+router.get('/:id/definition', async (req, res) => {
+  try {
+    let def = await db.nativeWorkflowDefinition.findUnique({
+      where: { workflowId: req.params.id }
+    });
+    
+    if (!def) {
+      def = await db.nativeWorkflowDefinition.create({
+        data: {
+          workflowId: req.params.id,
+          nodesJson: JSON.stringify([{ id: 'trigger_1', type: 'manual', data: { config: {} }, position: { x: 250, y: 150 } }]),
+          edgesJson: JSON.stringify([])
+        }
+      });
+    }
+    
+    res.json({
+      nodes: JSON.parse(def.nodesJson),
+      edges: JSON.parse(def.edgesJson)
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/:id/definition — Save native definition
+router.post('/:id/definition', async (req, res) => {
+  try {
+    const { nodes, edges } = req.body;
+    
+    // Save definition
+    await db.nativeWorkflowDefinition.upsert({
+      where: { workflowId: req.params.id },
+      update: { nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) },
+      create: { workflowId: req.params.id, nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) }
+    });
+    
+    // Process triggers to create subscriptions, webhooks, schedules
+    const triggers = nodes.filter((n: any) => n.type.startsWith('trigger.'));
+    
+    // First, clear old triggers for this workflow
+    await (db as any).workflowSchedule?.deleteMany({ where: { workflowId: req.params.id } });
+    await (db as any).workflowWebhook?.deleteMany({ where: { workflowId: req.params.id } });
+    await (db as any).crmTriggerSubscription?.deleteMany({ where: { workflowId: req.params.id } });
+    
+    for (const node of triggers) {
+      if (node.type === 'trigger.schedule') {
+        const cron = node.data.config?.cronExpression || '* * * * *';
+        await (db as any).workflowSchedule?.create({
+          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, cronExpr: cron, timezone: 'UTC', active: true }
+        });
+      } else if (node.type === 'trigger.webhook') {
+        const method = node.data.config?.method || 'POST';
+        const path = `/hook/${req.params.id}/${node.id}`; // Needs to be globally unique
+        await (db as any).workflowWebhook?.create({
+          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, method, path, active: true }
+        });
+      } else if (node.type === 'trigger.crm_event') {
+        const eventStr = node.data.config?.event || 'contact.created';
+        const [entityType, eventType] = eventStr.split('.');
+        const filters = node.data.config?.filters || {};
+        
+        await (db as any).crmTriggerSubscription?.create({
+          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, entityType, eventType, active: true, filtersJson: JSON.stringify(filters) }
+        });
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/:id/publish-native
+router.post('/:id/publish-native', async (req, res) => {
+  try {
+    await db.workflow.update({
+      where: { id: req.params.id, workspaceId: req.workspaceId },
+      data: { status: 'published', engineType: 'native' }
+    });
+    
+    // Reload schedules
+    const { schedulerService } = await import('./services/workflow-engine/scheduler.service.js');
+    await schedulerService.initialize();
+    
+    res.json({ success: true, status: 'published' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/:id/pause-native
+router.post('/:id/pause-native', async (req, res) => {
+  try {
+    await db.workflow.update({
+      where: { id: req.params.id, workspaceId: req.workspaceId },
+      data: { status: 'paused' }
+    });
+    
+    // Reload schedules
+    const { schedulerService } = await import('./services/workflow-engine/scheduler.service.js');
+    await schedulerService.initialize();
+    
+    res.json({ success: true, status: 'paused' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/:id/test-native
+router.post('/:id/test-native', async (req, res) => {
+  try {
+    const { queueService } = await import('./services/workflow-engine/queue.service.js');
+    const runId = await queueService.enqueue({
+      workspaceId: req.workspaceId!,
+      workflowId: req.params.id,
+      triggerData: req.body.triggerData || {},
+      mode: 'test'
+    });
+    
+    res.json({ runId });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/:id/test-node
+router.post('/:id/test-node', async (req, res) => {
+  try {
+    const { engineService } = await import('./services/workflow-engine/engine.service.js');
+    const { nodeId, inputItems } = req.body;
+    
+    const def = await db.nativeWorkflowDefinition.findUniqueOrThrow({
+      where: { workflowId: req.params.id }
+    });
+    
+    const nodes = JSON.parse(def.nodesJson);
+    const targetNode = nodes.find((n: any) => n.id === nodeId);
+    if (!targetNode) throw new Error('Node not found');
+    
+    const start = Date.now();
+    const result = await engineService.testNode(targetNode, inputItems || [{}], {
+      workspaceId: req.workspaceId!,
+      workflowId: req.params.id,
+      runId: 'test_node_run',
+      triggerData: {},
+      variables: {},
+      mode: 'test'
+    });
+    
+    res.json({ output: result.output, duration: Date.now() - start });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/workflows/runs/:runId/detail — Full native run details
+router.get('/runs/:runId/detail', async (req, res) => {
+  try {
+    const run = await db.workflowRun.findUnique({
+      where: { id: req.params.runId, workspaceId: req.workspaceId }
+    });
+    if (!run) return res.status(404).json({ error: 'Run not found' });
+    
+    res.json({
+      ...run,
+      runData: run.runData ? JSON.parse(run.runData) : null
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/nodes/catalog — List all registered native nodes
+router.get('/nodes/catalog', (_req, res) => {
+  try {
+    const allNodes = nodeRegistry.getAll();
+    const grouped = allNodes.reduce((acc: any, node) => {
+      acc[node.category] = acc[node.category] || [];
+      acc[node.category].push({
+        type: node.type,
+        displayName: node.displayName,
+        description: node.description,
+        iconName: node.iconName,
+        color: node.color,
+        configSchema: node.configSchema,
+        outputHandles: node.outputHandles
+      });
+      return acc;
+    }, {});
+    
+    res.json(Object.keys(grouped).map(k => ({ category: k, nodes: grouped[k] })));
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+export default router;

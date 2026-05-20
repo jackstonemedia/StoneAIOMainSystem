@@ -11,9 +11,6 @@ export const workflowKeys = {
   detail: (id: string) => [...workflowKeys.details(), id] as const,
   runs: (workflowId: string) => [...workflowKeys.detail(workflowId), 'runs'] as const,
   run: (workflowId: string, runId: string) => [...workflowKeys.runs(workflowId), runId] as const,
-  pieces: () => ['pieces'] as const,
-  piece: (name: string) => ['pieces', name] as const,
-  connections: (pieceName?: string) => ['ap-connections', pieceName] as const,
 };
 
 // ── Workflows ─────────────────────────────────────────────────────────────────
@@ -84,38 +81,7 @@ export function useDeleteWorkflow() {
   });
 }
 
-export function usePublishWorkflow(workflowId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.post<Workflow>(`/workflows/${workflowId}/publish`);
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) }),
-  });
-}
 
-export function useDisableWorkflow(workflowId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.post<Workflow>(`/workflows/${workflowId}/disable`);
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) }),
-  });
-}
-
-export function useDuplicateWorkflow() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiClient.post<Workflow>(`/workflows/${id}/duplicate`);
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.lists() }),
-  });
-}
 
 // ── Runs ──────────────────────────────────────────────────────────────────────
 export function useWorkflowRuns(workflowId: string) {
@@ -134,101 +100,90 @@ export function useWorkflowRuns(workflowId: string) {
   });
 }
 
-export function useWorkflowRun(workflowId: string, runId: string) {
+
+
+// ── Native Engine Hooks ───────────────────────────────────────────────────────
+export function useNativeWorkflowDefinition(id: string) {
   return useQuery({
-    queryKey: workflowKeys.run(workflowId, runId),
+    queryKey: ['native-workflow-def', id],
     queryFn: async () => {
-      const res = await apiClient.get<WorkflowRun>(`/workflows/${workflowId}/runs/${runId}`);
+      const res = await apiClient.get<{ nodes: any[], edges: any[] }>(`/workflows/${id}/definition`);
+      return res.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useSaveNativeDefinition(workflowId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: { nodes: any[], edges: any[] }) => {
+      const res = await apiClient.post(`/workflows/${workflowId}/definition`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['native-workflow-def', workflowId] });
+    },
+  });
+}
+
+export function usePublishNativeWorkflow(workflowId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(`/workflows/${workflowId}/publish-native`);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
+      qc.invalidateQueries({ queryKey: workflowKeys.lists() });
+    },
+  });
+}
+
+export function usePauseNativeWorkflow(workflowId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(`/workflows/${workflowId}/pause-native`);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.detail(workflowId) });
+      qc.invalidateQueries({ queryKey: workflowKeys.lists() });
+    },
+  });
+}
+
+export function useTestNativeWorkflow(workflowId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (triggerData?: any) => {
+      const res = await apiClient.post(`/workflows/${workflowId}/test-native`, { triggerData });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.runs(workflowId) });
+    },
+  });
+}
+
+export function useTestNativeNode(workflowId: string) {
+  return useMutation({
+    mutationFn: async (data: { nodeId: string, inputItems?: any[] }) => {
+      const res = await apiClient.post(`/workflows/${workflowId}/test-node`, data);
+      return res.data;
+    }
+  });
+}
+
+export function useNativeWorkflowRunDetail(runId: string) {
+  return useQuery({
+    queryKey: ['native-workflow-run-detail', runId],
+    queryFn: async () => {
+      const res = await apiClient.get(`/workflows/runs/${runId}/detail`);
       return res.data;
     },
     enabled: !!runId,
-    refetchInterval: (query) => {
-      return query.state.data?.status === 'RUNNING' ? 2000 : false;
-    },
-  });
-}
-
-export function useTestWorkflow(workflowId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload?: Record<string, unknown>) => {
-      const res = await apiClient.post<WorkflowRun>(`/workflows/${workflowId}/test`, { payload });
-      return res.data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.runs(workflowId) }),
-  });
-}
-
-// ── Pieces ────────────────────────────────────────────────────────────────────
-export function usePieces(search?: string) {
-  return useQuery({
-    queryKey: workflowKeys.pieces(),
-    queryFn: async () => {
-      const res = await apiClient.get<APPiece[]>('/workflows/pieces', {
-        params: search ? { search } : undefined,
-      });
-      return res.data;
-    },
-    staleTime: 5 * 60 * 1000, // Pieces don't change often — cache 5 min
-  });
-}
-
-export function usePiece(pieceName: string) {
-  return useQuery({
-    queryKey: workflowKeys.piece(pieceName),
-    queryFn: async () => {
-      const res = await apiClient.get<APPiece>(`/workflows/pieces/${encodeURIComponent(pieceName)}`);
-      return res.data;
-    },
-    enabled: !!pieceName,
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-// ── Connections ───────────────────────────────────────────────────────────────
-export function useAPConnections(pieceName?: string) {
-  return useQuery({
-    queryKey: workflowKeys.connections(pieceName),
-    queryFn: async () => {
-      const res = await apiClient.get<APConnection[]>('/workflows/connections', {
-        params: pieceName ? { pieceName } : undefined,
-      });
-      return res.data;
-    },
-  });
-}
-
-export function useCreateAPConnection() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: {
-      pieceName: string;
-      name: string;
-      type: string;
-      value: Record<string, unknown>;
-    }) => {
-      const res = await apiClient.post<APConnection>('/workflows/connections', data);
-      return res.data;
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: workflowKeys.connections(variables.pieceName) });
-    },
-  });
-}
-
-export function useAPDynamicOptions(pieceName: string, pieceVersion: string, stepName: string, propertyName: string, input: Record<string, any>, enabled: boolean) {
-  return useQuery({
-    queryKey: ['ap', 'options', pieceName, propertyName, input],
-    queryFn: async () => {
-      const res = await apiClient.post(`/workflows/pieces/${encodeURIComponent(pieceName)}/options`, {
-        pieceVersion,
-        stepName,
-        propertyName,
-        input,
-      });
-      return res.data?.options ?? [];
-    },
-    enabled: enabled && !!pieceName && !!propertyName,
-    staleTime: 60000,
   });
 }

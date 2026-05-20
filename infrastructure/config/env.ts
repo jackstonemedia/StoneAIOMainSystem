@@ -41,6 +41,10 @@ const envSchema = z.object({
   ACTIVEPIECES_ADMIN_EMAIL: z.string().optional(),
   ACTIVEPIECES_ADMIN_PASSWORD: z.string().optional(),
   ACTIVEPIECES_WEBHOOK_SECRET: z.string().optional(),
+
+  // n8n Provisioning
+  N8N_PROVISIONING_API_URL: z.string().default('http://localhost:3001'),
+  N8N_PROVISIONING_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

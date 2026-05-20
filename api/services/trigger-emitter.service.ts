@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { env } from '../../infrastructure/config/env.js';
-import { ensureAPProject } from './ap-workspace-sync.service.js';
+import { db } from '../../infrastructure/database/client.js';
 
 // ── All internal Stone AIO event types ────────────────────────────────────────
 export type StoneAIOEvent =
@@ -36,54 +34,84 @@ export type StoneAIOEvent =
 /**
  * emitTrigger — fire-and-forget internal event publisher.
  *
- * Fires a webhook from Stone AIO → Activepieces CE whenever a platform
- * event occurs. This function NEVER throws — a trigger failure must never
- * block or fail the originating request.
+ * Fires events to the native workflow engine.
+ * (Activepieces integration removed — ap-workspace-sync.service no longer exists)
  *
- * @param workspaceId  The workspace that generated the event
- * @param event        The StoneAIOEvent type string
- * @param payload      Arbitrary event-specific data
+ * This function NEVER throws — a trigger failure must never
+ * block or fail the originating request.
  */
 export async function emitTrigger(
   workspaceId: string,
   event: StoneAIOEvent,
   payload: Record<string, unknown>
 ): Promise<void> {
+  // ── Dispatch to Native Workflow Engine ──────────────────────────────────────
+  dispatchToNativeEngine(workspaceId, event, payload).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[TRIGGER ERROR NATIVE] ${event} ${workspaceId} — ${message}`);
+  });
+}
+
+/**
+ * Looks up CrmTriggerSubscription records for this workspace + event,
+ * and enqueues a native workflow run for each active subscription.
+ */
+async function dispatchToNativeEngine(
+  workspaceId: string,
+  event: StoneAIOEvent,
+  payload: Record<string, unknown>
+): Promise<void> {
+  // Derive entityType and eventType from the event string
+  // e.g. 'contact.created' → entityType='contact', eventType='created'
+  const [entityType, eventType] = event.split('.');
+  if (!entityType || !eventType) return;
+
+  let subscriptions: any[] = [];
   try {
-    const projectId = await ensureAPProject(workspaceId);
+    subscriptions = await (db as any).crmTriggerSubscription?.findMany({
+      where: {
+        workspaceId,
+        entityType,
+        eventType,
+        active: true
+      },
+      include: { workflow: { select: { id: true, status: true, engineType: true } } }
+    }) ?? [];
+  } catch {
+    // Model may not exist yet in an early migration — skip silently
+    return;
+  }
 
-    const webhookUrl = `${env.ACTIVEPIECES_URL}/v1/webhooks/${projectId}/${event}`;
+  if (!subscriptions.length) return;
 
-    const body = {
-      event,
-      workspaceId,
-      timestamp: new Date().toISOString(),
-      data: payload,
-    };
+  // Lazy-import queue service to avoid circular dependency at module load time
+  const { queueService } = await import('./workflow-engine/queue.service.js');
 
-    // Dev-mode console tracing
-    if (env.NODE_ENV !== 'production') {
-      console.log(`[TRIGGER] ${event} ${workspaceId} -> Project ${projectId}`);
+  for (const sub of subscriptions) {
+    // Only fire for published native workflows
+    if (sub.workflow?.status !== 'published') continue;
+    if (sub.workflow?.engineType !== 'native') continue;
+
+    // Apply optional filters stored in filtersJson
+    let filtersJson: Record<string, unknown> = {};
+    try {
+      filtersJson = sub.filtersJson ? JSON.parse(sub.filtersJson) : {};
+    } catch { /* ignore */ }
+
+    // Simple filter check: pipelineId / stageId / tagName, etc.
+    if (filtersJson.pipelineId && payload.pipelineId !== filtersJson.pipelineId) continue;
+    if (filtersJson.stageId && payload.stageId !== filtersJson.stageId) continue;
+    if (filtersJson.tagName && !String(payload.tags || '').includes(String(filtersJson.tagName))) continue;
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[NATIVE TRIGGER] ${event} → workflow ${sub.workflowId}`);
     }
 
-    // Fire-and-forget: kick off the request without awaiting, so the caller
-    // is never delayed or failed by a trigger emission.
-    axios
-      .post(webhookUrl, body, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-stone-aio-secret': env.ACTIVEPIECES_WEBHOOK_SECRET,
-        },
-        // Short timeout so a dead Activepieces instance never causes a
-        // dangling background request that holds resources.
-        timeout: 5000,
-      })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[TRIGGER ERROR] ${event} ${workspaceId} — ${message}`);
-      });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[TRIGGER ERROR] Config failure ${event} ${workspaceId} — ${message}`);
+    await queueService.enqueue({
+      workspaceId,
+      workflowId: sub.workflowId,
+      triggerData: { event, entityType, eventType, data: payload },
+      mode: 'production'
+    });
   }
 }

@@ -8,61 +8,51 @@ datasource db {
 }
 
 model Workspace {
-  id               String                 @id @default(uuid())
-  name             String
-  ownerId          String                 @map("owner_id")
-  plan             String                 @default("free")
-  createdAt        DateTime               @default(now()) @map("created_at")
-  updatedAt        DateTime               @updatedAt @map("updated_at")
-  members          WorkspaceMember[]
-  agents           Agent[]
-  contacts         Contact[]
-  companies        Company[]
-  deals            Deal[]
-  campaigns        Campaign[]
-  forms            Form[]
-  documents        Document[]
-  apiKeys          ApiKey[]
-  integrations     Integration[]
-  appointments     Appointment[]
-  reviews          Review[]
-  conversations    Conversation[]
-  projects         Project[]
-  pipelines        Pipeline[]
-  tasks            Task[]
-  smartLists       SmartList[]
-  notifications    Notification[]
-  customFields     CustomField[]
-  tags             Tag[]
-  webhookEndpoints WebhookEndpoint[]
-  sequences        Sequence[]
-  products         Product[]
-  quotes           Quote[]
-  automationRules  AutomationRule[]
-  attachments      Attachment[]
-  engineConfig     WorkspaceEngineConfig?
-
-  apProject         APProject?
-  workflows         Workflow[]
-  workflowRuns      WorkflowRun[]
-  apConnections     APConnection[]
+  id                String             @id @default(uuid())
+  name              String
+  ownerId           String             @map("owner_id")
+  plan              String             @default("free")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  members           WorkspaceMember[]
+  agents            Agent[]
+  contacts          Contact[]
+  companies         Company[]
+  deals             Deal[]
+  campaigns         Campaign[]
+  forms             Form[]
+  documents         Document[]
+  apiKeys           ApiKey[]
+  integrations      Integration[]
+  appointments      Appointment[]
+  reviews           Review[]
+  conversations     Conversation[]
+  projects          Project[]
+  pipelines         Pipeline[]
+  tasks             Task[]
+  smartLists        SmartList[]
+  notifications     Notification[]
+  customFields      CustomField[]
+  tags              Tag[]
+  webhookEndpoints  WebhookEndpoint[]
+  sequences         Sequence[]
+  products          Product[]
+  quotes            Quote[]
+  automationRules   AutomationRule[]
+  attachments       Attachment[]
   automationFolders AutomationFolder[]
   automationTables  AutomationTable[]
   Release           Release[]
+  workflows         Workflow[]
+  workflowRuns      WorkflowRun[]
+
+  // Native workflow engine relations
+  workflowCredentials     WorkflowCredential[]
+  workflowSchedules       WorkflowSchedule[]
+  workflowWebhooks        WorkflowWebhook[]
+  crmTriggerSubscriptions CrmTriggerSubscription[]
 
   @@map("workspaces")
-}
-
-model WorkspaceEngineConfig {
-  id                    String    @id @default(uuid())
-  workspaceId           String    @unique @map("workspace_id")
-  activepiecesProjectId String    @map("activepieces_project_id")
-  activepiecesToken     String    @map("activepieces_token")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@map("workspace_engine_configs")
 }
 
 model WorkspaceMember {
@@ -74,6 +64,15 @@ model WorkspaceMember {
 
   @@id([workspaceId, userId])
   @@map("workspace_members")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique @map("clerk_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
 }
 
 model Agent {
@@ -714,42 +713,41 @@ model Attachment {
   @@map("attachments")
 }
 
-// ── Activepieces Integration Models ─────────────────────────────────────────
-
-model APProject {
-  id            String    @id @default(uuid())
-  workspaceId   String    @unique @map("workspace_id")
-  apProjectId   String    @map("ap_project_id")
-  apProjectName String    @map("ap_project_name")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@map("ap_projects")
-}
-
+// ── Native Workflow Models ──────────────────────────────────────────────────
 model Workflow {
-  id               String        @id @default(uuid())
-  workspaceId      String        @map("workspace_id")
-  apFlowId         String        @map("ap_flow_id")
-  apProjectId      String        @map("ap_project_id")
-  apVersionId      String?       @map("ap_version_id")
-  name             String
-  description      String?
-  status           String        @default("draft")
-  triggerType      String?       @map("trigger_type")
-  triggerPieceName String?       @map("trigger_piece_name")
-  webhookUrl       String?       @map("webhook_url")
-  folderName       String?       @map("folder_name")
-  tags             String        @default("[]")
-  stepsJson        String        @default("{}") @map("steps_json")
-  isFavorite       Boolean       @default(false) @map("is_favorite")
-  folderId         String?       @map("folder_id")
-  lastRunAt        DateTime?     @map("last_run_at")
-  lastRunStatus    String?       @map("last_run_status")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  runs             WorkflowRun[]
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  name          String
+  description   String?
+  status        String    @default("draft")
+  triggerType   String?   @map("trigger_type")
+  folderName    String?   @map("folder_name")
+  tags          String    @default("[]")
+  isFavorite    Boolean   @default(false) @map("is_favorite")
+  folderId      String?   @map("folder_id")
+  lastRunAt     DateTime? @map("last_run_at")
+  lastRunStatus String?   @map("last_run_status")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Native engine fields
+  engineType      String  @default("native") @map("engine_type")
+  definitionJson  String  @default("{}") @map("definition_json")
+  variablesJson   String  @default("{}") @map("variables_json")
+  settingsJson    String  @default("{}") @map("settings_json")
+  errorWorkflowId String? @map("error_workflow_id")
+  executionCount  Int     @default(0) @map("execution_count")
+  successCount    Int     @default(0) @map("success_count")
+  failureCount    Int     @default(0) @map("failure_count")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs      WorkflowRun[]
+
+  // Native engine relations
+  nativeDefinition        NativeWorkflowDefinition?
+  schedules               WorkflowSchedule[]
+  webhooks                WorkflowWebhook[]
+  crmTriggerSubscriptions CrmTriggerSubscription[]
 
   @@index([workspaceId])
   @@map("workflows")
@@ -759,7 +757,6 @@ model WorkflowRun {
   id           String    @id @default(uuid())
   workspaceId  String    @map("workspace_id")
   workflowId   String    @map("workflow_id")
-  apRunId      String    @unique @map("ap_run_id")
   status       String
   durationMs   Int?      @map("duration_ms")
   stepCount    Int       @default(0) @map("step_count")
@@ -767,27 +764,19 @@ model WorkflowRun {
   errorMessage String?   @map("error_message")
   startedAt    DateTime  @default(now()) @map("started_at")
   finishedAt   DateTime? @map("finished_at")
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  workflow     Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  // Native engine fields
+  engineType    String    @default("native") @map("engine_type")
+  runData       String    @default("{}") @map("run_data")
+  waitingNodeId String?   @map("waiting_node_id")
+  resumeAt      DateTime? @map("resume_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow  Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@index([workflowId])
   @@index([workspaceId])
   @@map("workflow_runs")
-}
-
-model APConnection {
-  id             String    @id @default(uuid())
-  workspaceId    String    @map("workspace_id")
-  apConnectionId String    @unique @map("ap_connection_id")
-  pieceName      String    @map("piece_name")
-  displayName    String    @map("display_name")
-  status         String    @default("active")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId, pieceName])
-  @@map("ap_connections")
 }
 
 // ── Automation Module — Folders ──────────────────────────────────────────────
@@ -859,4 +848,103 @@ model Release {
 
   @@index([workspaceId])
   @@map("automation_releases")
+}
+
+// ── Native Workflow Engine Models ─────────────────────────────────────────────
+
+model NativeWorkflowDefinition {
+  id         String   @id @default(uuid())
+  workflowId String   @unique @map("workflow_id")
+  nodesJson  String   @default("[]") @map("nodes_json")
+  edgesJson  String   @default("[]") @map("edges_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("native_workflow_definitions")
+}
+
+model WorkflowCredential {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  name          String
+  type          String // e.g. "smtp", "oauth2_google", "api_key_openai"
+  dataEncrypted String    @map("data_encrypted") // AES-256 encrypted JSON
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name, type])
+  @@map("workflow_credentials")
+}
+
+model WorkflowSchedule {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workflowId  String    @map("workflow_id")
+  nodeId      String    @map("node_id")
+  cronExpr    String    @map("cron_expr")
+  timezone    String    @default("UTC")
+  active      Boolean   @default(true)
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime? @map("next_run_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, active])
+  @@index([nextRunAt, active])
+  @@map("workflow_schedules")
+}
+
+model WorkflowWebhook {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workflowId  String    @map("workflow_id")
+  nodeId      String    @map("node_id")
+  path        String    @unique // e.g. "/hooks/abc123"
+  method      String    @default("POST")
+  secret      String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([path])
+  @@index([workspaceId])
+  @@map("workflow_webhooks")
+}
+
+model WorkflowTemplate {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  category       String
+  tags           String   @default("[]")
+  definitionJson String   @map("definition_json") // Full workflow definition JSON
+  thumbnailUrl   String?  @map("thumbnail_url")
+  usageCount     Int      @default(0) @map("usage_count")
+  isSystem       Boolean  @default(true) @map("is_system") // false = user-created
+  workspaceId    String?  @map("workspace_id") // null = global/system template
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@map("workflow_templates")
+}
+
+model CrmTriggerSubscription {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  workflowId  String    @map("workflow_id")
+  nodeId      String    @map("node_id")
+  entityType  String    @map("entity_type") // contact | deal | company | task
+  eventType   String    @map("event_type") // created | updated | deleted | stage_changed | tag_added
+  filtersJson String    @default("{}") @map("filters_json")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, entityType, eventType, active])
+  @@map("crm_trigger_subscriptions")
 }

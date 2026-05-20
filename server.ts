@@ -9,7 +9,6 @@
 
 import 'dotenv/config';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 
 // ── Route modules (split from api/*.ts) ──────────────────────────────────────
@@ -19,7 +18,6 @@ import settingsRouter   from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter    from './api/routes/billing.routes.js';
 import workflowRouter   from './api/workflows.js';
-import internalWebhookRouter from './api/routes/internal-webhook.routes.js';
 import tablesRouter     from './api/tables.js';
 
 // ── API feature modules ───────────────────────────────────────────────────────
@@ -29,7 +27,6 @@ import agentsRouter       from './api/agents.js';
 import voiceAgentsRouter  from './api/voice-agents.js';
 import crmActionsRouter   from './api/crm-actions.js';
 import integrationsRouter from './api/integrations.js';
-import { piecesRouter }   from './api/pieces.js';
 import { releasesRouter } from './api/releases.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
@@ -39,6 +36,12 @@ import { resolveWorkspace }  from './api/middleware/workspace.js';
 // ── Infrastructure ────────────────────────────────────────────────────────────
 import { db }  from './infrastructure/database/client.js';
 import { env } from './infrastructure/config/env.js';
+
+// ── Native Engine Services ──────────────────────────────────────────────────
+import { schedulerService } from './api/services/workflow-engine/scheduler.service.js';
+import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/webhook-registry.js';
+import { queueService } from './api/services/workflow-engine/queue.service.js';
+import './api/services/workflow-engine/nodes/index.js';
 
 async function startServer() {
   const app = express();
@@ -57,8 +60,10 @@ async function startServer() {
     }
   });
 
-  // ── Internal Webhook (Activepieces → Stone AIO, no workspace ctx needed) ──
-  app.use('/api/internal', internalWebhookRouter);
+
+
+  // ── Native Engine Webhooks (Must be before resolveWorkspace) ──────────────
+  app.all('/api/hooks/*', webhookHandler);
 
   // ── Workspace Resolution ──────────────────────────────────────────────────
   app.use('/api', resolveWorkspace);
@@ -70,7 +75,6 @@ async function startServer() {
   app.use('/api/agents',         agentsRouter);
   app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/integrations',   integrationsRouter);
-  app.use('/api/pieces',         piecesRouter);
   app.use('/api/releases',       releasesRouter);
 
   // ── Domain routes ─────────────────────────────────────────────────────────
@@ -99,19 +103,50 @@ async function startServer() {
   // ── Global error handler (must be last) ──────────────────────────────────
   app.use(errorHandler);
 
-  // ── Vite / Static ─────────────────────────────────────────────────────────
-  if (env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
-    app.use(vite.middlewares);
-  } else {
+  // ── Frontend Routing ──────────────────────────────────────────────────────
+  if (env.NODE_ENV === 'production') {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
+  } else {
+    // In development, redirect any non-API browser requests to the Vite dev server
+    app.get('*', (req, res) => {
+      res.redirect(`http://localhost:5173${req.originalUrl}`);
+    });
   }
 
-  app.listen(env.PORT, '0.0.0.0', () =>
-    console.log(`✅ Stone AIO server running on http://localhost:${env.PORT}`),
-  );
+  app.listen(env.PORT, '0.0.0.0', async () => {
+    console.log(`✅ Stone AIO server running on http://localhost:${env.PORT}`);
+
+    // ── Initialize Native Workflow Engine ──────────────────────────────────────
+    try {
+      await queueService.initialize();
+      await webhookRegistry.initialize();
+      await schedulerService.initialize();
+      console.log('✅ Native Workflow Engine Initialized');
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Native Workflow Engine:', e.message);
+    }
+
+    // Background job for resuming paused native runs (Wait node)
+    setInterval(async () => {
+      try {
+        const { engineService } = await import('./api/services/workflow-engine/engine.service.js');
+        const pausedRuns = await db.workflowRun.findMany({
+          where: { status: 'PAUSED', resumeAt: { lte: new Date() } }
+        });
+        for (const run of pausedRuns) {
+          await engineService.resumeRun(run.id).catch(err => 
+            console.error(`Failed to resume run ${run.id}:`, err)
+          );
+        }
+      } catch (err) {
+        console.error('Error in pause resume background job', err);
+      }
+    }, 60 * 1000); // Check every minute
+
+
+  });
 }
 
 startServer();

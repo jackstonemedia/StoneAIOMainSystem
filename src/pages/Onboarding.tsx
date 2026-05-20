@@ -17,12 +17,11 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [businessName, setBusinessName] = useState('');
   const [businessType, setBusinessType] = useState('');
-  const [primaryMode, setPrimaryMode] = useState<'creator' | 'business' | ''>('');
   const [selectedTheme, setSelectedTheme] = useState('dark');
   const [animating, setAnimating] = useState(false);
   const navigate = useNavigate();
 
-  const totalSteps = 4;
+  const totalSteps = 3;
 
   const goNext = () => {
     if (step >= totalSteps) {
@@ -45,10 +44,7 @@ export default function Onboarding() {
     else root.classList.remove('dark');
     localStorage.setItem('stone-aio-theme', selectedTheme);
 
-    // Save mode
-    localStorage.setItem('stone-aio-mode', primaryMode || 'creator');
-
-    navigate(primaryMode === 'business' ? '/business' : '/dashboard');
+    navigate('/crm');
   };
 
   // Orb positions for ambient background
@@ -187,82 +183,8 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* ─── STEP 3: Primary Focus / Mode ─── */}
+        {/* ─── STEP 3: Theme ─── */}
         {step === 3 && (
-          <div>
-            <div className="text-center mb-10">
-              <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-3 text-gradient">
-                What's your<br />primary focus?
-              </h1>
-              <p className="text-text-muted text-lg max-w-sm mx-auto">
-                You can always switch between both from the sidebar.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-              {/* Creator Studio card */}
-              <button
-                onClick={() => { setPrimaryMode('creator'); goNext(); }}
-                className={`group relative p-8 rounded-3xl border text-left transition-all duration-400 overflow-hidden ${
-                  primaryMode === 'creator'
-                    ? 'border-primary/60 bg-primary/10 shadow-[0_0_40px_rgba(67,97,238,0.25)] scale-[1.02]'
-                    : 'border-border/60 bg-surface/30 hover:border-primary/30 hover:shadow-[0_10px_40px_rgba(67,97,238,0.12)] hover:-translate-y-1'
-                }`}
-              >
-                {/* Background glow */}
-                <div className="absolute -top-20 -right-20 w-48 h-48 bg-primary/20 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-teal/10 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/15 border border-primary/25 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                    <Cpu className="w-7 h-7 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-black mb-2 group-hover:text-primary transition-colors">Creator Studio</h3>
-                  <p className="text-sm text-text-muted leading-relaxed">
-                    Build AI voice agents, automate workflows, deploy smart assistants, and run your entire AI workforce.
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {['Voice Agents', 'Workflows', 'AI Assistant'].map(tag => (
-                      <span key={tag} className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              </button>
-
-              {/* Business Hub card */}
-              <button
-                onClick={() => { setPrimaryMode('business'); goNext(); }}
-                className={`group relative p-8 rounded-3xl border text-left transition-all duration-400 overflow-hidden ${
-                  primaryMode === 'business'
-                    ? 'border-amber/60 bg-amber/10 shadow-[0_0_40px_rgba(251,191,36,0.2)] scale-[1.02]'
-                    : 'border-border/60 bg-surface/30 hover:border-amber/30 hover:shadow-[0_10px_40px_rgba(251,191,36,0.1)] hover:-translate-y-1'
-                }`}
-              >
-                {/* Background glow */}
-                <div className="absolute -top-20 -right-20 w-48 h-48 bg-amber/15 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-light-purple/10 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-amber/15 border border-amber/25 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                    <Building2 className="w-7 h-7 text-amber" />
-                  </div>
-                  <h3 className="text-xl font-black mb-2 group-hover:text-amber transition-colors">Business Hub</h3>
-                  <p className="text-sm text-text-muted leading-relaxed">
-                    Manage contacts, run campaigns, book appointments, track pipelines, and grow your business in one place.
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {['CRM', 'Campaigns', 'Inbox', 'Calendar'].map(tag => (
-                      <span key={tag} className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber/10 text-amber border border-amber/20">{tag}</span>
-                    ))}
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ─── STEP 4: Theme ─── */}
-        {step === 4 && (
           <div>
             <div className="text-center mb-10">
               <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-3 text-gradient">

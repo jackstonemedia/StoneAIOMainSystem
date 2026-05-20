@@ -878,25 +878,25 @@ export default function Opportunities() {
       ) : (
         <>
           {/* Main Toolbar */}
-          <div className="px-8 flex items-center justify-between bg-surface h-[68px] border-b border-border shrink-0 sticky top-0 z-10">
-            <div className="flex items-center gap-4">
-              <button onClick={() => setTab('pipelines')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[8px] text-[13px] font-medium text-text-main hover:bg-surface-hover transition-colors">
+          <div className="px-8 flex items-center justify-between bg-surface h-[73px] border-b border-border shrink-0 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center gap-2">
+              <button onClick={() => setTab('pipelines')} className="flex items-center gap-2 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
                 <Settings className="w-3.5 h-3.5" /> Pipeline Config
               </button>
               {/* Pipeline selector */}
               <div className="relative">
                 <button onClick={() => setPipelineDropOpen(!pipelineDropOpen)}
-                  className="flex items-center justify-between px-3 py-2 bg-surface border border-border rounded-[8px] text-[13px] font-medium text-text-main shadow-sm w-[220px] hover:border-primary/40 transition-colors"
+                  className="flex items-center justify-between px-3 py-1.5 bg-surface border border-border/60 rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:border-border hover:bg-surface-hover transition-colors w-[200px]"
                 >
                   <span className="truncate">{selectedPipeline?.name || 'Select Pipeline'}</span>
-                  <ChevronDown className="w-4 h-4 text-text-muted shrink-0" />
+                  <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
                 </button>
                 <AnimatePresence>
                   {pipelineDropOpen && (
                     <>
                       <div className="fixed inset-0 z-20" onClick={() => setPipelineDropOpen(false)} />
                       <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                        className="absolute left-0 top-[calc(100%+4px)] w-[220px] bg-surface border border-border rounded-[8px] shadow-xl z-30 py-1"
+                        className="absolute left-0 top-[calc(100%+4px)] w-[200px] bg-surface border border-border rounded-[4px] shadow-luxury z-30 py-1"
                       >
                         {pipelines.map(p => (
                           <button key={p.id} onClick={() => { setSelectedPipelineId(p.id); setPipelineDropOpen(false); }}
@@ -911,67 +911,57 @@ export default function Opportunities() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex items-center px-3 py-1 bg-primary/10 rounded-full text-primary text-[12px] font-semibold">
-                {totalDeals} opportunities
-              </div>
+              <span className="text-[12px] text-text-muted">
+                {totalDeals} {totalDeals === 1 ? 'deal' : 'deals'}
+              </span>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {/* View toggle */}
-              <div className="flex items-center border border-border rounded-[8px] overflow-hidden bg-bg">
-                <button onClick={() => setViewMode('kanban')} className={`p-2 transition-colors ${viewMode === 'kanban' ? 'bg-primary/10 text-primary' : 'text-text-muted hover:text-text-main'}`}>
-                  <LayoutGrid className="w-4 h-4" />
+              <div className="flex items-center border border-border rounded-[4px] overflow-hidden bg-surface">
+                <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 text-[13px] font-medium flex items-center gap-1.5 transition-colors ${viewMode === 'kanban' ? 'bg-surface-hover text-text-main' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}>
+                  <LayoutGrid className="w-3.5 h-3.5" /> Kanban
                 </button>
-                <button onClick={() => setViewMode('list')} className={`p-2 border-l border-border transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-text-muted hover:text-text-main'}`}>
-                  <List className="w-4 h-4" />
+                <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 text-[13px] font-medium flex items-center gap-1.5 border-l border-border transition-colors ${viewMode === 'list' ? 'bg-surface-hover text-text-main' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}>
+                  <List className="w-3.5 h-3.5" /> List
                 </button>
               </div>
 
-              <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-[8px] text-[13px] font-bold text-text-main hover:bg-surface-hover transition-colors bg-surface">
+              <button className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
                 <Download className="w-4 h-4" /> Import
               </button>
               <button onClick={() => setAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-[8px] text-[13px] font-bold text-white bg-primary hover:opacity-90 transition-opacity"
+                className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
               >
                 <Plus className="w-4 h-4" /> Add opportunity
               </button>
-              <button className="flex items-center justify-center p-2 text-text-muted hover:text-text-main transition-colors">
-                <MoreHorizontal className="w-5 h-5" />
+              <button className="flex items-center justify-center p-2 rounded-[4px] border border-border bg-surface text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+                <MoreHorizontal className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Secondary View Toolbar */}
-          <div className="px-8 flex items-center gap-6 border-b border-border bg-surface h-[44px] shrink-0">
-            <button className="h-full flex items-center gap-2 text-[13px] font-bold text-text-main border-b-[2px] border-primary">
-              <List className="w-4 h-4 text-text-muted" /> Open opportunities
-            </button>
-            <button className="h-full flex items-center gap-1.5 text-[13px] font-bold text-text-muted hover:text-text-main transition-colors opacity-60">
-              <Plus className="w-3.5 h-3.5" /> List
-            </button>
-          </div>
+          {/* Secondary View Toolbar — removed, view toggle moved to main toolbar */}
 
           {/* Filters Toolbar */}
-          <div className="px-8 py-2.5 border-b border-border bg-surface flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-full text-[12px] font-bold text-text-main hover:bg-surface-hover transition-colors">
+          <div className="px-8 py-2.5 border-b border-border bg-bg flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
                 <Filter className="w-3.5 h-3.5" /> Advanced Filters
               </button>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-primary/20 bg-primary/5 rounded-full text-[12px] font-bold text-primary">
-                <span className="flex items-center gap-1.5">
-                  <ArrowUpDown className="w-3.5 h-3.5" /> Sort (1)
-                </span>
+              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
+                <ArrowUpDown className="w-3.5 h-3.5" /> Sort
               </button>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input type="text" placeholder="Search Opportunities" value={search} onChange={e => setSearch(e.target.value)}
-                  className="pl-9 pr-4 py-1.5 w-[240px] border border-border bg-bg text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary placeholder:text-text-muted"
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                <input type="text" placeholder="Search opportunities…" value={search} onChange={e => setSearch(e.target.value)}
+                  className="pl-8 pr-4 py-1.5 w-[220px] border border-border bg-bg text-text-main rounded-[4px] text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-text-muted/60"
                 />
               </div>
-              <button className="flex items-center gap-1.5 text-[12px] font-bold text-text-muted hover:text-text-main transition-colors">
+              <button className="flex items-center gap-1.5 text-[12px] font-medium text-text-muted hover:text-text-main transition-colors">
                 <Settings className="w-3.5 h-3.5" /> Manage Fields
               </button>
             </div>
@@ -979,10 +969,10 @@ export default function Opportunities() {
 
           {/* Content */}
           {isLoading ? (
-            <div className="flex-1 flex items-center justify-center"><div className="w-10 h-10 border-4 border-surface border-t-primary rounded-full animate-spin" /></div>
+            <div className="flex-1 flex items-center justify-center"><div className="w-8 h-8 border-2 border-surface border-t-primary/60 rounded-full animate-spin" /></div>
           ) : viewMode === 'kanban' ? (
             <DragDropContext onDragEnd={onDragEnd}>
-              <div className="flex-1 overflow-x-auto overflow-y-hidden bg-[#F3F4F6] dark:bg-bg mt-0 p-6">
+              <div className="flex-1 overflow-x-auto overflow-y-hidden bg-bg p-6">
                 <div className="flex h-full min-w-max gap-4 items-start">
                   {stages.map(stage => {
                     const stageDeals = deals.filter(d => ((d as any).pipelineStageId || d.pipelineStage?.id) === stage.id);
@@ -1011,7 +1001,7 @@ export default function Opportunities() {
                           <div className="h-[3px] w-full absolute top-0 left-0 right-0" style={{ backgroundColor: stage.color }} />
                           <div className="p-4 pt-4 pb-3">
                             <div className="flex items-center justify-between mb-1">
-                              <h3 className="text-[14px] font-extrabold text-text-main">{stage.name}</h3>
+                            <h3 className="text-[13px] font-medium text-text-main">{stage.name}</h3>
                               <button onClick={() => setCollapsedStages(s => { const n = new Set(s); n.add(stage.id); return n; })} className="text-text-muted hover:text-text-main transition-colors">
                                 <ChevronLeft className="w-3.5 h-3.5" />
                               </button>

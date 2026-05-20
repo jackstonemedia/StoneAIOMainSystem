@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { X, Zap, ChevronRight, Clock, AlertCircle, CheckCircle2, PlayCircle, Code } from 'lucide-react';
-import { useWorkflowRuns, useWorkflowRun } from '../../hooks/useWorkflows';
-
+import { useWorkflowRuns, useNativeWorkflowRunDetail } from '../../hooks/useWorkflows';
 interface ExecutionLogsPanelProps {
   flowId: string;
   onClose: () => void;
 }
 
 function RunDetailView({ workflowId, runId }: { workflowId: string, runId: string }) {
-  const { data: runDetail, isLoading, error } = useWorkflowRun(workflowId, runId);
+  const { data: runDetail, isLoading, error } = useNativeWorkflowRunDetail(runId);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
 
   if (isLoading) {

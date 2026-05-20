@@ -14,3 +14,11 @@ tmp/
 tmp_everything_claude_code/
 brain/
 scratch/
+
+# Scratch files and temporary test/build logs
+check_contacts.ts
+check_db.ts
+test-native-engine.ts
+tmp_migrate.cjs
+build_out.txt
+build_output.txt

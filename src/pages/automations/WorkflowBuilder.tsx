@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ReactFlow, Background, Controls, MiniMap,
@@ -10,142 +10,120 @@ import '@xyflow/react/dist/style.css';
 
 import { ArrowLeft, Play, Rocket, Save, History, Loader2, AlertTriangle } from 'lucide-react';
 import {
-  useWorkflow, useUpdateWorkflow, usePublishWorkflow,
-  useTestWorkflow, useWorkflowRuns, useWorkflowRun,
+  useWorkflow, useUpdateWorkflow, 
+  useWorkflowRuns,
+  useNativeWorkflowDefinition, useSaveNativeDefinition,
+  usePublishNativeWorkflow, usePauseNativeWorkflow,
+  useTestNativeWorkflow, useTestNativeNode, useNativeWorkflowRunDetail
 } from '../../hooks/useWorkflows';
-import { APStepNode } from '../../components/builder/ap/APStepNode';
-import { APStepConfigPanel } from '../../components/builder/ap/APStepConfigPanel';
-import { APNodeLibrary } from '../../components/builder/ap/APNodeLibrary';
-import { APRunLogDrawer } from '../../components/builder/ap/APRunLogDrawer';
-import type { APStep, WorkflowNodeData } from '../../types/automation';
 
-// Map AP step names to @xyflow/react nodes
-const NODE_TYPES = { apStep: APStepNode };
+// Native Components
+import { NativeStepNode } from '../../components/builder/native/NativeStepNode';
+import { NativeNodeLibrary } from '../../components/builder/native/NativeNodeLibrary';
+import { NativeConfigPanel } from '../../components/builder/native/NativeConfigPanel';
 
-/**
- * Converts the AP flow version (trigger is a nested linked list via .nextAction/.onSuccessAction etc.)
- * into @xyflow/react nodes + edges with auto-layout.
- * The real AP API returns nested objects, NOT flat nextActionName strings.
- */
-function stepsToGraph(trigger: any): {
-  nodes: Node<WorkflowNodeData>[];
-  edges: Edge[];
-} {
-  const nodes: Node<WorkflowNodeData>[] = [];
-  const edges: Edge[] = [];
-  const visited = new Set<string>();
+import { nanoid } from 'nanoid';
 
-  // Walk the nested AP step tree and flatten it
-  const walk = (step: any, index: { v: number }) => {
-    if (!step || visited.has(step.name)) return;
-    visited.add(step.name);
-
-    nodes.push({
-      id: step.name,
-      type: 'apStep',
-      position: { x: 250, y: index.v * 160 },
-      data: { stepName: step.name, step: step as APStep },
-    });
-    index.v += 1;
-
-    const pushEdge = (source: string, target: any, label?: string) => {
-      if (!target) return;
-      edges.push({
-        id: `${source}-${target.name}`,
-        source,
-        target: target.name,
-        label,
-        animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        style: { stroke: 'var(--primary)', strokeWidth: 2 },
-        labelStyle: { fill: 'var(--text-muted)', fontSize: 10 },
-      });
-      walk(target, index);
-    };
-
-    // AP nested step fields (real API uses these object refs)
-    pushEdge(step.name, step.nextAction);
-    pushEdge(step.name, step.onSuccessAction, 'True');
-    pushEdge(step.name, step.onFailureAction, 'False');
-    pushEdge(step.name, step.firstLoopAction, 'Loop');
-
-    // Also handle flat name refs (from our local state after user edits)
-    if (!step.nextAction && step.nextActionName) {
-      // these won't resolve to nodes unless we have an actionsMap — skip visual edge
-    }
-  };
-
-  walk(trigger, { v: 0 });
-  return { nodes, edges };
-}
+const NODE_TYPES = { 
+  nativeStep: NativeStepNode,
+  triggerStep: NativeStepNode
+};
 
 export default function WorkflowBuilder() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: workflow, isLoading, error } = useWorkflow(id!);
+  // Basic Details
+  const { data: workflow, isLoading: isLoadingWorkflow, error } = useWorkflow(id!);
+  const [title, setTitle] = useState<string>('');
+  
   const updateWorkflow = useUpdateWorkflow(id!);
-  const publishWorkflow = usePublishWorkflow(id!);
-  const testWorkflow = useTestWorkflow(id!);
   const { data: runs = [] } = useWorkflowRuns(id!);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
-  const [nodes, setNodes, onNodesChangeReactFlow] = useNodesState<Node<WorkflowNodeData>>([]);
+  // Native Hooks
+  const { data: nativeDef } = useNativeWorkflowDefinition(id!);
+  const saveNativeDef = useSaveNativeDefinition(id!);
+  const publishNative = usePublishNativeWorkflow(id!);
+  const pauseNative = usePauseNativeWorkflow(id!);
+  const testNative = useTestNativeWorkflow(id!);
+  const testNativeNode = useTestNativeNode(id!);
+  const { data: nativeRunDetail } = useNativeWorkflowRunDetail(selectedRunId ?? '');
+
+  // Canvas State
+  const [nodes, setNodes, onNodesChangeReactFlow] = useNodesState<Node<any>>([]);
   const [edges, setEdges, onEdgesChangeReactFlow] = useEdgesState<Edge>([]);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   
-  const onEdgesChange = useCallback((changes: any) => {
-    console.log('[WorkflowBuilder] onEdgesChange:', changes);
-    onEdgesChangeReactFlow(changes);
-  }, [onEdgesChangeReactFlow]);
-  
-  const onNodesChange = useCallback((changes: any) => {
-    console.log('[WorkflowBuilder] onNodesChange:', changes);
-    onNodesChangeReactFlow(changes);
-  }, [onNodesChangeReactFlow]);
-  const [selectedStep, setSelectedStep] = useState<APStep | null>(null);
+  // Undo/Redo State
+  const [history, setHistory] = useState<{nodes: any[], edges: any[]}[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // UI State
+  const [selectedNativeNodeId, setSelectedNativeNodeId] = useState<string | null>(null);
   const [showRunLog, setShowRunLog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [title, setTitle] = useState<string>('');
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-
-  // Unsaved changes native blocker (for page reloads/closes)
+  
+  // Unsaved changes native blocker
   useEffect(() => {
     if (!isDirty) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = ''; // Required for Chrome
+      e.returnValue = '';
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  const { data: runDetail } = useWorkflowRun(id!, selectedRunId ?? '');
-
-  // Hydrate canvas from AP flow data
+  // Load Canvas
   useEffect(() => {
     if (workflow) setTitle(workflow.name);
-    if (!workflow?.apFlow?.version) return;
-    const version = workflow.apFlow.version;
-    const trigger = version.trigger;
-    if (!trigger) return;
+    
+    if (nativeDef) {
+      // Hydrate native
+      setNodes(nativeDef.nodes.map((n: any) => ({
+        ...n,
+        data: {
+          ...n.data,
+          runStatus: selectedRunId && nativeRunDetail?.runData?.nodeRuns?.[n.id] 
+            ? nativeRunDetail.runData.nodeRuns[n.id].status 
+            : undefined
+        }
+      })));
+      setEdges(nativeDef.edges);
+      setIsDirty(false);
+      
+      if (history.length === 0) {
+        setHistory([{ nodes: nativeDef.nodes, edges: nativeDef.edges }]);
+        setHistoryIndex(0);
+      }
+    }
+  }, [workflow, nativeDef, nativeRunDetail, selectedRunId, history.length]);
 
-    // AP API returns nested step tree — walk it directly
-    const { nodes: newNodes, edges: newEdges } = stepsToGraph(trigger);
-
-    // Overlay run statuses if available
-    const nodesWithStatus = newNodes.map((n) => {
-      const stepRun = runDetail?.steps?.[n.id];
-      return stepRun ? { ...n, data: { ...n.data, runStatus: stepRun.status } } : n;
+  // Auto-save history snapshot on changes
+  const saveHistorySnapshot = useCallback((newNodes: any[], newEdges: any[]) => {
+    setHistory(prev => {
+      const next = prev.slice(0, historyIndex + 1);
+      next.push({ nodes: newNodes, edges: newEdges });
+      if (next.length > 50) next.shift(); // Max 50
+      return next;
     });
+    setHistoryIndex(prev => Math.min(prev + 1, 50));
+  }, [historyIndex]);
 
-    setNodes(nodesWithStatus);
-    setEdges(newEdges);
-    setIsDirty(false);
-  }, [workflow?.apFlow?.version?.id, workflow?.name, runDetail]);
+  const onNodesChange = useCallback((changes: any) => {
+    onNodesChangeReactFlow(changes);
+    setIsDirty(true);
+  }, [onNodesChangeReactFlow]);
+
+  const onEdgesChange = useCallback((changes: any) => {
+    onEdgesChangeReactFlow(changes);
+    setIsDirty(true);
+  }, [onEdgesChangeReactFlow]);
 
   const onConnect = useCallback((connection: Connection) => {
-    console.log('[WorkflowBuilder] onConnect triggered', connection);
     setEdges((eds) => {
       let label;
       if (connection.sourceHandle === 'true') label = 'True';
@@ -154,6 +132,7 @@ export default function WorkflowBuilder() {
       
       const newEdge = {
         ...connection,
+        id: `e-${connection.source}-${connection.target}-${connection.sourceHandle || ''}`,
         label,
         animated: true,
         markerEnd: { type: MarkerType.ArrowClosed },
@@ -161,131 +140,113 @@ export default function WorkflowBuilder() {
         labelStyle: { fill: 'var(--text-muted)', fontSize: 10, fontWeight: 500 },
         labelBgStyle: { fill: 'var(--bg)', fillOpacity: 0.8 },
       };
-      
-      return addEdge(newEdge, eds);
+      const result = addEdge(newEdge, eds);
+      saveHistorySnapshot(nodes, result);
+      return result;
     });
     setIsDirty(true);
+  }, [nodes, saveHistorySnapshot, setEdges]);
+
+  // Handle Drag/Drop from Native Node Library
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node<WorkflowNodeData>) => {
-    setSelectedStep(node.data.step);
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const nodeImplStr = event.dataTransfer.getData('application/reactflow-native-node');
+      if (!nodeImplStr) return;
+      const nodeImpl = JSON.parse(nodeImplStr);
+
+      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+      const position = reactFlowBounds ? {
+        x: event.clientX - reactFlowBounds.left - 100,
+        y: event.clientY - reactFlowBounds.top - 40,
+      } : { x: 250, y: 250 };
+
+      const newNodeId = `node_${nanoid(8)}`;
+      const newNode = {
+        id: newNodeId,
+        type: nodeImpl.type.startsWith('trigger.') ? 'triggerStep' : 'nativeStep',
+        position,
+        data: {
+          node: {
+            id: newNodeId,
+            type: nodeImpl.type,
+            label: nodeImpl.displayName,
+            config: {}
+          },
+          nodeImpl
+        },
+      };
+
+      setNodes((nds) => {
+        const next = nds.concat(newNode);
+        saveHistorySnapshot(next, edges);
+        return next;
+      });
+      setIsDirty(true);
+    },
+    [setNodes, edges, saveHistorySnapshot]
+  );
+
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node<any>) => {
+    setSelectedNativeNodeId(node.id);
   }, []);
 
-  const handleStepUpdate = (updatedStep: APStep) => {
-    setNodes((nds) =>
-      nds.map((n) =>
-        n.id === updatedStep.name ? { ...n, data: { ...n.data, step: updatedStep } } : n
-      )
-    );
-    if (selectedStep?.name === updatedStep.name) {
-      setSelectedStep(updatedStep);
-    }
-    setIsDirty(true);
-  };
-
-  const handleAddStep = (step: APStep) => {
-    const newNode: Node<WorkflowNodeData> = {
-      id: step.name,
-      type: 'apStep',
-      position: { x: 200 + Math.random() * 100, y: nodes.length * 160 },
-      data: { stepName: step.name, step },
-    };
-    setNodes((nds) => [...nds, newNode]);
-    setSelectedStep(step);
-    setIsDirty(true);
-  };
-
-  const handleDeleteStep = (stepName: string) => {
-    // Find incoming and outgoing edges for the deleted node
-    const incomingEdge = edges.find((e) => e.target === stepName);
-    const outgoingEdge = edges.find((e) => e.source === stepName && (!e.sourceHandle || e.sourceHandle === 'source') && !e.label);
-
-    setEdges((eds) => {
-      let newEdges = eds.filter((e) => e.source !== stepName && e.target !== stepName);
-      // Stitch together if there's a simple chain
-      if (incomingEdge && outgoingEdge) {
-        newEdges.push({
-          id: `${incomingEdge.source}-${outgoingEdge.target}`,
-          source: incomingEdge.source,
-          sourceHandle: incomingEdge.sourceHandle,
-          target: outgoingEdge.target,
-          animated: true,
-          markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: 'var(--primary)', strokeWidth: 2 },
-        });
-      }
-      return newEdges;
+  const handleNativeNodeUpdate = (updatedNativeNode: any) => {
+    setNodes((nds) => {
+      const next = nds.map((n) => n.id === updatedNativeNode.id ? { ...n, data: { ...n.data, node: updatedNativeNode } } : n);
+      saveHistorySnapshot(next, edges);
+      return next;
     });
-
-    setNodes((nds) => nds.filter((n) => n.id !== stepName));
-    if (selectedStep?.name === stepName) setSelectedStep(null);
     setIsDirty(true);
   };
 
-  const handleDuplicateStep = (step: APStep) => {
-    const newName = `${step.name}_copy_${Math.random().toString(36).substr(2, 4)}`;
-    const newStep = { ...step, name: newName, displayName: `${step.displayName} (Copy)` };
+  const handleNativeDelete = () => {
+    if (!selectedNativeNodeId) return;
+    setEdges((eds) => eds.filter(e => e.source !== selectedNativeNodeId && e.target !== selectedNativeNodeId));
+    setNodes((nds) => nds.filter(n => n.id !== selectedNativeNodeId));
+    setSelectedNativeNodeId(null);
+    setIsDirty(true);
+  };
+
+  const handleNativeDuplicate = () => {
+    if (!selectedNativeNodeId) return;
+    const target = nodes.find(n => n.id === selectedNativeNodeId);
+    if (!target) return;
     
-    // Position it slightly offset from the original
-    const originalNode = nodes.find(n => n.id === step.name);
-    const position = originalNode 
-      ? { x: originalNode.position.x + 50, y: originalNode.position.y + 50 } 
-      : { x: 200, y: nodes.length * 160 };
-
-    const newNode: Node<WorkflowNodeData> = {
-      id: newStep.name,
-      type: 'apStep',
-      position,
-      data: { stepName: newStep.name, step: newStep },
+    const newId = `node_${nanoid(8)}`;
+    const newNode = {
+      ...target,
+      id: newId,
+      position: { x: target.position.x + 50, y: target.position.y + 50 },
+      data: {
+        ...target.data,
+        node: { ...target.data.node, id: newId, label: `${target.data.node.label} (Copy)` }
+      }
     };
-    setNodes((nds) => [...nds, newNode]);
-    setSelectedStep(newStep);
+    setNodes(nds => [...nds, newNode]);
+    setSelectedNativeNodeId(newId);
     setIsDirty(true);
   };
 
   const handleSave = async () => {
-    // Reconstruct trigger and actions from current nodes
-    const triggerNode = nodes.find((n) => n.data.step.type === 'TRIGGER');
-    if (!triggerNode) return;
-
-    // Deep clone to avoid mutating state
-    const triggerStep = JSON.parse(JSON.stringify(triggerNode.data.step));
-
-    const buildTree = (stepName: string): any => {
-      const stepNode = nodes.find((n) => n.id === stepName);
-      if (!stepNode) return undefined;
-      const step = JSON.parse(JSON.stringify(stepNode.data.step));
-
-      const nextEdge = edges.find((e) => e.source === stepName && (!e.sourceHandle || e.sourceHandle === 'source') && !e.label);
-      if (nextEdge) {
-        step.nextAction = buildTree(nextEdge.target);
-      }
-
-      if (step.type === 'BRANCH') {
-        const trueEdge = edges.find((e) => e.source === stepName && e.label === 'True');
-        if (trueEdge) step.onSuccessAction = buildTree(trueEdge.target);
-
-        const falseEdge = edges.find((e) => e.source === stepName && e.label === 'False');
-        if (falseEdge) step.onFailureAction = buildTree(falseEdge.target);
-      }
-
-      if (step.type === 'LOOP_ON_ITEMS') {
-        const loopEdge = edges.find((e) => e.source === stepName && e.label === 'Loop');
-        if (loopEdge) step.firstLoopAction = buildTree(loopEdge.target);
-      }
-
-      return step;
-    };
-
-    const nextEdge = edges.find((e) => e.source === triggerStep.name);
-    if (nextEdge) {
-      triggerStep.nextAction = buildTree(nextEdge.target);
+    // Save native workflow definition
+    const payloadNodes = nodes.map(n => ({
+      id: n.id,
+      type: n.data.node.type,
+      data: { config: n.data.node.config },
+      position: n.position
+    }));
+    await saveNativeDef.mutateAsync({ nodes: payloadNodes, edges });
+    
+    if (title !== workflow?.name) {
+      await updateWorkflow.mutateAsync({ name: title });
     }
 
-    await updateWorkflow.mutateAsync({
-      name: title,
-      trigger: triggerStep,
-    });
     setIsDirty(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2000);
@@ -294,21 +255,56 @@ export default function WorkflowBuilder() {
   const handleTest = async () => {
     setTestError(null);
     try {
-      const run = await testWorkflow.mutateAsync(undefined);
-      setSelectedRunId(run.id);
+      await handleSave(); // Auto save before test
+      const run = await testNative.mutateAsync();
+      setSelectedRunId(run.runId);
       setShowRunLog(true);
     } catch (e: any) {
       setTestError(e.message ?? 'Test failed');
     }
   };
 
-  if (isLoading) {
+  const handleTogglePublish = async () => {
+    if (workflow?.status === 'published') {
+      await pauseNative.mutateAsync();
+    } else {
+      await publishNative.mutateAsync();
+    }
+  };
+
+  const KeyboardHandler = () => {
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.ctrlKey && e.key === 's') { e.preventDefault(); handleSave(); }
+        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { 
+          // Undo
+          e.preventDefault();
+          if (historyIndex > 0) {
+            setHistoryIndex(historyIndex - 1);
+            setNodes(history[historyIndex - 1].nodes);
+            setEdges(history[historyIndex - 1].edges);
+          }
+        }
+        if (e.ctrlKey && e.shiftKey && e.key === 'z') {
+          // Redo
+          e.preventDefault();
+          if (historyIndex < history.length - 1) {
+            setHistoryIndex(historyIndex + 1);
+            setNodes(history[historyIndex + 1].nodes);
+            setEdges(history[historyIndex + 1].edges);
+          }
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+    return null;
+  };
+
+  if (isLoadingWorkflow) {
     return (
       <div className="flex items-center justify-center h-full bg-bg">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin text-accent" />
-          <p className="text-sm text-text-muted">Loading workflow...</p>
-        </div>
+        <Loader2 className="w-6 h-6 animate-spin text-accent" />
       </div>
     );
   }
@@ -318,10 +314,8 @@ export default function WorkflowBuilder() {
       <div className="flex items-center justify-center h-full bg-bg">
         <div className="flex flex-col items-center gap-3">
           <AlertTriangle className="w-8 h-8 text-yellow-400" />
-          <p className="text-sm text-text-main font-medium">Workflow not found</p>
-          <button onClick={() => navigate('/automations')} className="text-sm text-accent hover:underline">
-            ← Back to Automations
-          </button>
+          <p className="text-sm">Workflow not found</p>
+          <button onClick={() => navigate('/automations')} className="text-accent hover:underline">← Back</button>
         </div>
       </div>
     );
@@ -329,14 +323,13 @@ export default function WorkflowBuilder() {
 
   return (
     <div className="flex flex-col h-full bg-bg">
+      <KeyboardHandler />
       {/* Top bar */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-border bg-surface shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              if (!isDirty || window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-                navigate('/automations');
-              }
+              if (!isDirty || window.confirm('Leave with unsaved changes?')) navigate('/automations');
             }}
             className="p-2 hover:bg-bg rounded-lg transition-colors"
           >
@@ -346,85 +339,79 @@ export default function WorkflowBuilder() {
             <input
               type="text"
               value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setIsDirty(true);
-              }}
-              className="font-semibold text-text-main bg-transparent border border-transparent hover:border-border focus:border-accent focus:outline-none rounded px-2 py-0.5 transition-colors"
+              onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
+              className="font-semibold text-text-main bg-transparent border-transparent hover:border-border focus:border-accent focus:outline-none rounded px-2 transition-colors"
               style={{ width: `${Math.max(10, title.length + 1)}ch` }}
             />
-            {isDirty && (
-              <span className="ml-2 text-xs text-text-muted shrink-0">• Unsaved changes</span>
-            )}
+            {isDirty && <span className="ml-2 text-xs text-text-muted">• Unsaved changes</span>}
           </div>
-          {workflow.status === 'published' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/30">
-              Live
+          
+          <div className="flex items-center ml-4 gap-2">
+            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              Native Engine
             </span>
-          )}
-          {workflow.status === 'paused' && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-surface text-text-muted border border-border">
-              Paused
-            </span>
-          )}
+          </div>
         </div>
+        
         <div className="flex items-center gap-2">
-          {testError && (
-            <span className="text-xs text-red-400 max-w-xs truncate">{testError}</span>
-          )}
-          {saveSuccess && (
-            <span className="text-xs text-green-400">Saved!</span>
-          )}
+          {testError && <span className="text-xs text-red-400 max-w-xs truncate">{testError}</span>}
+          {saveSuccess && <span className="text-xs text-green-400">Saved!</span>}
+          
           <button
             onClick={() => setShowRunLog(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-muted hover:text-text-main bg-bg hover:bg-surface border border-border rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-muted hover:text-text-main bg-bg hover:bg-surface border border-border rounded-lg"
           >
             <History className="w-3.5 h-3.5" />
             History
-            {runs.length > 0 && (
-              <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 rounded-full">{runs.length}</span>
-            )}
+            {runs.length > 0 && <span className="ml-1 text-xs bg-accent/20 text-accent px-1.5 rounded-full">{runs.length}</span>}
           </button>
+          
           <button
             onClick={handleTest}
-            disabled={testWorkflow.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-main bg-bg hover:bg-surface border border-border rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-main bg-bg hover:bg-surface border border-border rounded-lg"
           >
-            {testWorkflow.isPending
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Play className="w-3.5 h-3.5" />}
-            Test
+            <Play className="w-3.5 h-3.5" /> Test
           </button>
+          
           <button
             onClick={handleSave}
-            disabled={!isDirty || updateWorkflow.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-main bg-bg hover:bg-surface border border-border rounded-lg disabled:opacity-50 transition-colors"
+            disabled={!isDirty}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-main bg-bg hover:bg-surface border border-border rounded-lg disabled:opacity-50"
           >
-            {updateWorkflow.isPending
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Save className="w-3.5 h-3.5" />}
-            Save
+            <Save className="w-3.5 h-3.5" /> Save
           </button>
+          
           <button
-            onClick={() => publishWorkflow.mutate()}
-            disabled={publishWorkflow.isPending || workflow.status === 'published'}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-accent text-white rounded-lg disabled:opacity-50 hover:bg-accent/90 transition-colors"
+            onClick={handleTogglePublish}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              workflow.status === 'published' 
+                ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20' 
+                : 'bg-accent text-white hover:bg-accent/90'
+            }`}
           >
-            {publishWorkflow.isPending
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Rocket className="w-3.5 h-3.5" />}
-            {workflow.status === 'published' ? 'Published' : 'Publish'}
+            <Rocket className="w-3.5 h-3.5" />
+            {workflow.status === 'published' ? 'Pause' : 'Publish'}
           </button>
         </div>
       </div>
 
       {/* Main canvas area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar — node library */}
-        <APNodeLibrary onAddStep={handleAddStep} />
+      <div className="flex flex-1 overflow-hidden" ref={reactFlowWrapper}>
+        {/* Library Panel */}
+        <NativeNodeLibrary onAddNode={(impl) => {
+          const newNodeId = `node_${nanoid(8)}`;
+          const newNode = {
+            id: newNodeId,
+            type: impl.type.startsWith('trigger.') ? 'triggerStep' : 'nativeStep',
+            position: { x: 250, y: 250 },
+            data: { node: { id: newNodeId, type: impl.type, label: impl.displayName, config: {} }, nodeImpl: impl },
+          };
+          setNodes(nds => [...nds, newNode]);
+          setIsDirty(true);
+        }} />
 
         {/* Canvas */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" onDragOver={onDragOver} onDrop={onDrop}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -433,6 +420,8 @@ export default function WorkflowBuilder() {
             onConnect={onConnect}
             onNodeClick={onNodeClick}
             nodeTypes={NODE_TYPES}
+            snapToGrid={true}
+            snapGrid={[20, 20]}
             fitView
             fitViewOptions={{ padding: 0.3 }}
             deleteKeyCode="Delete"
@@ -442,7 +431,6 @@ export default function WorkflowBuilder() {
             <MiniMap className="!bg-surface !border-border" nodeColor="var(--color-accent)" />
           </ReactFlow>
 
-          {/* Empty state overlay */}
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
@@ -453,30 +441,21 @@ export default function WorkflowBuilder() {
           )}
         </div>
 
-        {/* Right sidebar — step config */}
-        {selectedStep && (
-          <APStepConfigPanel
-            step={selectedStep}
-            allSteps={nodes.map((n) => n.data.step)}
-            onUpdate={handleStepUpdate}
-            onClose={() => setSelectedStep(null)}
-            onDelete={() => handleDeleteStep(selectedStep.name)}
-            onDuplicate={() => handleDuplicateStep(selectedStep)}
+        {/* Config Panel */}
+        {selectedNativeNodeId && (
+          <NativeConfigPanel
+            node={nodes.find(n => n.id === selectedNativeNodeId)?.data.node}
+            nodeImpl={nodes.find(n => n.id === selectedNativeNodeId)?.data.nodeImpl}
+            onUpdate={handleNativeNodeUpdate}
+            onClose={() => setSelectedNativeNodeId(null)}
+            onDelete={handleNativeDelete}
+            onDuplicate={handleNativeDuplicate}
+            onTestNode={async () => {
+              await testNativeNode.mutateAsync({ nodeId: selectedNativeNodeId });
+            }}
           />
         )}
       </div>
-
-      {/* Run log drawer */}
-      {showRunLog && id && (
-        <APRunLogDrawer
-          workflowId={id}
-          runs={runs}
-          selectedRunId={selectedRunId}
-          onSelectRun={setSelectedRunId}
-          onClose={() => setShowRunLog(false)}
-        />
-      )}
-
     </div>
   );
 }

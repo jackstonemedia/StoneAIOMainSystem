@@ -1,7 +1,7 @@
 // @ts-nocheck
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
-import { useWorkflow, useCreateWorkflow, useUpdateWorkflow, usePublishWorkflow, useTestWorkflow } from '../hooks/useWorkflows';
+import { useWorkflow, useCreateWorkflow, useUpdateWorkflow, usePublishNativeWorkflow, useTestNativeWorkflow } from '../hooks/useWorkflows';
 import { useToast } from '../components/ui/Toast';
 import { 
   ReactFlow, 
@@ -25,7 +25,7 @@ import VoiceAgentBuilder from './VoiceAgentBuilder';
 import { VoiceNode } from '../components/builder/VoiceNode';
 import AIBuilderChat from '../components/builder/AIBuilderChat';
 import NodeInspector from '../components/builder/NodeInspector';
-import NodeLibrary from '../components/builder/NodeLibrary';
+import { NativeNodeLibrary } from '../components/builder/native/NativeNodeLibrary';
 import ExecutionLogsPanel from '../components/builder/ExecutionLogsPanel';
 import AgentConfigPanel from '../components/builder/AgentConfigPanel';
 
@@ -53,8 +53,8 @@ export default function AgentBuilder() {
   const { data: workflowData } = useWorkflow(activeId || '');
   const createWorkflow = useCreateWorkflow();
   const updateWorkflow = useUpdateWorkflow();
-  const publishWorkflow = usePublishWorkflow();
-  const testWorkflow = useTestWorkflow(activeId || '');
+  const publishWorkflow = usePublishNativeWorkflow(activeId || '');
+  const testWorkflow = useTestNativeWorkflow(activeId || '');
 
   // Canvas State
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -598,7 +598,15 @@ export default function AgentBuilder() {
               showAdvanced={showAdvanced} 
             />
           ) : (
-            <NodeLibrary />
+            <NativeNodeLibrary onAddNode={(impl) => {
+              const newNode = {
+                id: `step_${Math.random().toString(36).substr(2, 6)}`,
+                type: 'custom',
+                position: { x: 250, y: 250 },
+                data: { label: impl.displayName, nodeDefId: impl.type, input: {} },
+              };
+              setNodes((nds) => nds.concat(newNode as any));
+            }} />
           )
         )}
       </div>

@@ -93,6 +93,13 @@ router.post('/forms/:id/submissions', async (req, res) => {
     const { db } = await import('../../infrastructure/database/client.js');
     const sub = await db.formSubmission.create({ data: { formId: req.params.id, data: JSON.stringify(req.body) } });
     await db.form.update({ where: { id: req.params.id }, data: { visits: { increment: 1 } } }).catch(() => {});
+    
+    emitTrigger(req.workspaceId, 'form.submitted', { 
+      formId: req.params.id, 
+      data: req.body,
+      submissionId: sub.id
+    }).catch(console.error);
+    
     res.json(sub);
   } catch (e) { res.json({ id: `sub_${Date.now()}`, submittedAt: new Date().toISOString() }); }
 });

@@ -30,7 +30,7 @@
 @layer base {
 
   /* ── Stone AIO Enterprise Inset (Navy Panels on Dusty Canvas) ── */
-  :root, .theme-stone {
+  :root, .theme-dark {
     /* Main canvas background is now Slate 800 */
     --bg:               #1e293b;
     
@@ -70,166 +70,54 @@
     --shadow-interactive: 0 4px 16px rgba(82,103,125,0.3), 0 2px 6px rgba(0,0,0,0.3);
     --shadow-card:        0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.25);
     --card-gradient:      linear-gradient(145deg, rgba(28,46,74,0.95) 0%, rgba(15,26,43,0.90) 100%);
+    
+    /* Frosted glass variables */
+    --glass-bg:           rgba(15, 26, 43, 0.60); /* Semi-transparent elegant Navy */
+    --glass-border:       rgba(82, 103, 125, 0.35);
   }
 
-  /* ── Dark Theme ── */
-  .theme-dark {
-    --bg:               #080d1a;
-    --surface:          #111827;
-    --surface-hover:    #1f2937;
-    --border:           #1f2937;
-    --border-subtle:    rgba(31,41,55,0.6);
-    --text-main:        #f1f5f9;
-    --text-muted:       #94a3b8;
-    --primary:          #818cf8;
-    --primary-hover:    #6366f1;
-    --primary-light:    rgba(129,140,248,0.12);
-    --accent-green:        #34d399;
-    --accent-amber:        #fbbf24;
-    --accent-purple:       #a78bfa;
-    --accent-light-purple: #c084fc;
-    --accent-teal:         #67e8f9;
-    --accent-red:          #fb7185;
-    --accent-blue:         #60a5fa;
-    --accent-orange:       #fb923c;
-    --glow-color:           rgba(129,140,248,0.12);
-    --glow-color-strong:    rgba(129,140,248,0.25);
-    --sidebar-bg:           #080d1a;
-    --sidebar-border:       #1a2332;
-    --sidebar-active:       rgba(129,140,248,0.10);
-    --sidebar-active-text:  #818cf8;
-    --shadow-luxury:      0 4px 6px rgba(0,0,0,0.4), 0 10px 15px rgba(0,0,0,0.5), 0 20px 40px rgba(0,0,0,0.3);
-    --shadow-interactive: 0 8px 25px rgba(129,140,248,0.2), 0 4px 10px rgba(129,140,248,0.1);
-    --shadow-card:        0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
-    --card-gradient:      linear-gradient(135deg, rgba(17,24,39,0.95), rgba(8,13,26,0.90));
-  }
+  /* ── Light Theme (Claude-like Cream — Deeper Contrast) ── */
+  .theme-light {
+    --bg:               #EDEAE2; /* Deeper warm sand — visible layer separation */
+    --surface:          #F7F5F0; /* Warm off-white surface, distinct from bg */
+    --surface-hover:    #EDE9DF; /* Slightly deeper than surface on hover */
+    --border:           #D4CFC4; /* Stronger warm border — clearly visible */
+    --border-subtle:    rgba(140, 137, 128, 0.18);
+    
+    --text-main:        #3A3733; /* Richer warm dark gray — more readable */
+    --text-muted:       #7D796F; /* Warm muted, still subtle */
+    
+    --primary:          #52504A; /* Sophisticated taupe/gray */
+    --primary-hover:    #3D3B35;
+    --primary-light:    rgba(82, 80, 74, 0.10);
 
-  /* ── Ocean Theme ── */
-  .theme-ocean {
-    --bg:               #060d1a;
-    --surface:          #0d1829;
-    --surface-hover:    #152236;
-    --border:           #1a2d44;
-    --border-subtle:    rgba(26,45,68,0.6);
-    --text-main:        #e2e8f0;
-    --text-muted:       #7894b4;
-    --primary:          #38bdf8;
-    --primary-hover:    #0ea5e9;
-    --primary-light:    rgba(56,189,248,0.12);
-    --accent-green:        #2dd4bf;
-    --accent-amber:        #fbbf24;
-    --accent-purple:       #818cf8;
-    --accent-light-purple: #a78bfa;
-    --accent-teal:         #22d3ee;
-    --accent-red:          #f87171;
-    --accent-blue:         #60a5fa;
-    --accent-orange:       #fb923c;
-    --glow-color:           rgba(56,189,248,0.12);
-    --glow-color-strong:    rgba(56,189,248,0.25);
-    --sidebar-bg:           #060c17;
-    --sidebar-border:       #0e1829;
-    --sidebar-active:       rgba(56,189,248,0.10);
-    --sidebar-active-text:  #38bdf8;
-    --shadow-luxury:      0 4px 6px rgba(0,0,0,0.5), 0 10px 15px rgba(0,0,0,0.6);
-    --shadow-interactive: 0 8px 25px rgba(56,189,248,0.2);
-    --shadow-card:        0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
-    --card-gradient:      linear-gradient(135deg, rgba(13,24,41,0.95), rgba(6,13,26,0.90));
-  }
+    /* CRM accent colors */
+    --accent-green:       #10B981;
+    --accent-amber:       #F59E0B;
+    --accent-purple:      #8B5CF6;
+    --accent-light-purple:#A78BFA;
+    --accent-teal:        #0D9488;
+    --accent-red:         #EF4444;
+    --accent-blue:        #2563EB;
+    --accent-orange:      #EA580C;
 
-  /* ── Sunset Theme ── */
-  .theme-sunset {
-    --bg:               #110a0d;
-    --surface:          #1e1218;
-    --surface-hover:    #2a1a25;
-    --border:           #3a2530;
-    --border-subtle:    rgba(58,37,48,0.6);
-    --text-main:        #fce7f3;
-    --text-muted:       #b88a9a;
-    --primary:          #f97316;
-    --primary-hover:    #ea580c;
-    --primary-light:    rgba(249,115,22,0.12);
-    --accent-green:        #4ade80;
-    --accent-amber:        #fbbf24;
-    --accent-purple:       #c084fc;
-    --accent-light-purple: #e879f9;
-    --accent-teal:         #67e8f9;
-    --accent-red:          #fb7185;
-    --accent-blue:         #60a5fa;
-    --accent-orange:       #fb923c;
-    --glow-color:           rgba(249,115,22,0.12);
-    --glow-color-strong:    rgba(249,115,22,0.25);
-    --sidebar-bg:           #0e0810;
-    --sidebar-border:       #1e1219;
-    --sidebar-active:       rgba(249,115,22,0.12);
-    --sidebar-active-text:  #f97316;
-    --shadow-luxury:      0 4px 6px rgba(0,0,0,0.5), 0 10px 15px rgba(0,0,0,0.6);
-    --shadow-interactive: 0 8px 25px rgba(249,115,22,0.2);
-    --shadow-card:        0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
-    --card-gradient:      linear-gradient(135deg, rgba(30,18,24,0.95), rgba(17,10,13,0.90));
-  }
+    --glow-color:           rgba(140, 137, 128, 0.10);
+    --glow-color-strong:    rgba(140, 137, 128, 0.20);
+    
+    /* Sidebar — slightly lighter than bg to feel elevated */
+    --sidebar-bg:           #F7F5F0;
+    --sidebar-border:       #D4CFC4;
+    --sidebar-active:       rgba(82, 80, 74, 0.08);
+    --sidebar-active-text:  #3A3733;
 
-  /* ── Forest Theme ── */
-  .theme-forest {
-    --bg:               #080f0b;
-    --surface:          #0f1a10;
-    --surface-hover:    #172618;
-    --border:           #1f3322;
-    --border-subtle:    rgba(31,51,34,0.6);
-    --text-main:        #ecfdf5;
-    --text-muted:       #86b89a;
-    --primary:          #22c55e;
-    --primary-hover:    #16a34a;
-    --primary-light:    rgba(34,197,94,0.12);
-    --accent-green:        #4ade80;
-    --accent-amber:        #fbbf24;
-    --accent-purple:       #a78bfa;
-    --accent-light-purple: #c084fc;
-    --accent-teal:         #2dd4bf;
-    --accent-red:          #fb7185;
-    --accent-blue:         #60a5fa;
-    --accent-orange:       #fb923c;
-    --glow-color:           rgba(34,197,94,0.12);
-    --glow-color-strong:    rgba(34,197,94,0.25);
-    --sidebar-bg:           #060c07;
-    --sidebar-border:       #132419;
-    --sidebar-active:       rgba(34,197,94,0.12);
-    --sidebar-active-text:  #22c55e;
-    --shadow-luxury:      0 4px 6px rgba(0,0,0,0.5), 0 10px 15px rgba(0,0,0,0.6);
-    --shadow-interactive: 0 8px 25px rgba(34,197,94,0.2);
-    --shadow-card:        0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
-    --card-gradient:      linear-gradient(135deg, rgba(15,26,16,0.95), rgba(8,15,11,0.90));
-  }
-
-  /* ── Neon Theme ── */
-  .theme-neon {
-    --bg:               #05050f;
-    --surface:          #0a0a1e;
-    --surface-hover:    #12122e;
-    --border:           #1e1e3e;
-    --border-subtle:    rgba(30,30,62,0.6);
-    --text-main:        #f0f0ff;
-    --text-muted:       #8888bb;
-    --primary:          #a855f7;
-    --primary-hover:    #9333ea;
-    --primary-light:    rgba(168,85,247,0.12);
-    --accent-green:        #4ade80;
-    --accent-amber:        #fbbf24;
-    --accent-purple:       #c084fc;
-    --accent-light-purple: #e879f9;
-    --accent-teal:         #22d3ee;
-    --accent-red:          #fb7185;
-    --accent-blue:         #60a5fa;
-    --accent-orange:       #fb923c;
-    --glow-color:           rgba(168,85,247,0.15);
-    --glow-color-strong:    rgba(168,85,247,0.30);
-    --sidebar-bg:           #030308;
-    --sidebar-border:       #0d0d22;
-    --sidebar-active:       rgba(168,85,247,0.12);
-    --sidebar-active-text:  #a855f7;
-    --shadow-luxury:      0 4px 6px rgba(0,0,0,0.6), 0 10px 15px rgba(0,0,0,0.7);
-    --shadow-interactive: 0 8px 25px rgba(168,85,247,0.25);
-    --shadow-card:        0 1px 3px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.5);
-    --card-gradient:      linear-gradient(135deg, rgba(10,10,30,0.95), rgba(5,5,15,0.90));
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.07), 0 16px 40px rgba(0,0,0,0.03);
+    --shadow-interactive: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+    --card-gradient:      #F7F5F0; /* Solid warm off-white — no gradient */
+    
+    /* Frosted glass variables */
+    --glass-bg:           rgba(247, 245, 240, 0.50); /* Semi-transparent warm cream — highly visible blur */
+    --glass-border:       rgba(212, 207, 196, 0.60);
   }
 
   * {
@@ -307,18 +195,18 @@
 
   /* Glassmorphism card */
   .card-glass {
-    background: rgba(28, 46, 74, 0.55);
+    background: var(--glass-bg);
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
-    border: 1px solid rgba(82, 103, 125, 0.2);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
   }
 
   /* Elevated premium panel */
   .glass-panel {
-    background: var(--card-gradient);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    background: var(--glass-bg);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: var(--shadow-luxury);
@@ -326,8 +214,9 @@
 
   /* Interactive glass card — lifts on hover */
   .glass-card-hover {
-    background: var(--card-gradient);
-    backdrop-filter: blur(16px);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: var(--shadow-card);
@@ -458,7 +347,7 @@
   .nav-active {
     background: var(--sidebar-active);
     color: var(--sidebar-active-text);
-    font-weight: 600;
+    font-weight: 500;
     position: relative;
   }
   .nav-active::before {

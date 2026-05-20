@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Users, Building2, MoreHorizontal, Plus, Clock, Target, Calendar, ChevronDown, Pencil, Trash2 } from 'lucide-react';
+import { Users, Building2, MoreHorizontal, Plus, Clock, Target, Calendar, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export interface KanbanDeal {
@@ -22,6 +22,7 @@ interface KanbanBoardProps {
   onDealMove: (dealId: string, destStageName: string) => void;
   onDealDelete?: (dealId: string) => void;
   onDealEdit?: (dealId: string) => void;
+  onAddDeal?: (stageName: string) => void;
 }
 
 function ProbabilityBar({ value, color }: { value: number; color: string }) {
@@ -41,7 +42,6 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isRotting = rottingDays && (deal.stageAge || 0) > rottingDays;
-  const initials = `${deal.contact?.firstName?.[0] || ''}`.toUpperCase();
 
   return (
     <Draggable draggableId={deal.id} index={index}>
@@ -118,7 +118,7 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
   );
 }
 
-export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, onDealEdit }: KanbanBoardProps) {
+export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, onDealEdit, onAddDeal }: KanbanBoardProps) {
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
     const { source, destination, draggableId } = result;
@@ -189,7 +189,10 @@ export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, o
                     {provided.placeholder}
 
                     {/* Add deal inline */}
-                    <button className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-surface/50 text-[13px] font-bold text-text-muted hover:text-text-main hover:border-primary/50 hover:bg-surface-hover hover:shadow-sm transition-all mt-2">
+                    <button
+                      onClick={() => onAddDeal?.(stage.name)}
+                      className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-surface/50 text-[13px] font-medium text-text-muted hover:text-text-main hover:border-primary/40 hover:bg-surface-hover transition-all mt-2"
+                    >
                       <Plus className="w-4 h-4" /> Add deal
                     </button>
                   </div>

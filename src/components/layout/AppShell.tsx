@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../context/ThemeContext';
-import { ModeProvider } from '../../context/ModeContext';
 import { Menu, X, Zap } from 'lucide-react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 
@@ -11,7 +10,6 @@ export default function AppShell() {
   const isDevBypass = !(import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY;
 
   const content = (
-    <ModeProvider>
       <ThemeProvider>
         <div
           className="flex h-screen overflow-hidden relative"
@@ -60,7 +58,6 @@ export default function AppShell() {
           </main>
         </div>
       </ThemeProvider>
-    </ModeProvider>
   );
 
   if (isDevBypass) return content;

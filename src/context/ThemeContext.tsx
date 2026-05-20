@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
-export type ThemeName = 'stone' | 'dark' | 'ocean' | 'sunset' | 'forest' | 'neon';
+export type ThemeName = 'dark' | 'light';
 
 interface ThemeContextType {
   theme: ThemeName;
@@ -9,12 +9,8 @@ interface ThemeContextType {
 }
 
 export const THEMES: ThemeContextType['themes'] = [
-  { id: 'stone',  name: 'Enterprise Navy', preview: { bg: '#0F1A2B', surface: '#1C2E4A', primary: '#52677D', accent: '#BDC4D4' } },
-  { id: 'dark',   name: 'Dark',            preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
-  { id: 'ocean',  name: 'Ocean',           preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
-  { id: 'sunset', name: 'Sunset',          preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
-  { id: 'forest', name: 'Forest',          preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
-  { id: 'neon',   name: 'Neon',            preview: { bg: '#52677D', surface: '#52677D', primary: '#52677D', accent: '#52677D' } },
+  { id: 'light',  name: 'Light Mode', preview: { bg: '#fdfdfc', surface: '#ffffff', primary: '#e5e5e5', accent: '#111111' } },
+  { id: 'dark',   name: 'Dark Mode',  preview: { bg: '#0F1A2B', surface: '#1C2E4A', primary: '#52677D', accent: '#BDC4D4' } },
 ];
 
 const THEME_KEY = 'stone-aio-theme';
@@ -25,12 +21,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeName>(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY) as ThemeName | null;
-      if (!saved || (saved as string) === 'light') return 'stone';
-      return saved in THEMES.reduce((acc, t) => ({ ...acc, [t.id]: true }), {} as Record<string, boolean>)
-        ? saved
-        : 'stone';
+      if (saved === 'light' || saved === 'dark') return saved;
+      return 'dark';
     } catch {
-      return 'stone';
+      return 'dark';
     }
   });
 

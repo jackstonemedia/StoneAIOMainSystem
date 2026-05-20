@@ -1,7 +1,6 @@
 // @ts-nocheck
 import React from 'react';
 import { Settings, X, ChevronDown, CheckCircle2, AlertCircle } from 'lucide-react';
-import { usePiece, useAPConnections } from '../../hooks/useWorkflows';
 import { WORKFLOW_NODES } from '../../data/workflowNodes';
 
 interface NodeInspectorProps {
@@ -17,9 +16,9 @@ export default function NodeInspector({ selectedNode, setSelectedNode, setNodes,
   const pieceName = selectedNode.data.nodeDefId;
   const isTrigger = selectedNode.data.type === 'TRIGGER' || pieceName?.includes('trigger');
   
-  const { data: pieceDataRaw, isLoading } = usePiece(pieceName);
-  const { data: connectionsData } = useAPConnections(pieceName);
-  const connections = Array.isArray(connectionsData) ? connectionsData : [];
+  const pieceDataRaw = null;
+  const isLoading = false;
+  const connections: any[] = [];
 
   // Fallback to static mock node if Activepieces is offline
   const fallbackNode = WORKFLOW_NODES.find(n => n.id === pieceName);

@@ -72,16 +72,10 @@ export default function CrmTasks() {
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
-      {/* Header */}
-      <div className="px-8 flex items-center justify-between bg-surface z-10 sticky top-0 shadow-sm relative border-b border-border h-[68px]">
-        <h1 className="text-[20px] font-bold text-text-main">Tasks</h1>
-        <button onClick={() => setPanelOpen('new_task')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[14px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface active:scale-95">
-          <Plus className="w-4 h-4" /> New Task
-        </button>
-      </div>
+      {/* Header section removed */}
 
       {/* Unified Toolbar */}
-      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_24px_rgba(0,0,0,0.12)] h-[73px]">
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
         <div className="flex items-center gap-2">
           {[
             { id: 'all', label: 'All' },
@@ -111,16 +105,20 @@ export default function CrmTasks() {
             <Filter className="w-3.5 h-3.5" /> More
           </button>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative shadow-sm rounded-full flex items-center">
+        <div className="flex items-center gap-3">
+          <div className="relative shadow-sm rounded-full flex items-center mr-2">
             <Search className="w-4 h-4 absolute left-3 text-text-muted" />
             <input 
               type="text" 
               placeholder="Search tasks..." 
-              className="pl-9 pr-4 py-1.5 w-[220px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
             />
           </div>
-          <button className="flex items-center gap-2 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors">
+          <button onClick={() => setPanelOpen('new_task')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface active:scale-95">
+            <Plus className="w-4 h-4" /> New Task
+          </button>
+          <div className="w-[1px] h-5 bg-border mx-1"></div>
+          <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
             <Settings className="w-4 h-4" /> Manage
           </button>
         </div>
@@ -199,7 +197,14 @@ export default function CrmTasks() {
       
       {/* Footer Paginator */}
       <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0">
-        <div className="font-semibold text-text-muted">Page 1 of 1</div>
+        <div className="font-semibold text-text-muted flex items-center gap-3">
+          Page 1 of 1
+          <div className="w-[1px] h-4 bg-border"></div>
+          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+            {tasks.length} Tasks
+          </span>
+        </div>
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-1.5 border border-border rounded-[4px] px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />

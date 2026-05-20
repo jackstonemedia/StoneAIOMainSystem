@@ -7,8 +7,8 @@ import {
   Users, Calendar, Star, GitBranch, MessageSquare,
   Mic, Sparkles, LogOut, ChevronsUpDown, List, Target
 } from 'lucide-react';
-import { useMode } from '../../context/ModeContext';
-import { NotificationPanel } from '../ui/NotificationPanel';
+import { useUser, useClerk } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -18,25 +18,19 @@ interface SidebarProps {
 export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}) {
   const [collapsed, setCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [upgradeExpanded, setUpgradeExpanded] = useState(true);
-  const { mode, setMode } = useMode();
+  const [upgradeExpanded, setUpgradeExpanded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const queryClient = useQueryClient();
+  
+  const initial = user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U';
+  const fullName = user?.fullName || user?.emailAddresses?.[0]?.emailAddress || 'User';
 
-  // ── Creator Studio Navigation ──
-  const creatorMenu = [
-    { name: 'Dashboard',     path: '/dashboard',          icon: LayoutDashboard },
-    { name: 'AI Agents',     path: '/agents',             icon: Sparkles },
-    { name: 'Voice Agents',  path: '/agents?type=voice',  icon: Mic },
-    { name: 'Automations',   path: '/automations',         icon: Zap },
-    { name: 'AI Assistant',  path: '/assistant',          icon: MessageSquare },
-    { name: 'Cloud Computer',path: '/computer',           icon: Server },
-    { name: 'Templates',     path: '/templates',          icon: FileSpreadsheet },
-    { name: 'Marketplace',   path: '/marketplace',        icon: Building2 },
-  ];
-
-  const businessMenu = [
+  const crmMenu = [
     { name: 'Dashboard',      path: '/business',                   icon: LayoutDashboard },
     { name: 'CRM',            path: '/crm/contacts',               icon: Users },
     { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
@@ -45,6 +39,11 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     { name: 'Analytics',      path: '/business/analytics',         icon: BarChart3 },
     { name: 'Forms',          path: '/business/forms',             icon: FileText },
     { name: 'Reputation',     path: '/business/reputation',        icon: Star },
+  ];
+
+  const automationMenu = [
+    { name: 'Workflows',      path: '/workflows',                  icon: Zap },
+    { name: 'Voice Agents',   path: '/agents/voice/new',           icon: Mic },
   ];
 
   const NavItem = ({ item }: { item: { name: string; path: string; icon: any } }) => {
@@ -57,7 +56,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         return location.pathname === itemPath && searchParams.get(paramKey!) === paramValue;
       }
       if (itemPath === '/agents') return location.pathname === '/agents' && !searchParams.get('type');
-      if (itemPath === '/dashboard' || itemPath === '/business') return location.pathname === itemPath;
+      if (itemPath === '/business') return location.pathname === itemPath;
       if (itemPath === '#') return false;
       return location.pathname.startsWith(itemPath);
     })();
@@ -85,17 +84,17 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         onClick={() => setMobileOpen?.(false)}
         className={`flex items-center gap-3 px-3 py-2 mx-3 my-0.5 rounded-lg text-[13px] font-medium transition-all duration-150 ${
           isActive
-            ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)] font-semibold'
+            ? 'bg-[var(--sidebar-active)] text-[var(--text-main)] font-medium'
             : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
         }`}
       >
-        <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={isActive ? 2 : 1.75} />
+        <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={1.75} />
         <span className="truncate">{item.name}</span>
       </NavLink>
     );
   };
 
-  const currentMenu = mode === 'creator' ? creatorMenu : businessMenu;
+
 
   return (
     <>
@@ -119,28 +118,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           borderColor: 'var(--sidebar-border)',
         }}
       >
-        {/* ── Logo Header ── */}
-        <div
-          className={`h-[54px] flex items-center border-b shrink-0 ${
-            collapsed ? 'justify-center' : 'px-4 justify-between'
-          }`}
-          style={{ borderColor: 'var(--sidebar-border)' }}
-        >
-          <div className="flex items-center gap-2.5">
-            {collapsed ? (
-              <span className="font-black text-[15px] select-none text-text-main">S</span>
-            ) : (
-              <span
-                className="font-bold text-[14.5px] tracking-tight select-none"
-                style={{ color: 'var(--text-main)' }}
-              >
-                Stone AIO
-              </span>
-            )}
-          </div>
-          {!collapsed && <NotificationPanel />}
-        </div>
-
         {/* ── Quick Search ── */}
         <div
           className={`h-[40px] border-b flex items-center cursor-text shrink-0 transition-colors ${
@@ -200,7 +177,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             ))}
           </div>
 
-
           {/* ── Section label ── */}
           {!collapsed && (
             <div className="px-4 pt-3 pb-1.5 shrink-0">
@@ -208,14 +184,28 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                 className="text-[10px] font-bold tracking-[0.08em] uppercase"
                 style={{ color: 'var(--text-muted)', opacity: 0.6 }}
               >
-                {mode === 'creator' ? 'Creator Studio' : 'Management'}
+                Workspace
               </span>
             </div>
           )}
 
           {/* ── Navigation items ── */}
-          <div className="flex-1">
-            {currentMenu.map((item) => <NavItem key={item.name} item={item} />)}
+          <div className="flex-1 pb-4">
+            {crmMenu.map((item) => <NavItem key={item.name} item={item} />)}
+            
+            <div className="my-3 mx-4 border-t border-border/50" />
+            
+            {!collapsed && (
+              <div className="px-4 pb-1.5 shrink-0 mt-1">
+                <span
+                  className="text-[10px] font-bold tracking-[0.08em] uppercase"
+                  style={{ color: 'var(--text-muted)', opacity: 0.6 }}
+                >
+                  Automation Engine
+                </span>
+              </div>
+            )}
+            {automationMenu.map((item) => <NavItem key={item.name} item={item} />)}
           </div>
         </nav>
 
@@ -223,28 +213,22 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         <div className="shrink-0 flex flex-col pb-3 pt-2">
           {/* ── Upgrade card ── */}
           {!collapsed ? (
-            <div
-              className="mx-3 mb-4 rounded-xl shrink-0 transition-all overflow-hidden"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-            >
+            <div className="mx-3 mb-4 rounded-lg shrink-0 transition-all overflow-hidden bg-surface border border-border shadow-sm">
               {/* Header row — always visible */}
               <div
-                className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-surface-hover/50 transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-surface-hover transition-colors"
                 onClick={() => setUpgradeExpanded(!upgradeExpanded)}
               >
-                <div
-                  className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}
-                >
+                <div className="w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 bg-surface-hover border border-border">
                   <Zap className="w-3 h-3" style={{ color: 'var(--text-muted)' }} strokeWidth={1.8} />
                 </div>
                 <div className="leading-tight flex-1 min-w-0">
-                  <div className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>Current plan</div>
-                  <div className="text-[12px] font-bold" style={{ color: 'var(--text-main)' }}>Pro Trial</div>
+                  <div className="text-[10px] font-medium text-text-muted">Current plan</div>
+                  <div className="text-[12px] font-normal text-text-muted">Pro Trial</div>
                 </div>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-text-muted shrink-0 transition-transform duration-200 ${upgradeExpanded ? '' : '-rotate-90'}`}
-                  strokeWidth={2}
+                  className={`w-3.5 h-3.5 text-text-muted shrink-0 transition-transform duration-200 ${upgradeExpanded ? 'rotate-0' : '-rotate-90'}`}
+                  strokeWidth={1.5}
                 />
               </div>
               {/* Expandable body */}
@@ -254,7 +238,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                     Upgrade to unlock all enterprise features.
                   </p>
                   <button
-                    className="w-full text-[12px] font-bold py-1.5 rounded-lg transition-all bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 text-text-main hover:bg-surface/50"
+                    className="w-full flex justify-center items-center gap-2 py-1.5 rounded-[4px] transition-colors bg-surface border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover shadow-sm active:scale-95"
                   >
                     Upgrade to Pro
                   </button>
@@ -278,36 +262,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             {profileMenuOpen && !collapsed && (
               <div className="absolute bottom-[calc(100%+8px)] left-0 w-full bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
 
-                {/* Mode switcher */}
-                <div className="px-3 pt-2 pb-1">
-                  <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Switch Mode</p>
-                  <div className="p-1 rounded-xl bg-surface-hover border border-border">
-                    <div className="flex rounded-[10px]">
-                      <button
-                        onClick={() => { setMode('business'); navigate('/business'); setProfileMenuOpen(false); }}
-                        className={`flex-1 py-1.5 text-[11.5px] font-bold rounded-[8px] transition-all ${
-                          mode === 'business'
-                            ? 'bg-surface border border-border/50 shadow-sm text-text-main'
-                            : 'text-text-muted hover:text-text-main'
-                        }`}
-                      >
-                        Management
-                      </button>
-                      <button
-                        onClick={() => { setMode('creator'); navigate('/dashboard'); setProfileMenuOpen(false); }}
-                        className={`flex-1 py-1.5 text-[11.5px] font-bold rounded-[8px] transition-all ${
-                          mode === 'creator'
-                            ? 'bg-surface border border-border/50 shadow-sm text-text-main'
-                            : 'text-text-muted hover:text-text-main'
-                        }`}
-                      >
-                        Creation
-                      </button>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="w-full h-[1px] bg-border my-1"></div>
 
                 {/* Account */}
                 <button
@@ -333,7 +288,11 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                 </button>
                 <div className="w-full h-[1px] bg-border my-1"></div>
                 <button
-                  onClick={() => setProfileMenuOpen(false)}
+                  onClick={async () => {
+                    setProfileMenuOpen(false);
+                    queryClient.clear();
+                    await signOut({ redirectUrl: window.location.origin.replace(':4000', ':5173') + '/login' });
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-red-400 hover:text-red-300 hover:bg-surface-hover transition-colors"
                 >
                   <LogOut className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />
@@ -349,19 +308,19 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
               }`}
             >
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 select-none shadow-sm"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 select-none shadow-sm overflow-hidden"
                 style={{ background: 'var(--primary)', color: 'var(--bg)' }}
               >
-                JS
+                {user?.imageUrl ? <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" /> : initial}
               </div>
               {!collapsed && (
                 <>
                   <div className="flex flex-col justify-center leading-tight min-w-0 pr-2 flex-1">
-                    <span className="text-[13px] font-bold truncate" style={{ color: 'var(--text-main)' }}>
-                      Jack Stone
+                    <span className="text-[13px] font-normal truncate text-text-muted">
+                      {fullName}
                     </span>
-                    <span className="text-[11px] truncate opacity-70" style={{ color: 'var(--text-muted)' }}>
-                      {mode === 'creator' ? 'Creator Studio' : 'Enterprise CRM'}
+                    <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+                      Enterprise CRM
                     </span>
                   </div>
                   <ChevronsUpDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
