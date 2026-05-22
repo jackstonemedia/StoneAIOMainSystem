@@ -51,6 +51,7 @@ model Workspace {
   workflowSchedules       WorkflowSchedule[]
   workflowWebhooks        WorkflowWebhook[]
   crmTriggerSubscriptions CrmTriggerSubscription[]
+  channelConnections      ChannelConnection[]
 
   @@map("workspaces")
 }
@@ -380,6 +381,32 @@ model Integration {
   @@map("integrations")
 }
 
+model ChannelConnection {
+  id                      String    @id @default(uuid())
+  workspaceId             String    @map("workspace_id")
+  userId                  String    @map("user_id")
+  provider                String    // "gmail" | "outlook" | "twilio"
+  label                   String?   // e.g. "Work Gmail" — display name
+  email                   String?   // connected email address (for display only)
+  credentialsJson         String    @map("credentials_json") // AES-256-GCM encrypted JSON
+  isActive                Boolean   @default(true) @map("is_active")
+  // Twilio-specific
+  twilioPhoneNumber       String?   @map("twilio_phone_number")
+  // Outlook-specific (Microsoft push subscriptions expire every 3 days)
+  outlookSubscriptionId   String?   @map("outlook_subscription_id")
+  outlookSubscriptionExpiry DateTime? @map("outlook_subscription_expiry")
+  // Gmail-specific (tracks polling state)
+  gmailHistoryId          String?   @map("gmail_history_id")
+  lastPolledAt            DateTime? @map("last_polled_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+  workspace               Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, provider])
+  @@index([workspaceId])
+  @@map("channel_connections")
+}
+
 model Appointment {
   id          String    @id @default(uuid())
   workspaceId String    @map("workspace_id")
@@ -423,6 +450,12 @@ model Conversation {
   channel     String                @default("sms")
   status      String                @default("open")
   unreadCount Int                   @default(0) @map("unread_count")
+  subject             String?   // email subject line
+  externalId          String?   @map("external_id")  // threadId from provider (Gmail, Outlook, PSID for Meta)
+  channelConnectionId String?   @map("channel_connection_id")
+  lastMessageAt       DateTime? @map("last_message_at")
+  assignedUserId      String?   @map("assigned_user_id")
+  starred             Boolean   @default(false)
   createdAt   DateTime              @default(now()) @map("created_at")
   updatedAt   DateTime              @updatedAt @map("updated_at")
   workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -438,6 +471,10 @@ model ConversationMessage {
   sender         String
   body           String
   direction      String       @default("outbound")
+  externalId String?  @map("external_id") // message ID from provider (for deduplication)
+  status     String   @default("sent")    // "sent" | "delivered" | "read" | "failed"
+  channel    String?  // per-message channel override (matches conversation channel by default)
+  errorMsg   String?  @map("error_msg")
   attachments    String?
   createdAt      DateTime     @default(now()) @map("created_at")
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

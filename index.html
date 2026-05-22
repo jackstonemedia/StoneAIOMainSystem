@@ -9,7 +9,30 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx?v=2"></script>
+    <script>
+      window.addEventListener('error', function(event) {
+        var root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = '<div style="padding: 20px; color: #f87171; font-family: monospace; background: #1a0b0b; border: 1px solid #f87171; margin: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">' +
+            '<h3 style="margin-top: 0; color: #ef4444;">🚨 Runtime Error Caught</h3>' +
+            '<p><strong>Message:</strong> ' + event.message + '</p>' +
+            '<p><strong>File:</strong> ' + event.filename + ':' + event.lineno + '</p>' +
+            '<pre style="white-space: pre-wrap; background: #0f0505; padding: 12px; border-radius: 4px; border: 1px solid #3b1818; font-size: 12px; color: #fca5a5;">' + (event.error ? event.error.stack : 'No stack trace') + '</pre>' +
+            '</div>';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        var root = document.getElementById('root');
+        if (root) {
+          root.innerHTML = '<div style="padding: 20px; color: #f87171; font-family: monospace; background: #1a0b0b; border: 1px solid #f87171; margin: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">' +
+            '<h3 style="margin-top: 0; color: #ef4444;">🚨 Unhandled Promise Rejection</h3>' +
+            '<p><strong>Reason:</strong> ' + (event.reason ? (event.reason.message || event.reason) : 'N/A') + '</p>' +
+            '<pre style="white-space: pre-wrap; background: #0f0505; padding: 12px; border-radius: 4px; border: 1px solid #3b1818; font-size: 12px; color: #fca5a5;">' + (event.reason && event.reason.stack ? event.reason.stack : 'No stack trace') + '</pre>' +
+            '</div>';
+        }
+      });
+    </script>
+    <script type="module" src="/src/main.tsx?v=5"></script>
   </body>
 </html>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSignIn, useUser } from '@clerk/clerk-react';
+import { useAuth, useSignIn } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import EnterpriseAuthLayout from '../components/layout/EnterpriseAuthLayout';
@@ -17,7 +17,7 @@ function GoogleIcon() {
 
 export default function Login() {
   const { isLoaded, signIn, setActive } = useSignIn();
-  const { isSignedIn } = useUser();
+  const { isSignedIn } = useAuth();
   const navigate = useNavigate();
 
   // Already logged in — go straight to dashboard

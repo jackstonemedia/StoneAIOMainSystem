@@ -1,11 +1,11 @@
+import { IS_DEV_AUTH_BYPASS } from '../lib/clerkConfig';
+
 /**
- * A safe version of Clerk's useUser hook that doesn't throw 
- * if ClerkProvider is missing (e.g. in development bypass mode).
+ * A safe user helper that never calls Clerk React hooks, so it cannot throw
+ * when a component is rendered outside ClerkProvider.
  */
 export function useSafeUser() {
-  const isDevBypass = !import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-  if (isDevBypass) {
+  if (IS_DEV_AUTH_BYPASS) {
     return {
       user: {
         primaryEmailAddress: { emailAddress: 'dev@stoneaio.com' },
@@ -18,11 +18,11 @@ export function useSafeUser() {
     };
   }
 
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { useUser } = require('@clerk/clerk-react');
-    return useUser();
-  } catch (e) {
-    return { user: null, isLoaded: true, isSignedIn: false };
-  }
+  const clerk = (window as any).Clerk;
+
+  return {
+    user: clerk?.user || null,
+    isLoaded: !!clerk?.loaded,
+    isSignedIn: !!clerk?.user,
+  };
 }

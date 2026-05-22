@@ -240,12 +240,23 @@ export async function updateForm(id: string, data: any) {
 
 export async function listConversations(workspaceId: string) {
   return db.conversation.findMany({
-    where: { workspaceId },
+    where: {
+      workspaceId,
+      // Only show conversations that are linked to a CRM contact OR that
+      // the workspace user initiated / replied to (has at least one outbound message).
+      // This prevents random inbound emails from strangers flooding the inbox.
+      OR: [
+        { contactId: { not: null } },
+        { messages: { some: { direction: 'outbound' } } },
+      ],
+    },
     include: {
-      contact: { include: { company: true } },
+      contact: {
+        select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true },
+      },
       messages: { take: 1, orderBy: { createdAt: 'desc' } },
     },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
   });
 }
 
@@ -265,7 +276,10 @@ export async function sendConversationMessage(
   const msg = await db.conversationMessage.create({
     data: { conversationId, sender: sender ?? 'user', body, direction: direction ?? 'outbound' },
   });
-  const conversation = await db.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } }).catch(() => null);
+  const conversation = await db.conversation.update({
+    where: { id: conversationId },
+    data: { updatedAt: new Date(), lastMessageAt: new Date() },
+  }).catch(() => null);
 
   if (conversation) {
     if (msg.direction === 'inbound') {

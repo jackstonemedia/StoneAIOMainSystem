@@ -32,6 +32,7 @@
     "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "file-saver": "^2.0.5",
+    "googleapis": "^172.0.0",
     "ioredis": "^5.10.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.38.0",

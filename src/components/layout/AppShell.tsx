@@ -4,10 +4,11 @@ import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { Menu, X, Zap } from 'lucide-react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
+import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
 
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isDevBypass = !(import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY;
+  const isDevBypass = IS_DEV_AUTH_BYPASS;
 
   const content = (
       <ThemeProvider>

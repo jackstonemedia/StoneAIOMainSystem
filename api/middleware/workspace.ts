@@ -13,6 +13,13 @@ import { db } from '../../infrastructure/database/client.js';
 export async function resolveWorkspace(req: Request, res: Response, next: NextFunction) {
   console.log(`[resolveWorkspace] Processing request for ${req.path}`);
   try {
+    // ── OAuth callback bypass — browser redirects from Google/Microsoft ────────
+    // These don't carry JWT tokens; they authenticate via the signed state param.
+    if (req.path.match(/\/channels\/(gmail|outlook)\/callback/)) {
+      console.log(`[resolveWorkspace] Skipping JWT for OAuth callback: ${req.path}`);
+      return next();
+    }
+
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
       console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);

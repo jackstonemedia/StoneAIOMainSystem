@@ -7,8 +7,8 @@ import {
   Users, Calendar, Star, GitBranch, MessageSquare,
   Mic, Sparkles, LogOut, ChevronsUpDown, List, Target
 } from 'lucide-react';
-import { useUser, useClerk } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -23,10 +23,19 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
   const location = useLocation();
   const [searchParams] = useSearchParams();
   
-  const { user } = useUser();
-  const { signOut } = useClerk();
   const queryClient = useQueryClient();
-  
+
+  // Access Clerk without hooks so this works both inside and outside ClerkProvider
+  const clerkInstance = (window as any).Clerk;
+  const user = IS_DEV_AUTH_BYPASS
+    ? { firstName: 'Dev', fullName: 'Dev User', emailAddresses: [{ emailAddress: 'dev@stoneaio.com' }], imageUrl: null as string | null }
+    : clerkInstance?.user ?? null;
+
+  const signOut = async (opts?: any) => {
+    if (IS_DEV_AUTH_BYPASS) { window.location.href = '/login'; return; }
+    await clerkInstance?.signOut(opts);
+  };
+
   const initial = user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U';
   const fullName = user?.fullName || user?.emailAddresses?.[0]?.emailAddress || 'User';
 

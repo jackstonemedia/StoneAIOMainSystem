@@ -33,6 +33,13 @@ import { releasesRouter } from './api/releases.js';
 import { errorHandler }      from './api/middleware/error.js';
 import { resolveWorkspace }  from './api/middleware/workspace.js';
 
+// ── Channel routes + webhook handlers + realtime ─────────────────────────────
+import channelsRouter from './api/routes/channels.routes.js';
+import { twilioSmsHandler } from './api/webhooks/twilio-sms.handler.js';
+import { outlookWebhookHandler } from './api/webhooks/outlook-messages.handler.js';
+import { initRealtime } from './api/services/channels/realtime.service.js';
+import cron from 'node-cron';
+
 // ── Infrastructure ────────────────────────────────────────────────────────────
 import { db }  from './infrastructure/database/client.js';
 import { env } from './infrastructure/config/env.js';
@@ -62,10 +69,89 @@ async function startServer() {
 
 
 
-  // ── Native Engine Webhooks (Must be before resolveWorkspace) ──────────────
+  // ── All inbound webhooks MUST be registered before resolveWorkspace ───────
+  // These routes receive requests from Twilio, Microsoft, and Meta that do NOT
+  // carry a Clerk JWT. Workspace is resolved from the payload inside each handler.
+
+  // Native workflow engine webhooks (existing)
   app.all('/api/hooks/*', webhookHandler);
 
-  // ── Workspace Resolution ──────────────────────────────────────────────────
+  // Twilio inbound SMS — uses urlencoded body parser (NOT global json parser)
+  app.post('/api/hooks/twilio-sms', express.urlencoded({ extended: false }), twilioSmsHandler);
+
+  // Outlook push notifications (POST = events, GET = validation challenge)
+  app.post('/api/hooks/outlook-messages', outlookWebhookHandler);
+  app.get('/api/hooks/outlook-messages', outlookWebhookHandler);
+
+  // Meta (Facebook/Instagram) webhook
+  // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
+  // Meta never sends a Clerk JWT so that returned 401 on every inbound message.
+  // Moved here, before resolveWorkspace, and resolves workspace from Integration table.
+  app.get('/api/hooks/meta', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+      console.log('[Meta Webhook] Verified');
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  });
+
+  app.post('/api/hooks/meta', async (req, res) => {
+    res.status(200).send('EVENT_RECEIVED'); // Must respond quickly — Meta retries on timeout
+    const body = req.body;
+    if (body.object !== 'page' && body.object !== 'instagram') return;
+    try {
+      for (const entry of body.entry ?? []) {
+        const webhookEvent = entry.messaging?.[0];
+        if (!webhookEvent?.message) continue;
+        const senderId: string = webhookEvent.sender.id;
+        const msgText: string = webhookEvent.message.text ?? '';
+        const provider = body.object === 'instagram' ? 'instagram' : 'facebook';
+        // Resolve workspace from Integration table (workspace owns the page access token)
+        const integration = await db.integration.findFirst({
+          where: { provider },
+          select: { workspaceId: true },
+        });
+        if (!integration) continue;
+        const { workspaceId } = integration;
+        let convo = await db.conversation.findFirst({
+          where: { workspaceId, externalId: senderId, channel: provider as any },
+        });
+        if (!convo) {
+          convo = await db.conversation.create({
+            data: {
+              workspaceId,
+              channel: provider as any,
+              externalId: senderId,
+              status: 'open',
+              lastMessageAt: new Date(),
+              unreadCount: 1,
+            },
+          });
+        }
+        await db.conversationMessage.create({
+          data: {
+            conversationId: convo.id,
+            sender: senderId,
+            direction: 'inbound',
+            body: msgText,
+            channel: provider,
+          },
+        });
+        await db.conversation.update({
+          where: { id: convo.id },
+          data: { unreadCount: { increment: 1 }, lastMessageAt: new Date(), updatedAt: new Date() },
+        });
+      }
+    } catch (e) {
+      console.error('[Meta Webhook] Error:', e);
+    }
+  });
+
+  // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
 
   // ── AI / Agent routes ─────────────────────────────────────────────────────
@@ -86,6 +172,7 @@ async function startServer() {
   app.use('/api',                billingRouter); // stripe + public forms
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
+  app.use('/api/channels',       channelsRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -128,6 +215,31 @@ async function startServer() {
       console.error('❌ Failed to initialize Native Workflow Engine:', e.message);
     }
 
+    // ── Real-time SSE pub/sub ────────────────────────────────────────────────
+    initRealtime();
+
+    // ── Gmail polling — every 2 minutes ─────────────────────────────────────
+    if (process.env.GMAIL_CLIENT_ID) {
+      cron.schedule('*/2 * * * *', async () => {
+        try {
+          const { pollAllGmailAccounts } = await import('./api/services/channels/gmail-poller.js');
+          await pollAllGmailAccounts();
+        } catch (err) { console.error('[Gmail Poller]', err); }
+      });
+      console.log('✅ Gmail poller: active (2-min interval)');
+    }
+
+    // ── Outlook subscription renewal — every 12 hours ────────────────────────
+    if (process.env.OUTLOOK_CLIENT_ID) {
+      cron.schedule('0 */12 * * *', async () => {
+        try {
+          const { renewOutlookSubscriptions } = await import('./api/services/channels/outlook.service.js');
+          await renewOutlookSubscriptions();
+        } catch (err) { console.error('[Outlook Renewal]', err); }
+      });
+      console.log('✅ Outlook subscription renewal: active (12h interval)');
+    }
+
     // Background job for resuming paused native runs (Wait node)
     setInterval(async () => {
       try {
@@ -136,7 +248,7 @@ async function startServer() {
           where: { status: 'PAUSED', resumeAt: { lte: new Date() } }
         });
         for (const run of pausedRuns) {
-          await engineService.resumeRun(run.id).catch(err => 
+          await engineService.resumeRun(run.id).catch((err: unknown) => 
             console.error(`Failed to resume run ${run.id}:`, err)
           );
         }

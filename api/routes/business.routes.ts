@@ -188,8 +188,24 @@ router.get('/conversations', async (req, res) => {
 router.post('/conversations', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.conversation.create({ data: { ...req.body, workspaceId: req.workspaceId } }));
-  } catch (e) { res.json({ ...req.body, id: `cv_${Date.now()}`, updatedAt: new Date().toISOString() }); }
+    const { contactId, channel, subject } = req.body;
+    if (!channel) return res.status(400).json({ error: 'channel is required' });
+    const convo = await db.conversation.create({
+      data: {
+        workspaceId: req.workspaceId,
+        contactId: contactId ?? null,
+        channel,
+        subject: subject ?? null,
+        status: 'open',
+        unreadCount: 0,
+      },
+      include: {
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true } },
+        messages: { take: 1, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    res.json(convo);
+  } catch (e) { err500(res, e); }
 });
 
 router.get('/conversations/:id/messages', async (req, res) => {
@@ -199,9 +215,120 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
 router.post('/conversations/:id/messages', async (req, res) => {
   try {
-    const { body, sender, direction } = req.body;
-    res.json(await biz.sendConversationMessage(req.params.id, body, sender, direction));
+    const { db } = await import('../../infrastructure/database/client.js');
+    const {
+      body: msgBody, sender, direction = 'outbound',
+      channel: msgChannel, to: msgTo,
+      subject: msgSubject, htmlBody: msgHtmlBody,
+    } = req.body;
+    if (!msgBody?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const msg = await biz.sendConversationMessage(req.params.id, msgBody, sender ?? 'agent', direction);
+
+    // ── Dispatch outbound messages via the real channel ──────────────────────
+    if (direction === 'outbound') {
+      const convo = await db.conversation.findUnique({
+        where: { id: req.params.id },
+        include: { contact: true },
+      });
+      const activeChannel = msgChannel ?? convo?.channel;
+      console.log(`[Outbound] channel=${activeChannel}, contactEmail=${convo?.contact?.email ?? 'NONE'}, contactPhone=${convo?.contact?.phone ?? 'NONE'}`);
+
+      if (activeChannel === 'email' || activeChannel === 'gmail') {
+        // Send via Gmail if a connection exists
+        const conn = await db.channelConnection.findFirst({
+          where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
+        });
+        console.log(`[Outbound Gmail] connection=${conn?.id ?? 'NONE'}, to=${convo?.contact?.email ?? 'NONE'}`);
+        const recipientEmail = msgTo || convo?.contact?.email;
+        const emailSubject = msgSubject || convo?.subject || '(no subject)';
+        if (conn && recipientEmail) {
+          // Update conversation subject if a new one was provided
+          if (msgSubject && msgSubject !== convo?.subject) {
+            await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
+          }
+          // Store full outbound email metadata so the UI can render it properly
+          const now = new Date().toUTCString();
+          await db.conversationMessage.update({
+            where: { id: msg.id },
+            data: {
+              attachments: JSON.stringify({
+                toEmail: recipientEmail,
+                subject: emailSubject,
+                date: now,
+                htmlBody: msgHtmlBody ?? null,
+              }),
+            },
+          }).catch(() => null);
+          const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+          await sendGmailMessage(
+            conn.id, recipientEmail, emailSubject, msgBody,
+            convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
+          )
+            .then(() => console.log('[Outbound Gmail] ✅ Sent successfully'))
+            .catch(err => console.error('[Outbound Gmail] ❌ Failed:', err.message));
+        } else {
+          console.log('[Outbound Gmail] ⚠️ Skipped: no connection or no contact email');
+        }
+      } else if (activeChannel === 'sms') {
+        // Send via Twilio if a connection exists
+        const conn = await db.channelConnection.findFirst({
+          where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+        });
+        if (conn && convo?.contact?.phone) {
+          const { decryptJson } = await import('../services/channels/encryption.js');
+          const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
+          const twilio = (await import('twilio')).default;
+          const client = twilio(creds.accountSid, creds.authToken);
+          await client.messages.create({
+            body: msgBody,
+            from: conn.twilioPhoneNumber!,
+            to: convo.contact.phone,
+          }).catch(console.error);
+        }
+      }
+    }
+
+    res.json(msg);
   } catch (e) { err500(res, e); }
+});
+
+router.patch('/conversations/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const { status, starred, assignedUserId, subject } = req.body;
+    const data: Record<string, unknown> = {};
+    if (status !== undefined) data.status = status;
+    if (starred !== undefined) data.starred = starred;
+    if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
+    if (subject !== undefined) data.subject = subject;
+    const updated = await db.conversation.update({
+      where: { id: req.params.id },
+      data,
+      include: {
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true } },
+        messages: { take: 1, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    res.json(updated);
+  } catch (e) { err500(res, e); }
+});
+
+router.delete('/conversations/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    // Messages cascade-delete via the schema onDelete: Cascade
+    await db.conversation.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) { err500(res, e); }
+});
+
+router.post('/conversations/:id/read-receipts', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    await db.conversation.update({ where: { id: req.params.id }, data: { unreadCount: 0 } });
+    res.json({ success: true });
+  } catch (e) { res.json({ success: true }); }
 });
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

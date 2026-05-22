@@ -281,6 +281,77 @@ export class WorkflowEngine {
     const result = await this.executeNode(node, inputItems, context);
     return result.output;
   }
+
+  /** Resume a PAUSED workflow run from the node recorded in waitingNodeId. */
+  async resumeRun(runId: string): Promise<void> {
+    const run = await db.workflowRun.findUnique({ where: { id: runId } });
+    if (!run || run.status !== 'PAUSED') return;
+
+    const workflow = await db.workflow.findUnique({
+      where: { id: run.workflowId },
+      include: { nativeDefinition: true },
+    });
+    if (!workflow?.nativeDefinition) {
+      await this.failRun(runId, 'Workflow definition not found during resume');
+      return;
+    }
+
+    let nodes: NativeNode[] = [];
+    let edges: NativeEdge[] = [];
+    try {
+      nodes = JSON.parse(workflow.nativeDefinition.nodesJson) as NativeNode[];
+      edges = JSON.parse(workflow.nativeDefinition.edgesJson) as NativeEdge[];
+    } catch {
+      await this.failRun(runId, 'Failed to parse workflow definition during resume');
+      return;
+    }
+
+    const graph = this.buildGraph(edges);
+    const savedRunData = run.runData ? JSON.parse(run.runData) : {};
+    const triggerData = run.triggerData ? JSON.parse(run.triggerData) : {};
+
+    const context: ExecutionContext = {
+      workspaceId: run.workspaceId,
+      workflowId: run.workflowId,
+      runId: run.id,
+      triggerData,
+      runData: savedRunData,
+      mode: 'production',
+    };
+
+    await db.workflowRun.update({
+      where: { id: runId },
+      data: { status: 'RUNNING', resumeAt: null, waitingNodeId: null },
+    });
+
+    try {
+      // Resume from the node that was waiting, or fall back to the trigger node
+      const resumeNodeId = run.waitingNodeId;
+      const startNode = resumeNodeId
+        ? nodes.find(n => n.id === resumeNodeId)
+        : nodes.find(n => n.type.startsWith('trigger.'));
+
+      if (!startNode) {
+        await this.failRun(runId, 'Could not find node to resume from');
+        return;
+      }
+
+      const previousOutput: WorkflowItem[] = savedRunData[startNode.id] ?? [{ json: triggerData }];
+      await this.executeNodeRecursive(startNode, previousOutput, context, nodes, graph);
+
+      await db.workflowRun.update({
+        where: { id: runId },
+        data: {
+          status: 'SUCCEEDED',
+          runData: JSON.stringify(context.runData),
+          finishedAt: new Date(),
+          durationMs: Date.now() - run.startedAt.getTime(),
+        },
+      });
+    } catch (error: any) {
+      await this.failRun(runId, error.message || 'Unknown error during resume');
+    }
+  }
 }
 
 export const engineService = new WorkflowEngine();

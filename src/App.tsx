@@ -11,6 +11,7 @@ import { ToastProvider } from './components/ui/Toast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import PageLoader from './components/common/PageLoader';
 import { AuthTokenProvider } from './lib/AuthTokenProvider';
+import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
 
 // Layout (keep eager — needed immediately on every route)
 import AppShell from './components/layout/AppShell';
@@ -37,8 +38,6 @@ import {
   AdminProjects, AdminUsers, AdminRoles, AdminAudit, AdminPieces, 
   AdminAI, AdminInfra, AdminSecurity, AdminBranding, AdminSSO 
 } from './pages/admin/AdminPages';
-const AgentTypePicker    = lazy(() => import('./pages/AgentTypePicker'));
-const AgentBuilder       = lazy(() => import('./pages/AgentBuilder'));      // 49KB
 const VoiceAgentBuilder  = lazy(() => import('./pages/VoiceAgentBuilder')); // 40KB
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
@@ -71,8 +70,6 @@ const CrmTasks      = lazy(() => import('./pages/crm/CrmTasks'));
 const Opportunities = lazy(() => import('./pages/crm/Opportunities')); // 72KB
 
 // ── App config ────────────────────────────────────────────────────────────────
-const PUBLISHABLE_KEY = (import.meta as any).env.VITE_CLERK_PUBLISHABLE_KEY || '';
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -91,7 +88,12 @@ const queryClient = new QueryClient({
 function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
   function Protect({ children }: { children: React.ReactNode }) {
     if (!withAuth) return <>{children}</>;
-    return <SignedIn>{children}</SignedIn>;
+    return (
+      <>
+        <SignedIn>{children}</SignedIn>
+        <SignedOut><RedirectToSignIn /></SignedOut>
+      </>
+    );
   }
 
   return (
@@ -100,9 +102,9 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
         <Routes>
           {/* ── Public ─────────────────────────────────────────────────────── */}
           <Route path="/"           element={<Landing />} />
-          <Route path="/login"      element={<Login />} />
-          <Route path="/signup"     element={<Signup />} />
-          <Route path="/sso-callback" element={<SSOCallback />} />
+          <Route path="/login"      element={withAuth ? <Login /> : <Navigate to="/crm" replace />} />
+          <Route path="/signup"     element={withAuth ? <Signup /> : <Navigate to="/crm" replace />} />
+          <Route path="/sso-callback" element={withAuth ? <SSOCallback /> : <Navigate to="/crm" replace />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
           {/* ── Protected shell ────────────────────────────────────────────── */}
@@ -194,24 +196,22 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
   );
 }
 
-// ── Root App ──────────────────────────────────────────────────────────────────
+// ── Root App ──────────────────────────────────────────────────────────────
 export default function App() {
-  const isDevBypass = !PUBLISHABLE_KEY;
-
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        {isDevBypass ? (
+        {IS_DEV_AUTH_BYPASS ? (
           <BrowserRouter>
             <AppRoutes withAuth={false} />
           </BrowserRouter>
         ) : (
           <ClerkProvider 
-            publishableKey={PUBLISHABLE_KEY}
+            publishableKey={CLERK_PUBLISHABLE_KEY}
             signInUrl="/login"
             signUpUrl="/signup"
-            afterSignInUrl="/crm"
-            afterSignUpUrl="/crm"
+            signInForceRedirectUrl="/crm"
+            signUpForceRedirectUrl="/crm"
           >
             <AuthTokenProvider>
               <BrowserRouter>

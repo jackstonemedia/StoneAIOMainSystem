@@ -45,6 +45,24 @@ const envSchema = z.object({
   // n8n Provisioning
   N8N_PROVISIONING_API_URL: z.string().default('http://localhost:3001'),
   N8N_PROVISIONING_SECRET: z.string().optional(),
+
+  // Gmail OAuth
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REDIRECT_URI: z.string().optional(),
+
+  // Outlook / Microsoft OAuth
+  OUTLOOK_CLIENT_ID: z.string().optional(),
+  OUTLOOK_CLIENT_SECRET: z.string().optional(),
+  OUTLOOK_REDIRECT_URI: z.string().optional(),
+
+  // Token encryption — generate with:
+  // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  CHANNEL_ENCRYPTION_KEY: z.string().optional(),
+
+  // Redis — already consumed by queue.service.ts via process.env directly;
+  // adding here makes it typed and validated at startup
+  REDIS_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

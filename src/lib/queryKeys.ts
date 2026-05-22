@@ -43,6 +43,7 @@ export const queryKeys = {
     list: () => [...queryKeys.conversations.all, 'list'] as const,
     detail: (id: string) => [...queryKeys.conversations.all, id] as const,
     messages: (id: string) => [...queryKeys.conversations.all, id, 'messages'] as const,
+    channelConnections: () => [...queryKeys.conversations.all, 'channel-connections'] as const,
   },
 
   workflows: {
