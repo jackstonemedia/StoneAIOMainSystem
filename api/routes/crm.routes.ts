@@ -274,47 +274,6 @@ router.post('/activities', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
-// ── Smart Lists ───────────────────────────────────────────────────────────────
-router.get('/smart-lists', async (req, res) => {
-  try { res.json(await crm.listSmartLists(req.workspaceId)); }
-  catch (e) { dbErr(res, e); }
-});
-
-router.post('/smart-lists', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.smartList.create({
-      data: { workspaceId: req.workspaceId, name: req.body.name, filtersJson: JSON.stringify(req.body.filters ?? []) },
-    }));
-  } catch (e) { dbErr(res, e); }
-});
-
-router.get('/smart-lists/:id/contacts', async (req, res) => {
-  try {
-    const result = await crm.getSmartListContacts(req.params.id, req.workspaceId);
-    if (!result) return res.status(404).json({ error: 'Not found' });
-    res.json(result);
-  } catch (e) { dbErr(res, e); }
-});
-
-router.put('/smart-lists/:id', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.smartList.update({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-      data: { name: req.body.name, filtersJson: JSON.stringify(req.body.filters ?? []) },
-    }));
-  } catch (e) { dbErr(res, e); }
-});
-
-router.delete('/smart-lists/:id', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    await db.smartList.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
-    res.json({ success: true });
-  } catch (e) { dbErr(res, e); }
-});
-
 // ── Custom Fields ─────────────────────────────────────────────────────────────
 router.get('/custom-fields', async (req, res) => {
   try {
