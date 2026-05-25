@@ -48,7 +48,7 @@ import { env } from './infrastructure/config/env.js';
 import { schedulerService } from './api/services/workflow-engine/scheduler.service.js';
 import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/webhook-registry.js';
 import { queueService } from './api/services/workflow-engine/queue.service.js';
-import './api/services/workflow-engine/nodes/index.js';
+import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
 
 async function startServer() {
   const app = express();
@@ -213,6 +213,8 @@ async function startServer() {
 
     // ── Initialize Native Workflow Engine ──────────────────────────────────────
     try {
+      registerAllNodes();
+      console.log(`✅ Workflow Node Registry: ${nodeRegistry.getAll().length} nodes registered`);
       await queueService.initialize();
       await webhookRegistry.initialize();
       await schedulerService.initialize();

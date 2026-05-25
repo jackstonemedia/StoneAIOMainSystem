@@ -1,7 +1,7 @@
 'use strict';
 
 import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
-import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../src/types/automation.js';
 import { db } from '../../../infrastructure/database/client.js';
 import { decryptJson } from '../../channels/encryption.js';
 import { sendGmailMessage } from '../../channels/gmail.service.js';

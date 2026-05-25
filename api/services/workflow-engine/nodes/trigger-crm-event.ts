@@ -2,7 +2,7 @@
  * trigger.crm_event — CRM event trigger node.
  * Entry point for CRM events (contact created, deal stage changed, etc.).
  */
-import { NodeImplementation, NodeExecuteResult } from './node-runner.js';
+import { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
 import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../src/types/automation.js';
 
 export const triggerCrmEvent: NodeImplementation = {

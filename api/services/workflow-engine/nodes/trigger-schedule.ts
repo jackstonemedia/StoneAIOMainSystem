@@ -2,7 +2,7 @@
  * trigger.schedule — Cron schedule trigger node.
  * Entry point for time-based workflow execution.
  */
-import { NodeImplementation, NodeExecuteResult } from './node-runner.js';
+import { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
 import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../src/types/automation.js';
 
 export const triggerSchedule: NodeImplementation = {

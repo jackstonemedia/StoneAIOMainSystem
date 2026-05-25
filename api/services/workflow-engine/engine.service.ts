@@ -151,6 +151,10 @@ export class WorkflowEngine {
     // Check if the run was paused (logic.wait node)
     const currentRun = await db.workflowRun.findUnique({ where: { id: context.runId } });
     if (currentRun?.status === 'PAUSED') {
+      await db.workflowRun.update({
+        where: { id: context.runId },
+        data: { waitingNodeId: node.id },
+      });
       return; // Stop execution here. It will resume later.
     }
 

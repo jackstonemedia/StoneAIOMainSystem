@@ -1,7 +1,7 @@
 'use strict';
 
 import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
-import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../src/types/automation.js';
 
 /**
  * Parse JSON node.
