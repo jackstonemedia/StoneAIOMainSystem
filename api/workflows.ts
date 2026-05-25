@@ -184,7 +184,7 @@ router.get('/credentials', async (req, res) => {
   try {
     const creds = await (db as any).workflowCredential?.findMany({
       where: { workspaceId: req.workspaceId },
-      select: { id: true, name: true, type: true, createdAt: true, updatedAt: true } // Exclude encryptedData
+      select: { id: true, name: true, type: true, createdAt: true, updatedAt: true } // Exclude dataEncrypted
     }) ?? [];
     res.json(creds);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -209,7 +209,7 @@ router.post('/credentials', async (req, res) => {
         workspaceId: req.workspaceId,
         name,
         type,
-        encryptedData
+        dataEncrypted: encryptedData
       }
     });
     res.json({ id: cred?.id, name, type });
