@@ -4,6 +4,7 @@
  */
 import { Router } from 'express';
 import * as biz from '../services/business.service.js';
+import { queueCampaign, getCampaignStats, initializeCampaignQueue } from '../services/campaign-engine.js';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
@@ -42,9 +43,9 @@ router.delete('/campaigns/:id', async (req, res) => {
 
 router.post('/campaigns/:id/send', async (req, res) => {
   try {
-    const result = await biz.sendCampaign(req.params.id, req.workspaceId);
-    if (!result) return res.status(404).json({ error: 'Campaign not found' });
-    res.json(result);
+    const result = await queueCampaign(req.params.id, req.workspaceId);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json({ success: true, queued: result.queued, message: `Campaign queued for ${result.queued} contacts` });
   } catch (e) { err500(res, e); }
 });
 
@@ -53,6 +54,13 @@ router.post('/campaigns/:id/duplicate', async (req, res) => {
     const result = await biz.duplicateCampaign(req.params.id);
     if (!result) return res.status(404).json({ error: 'Not found' });
     res.json(result);
+  } catch (e) { err500(res, e); }
+});
+
+router.get('/campaigns/:id/stats', async (req, res) => {
+  try {
+    const stats = await getCampaignStats(req.params.id);
+    res.json(stats);
   } catch (e) { err500(res, e); }
 });
 

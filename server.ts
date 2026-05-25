@@ -49,6 +49,7 @@ import { schedulerService } from './api/services/workflow-engine/scheduler.servi
 import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/webhook-registry.js';
 import { queueService } from './api/services/workflow-engine/queue.service.js';
 import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
+import { initializeCampaignQueue } from './api/services/campaign-engine.js';
 
 async function startServer() {
   const app = express();
@@ -221,6 +222,13 @@ async function startServer() {
       console.log('✅ Native Workflow Engine Initialized');
     } catch (e: any) {
       console.error('❌ Failed to initialize Native Workflow Engine:', e.message);
+    }
+
+    // ── Campaign Queue ─────────────────────────────────────────────────────
+    try {
+      initializeCampaignQueue();
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Campaign Queue:', e.message);
     }
 
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────
