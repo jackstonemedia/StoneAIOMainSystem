@@ -640,6 +640,7 @@ model Sequence {
   workspaceId String               @map("workspace_id")
   name        String
   status      String               @default("active")
+  stepsJson   String?              @map("steps_json")   -- JSON array of SequenceStepDef
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
   workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -649,12 +650,13 @@ model Sequence {
 }
 
 model SequenceEnrollment {
-  id          String    @id @default(uuid())
-  sequenceId  String    @map("sequence_id")
-  contactId   String    @map("contact_id")
-  status      String    @default("active")
-  enrolledAt  DateTime  @default(now()) @map("enrolled_at")
-  completedAt DateTime? @map("completed_at")
+  id            String    @id @default(uuid())
+  sequenceId    String    @map("sequence_id")
+  contactId     String    @map("contact_id")
+  status        String    @default("active")
+  enrolledAt    DateTime  @default(now()) @map("enrolled_at")
+  completedAt   DateTime? @map("completed_at")
+  sequenceData  String?   @map("sequence_data")  -- EnrollmentProgress JSON
 
   sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)

@@ -50,6 +50,7 @@ import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/
 import { queueService } from './api/services/workflow-engine/queue.service.js';
 import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
 import { initializeCampaignQueue } from './api/services/campaign-engine.js';
+import { initializeSequenceWorker } from './api/services/sequence-engine.js';
 
 async function startServer() {
   const app = express();
@@ -229,6 +230,13 @@ async function startServer() {
       initializeCampaignQueue();
     } catch (e: any) {
       console.error('❌ Failed to initialize Campaign Queue:', e.message);
+    }
+
+    // ── Sequence Worker ────────────────────────────────────────────────────
+    try {
+      initializeSequenceWorker(60_000); // check every 60s
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Sequence Worker:', e.message);
     }
 
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────

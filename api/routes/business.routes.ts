@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import * as biz from '../services/business.service.js';
 import { queueCampaign, getCampaignStats, initializeCampaignQueue } from '../services/campaign-engine.js';
+import { enrollContact, getEnrollmentProgress } from '../services/sequence-engine.js';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
@@ -358,6 +359,103 @@ router.post('/conversations/:id/read-receipts', async (req, res) => {
     await db.conversation.update({ where: { id: req.params.id }, data: { unreadCount: 0 } });
     res.json({ success: true });
   } catch (e) { res.json({ success: true }); }
+});
+
+// ── Sequences ─────────────────────────────────────────────────────────────────
+
+// List sequences
+router.get('/sequences', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const sequences = await db.sequence.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(sequences.map(s => ({
+      ...s,
+      steps: JSON.parse((s as any).stepsJson || '[]'),
+    })));
+  } catch (e) { err500(res, e); }
+});
+
+// Create sequence
+router.post('/sequences', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const { name, steps } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (!steps || !Array.isArray(steps) || steps.length === 0) return res.status(400).json({ error: 'steps array is required' });
+    const seq = await db.sequence.create({
+      data: {
+        workspaceId: req.workspaceId,
+        name,
+        stepsJson: JSON.stringify(steps),
+      },
+    });
+    res.json({ ...seq, steps });
+  } catch (e) { err500(res, e); }
+});
+
+// Update sequence
+router.put('/sequences/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const { name, steps, status } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (status !== undefined) data.status = status;
+    if (steps !== undefined) data.stepsJson = JSON.stringify(steps);
+    const seq = await db.sequence.update({
+      where: { id: req.params.id, workspaceId: req.workspaceId },
+      data,
+    });
+    res.json({ ...seq, steps: steps || JSON.parse((seq as any).stepsJson || '[]') });
+  } catch (e) { err500(res, e); }
+});
+
+// Delete sequence
+router.delete('/sequences/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    await db.sequence.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    res.json({ success: true });
+  } catch (e) { err500(res, e); }
+});
+
+// Enroll a contact in a sequence
+router.post('/sequences/:id/enroll', async (req, res) => {
+  try {
+    const { contactId } = req.body;
+    if (!contactId) return res.status(400).json({ error: 'contactId is required' });
+    const result = await enrollContact(req.params.id, contactId, req.workspaceId);
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(result);
+  } catch (e) { err500(res, e); }
+});
+
+// Get enrollment progress
+router.get('/sequences/enrollments/:enrollmentId', async (req, res) => {
+  try {
+    const progress = await getEnrollmentProgress(req.params.enrollmentId);
+    if (!progress) return res.status(404).json({ error: 'Enrollment not found' });
+    res.json(progress);
+  } catch (e) { err500(res, e); }
+});
+
+// List enrollments for a sequence
+router.get('/sequences/:id/enrollments', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const enrollments = await db.sequenceEnrollment.findMany({
+      where: { sequenceId: req.params.id },
+      include: { contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
+      orderBy: { enrolledAt: 'desc' },
+    });
+    res.json(enrollments.map(e => ({
+      ...e,
+      progress: JSON.parse((e as any).sequenceData || '{}'),
+    })));
+  } catch (e) { err500(res, e); }
 });
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
