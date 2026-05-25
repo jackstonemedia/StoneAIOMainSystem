@@ -458,6 +458,33 @@ router.get('/sequences/:id/enrollments', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
+// Update enrollment status
+router.put('/sequences/enrollments/:enrollmentId/status', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const { status } = req.body;
+    if (!['active', 'paused', 'unsubscribed', 'completed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    const enrollment = await db.sequenceEnrollment.findUnique({
+      where: { id: req.params.enrollmentId },
+      include: { sequence: true },
+    });
+    if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+    // Verify workspace ownership
+    const workspaceCheck = await db.sequence.findUnique({
+      where: { id: enrollment.sequenceId, workspaceId: req.workspaceId },
+    });
+    if (!workspaceCheck) return res.status(403).json({ error: 'Not found' });
+    const updated = await db.sequenceEnrollment.update({
+      where: { id: req.params.enrollmentId },
+      data: { status },
+      include: { contact: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+    res.json(updated);
+  } catch (e) { err500(res, e); }
+});
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 router.get('/analytics/overview', async (req, res) => {
   try {
