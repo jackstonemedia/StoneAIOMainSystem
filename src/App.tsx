@@ -49,6 +49,7 @@ const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboar
 const Campaigns           = lazy(() => import('./pages/business/Campaigns'));
 const Calendar            = lazy(() => import('./pages/business/Calendar'));
 const Forms               = lazy(() => import('./pages/business/Forms'));
+const Sequences           = lazy(() => import('./pages/business/Sequences'));
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
 const Reputation          = lazy(() => import('./pages/business/Reputation'));
 const ConversationsLayout = lazy(() => import('./pages/business/conversations/ConversationsLayout'));
@@ -155,6 +156,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<BusinessDashboard />} />
               <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
+              <Route path="sequences"   element={<ErrorBoundary><Sequences /></ErrorBoundary>} />
               <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
               <Route path="forms"       element={<ErrorBoundary><Forms /></ErrorBoundary>} />
               <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />

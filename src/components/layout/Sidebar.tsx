@@ -44,6 +44,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     { name: 'CRM',            path: '/crm/contacts',               icon: Users },
     { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
     { name: 'Campaigns',      path: '/business/campaigns',         icon: Reply },
+    { name: 'Sequences',      path: '/business/sequences',         icon: Zap },
     { name: 'Calendar',       path: '/business/calendar',          icon: Calendar },
     { name: 'Analytics',      path: '/business/analytics',         icon: BarChart3 },
     { name: 'Forms',          path: '/business/forms',             icon: FileText },
