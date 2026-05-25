@@ -105,7 +105,18 @@ export default function ContactDealsTab({ contactId }: Props) {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-10"><RefreshCw className="w-5 h-5 animate-spin text-primary" /></div>
+        <div className="space-y-3">
+          {[1,2].map(i => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-surface-hover">
+              <div className="skeleton w-8 h-8 rounded-lg shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <div className="skeleton h-3 w-40 rounded" />
+                <div className="skeleton h-3 w-24 rounded" />
+              </div>
+              <div className="skeleton h-5 w-16 rounded-full" />
+            </div>
+          ))}
+        </div>
       ) : contactDeals.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-[10px]">
           <TrendingUp className="w-10 h-10 mx-auto mb-3 text-text-muted/30" />

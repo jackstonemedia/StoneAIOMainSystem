@@ -139,7 +139,7 @@ export default function Opportunities() {
             <button
               key={tab.id}
               onClick={() => setView(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border transition-colors text-[13px] font-medium ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-[13px] font-medium ${
                 view === tab.id
                   ? 'text-text-main bg-surface-hover border-border'
                   : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
@@ -156,14 +156,14 @@ export default function Opportunities() {
               <div className="relative">
                 <button
                   onClick={() => setSortDropOpen(o => !o)}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
                 >
                   <ChevronDown className="w-4 h-4" /> Sort
                 </button>
                 {sortDropOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setSortDropOpen(false)} />
-                    <div className="absolute left-0 mt-2 w-[200px] bg-surface border border-border shadow-luxury rounded-[4px] overflow-hidden py-1 z-50">
+                    <div className="absolute left-0 mt-2 w-[200px] bg-surface border border-border shadow-luxury rounded-lg overflow-hidden py-1 z-50">
                       {SORT_OPTIONS.map(opt => (
                         <button
                           key={`${opt.field}-${opt.dir}`}
@@ -187,13 +187,13 @@ export default function Opportunities() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => qc.invalidateQueries({ queryKey: ['deals'] })}
-            className="flex items-center gap-2 px-3 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
+            className="flex items-center gap-2 px-3 py-2 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
             onClick={() => openNewDeal()}
-            className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
+            className="btn-primary"
           >
             <Plus className="w-4 h-4" /> Add Deal
           </button>
@@ -204,20 +204,20 @@ export default function Opportunities() {
       <div className="px-8 py-2.5 border-b border-border bg-bg shrink-0 flex items-center gap-6">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
-          <span className="text-[12px] text-text-muted">Pipeline:</span>
-          <span className="text-[13px] font-medium text-text-main">${totalValue.toLocaleString()}</span>
+          <span className="text-[12px] font-medium text-text-muted">Pipeline</span>
+          <span className="text-[13px] font-semibold text-text-main">${totalValue.toLocaleString()}</span>
         </div>
         <div className="w-[1px] h-4 bg-border" />
         <div className="flex items-center gap-2">
           <Target className="w-3.5 h-3.5 text-amber-400" strokeWidth={1.75} />
-          <span className="text-[12px] text-text-muted">Weighted:</span>
-          <span className="text-[13px] font-medium text-text-main">${Math.round(weightedValue).toLocaleString()}</span>
+          <span className="text-[12px] font-medium text-text-muted">Weighted</span>
+          <span className="text-[13px] font-semibold text-text-main">${Math.round(weightedValue).toLocaleString()}</span>
         </div>
         <div className="w-[1px] h-4 bg-border" />
         <div className="flex items-center gap-2">
           <DollarSign className="w-3.5 h-3.5 text-emerald-500" strokeWidth={1.75} />
-          <span className="text-[12px] text-text-muted">Won:</span>
-          <span className="text-[13px] font-medium text-emerald-500">${wonValue.toLocaleString()}</span>
+          <span className="text-[12px] font-medium text-text-muted">Won</span>
+          <span className="text-[13px] font-semibold text-emerald-500">${wonValue.toLocaleString()}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[11px] text-text-muted">{activeDeals.length} active · {deals.length} total · {stages.length} stages</span>
@@ -226,17 +226,27 @@ export default function Opportunities() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-surface border-t-primary/60 rounded-full animate-spin" />
+        <div className="flex-1 overflow-hidden p-6 flex gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex-1 min-w-0 bg-surface rounded-xl p-4 space-y-3 border border-border">
+              <div className="skeleton h-4 w-20 rounded" />
+              <div className="skeleton h-5 w-10 rounded" />
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="skeleton h-[72px] rounded-lg" />
+              ))}
+            </div>
+          ))}
         </div>
       ) : stages.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-text-muted">
-          <Target className="w-12 h-12 opacity-20" strokeWidth={1} />
-          <div className="text-center">
-            <div className="text-[15px] font-medium text-text-main mb-1">No pipeline configured</div>
-            <div className="text-[13px] text-text-muted">Set up a pipeline with stages to start tracking deals</div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-6 text-text-muted">
+          <div className="w-14 h-14 rounded-2xl bg-surface flex items-center justify-center border border-border">
+            <Target className="w-7 h-7 text-text-muted" strokeWidth={1.5} />
           </div>
-          <button onClick={() => openNewDeal()} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
+          <div className="text-center max-w-[320px]">
+            <div className="text-[16px] font-semibold text-text-main mb-2">No pipeline set up yet</div>
+            <div className="text-[13px] text-text-muted leading-relaxed">A pipeline tracks deals as they move from lead to close. Add your first deal and Stone AIO will create a default pipeline for you.</div>
+          </div>
+          <button onClick={() => openNewDeal()} className="btn-primary">
             <Plus className="w-4 h-4" /> Add your first deal
           </button>
         </div>
@@ -262,7 +272,7 @@ export default function Opportunities() {
             <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted">
               <Target className="w-10 h-10 opacity-20" strokeWidth={1} />
               <div className="text-[14px]">No deals yet</div>
-              <button onClick={() => openNewDeal()} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:bg-surface-hover transition-colors">
+              <button onClick={() => openNewDeal()} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:bg-surface-hover transition-colors">
                 <Plus className="w-4 h-4" /> Add Deal
               </button>
             </div>
@@ -290,7 +300,7 @@ export default function Opportunities() {
                       </td>
                       <td className="px-5 py-3">
                         {stageInfo && (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border border-border bg-surface-hover text-text-muted">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border border-border bg-surface-hover text-text-muted">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: stageInfo.color }} />
                             {stageInfo.name}
                           </span>
@@ -319,7 +329,7 @@ export default function Opportunities() {
                       <td className="px-5 py-3">
                         <button
                           onClick={e => { e.stopPropagation(); openEditDeal(deal.id); }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-[4px] hover:bg-surface text-text-muted transition-all"
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-surface text-text-muted transition-all"
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
                         </button>

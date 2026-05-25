@@ -134,10 +134,22 @@ export default function SmartLists() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-bg h-full">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-surface border-t-primary rounded-full animate-spin"></div>
-          <div className="text-text-muted font-medium text-sm animate-pulse">Loading smart lists...</div>
+      <div className="flex flex-col h-full w-full relative bg-bg">
+        <div className="px-8 flex items-center justify-between border-b border-border bg-surface h-[73px]">
+          <div className="skeleton h-7 w-40 rounded-full" />
+          <div className="skeleton h-8 w-32 rounded-lg" />
+        </div>
+        <div className="flex-1 p-8 grid grid-cols-3 gap-4 auto-rows-max">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-surface border border-border rounded-xl p-5 space-y-3">
+              <div className="skeleton h-4 w-32 rounded" />
+              <div className="skeleton h-3 w-48 rounded" />
+              <div className="flex gap-2 pt-1">
+                <div className="skeleton h-5 w-16 rounded-full" />
+                <div className="skeleton h-5 w-12 rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, Search, Bell,
-  BarChart3, Reply, FileText, FileSpreadsheet, Building2,
-  Settings, HelpCircle, PanelLeftClose, ChevronDown, Zap,
-  Users, Calendar, Star, GitBranch, MessageSquare,
-  Mic, Sparkles, LogOut, ChevronsUpDown, List, Target
+  LayoutDashboard, Search, Bell,
+  BarChart3, Reply, FileText,
+  Settings, HelpCircle, ChevronDown, Zap,
+  Users, Calendar, Star, MessageSquare,
+  Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -76,13 +76,13 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           to={item.path}
           onClick={() => setMobileOpen?.(false)}
           title={item.name}
-          className={`flex items-center justify-center w-9 h-9 mx-auto my-1 rounded-lg transition-all duration-150 ${
+          className={`flex items-center justify-center w-8 h-8 mx-auto my-0.5 rounded-lg transition-all duration-150 ${
             isActive
               ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)]'
               : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
           }`}
         >
-          <item.icon className="w-[17px] h-[17px]" strokeWidth={isActive ? 2 : 1.75} />
+          <item.icon className="w-4 h-4" strokeWidth={isActive ? 2 : 1.75} />
         </NavLink>
       );
     }
@@ -91,18 +91,20 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       <NavLink
         to={item.path}
         onClick={() => setMobileOpen?.(false)}
-        className={`flex items-center gap-3 px-3 py-2 mx-3 my-0.5 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+        className={`group relative flex items-center gap-2.5 px-2.5 py-[7px] mx-2 my-px rounded-lg text-[13px] transition-all duration-150 ${
           isActive
-            ? 'bg-[var(--sidebar-active)] text-[var(--text-main)] font-medium'
-            : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
+            ? 'bg-[var(--sidebar-active)] text-[var(--text-main)] font-semibold'
+            : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)] font-medium'
         }`}
       >
-        <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={1.75} />
+        {isActive && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-primary" />
+        )}
+        <item.icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2 : 1.75} />
         <span className="truncate">{item.name}</span>
       </NavLink>
     );
   };
-
 
 
   return (
@@ -119,7 +121,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         className={`flex flex-col h-full shrink-0 transition-all duration-300 z-50
           fixed md:relative top-0 bottom-0 left-0
           border-r
-          ${collapsed ? 'w-[60px]' : 'w-[240px]'}
+          ${collapsed ? 'w-[60px]' : 'w-[232px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
         style={{
@@ -127,223 +129,260 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           borderColor: 'var(--sidebar-border)',
         }}
       >
-        {/* ── Quick Search ── */}
+        {/* ── Workspace Header ── */}
         <div
-          className={`h-[40px] border-b flex items-center cursor-text shrink-0 transition-colors ${
-            collapsed ? 'justify-center' : 'px-4 gap-2.5'
+          className={`h-[52px] border-b flex items-center shrink-0 transition-all ${
+            collapsed ? 'justify-center px-0' : 'px-3 justify-between'
           }`}
-          style={{ borderColor: 'var(--sidebar-border)', color: 'var(--text-muted)' }}
+          style={{ borderColor: 'var(--sidebar-border)' }}
         >
-          <Search className="w-[15px] h-[15px] shrink-0" strokeWidth={1.8} />
           {!collapsed && (
-            <span className="text-[12.5px] font-medium opacity-75">Quick search…</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className="w-7 h-7 rounded-[6px] flex items-center justify-center text-[11px] font-black shrink-0 shadow-sm"
+                style={{ background: 'var(--primary)', color: 'var(--bg)' }}
+              >
+                S
+              </div>
+              <div className="min-w-0 leading-tight">
+                <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>Stone AIO</p>
+                <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Pro Trial</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
+            style={{ color: 'var(--text-muted)' }}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed
+              ? <PanelLeftOpen className="w-[15px] h-[15px]" strokeWidth={1.75} />
+              : <PanelLeftClose className="w-[15px] h-[15px]" strokeWidth={1.75} />}
+          </button>
+        </div>
+
+        {/* ── Search ── */}
+        <div
+          className={`border-b shrink-0 flex items-center gap-2 transition-all ${
+            collapsed ? 'justify-center py-2.5 px-0' : 'px-3 py-2'
+          }`}
+          style={{ borderColor: 'var(--sidebar-border)' }}
+        >
+          {collapsed ? (
+            <button
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: 'var(--text-muted)' }}
+              title="Search"
+            >
+              <Search className="w-4 h-4" strokeWidth={1.75} />
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-2 flex-1 px-2.5 py-1.5 rounded-lg cursor-text transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <Search className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+              <span className="text-[12px] font-medium flex-1" style={{ opacity: 0.7 }}>Search…</span>
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+              >⌘K</span>
+            </div>
           )}
         </div>
 
         {/* ── Scrollable Nav Body ── */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col pb-2">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col">
 
-          {/* Notifications strip */}
-          <div
-            className="border-b py-1 shrink-0"
-            style={{ borderColor: 'var(--sidebar-border)' }}
-          >
-            {[
-              { label: 'Notifications', icon: Bell, count: '5', path: '#' },
-            ].map(item => (
-              <button
-                key={item.label}
-                onClick={() => item.path !== '#' && navigate(item.path)}
-                className={`w-full flex items-center transition-colors ${
-                  collapsed
-                    ? 'justify-center mx-auto w-9 h-9 rounded-lg my-0.5'
-                    : 'px-4 py-2 gap-3'
-                }`}
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)';
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-main)';
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.background = 'transparent';
-                  (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                }}
-                title={collapsed ? item.label : undefined}
-              >
-                <item.icon className="w-[17px] h-[17px] shrink-0" strokeWidth={1.75} />
-                {!collapsed && (
-                  <>
-                    <span className="text-[13px] font-medium flex-1 text-left">{item.label}</span>
-                    <span
-                      className="text-[10.5px] font-bold px-1.5 py-0.5 rounded-md"
-                      style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)' }}
-                    >
-                      {item.count}
-                    </span>
-                  </>
-                )}
-              </button>
-            ))}
+          {/* Notifications */}
+          <div className="pt-2 pb-1 shrink-0">
+            <button
+              className={`group w-full flex items-center transition-all rounded-lg mx-2 my-px text-[13px] font-medium ${
+                collapsed ? 'justify-center w-8 h-8 p-0 mx-auto' : 'gap-2.5 px-2.5 py-[7px]'
+              }`}
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-main)';
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+              }}
+              title={collapsed ? 'Notifications' : undefined}
+            >
+              <div className="relative shrink-0">
+                <Bell className="w-4 h-4" strokeWidth={1.75} />
+                <span
+                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[8px] font-black flex items-center justify-center"
+                  style={{ background: 'var(--primary)', color: 'var(--bg)' }}
+                >5</span>
+              </div>
+              {!collapsed && <span className="flex-1 text-left">Notifications</span>}
+            </button>
           </div>
 
-          {/* ── Section label ── */}
+          <div className="mx-3 mb-2" style={{ height: '1px', background: 'var(--sidebar-border)' }} />
+
+          {/* ── Section label: Workspace ── */}
           {!collapsed && (
-            <div className="px-4 pt-3 pb-1.5 shrink-0">
-              <span
-                className="text-[10px] font-bold tracking-[0.08em] uppercase"
-                style={{ color: 'var(--text-muted)', opacity: 0.6 }}
-              >
-                Workspace
-              </span>
+            <div className="px-4 pt-1 pb-1 shrink-0">
+              <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>Workspace</span>
             </div>
           )}
 
           {/* ── Navigation items ── */}
-          <div className="flex-1 pb-4">
+          <div className="flex-1 pb-2">
             {crmMenu.map((item) => <NavItem key={item.name} item={item} />)}
-            
-            <div className="my-3 mx-4 border-t border-border/50" />
-            
+
+            <div className="my-2.5 mx-3" style={{ height: '1px', background: 'var(--sidebar-border)', opacity: 0.6 }} />
+
             {!collapsed && (
-              <div className="px-4 pb-1.5 shrink-0 mt-1">
-                <span
-                  className="text-[10px] font-bold tracking-[0.08em] uppercase"
-                  style={{ color: 'var(--text-muted)', opacity: 0.6 }}
-                >
-                  Automation Engine
-                </span>
+              <div className="px-4 pb-1 shrink-0">
+                <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>Automation</span>
               </div>
             )}
             {automationMenu.map((item) => <NavItem key={item.name} item={item} />)}
           </div>
         </nav>
 
-        {/* ── Bottom Anchored Footer ── */}
-        <div className="shrink-0 flex flex-col pb-3 pt-2">
-          {/* ── Upgrade card ── */}
-          {!collapsed ? (
-            <div className="mx-3 mb-4 rounded-lg shrink-0 transition-all overflow-hidden bg-surface border border-border shadow-sm">
-              {/* Header row — always visible */}
+        {/* ── Bottom Footer ── */}
+        <div className="shrink-0 flex flex-col" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
+
+          {/* Upgrade nudge — collapsed icon only */}
+          {collapsed ? (
+            <div className="py-2 flex flex-col items-center gap-1">
+              <button
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-muted)' }}
+                title="Upgrade to Pro"
+              >
+                <Zap className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-muted)' }}
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" strokeWidth={1.75} />
+              </button>
+            </div>
+          ) : (
+            <div
+              className="mx-3 my-3 rounded-lg overflow-hidden shrink-0"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
               <div
-                className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-surface-hover transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-[var(--surface-hover)]"
                 onClick={() => setUpgradeExpanded(!upgradeExpanded)}
               >
-                <div className="w-6 h-6 rounded-[4px] flex items-center justify-center shrink-0 bg-surface-hover border border-border">
-                  <Zap className="w-3 h-3" style={{ color: 'var(--text-muted)' }} strokeWidth={1.8} />
+                <div
+                  className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}
+                >
+                  <Zap className="w-3 h-3" style={{ color: 'var(--text-muted)' }} strokeWidth={2} />
                 </div>
                 <div className="leading-tight flex-1 min-w-0">
-                  <div className="text-[10px] font-medium text-text-muted">Current plan</div>
-                  <div className="text-[12px] font-normal text-text-muted">Pro Trial</div>
+                  <div className="text-[11px] font-semibold" style={{ color: 'var(--text-main)' }}>Pro Trial</div>
+                  <div className="text-[10px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Upgrade for full access</div>
                 </div>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-text-muted shrink-0 transition-transform duration-200 ${upgradeExpanded ? 'rotate-0' : '-rotate-90'}`}
+                  className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${upgradeExpanded ? 'rotate-0' : '-rotate-90'}`}
                   strokeWidth={1.5}
+                  style={{ color: 'var(--text-muted)' }}
                 />
               </div>
-              {/* Expandable body */}
               {upgradeExpanded && (
-                <div className="px-3 pb-3">
-                  <p className="text-[11px] leading-relaxed mb-2.5" style={{ color: 'var(--text-muted)' }}>
-                    Upgrade to unlock all enterprise features.
-                  </p>
+                <div className="px-3 pb-3 pt-0">
                   <button
-                    className="w-full flex justify-center items-center gap-2 py-1.5 rounded-[4px] transition-colors bg-surface border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover shadow-sm active:scale-95"
+                    className="w-full flex justify-center items-center gap-1.5 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all active:scale-95"
+                    style={{ background: 'var(--primary)', color: 'var(--bg)' }}
                   >
-                    Upgrade to Pro
+                    <Zap className="w-3 h-3" /> Upgrade to Pro
                   </button>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="mx-2 mb-4 shrink-0">
-              <button
-                className="w-full aspect-square rounded-lg flex items-center justify-center transition-colors"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-                title="Upgrade to Pro"
-              >
-                <Zap className="w-4 h-4" strokeWidth={1.8} />
-              </button>
-            </div>
           )}
 
-          {/* ── Profile Footer Box ── */}
-          <div className="relative mx-3">
+          {/* ── Profile ── */}
+          <div className="relative" style={{ padding: collapsed ? '0 0 8px' : '0 12px 12px' }}>
             {profileMenuOpen && !collapsed && (
-              <div className="absolute bottom-[calc(100%+8px)] left-0 w-full bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-
-
-
-                {/* Account */}
+              <div
+                className="absolute bottom-[calc(100%+6px)] left-0 right-0 rounded-xl overflow-hidden py-1 z-50"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  boxShadow: '0 -8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+                }}
+              >
+                <div className="px-3 py-2 mb-1" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <p className="text-[12px] font-semibold" style={{ color: 'var(--text-main)' }}>{fullName}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{user?.emailAddresses?.[0]?.emailAddress ?? ''}</p>
+                </div>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/crm/smart-lists'); }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  <List className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />
-                  Create Smart List
+                  <List className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Smart Lists
                 </button>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  <Settings className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />
-                  Settings
+                  <Settings className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Settings
                 </button>
                 <button
                   onClick={() => setProfileMenuOpen(false)}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  <HelpCircle className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />
-                  Help
+                  <HelpCircle className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Help & Support
                 </button>
-                <div className="w-full h-[1px] bg-border my-1"></div>
+                <div className="my-1" style={{ height: '1px', background: 'var(--border)' }} />
                 <button
                   onClick={async () => {
                     setProfileMenuOpen(false);
                     queryClient.clear();
                     await signOut({ redirectUrl: window.location.origin.replace(':4000', ':5173') + '/login' });
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium text-red-400 hover:text-red-300 hover:bg-surface-hover transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-red-400 hover:text-red-300 transition-colors hover:bg-[var(--surface-hover)]"
                 >
-                  <LogOut className="w-[15px] h-[15px] shrink-0" strokeWidth={2} />
-                  Log out
+                  <LogOut className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Sign out
                 </button>
               </div>
             )}
-            
+
             <div
               onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-              className={`flex items-center gap-2.5 cursor-pointer rounded-xl transition-colors border border-border bg-surface hover:border-primary/30 shrink-0 ${
-                collapsed ? 'justify-center p-2' : 'px-3 py-2 hover:bg-surface-hover'
+              className={`flex items-center gap-2.5 cursor-pointer rounded-xl transition-all shrink-0 ${
+                collapsed
+                  ? 'justify-center py-1 w-10 mx-auto'
+                  : 'px-2.5 py-2 hover:bg-[var(--surface-hover)]'
               }`}
             >
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 select-none shadow-sm overflow-hidden"
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 select-none overflow-hidden shadow-sm"
                 style={{ background: 'var(--primary)', color: 'var(--bg)' }}
               >
-                {user?.imageUrl ? <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" /> : initial}
+                {user?.imageUrl
+                  ? <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  : initial}
               </div>
               {!collapsed && (
                 <>
-                  <div className="flex flex-col justify-center leading-tight min-w-0 pr-2 flex-1">
-                    <span className="text-[13px] font-normal truncate text-text-muted">
-                      {fullName}
-                    </span>
-                    <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
-                      Enterprise CRM
-                    </span>
+                  <div className="flex flex-col justify-center leading-tight min-w-0 flex-1">
+                    <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>{fullName}</span>
+                    <span className="text-[10px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Enterprise CRM</span>
                   </div>
-                  <ChevronsUpDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                  <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
                 </>
               )}
             </div>
-            
-            {/* Mobile / Collapsed utilities */}
-            {collapsed && (
-              <div className="flex flex-col items-center gap-2 mt-3 w-full">
-                <button onClick={() => navigate('/settings')} className="text-text-muted hover:text-text-main w-8 h-8 rounded-lg flex items-center justify-center bg-surface border border-border" title="Settings"><Settings className="w-[15px] h-[15px]"/></button>
-                <button className="text-text-muted hover:text-text-main w-8 h-8 rounded-lg flex items-center justify-center bg-surface border border-border" title="Help"><HelpCircle className="w-[15px] h-[15px]"/></button>
-              </div>
-            )}
           </div>
         </div>
       </aside>

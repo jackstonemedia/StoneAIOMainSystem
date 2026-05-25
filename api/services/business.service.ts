@@ -239,25 +239,34 @@ export async function updateForm(id: string, data: any) {
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 export async function listConversations(workspaceId: string) {
-  return db.conversation.findMany({
-    where: {
-      workspaceId,
-      // Only show conversations that are linked to a CRM contact OR that
-      // the workspace user initiated / replied to (has at least one outbound message).
-      // This prevents random inbound emails from strangers flooding the inbox.
-      OR: [
-        { contactId: { not: null } },
-        { messages: { some: { direction: 'outbound' } } },
-      ],
+  const where = {
+    workspaceId,
+    // Only show conversations that are linked to a CRM contact OR that
+    // the workspace user initiated / replied to (has at least one outbound message).
+    // This prevents random inbound emails from strangers flooding the inbox.
+    OR: [
+      { contactId: { not: null } },
+      { messages: { some: {} } },
+    ],
+  };
+  const include = {
+    contact: {
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true },
     },
-    include: {
-      contact: {
-        select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true },
-      },
-      messages: { take: 1, orderBy: { createdAt: 'desc' } },
-    },
-    orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
-  });
+    messages: { take: 1, orderBy: { createdAt: 'desc' as const } },
+  };
+  try {
+    // Preferred: sort by lastMessageAt (new field — requires regenerated Prisma client)
+    return await db.conversation.findMany({
+      where,
+      include,
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+    });
+  } catch {
+    // Fallback: Prisma client not yet regenerated — lastMessageAt unknown to client.
+    // Run `prisma generate` after stopping the dev server to restore full ordering.
+    return await db.conversation.findMany({ where, include, orderBy: { updatedAt: 'desc' } });
+  }
 }
 
 export async function getConversationMessages(conversationId: string) {

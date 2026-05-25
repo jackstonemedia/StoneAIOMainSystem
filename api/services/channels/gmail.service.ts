@@ -71,7 +71,7 @@ export async function sendGmailMessage(
   body: string,
   threadId?: string,
   htmlBody?: string,
-): Promise<string> {
+): Promise<{ messageId: string; threadId: string }> {
   const { gmail } = await getAuthenticatedGmail(connectionId);
 
   // Build a multipart/alternative MIME email so recipients see proper HTML formatting
@@ -107,7 +107,7 @@ export async function sendGmailMessage(
     userId: 'me',
     requestBody: { raw, ...(threadId ? { threadId } : {}) },
   });
-  return res.data.id!;
+  return { messageId: res.data.id!, threadId: res.data.threadId! };
 }
 
 /** Called by the Gmail poller every 2 minutes for one connection. */

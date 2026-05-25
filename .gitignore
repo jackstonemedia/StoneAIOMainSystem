@@ -6,6 +6,32 @@ coverage/
 *.log
 .env*
 !.env.example
+*.key
+*.pem
+_key.txt
+
+# IDE / agent caches
+.windsurf/
+.agents/skills/
+skills-lock.json
+
+# Build / typecheck logs
+check_contacts.ts
+check_db.ts
+test-native-engine.ts
+tmp_migrate.cjs
+build_out.txt
+build_output.txt
+tsc.log
+typecheck.log
+typecheck2.log
+
+# Logs
+server.log
+startup.log
+
+# IDE / editor
+.vscode/
 
 /src/generated/prisma
 

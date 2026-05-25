@@ -111,10 +111,13 @@ export default function Contacts() {
     },
   });
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = () => setDeleteConfirmOpen(true);
+
+  const handleConfirmDelete = () => {
     selected.forEach(id => deleteContact.mutate(id));
-    toast('success', 'Contacts Deleted', `Successfully removed ${selected.size} contacts.`);
+    toast('success', 'Contacts deleted', `Removed ${selected.size} contact${selected.size === 1 ? '' : 's'} from your workspace.`);
     setSelected(new Set());
+    setDeleteConfirmOpen(false);
   };
 
   const [contactError, setContactError] = useState<string | null>(null);
@@ -128,6 +131,7 @@ export default function Contacts() {
   // Panel states
   const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
   const [moreActionsDropdownOpen, setMoreActionsDropdownOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [advancedContactOptionsOpen, setAdvancedContactOptionsOpen] = useState(false);
 
@@ -258,10 +262,47 @@ export default function Contacts() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-bg h-full">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-surface border-t-primary rounded-full animate-spin"></div>
-          <div className="text-text-muted font-medium text-sm animate-pulse">Loading contacts...</div>
+      <div className="flex flex-col h-full w-full relative bg-bg">
+        <div className="px-8 flex items-center justify-between border-b border-border bg-surface h-[73px]">
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-10 rounded-lg" />
+            <div className="skeleton h-7 w-28 rounded-lg" />
+            <div className="skeleton h-7 w-16 rounded-lg" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-40 rounded-full" />
+            <div className="skeleton h-7 w-20 rounded-lg" />
+            <div className="skeleton h-8 w-28 rounded-lg" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 border border-border/50 shadow-luxury">
+          <table className="w-full text-left">
+            <thead className="border-b border-border/50 bg-surface/80">
+              <tr>
+                {[48, 160, 120, 180, 140, 110, 90].map((w, i) => (
+                  <th key={i} className="p-3"><div className="skeleton h-3 rounded" style={{ width: w }} /></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b border-border/50">
+                  <td className="p-3"><div className="skeleton w-4 h-4 rounded" /></td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="skeleton w-7 h-7 rounded-full" />
+                      <div className="skeleton h-3 w-32 rounded" />
+                    </div>
+                  </td>
+                  <td className="p-3"><div className="skeleton h-3 w-24 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-36 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-28 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-20 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-5 w-14 rounded-full" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -317,7 +358,7 @@ export default function Contacts() {
                 {/* All tab */}
                 <div 
                   onClick={() => setActiveListId('all')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-[4px] cursor-pointer border transition-colors text-[13px] font-medium ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
                     activeListId === 'all' ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
                   }`}
                 >
@@ -329,7 +370,7 @@ export default function Contacts() {
                   <div 
                     key={list.id}
                     onClick={() => setActiveListId(list.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] cursor-pointer border transition-colors text-[13px] font-medium ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
                       activeListId === list.id ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
                     }`}
                   >
@@ -338,11 +379,11 @@ export default function Contacts() {
                 ))}
 
                 <div className="w-[1px] h-5 bg-border mx-2"></div>
-                <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm ml-1">
+                <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm ml-1">
                   <Filter className="w-4 h-4" /> Advanced filters
                 </button>
                 <div className="relative">
-                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
+                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
                     <ChevronDown className="w-4 h-4" /> Sort
                   </button>
                   <AnimatePresence>
@@ -391,14 +432,14 @@ export default function Contacts() {
                 </div>
                 
                 <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
                   <Download className="w-4 h-4" /> Import
                 </button>
                 
                 <div className="relative flex items-center gap-1">
                   <button 
                     onClick={() => setPanelOpen('new_contact')} 
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-border text-[13px] font-medium text-text-muted hover:text-text-main transition-colors active:scale-95 shadow-sm bg-surface"
+                    className="btn-primary"
                   >
                     <Plus className="w-4 h-4" /> Add Contact
                   </button>
@@ -407,11 +448,11 @@ export default function Contacts() {
                 <div className="w-[1px] h-5 bg-border mx-1"></div>
 
                 <div className="relative flex items-center gap-2">
-                  <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
+                  <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
                     <Settings className="w-4 h-4" /> Manage fields
                   </button>
                   <div className="relative">
-                    <button onClick={() => setMoreActionsDropdownOpen(!moreActionsDropdownOpen)} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
+                    <button onClick={() => setMoreActionsDropdownOpen(!moreActionsDropdownOpen)} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-lg transition-colors border border-border bg-surface shadow-sm">
                       <MoreVertical className="w-5 h-5" />
                     </button>
                     <AnimatePresence>
@@ -534,10 +575,10 @@ export default function Contacts() {
                   <td className="p-3">
                     <div className="flex items-center gap-1.5 flex-wrap max-w-[150px]">
                       {(c.tags || []).slice(0, 1).map((tag: string) => (
-                        <span key={tag} className="px-2 py-0.5 rounded-[4px] text-[11px] font-semibold whitespace-nowrap shadow-sm border border-border bg-bg text-text-muted">{tag}</span>
+                        <span key={tag} className="px-2 py-0.5 rounded-lg text-[11px] font-semibold whitespace-nowrap shadow-sm border border-border bg-bg text-text-muted">{tag}</span>
                       ))}
                       {(c.tags || []).length > 1 && (
-                        <span className="px-2 py-0.5 rounded-[4px] text-[11px] font-semibold shadow-sm border border-border bg-bg text-text-muted">+{(c.tags || []).length - 1}</span>
+                        <span className="px-2 py-0.5 rounded-lg text-[11px] font-semibold shadow-sm border border-border bg-bg text-text-muted">+{(c.tags || []).length - 1}</span>
                       )}
                     </div>
                   </td>
@@ -553,18 +594,18 @@ export default function Contacts() {
         <div className="font-semibold text-text-muted flex items-center gap-3">
           Page 1 of 1
           <div className="w-[1px] h-4 bg-border"></div>
-          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary/60"></span>
             {processedContacts.length} {activeListId === 'all' ? 'Contacts' : 'Members'}
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <div className="flex items-center gap-1.5 border border-border rounded-[4px] px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
+          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
           </div>
           <div className="flex items-center gap-1.5 font-semibold">
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-            <button className="px-3.5 py-1.5 rounded-[4px] shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
           </div>
         </div>
@@ -942,6 +983,38 @@ export default function Contacts() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Delete Confirmation Dialog (P0) ── */}
+      {deleteConfirmOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-50 backdrop-blur-[2px]"
+            onClick={() => setDeleteConfirmOpen(false)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[420px] bg-surface border border-border rounded-xl shadow-luxury p-6 animate-scale-in">
+            <h3 className="text-[16px] font-bold text-text-main mb-2">
+              Delete {selected.size} {selected.size === 1 ? 'contact' : 'contacts'}?
+            </h3>
+            <p className="text-[13px] text-text-muted mb-6 leading-relaxed">
+              This cannot be undone. {selected.size === 1 ? 'This contact' : 'These contacts'} will be permanently removed from your workspace.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex items-center gap-2 px-4 py-2 rounded-[9px] text-[13.5px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
+              >
+                Delete {selected.size === 1 ? 'contact' : `${selected.size} contacts`}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

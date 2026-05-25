@@ -41,8 +41,8 @@
     --border:           #2E4568;
     --border-subtle:    rgba(82, 103, 125, 0.25);
     
-    --text-main:        #D1CFC9;
-    --text-muted:       #BDC4D4;
+    --text-main:        #E8E3D8;
+    --text-muted:       #C8CEDC;
     --primary:          #52677D;
     --primary-hover:    #6B84A0;
     --primary-light:    rgba(82, 103, 125, 0.18);
@@ -76,48 +76,255 @@
     --glass-border:       rgba(82, 103, 125, 0.35);
   }
 
-  /* ── Light Theme (Claude-like Cream — Deeper Contrast) ── */
+  /* ── Light Theme — Bright open canvas, darker warm panels for sidebar/banners ── */
   .theme-light {
-    --bg:               #EDEAE2; /* Deeper warm sand — visible layer separation */
-    --surface:          #F7F5F0; /* Warm off-white surface, distinct from bg */
-    --surface-hover:    #EDE9DF; /* Slightly deeper than surface on hover */
-    --border:           #D4CFC4; /* Stronger warm border — clearly visible */
-    --border-subtle:    rgba(140, 137, 128, 0.18);
+    --bg:               #FAF8F4; /* Very light warm white — the open content area */
+    --surface:          #EDE8DF; /* Noticeably darker warm taupe — sidebar, banners, panels */
+    --surface-hover:    #E4DDD3; /* Deeper on hover */
+    --border:           #C8C0B0; /* Warm visible border */
+    --border-subtle:    rgba(120, 110, 95, 0.18);
     
-    --text-main:        #3A3733; /* Richer warm dark gray — more readable */
-    --text-muted:       #7D796F; /* Warm muted, still subtle */
+    --text-main:        #2A2520; /* Rich warm near-black */
+    --text-muted:       #6E6459; /* Warm readable mid-tone */
     
-    --primary:          #52504A; /* Sophisticated taupe/gray */
-    --primary-hover:    #3D3B35;
-    --primary-light:    rgba(82, 80, 74, 0.10);
+    --primary:          #3D3830; /* Dark warm taupe — buttons */
+    --primary-hover:    #2A2520;
+    --primary-light:    rgba(61, 56, 48, 0.10);
 
     /* CRM accent colors */
-    --accent-green:       #10B981;
-    --accent-amber:       #F59E0B;
-    --accent-purple:      #8B5CF6;
-    --accent-light-purple:#A78BFA;
+    --accent-green:       #15803D;
+    --accent-amber:       #B45309;
+    --accent-purple:      #7C3AED;
+    --accent-light-purple:#8B5CF6;
     --accent-teal:        #0D9488;
-    --accent-red:         #EF4444;
-    --accent-blue:        #2563EB;
-    --accent-orange:      #EA580C;
+    --accent-red:         #DC2626;
+    --accent-blue:        #1D4ED8;
+    --accent-orange:      #C2410C;
 
-    --glow-color:           rgba(140, 137, 128, 0.10);
-    --glow-color-strong:    rgba(140, 137, 128, 0.20);
+    --glow-color:           rgba(61, 56, 48, 0.12);
+    --glow-color-strong:    rgba(61, 56, 48, 0.22);
     
-    /* Sidebar — slightly lighter than bg to feel elevated */
-    --sidebar-bg:           #F7F5F0;
-    --sidebar-border:       #D4CFC4;
-    --sidebar-active:       rgba(82, 80, 74, 0.08);
-    --sidebar-active-text:  #3A3733;
+    /* Sidebar — uses the darker surface tone so it stands apart from bright canvas */
+    --sidebar-bg:           #E8E2D8;
+    --sidebar-border:       #C8C0B0;
+    --sidebar-active:       rgba(61, 56, 48, 0.12);
+    --sidebar-active-text:  #2A2520;
 
-    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.07), 0 16px 40px rgba(0,0,0,0.03);
-    --shadow-interactive: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
-    --shadow-card:        0 1px 2px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
-    --card-gradient:      #F7F5F0; /* Solid warm off-white — no gradient */
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.08), 0 16px 40px rgba(0,0,0,0.05);
+    --shadow-interactive: 0 4px 16px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06);
+    --card-gradient:      #FAF8F4;
     
-    /* Frosted glass variables */
-    --glass-bg:           rgba(247, 245, 240, 0.50); /* Semi-transparent warm cream — highly visible blur */
-    --glass-border:       rgba(212, 207, 196, 0.60);
+    --glass-bg:           rgba(250, 248, 244, 0.80);
+    --glass-border:       rgba(200, 192, 176, 0.70);
+  }
+
+  /* ── Midnight Copper — Warm espresso-black canvas, refined bronze accent ── */
+  .theme-midnight-copper {
+    /* Canvas: deep warm near-black */
+    --bg:               #100D08;
+
+    /* Surfaces: clearly lighter than canvas — strong separation */
+    --surface:          #1E1810;
+    --surface-hover:    #28200F;
+
+    --border:           #4A3C22;
+    --border-subtle:    rgba(184, 135, 60, 0.18);
+
+    --text-main:        #F5EDD8; /* Bright warm linen — high contrast */
+    --text-muted:       #B0A08A; /* Warm mid-tone — clearly readable */
+
+    /* Primary: copper/bronze */
+    --primary:          #C4913F;
+    --primary-hover:    #D9A85A;
+    --primary-light:    rgba(196, 145, 63, 0.16);
+
+    /* CRM accents */
+    --accent-green:     #22C55E;
+    --accent-amber:     #F59E0B;
+    --accent-purple:    #A78BFA;
+    --accent-light-purple: #C4B5FD;
+    --accent-teal:      #2DD4BF;
+    --accent-red:       #F87171;
+    --accent-blue:      #60A5FA;
+    --accent-orange:    #FB923C;
+
+    --glow-color:       rgba(196, 145, 63, 0.20);
+    --glow-color-strong: rgba(196, 145, 63, 0.42);
+
+    /* Sidebar: same as surface */
+    --sidebar-bg:           #1E1810;
+    --sidebar-border:       #362B18;
+    --sidebar-active:       rgba(196, 145, 63, 0.14);
+    --sidebar-active-text:  #F0E8D6;
+
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.65), 0 4px 12px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.40);
+    --shadow-interactive: 0 4px 16px rgba(196,145,63,0.25), 0 2px 6px rgba(0,0,0,0.45);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.40);
+    --card-gradient:      linear-gradient(145deg, rgba(30,24,16,0.97) 0%, rgba(16,13,8,0.94) 100%);
+
+    --glass-bg:           rgba(16, 13, 8, 0.70);
+    --glass-border:       rgba(184, 135, 60, 0.32);
+  }
+
+  /* ── Deep Tide — Sunken elevation: Dracula Orchid canvas, Black Is Back recessed panels ── */
+  .theme-deep-tide {
+    /* Dracula Orchid #2B3739 — the ambient canvas, mid-dark teal */
+    --bg:               #2B3739;
+
+    /* Black Is Back #0F1618 — panels, sidebar, cards sink BELOW the canvas */
+    --surface:          #131D1F;
+    /* Slightly lighter than surface for hover — still below canvas */
+    --surface-hover:    #1C2A2C;
+
+    /* Urbanite #4C5856 — borders emerge from the dark sunken panels */
+    --border:           #3A4D50;
+    /* Heritage Park at low opacity — hairline separators */
+    --border-subtle:    rgba(105, 116, 109, 0.22);
+
+    /* Thin Cloud #D3DEDA — text, high contrast on both canvas and panels */
+    --text-main:        #D3DEDA;
+    /* Bidwell Blue #ABB9B6 — muted labels, secondary text */
+    --text-muted:       #ABB9B6;
+
+    /* Bidwell Blue #ABB9B6 — primary accent, brighter than panel surfaces */
+    --primary:          #ABB9B6;
+    --primary-hover:    #BEC9C7;
+    --primary-light:    rgba(171, 185, 182, 0.14);
+
+    /* CRM semantics — teal-cool bias */
+    --accent-green:     #34D399;
+    --accent-amber:     #FBBF24;
+    --accent-purple:    #A78BFA;
+    --accent-light-purple: #C4B5FD;
+    --accent-teal:      #2DD4BF;
+    --accent-red:       #FB7185;
+    --accent-blue:      #60A5FA;
+    --accent-orange:    #FB923C;
+
+    /* Thin Cloud shimmer — glow from the bright text color */
+    --glow-color:        rgba(211, 222, 218, 0.14);
+    --glow-color-strong: rgba(211, 222, 218, 0.28);
+
+    /* Sidebar sinks with panels — same Black Is Back depth */
+    --sidebar-bg:           #131D1F;
+    --sidebar-border:       #2B3C3F;
+    --sidebar-active:       rgba(171, 185, 182, 0.14);
+    --sidebar-active-text:  #D3DEDA;
+
+    /* Inset shadows — panels appear pressed into canvas, not lifted */
+    --shadow-luxury:      inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 20px rgba(0,0,0,0.55), 0 16px 48px rgba(0,0,0,0.40);
+    --shadow-interactive: 0 4px 16px rgba(171,185,182,0.18), 0 2px 6px rgba(0,0,0,0.40);
+    --shadow-card:        inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 12px rgba(0,0,0,0.50);
+    --card-gradient:      linear-gradient(160deg, rgba(28,42,44,0.98) 0%, rgba(15,22,24,0.96) 100%);
+
+    /* Canvas-tinted glass — blur reveals the Dracula Orchid beneath */
+    --glass-bg:           rgba(43, 55, 57, 0.72);
+    --glass-border:       rgba(76, 88, 86, 0.45);
+  }
+
+  /* ── Ivory — Off White · Ivory · Nude · Obsidian. Editorial, four-color maximum restraint ── */
+  .theme-ivory {
+    /* Off White #FDFCF8 — the open content canvas */
+    --bg:               #FDFCF8;
+
+    /* Ivory #F3F0E9 — sidebar, top banners, panels — visibly warmer than canvas */
+    --surface:          #F3F0E9;
+    /* Between Ivory and Nude — interactive hover state */
+    --surface-hover:    #EAE5DB;
+
+    /* Nude #E3DBCC — borders, full perimeter, clearly visible */
+    --border:           #E3DBCC;
+    /* Nude at low opacity — hairline separators */
+    --border-subtle:    rgba(227, 219, 204, 0.70);
+
+    /* Warm dark brown — softer than pure Obsidian, still high contrast */
+    --text-main:        #2E2923;
+    /* Same hue at 50% — gentle muted labels */
+    --text-muted:       rgba(46, 41, 35, 0.52);
+
+    /* Warm dark brown for action/primary */
+    --primary:          #2E2923;
+    --primary-hover:    #453E36;
+    --primary-light:    rgba(46, 41, 35, 0.08);
+
+    /* CRM accents — warm-toned where possible to stay in temperature */
+    --accent-green:     #15803D;
+    --accent-amber:     #B45309;
+    --accent-purple:    #6D28D9;
+    --accent-light-purple: #7C3AED;
+    --accent-teal:      #0D9488;
+    --accent-red:       #DC2626;
+    --accent-blue:      #1D4ED8;
+    --accent-orange:    #C2410C;
+
+    /* Nude-tinted glow — barely perceptible warmth on focus */
+    --glow-color:        rgba(227, 219, 204, 0.80);
+    --glow-color-strong: rgba(16, 16, 16, 0.12);
+
+    /* Sidebar uses Ivory — darker than canvas, anchors the layout */
+    --sidebar-bg:           #F3F0E9;
+    --sidebar-border:       #E3DBCC;
+    --sidebar-active:       rgba(16, 16, 16, 0.07);
+    --sidebar-active-text:  #101010;
+
+    --shadow-luxury:      0 1px 3px rgba(16,16,16,0.08), 0 4px 12px rgba(16,16,16,0.06), 0 16px 40px rgba(16,16,16,0.04);
+    --shadow-interactive: 0 4px 16px rgba(16,16,16,0.12), 0 2px 6px rgba(16,16,16,0.07);
+    --shadow-card:        0 1px 2px rgba(16,16,16,0.07), 0 4px 16px rgba(16,16,16,0.05);
+    --card-gradient:      #F3F0E9;
+
+    /* Off White semi-transparent — glass reveals canvas warmth */
+    --glass-bg:           rgba(253, 252, 248, 0.85);
+    /* Nude semi-transparent — glass border */
+    --glass-border:       rgba(227, 219, 204, 0.85);
+  }
+
+  /* ── Sterling — Cool blue-grey canvas, white elevated surfaces, deep slate primary ── */
+  .theme-sterling {
+    /* Canvas: noticeably cool grey — strong contrast with white surfaces */
+    --bg:               #D4D9E5;
+
+    /* Surfaces are pure white — maximum pop above the canvas */
+    --surface:          #FFFFFF;
+    --surface-hover:    #EDF0F8;
+
+    --border:           #A8B0C4;
+    --border-subtle:    rgba(44, 62, 107, 0.15);
+
+    --text-main:        #0D1117; /* Near-black — maximum legibility */
+    --text-muted:       #4A5270; /* Darker muted — clearly readable */
+
+    /* Primary: deep slate-blue — authoritative, not corporate */
+    --primary:          #1E2D55;
+    --primary-hover:    #2C3E6B;
+    --primary-light:    rgba(30, 45, 85, 0.12);
+
+    /* CRM accents — full vibrancy on white surfaces */
+    --accent-green:     #15803D;
+    --accent-amber:     #B45309;
+    --accent-purple:    #6D28D9;
+    --accent-light-purple: #7C3AED;
+    --accent-teal:      #0D6B63;
+    --accent-red:       #B91C1C;
+    --accent-blue:      #1D4ED8;
+    --accent-orange:    #C2410C;
+
+    --glow-color:       rgba(30, 45, 85, 0.15);
+    --glow-color-strong: rgba(30, 45, 85, 0.28);
+
+    /* Sidebar: white — elevated from the grey canvas */
+    --sidebar-bg:           #FFFFFF;
+    --sidebar-border:       #A8B0C4;
+    --sidebar-active:       rgba(30, 45, 85, 0.10);
+    --sidebar-active-text:  #0D1117;
+
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.10), 0 16px 40px rgba(0,0,0,0.06);
+    --shadow-interactive: 0 4px 16px rgba(30,45,85,0.18), 0 2px 6px rgba(0,0,0,0.10);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.10), 0 4px 16px rgba(0,0,0,0.07);
+    --card-gradient:      #FFFFFF;
+
+    --glass-bg:           rgba(255, 255, 255, 0.80);
+    --glass-border:       rgba(168, 176, 196, 0.80);
   }
 
   * {
@@ -255,22 +462,13 @@
 
   /* ── Typography ── */
   .text-gradient {
-    background: linear-gradient(135deg, #BDC4D4, #D1CFC9);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-main);
   }
   .text-gradient-accent {
-    background: linear-gradient(135deg, var(--accent-teal), var(--accent-blue));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent-teal);
   }
   .text-gradient-amber {
-    background: linear-gradient(135deg, var(--accent-amber), var(--accent-orange));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--accent-amber);
   }
   .text-label-caps {
     font-size: 10px;
@@ -387,20 +585,22 @@
     align-items: center;
     gap: 7px;
     padding: 9px 18px;
-    background: var(--primary);
-    color: #D1CFC9;
+    background: var(--text-main);
+    color: var(--bg);
     border-radius: 9px;
     font-size: 13.5px;
     font-weight: 600;
     border: none;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
     transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
     letter-spacing: -0.01em;
   }
   .btn-primary:hover {
-    background: var(--primary-hover);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    background: var(--text-muted);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.30);
     transform: translateY(-1px);
   }
   .btn-primary:active { transform: translateY(0); }
@@ -653,12 +853,12 @@
     transform: translateY(-1px);
   }
 
-  /* Shimmer glow on primary buttons */
+  /* Shimmer on primary buttons */
   .btn-primary::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.08) 50%, transparent 65%);
+    background: linear-gradient(105deg, transparent 35%, rgba(0,0,0,0.06) 50%, transparent 65%);
     background-size: 200% 100%;
     border-radius: inherit;
     opacity: 0;

@@ -126,7 +126,51 @@ export default function ContactDetail() {
     });
   };
 
-  if (!contact) return <div className="p-8 text-center text-text-muted">Loading contact...</div>;
+  if (!contact) return (
+    <div className="flex flex-col h-full w-full relative bg-bg">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-border bg-surface shrink-0 shadow-sm h-[65px]">
+        <div className="flex items-center gap-4">
+          <div className="skeleton h-4 w-12 rounded" />
+          <div className="w-[1px] h-4 bg-border/80" />
+          <div className="flex items-center gap-2.5">
+            <div className="skeleton w-8 h-8 rounded-full" />
+            <div className="space-y-1.5">
+              <div className="skeleton h-4 w-32 rounded" />
+              <div className="skeleton h-3 w-24 rounded" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {[1,2,3,4].map(i => <div key={i} className="skeleton w-9 h-9 rounded-lg" />)}
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden flex mx-8 mt-6 mb-6 gap-6">
+        <div className="w-[340px] shrink-0 bg-surface/30 border border-border/50 rounded-[8px] p-6 space-y-6">
+          {[1,2,3].map(s => (
+            <div key={s} className="space-y-3">
+              <div className="skeleton h-3 w-28 rounded" />
+              {[1,2,3].map(f => <div key={f} className="skeleton h-8 w-full rounded" />)}
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 bg-surface/30 border border-border/50 rounded-[8px] p-6 space-y-4">
+          <div className="flex gap-6 border-b border-border/50 pb-4">
+            {[1,2,3,4,5].map(t => <div key={t} className="skeleton h-4 w-16 rounded" />)}
+          </div>
+          <div className="skeleton h-32 w-full rounded-xl" />
+          {[1,2,3].map(e => (
+            <div key={e} className="flex gap-3 pt-2">
+              <div className="skeleton w-8 h-8 rounded-full shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="skeleton h-3 w-48 rounded" />
+                <div className="skeleton h-3 w-64 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   const filteredEvents = activeTab === 'notes' ? events.filter((e: any) => e.type === 'note') : events;
 
@@ -153,7 +197,7 @@ export default function ContactDetail() {
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 border-r border-border pr-6">
             <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[6px] hover:bg-surface-hover transition-colors card-hover-lift bg-surface">
-              <div className="w-5 h-5 rounded-[4px] bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">JS</div>
+              <div className="w-5 h-5 rounded-lg bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">JS</div>
               <span className="text-[13px] font-semibold text-text-main">Jack Stone</span>
               <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
             </button>
@@ -195,7 +239,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={i} className="flex flex-col relative group">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
                 
@@ -205,7 +249,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type={field.name === 'dateOfBirth' ? 'date' : 'text'} name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type={field.name === 'dateOfBirth' ? 'date' : 'text'} name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
               </div>
@@ -224,7 +268,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={i} className="flex flex-col relative group">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
 
@@ -236,7 +280,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
               </div>
@@ -256,7 +300,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={i} className="flex flex-col relative group">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
 
@@ -266,7 +310,7 @@ export default function ContactDetail() {
                 ].map((field, i) => (
                   <div key={'adv_'+i} className="flex flex-col relative group animate-in fade-in slide-in-from-top-2">
                     <label className="text-[11px] font-bold text-text-muted mb-1">{field.label}</label>
-                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                    <input type="text" name={field.name} defaultValue={field.value} placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                   </div>
                 ))}
               </div>
@@ -317,7 +361,7 @@ export default function ContactDetail() {
               <div className="grid grid-cols-1 gap-4">
                 <div className="flex flex-col relative group">
                   <label className="text-[11px] font-bold text-text-muted mb-1">Industry Tier (Custom)</label>
-                  <input type="text" name="customField_industryTier" defaultValue="Enterprise" placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-[4px] transition-all placeholder:text-text-muted/40" />
+                  <input type="text" name="customField_industryTier" defaultValue="Enterprise" placeholder="—" className="w-full bg-transparent border-b border-border/50 text-[13px] font-medium text-text-main pb-1.5 focus:outline-none focus:border-primary focus:bg-primary/5 focus:px-2 rounded-t-lg transition-all placeholder:text-text-muted/40" />
                 </div>
               </div>
             </div>
@@ -436,13 +480,23 @@ export default function ContactDetail() {
                       <Clock className="w-4 h-4 text-primary" /> {activeTab === 'notes' ? 'Notes History' : 'Activity Timeline'}
                     </h3>
                     <div className="flex items-center gap-1.5 bg-bg border border-border rounded-[6px] p-1 shadow-sm">
-                      <button className="text-[11px] font-bold px-2 py-1 bg-surface rounded-[4px] text-text-main shadow-sm border border-border">All Time</button>
+                      <button className="text-[11px] font-bold px-2 py-1 bg-surface rounded-lg text-text-main shadow-sm border border-border">All Time</button>
                       <button className="text-[11px] font-bold px-2 py-1 text-text-muted hover:text-text-main transition-colors">This Month</button>
                     </div>
                   </div>
 
                   {eventsLoading ? (
-                    <div className="flex justify-center py-12"><RefreshCw className="w-6 h-6 animate-spin text-primary" /></div>
+                    <div className="space-y-4 py-2">
+                      {[1,2,3].map(i => (
+                        <div key={i} className="flex gap-3">
+                          <div className="skeleton w-8 h-8 rounded-full shrink-0" />
+                          <div className="space-y-2 flex-1 pt-1">
+                            <div className="skeleton h-3 rounded" style={{ width: `${40 + i * 15}%` }} />
+                            <div className="skeleton h-3 w-3/4 rounded" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   ) : filteredEvents.length === 0 ? (
                     <div className="text-center py-16">
                       <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg border border-border flex items-center justify-center">

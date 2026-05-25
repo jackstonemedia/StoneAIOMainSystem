@@ -17,6 +17,7 @@ export default function CrmTasks() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('all');
   const [panelOpen, setPanelOpen] = useState<'new_task' | null>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '' });
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
@@ -61,10 +62,46 @@ export default function CrmTasks() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-bg h-full">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-surface border-t-primary rounded-full animate-spin"></div>
-          <div className="text-text-muted font-medium text-sm animate-pulse">Loading tasks...</div>
+      <div className="flex flex-col h-full w-full relative bg-bg">
+        <div className="px-8 flex items-center justify-between border-b border-border bg-surface h-[73px]">
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-14 rounded-full" />
+            <div className="skeleton h-7 w-24 rounded-full" />
+            <div className="skeleton h-7 w-28 rounded-full" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-40 rounded-full" />
+            <div className="skeleton h-8 w-24 rounded-lg" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 border border-border/50 shadow-luxury">
+          <table className="w-full text-left">
+            <thead className="border-b border-border/50 bg-surface/80">
+              <tr>
+                {[48, 200, 220, 120, 120, 130, 80].map((w, i) => (
+                  <th key={i} className="p-3"><div className="skeleton h-3 rounded" style={{ width: w }} /></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="border-b border-border/50">
+                  <td className="p-3"><div className="skeleton w-5 h-5 rounded-full mx-auto" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-44 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-52 rounded" /></td>
+                  <td className="p-3"><div className="skeleton w-6 h-6 rounded-full" /></td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="skeleton w-6 h-6 rounded-full" />
+                      <div className="skeleton h-3 w-20 rounded" />
+                    </div>
+                  </td>
+                  <td className="p-3"><div className="skeleton h-3 w-24 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-6 w-12 rounded-lg mx-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -114,11 +151,11 @@ export default function CrmTasks() {
               className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
             />
           </div>
-          <button onClick={() => setPanelOpen('new_task')} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface active:scale-95">
+          <button onClick={() => setPanelOpen('new_task')} className="btn-primary">
             <Plus className="w-4 h-4" /> New Task
           </button>
           <div className="w-[1px] h-5 bg-border mx-1"></div>
-          <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
+          <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
             <Settings className="w-4 h-4" /> Manage
           </button>
         </div>
@@ -186,7 +223,7 @@ export default function CrmTasks() {
                 <td className="p-3">
                   <div className="flex items-center justify-center gap-3">
                     <button className="transition-all text-text-muted hover:text-primary"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={() => deleteTask.mutate(t.id)} className="transition-all text-text-muted hover:text-accent-red"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => setDeleteTaskId(t.id)} className="transition-all text-text-muted hover:text-accent-red"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
               </tr>
@@ -200,18 +237,18 @@ export default function CrmTasks() {
         <div className="font-semibold text-text-muted flex items-center gap-3">
           Page 1 of 1
           <div className="w-[1px] h-4 bg-border"></div>
-          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary/60"></span>
             {tasks.length} Tasks
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <div className="flex items-center gap-1.5 border border-border rounded-[4px] px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
+          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
           </div>
           <div className="flex items-center gap-1.5 font-semibold">
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-            <button className="px-3.5 py-1.5 rounded-[4px] shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
           </div>
         </div>
@@ -283,6 +320,39 @@ export default function CrmTasks() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ── Task Delete Confirmation ── */}
+      {deleteTaskId && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-50 backdrop-blur-[2px]"
+            onClick={() => setDeleteTaskId(null)}
+          />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[400px] bg-surface border border-border rounded-xl shadow-luxury p-6 animate-scale-in">
+            <h3 className="text-[16px] font-bold text-text-main mb-2">Delete task?</h3>
+            <p className="text-[13px] text-text-muted mb-6 leading-relaxed">
+              This task will be permanently removed and cannot be recovered.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteTaskId(null)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteTask.mutate(deleteTaskId);
+                  setDeleteTaskId(null);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-[9px] text-[13.5px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
+              >
+                Delete task
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -107,7 +107,17 @@ export default function ContactTasksTab({ contactId }: Props) {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-10"><RefreshCw className="w-5 h-5 animate-spin text-primary" /></div>
+        <div className="space-y-2">
+          {[1,2,3].map(i => (
+            <div key={i} className="flex items-center gap-3 py-3 border-b border-border/50">
+              <div className="skeleton w-5 h-5 rounded-full shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <div className="skeleton h-3 rounded" style={{ width: `${45 + i * 12}%` }} />
+              </div>
+              <div className="skeleton h-3 w-16 rounded" />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 border border-dashed border-border rounded-[10px]">
           <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-text-muted/30" />

@@ -50,27 +50,44 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
   }
 
   try {
-    // Find or create conversation keyed by the sender's phone number + channel
+    // Find conversation: first by externalId (fast path), then by contact phone (fallback
+    // for conversations started via the UI compose modal before externalId was set)
     let convo = await db.conversation.findFirst({
-      where: { workspaceId, externalId: fromNumber, channel: 'sms' },
+      where: { workspaceId, channel: 'sms', externalId: fromNumber },
     });
 
     if (!convo) {
       const contact = await db.contact.findFirst({
         where: { workspaceId, phone: fromNumber },
       });
-      convo = await db.conversation.create({
-        data: {
-          workspaceId,
-          contactId: contact?.id ?? null,
-          channel: 'sms',
-          status: 'open',
-          externalId: fromNumber,
-          channelConnectionId: connection?.id ?? null,
-          lastMessageAt: new Date(),
-          unreadCount: 1,
-        },
-      });
+      // Check if there's an existing open SMS conversation for this contact
+      if (contact) {
+        convo = await db.conversation.findFirst({
+          where: { workspaceId, channel: 'sms', contactId: contact.id, status: 'open' },
+          orderBy: { updatedAt: 'desc' },
+        });
+      }
+      if (convo && !convo.externalId) {
+        // Stamp the externalId now so future lookups hit the fast path
+        await db.conversation.update({
+          where: { id: convo.id },
+          data: { externalId: fromNumber },
+        }).catch(() => null);
+      }
+      if (!convo) {
+        convo = await db.conversation.create({
+          data: {
+            workspaceId,
+            contactId: contact?.id ?? null,
+            channel: 'sms',
+            status: 'open',
+            externalId: fromNumber,
+            channelConnectionId: connection?.id ?? null,
+            lastMessageAt: new Date(),
+            unreadCount: 1,
+          },
+        });
+      }
     }
 
     await db.conversationMessage.create({

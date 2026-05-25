@@ -226,66 +226,87 @@ router.post('/conversations/:id/messages', async (req, res) => {
     const msg = await biz.sendConversationMessage(req.params.id, msgBody, sender ?? 'agent', direction);
 
     // ── Dispatch outbound messages via the real channel ──────────────────────
+    // NOTE: Wrapped in its own try/catch — dispatch failure must never fail the
+    // message-save. The message is already persisted in the DB at this point.
     if (direction === 'outbound') {
-      const convo = await db.conversation.findUnique({
-        where: { id: req.params.id },
-        include: { contact: true },
-      });
-      const activeChannel = msgChannel ?? convo?.channel;
-      console.log(`[Outbound] channel=${activeChannel}, contactEmail=${convo?.contact?.email ?? 'NONE'}, contactPhone=${convo?.contact?.phone ?? 'NONE'}`);
+      try {
+        const convo = await db.conversation.findUnique({
+          where: { id: req.params.id },
+          include: { contact: true },
+        });
+        const activeChannel = msgChannel ?? convo?.channel;
+        console.log(`[Outbound] channel=${activeChannel}, contactEmail=${convo?.contact?.email ?? 'NONE'}, contactPhone=${convo?.contact?.phone ?? 'NONE'}`);
 
-      if (activeChannel === 'email' || activeChannel === 'gmail') {
-        // Send via Gmail if a connection exists
-        const conn = await db.channelConnection.findFirst({
-          where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
-        });
-        console.log(`[Outbound Gmail] connection=${conn?.id ?? 'NONE'}, to=${convo?.contact?.email ?? 'NONE'}`);
-        const recipientEmail = msgTo || convo?.contact?.email;
-        const emailSubject = msgSubject || convo?.subject || '(no subject)';
-        if (conn && recipientEmail) {
-          // Update conversation subject if a new one was provided
-          if (msgSubject && msgSubject !== convo?.subject) {
-            await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
+        if (activeChannel === 'email' || activeChannel === 'gmail') {
+          // Send via Gmail if a connection exists
+          const conn = await db.channelConnection.findFirst({
+            where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
+          });
+          console.log(`[Outbound Gmail] connection=${conn?.id ?? 'NONE'}, to=${convo?.contact?.email ?? 'NONE'}`);
+          const recipientEmail = msgTo || convo?.contact?.email;
+          const emailSubject = msgSubject || convo?.subject || '(no subject)';
+          if (conn && recipientEmail) {
+            // Update conversation subject if a new one was provided
+            if (msgSubject && msgSubject !== convo?.subject) {
+              await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
+            }
+            // Store full outbound email metadata so the UI can render it properly
+            const now = new Date().toUTCString();
+            await db.conversationMessage.update({
+              where: { id: msg.id },
+              data: {
+                attachments: JSON.stringify({
+                  toEmail: recipientEmail,
+                  subject: emailSubject,
+                  date: now,
+                  htmlBody: msgHtmlBody ?? null,
+                }),
+              },
+            }).catch(() => null);
+            const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+            const sent = await sendGmailMessage(
+              conn.id, recipientEmail, emailSubject, msgBody,
+              convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
+            ).catch(err => { console.error('[Outbound Gmail] ❌ Failed:', err.message); return null; });
+            if (sent) {
+              console.log('[Outbound Gmail] ✅ Sent successfully, threadId:', sent.threadId);
+              // Save threadId as externalId so inbound replies thread into this conversation
+              if (!convo?.externalId && sent.threadId) {
+                await db.conversation.update({
+                  where: { id: req.params.id },
+                  data: { externalId: sent.threadId },
+                }).catch(() => null);
+              }
+            }
+          } else {
+            console.log('[Outbound Gmail] ⚠️ Skipped: no connection or no contact email');
           }
-          // Store full outbound email metadata so the UI can render it properly
-          const now = new Date().toUTCString();
-          await db.conversationMessage.update({
-            where: { id: msg.id },
-            data: {
-              attachments: JSON.stringify({
-                toEmail: recipientEmail,
-                subject: emailSubject,
-                date: now,
-                htmlBody: msgHtmlBody ?? null,
-              }),
-            },
-          }).catch(() => null);
-          const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
-          await sendGmailMessage(
-            conn.id, recipientEmail, emailSubject, msgBody,
-            convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
-          )
-            .then(() => console.log('[Outbound Gmail] ✅ Sent successfully'))
-            .catch(err => console.error('[Outbound Gmail] ❌ Failed:', err.message));
-        } else {
-          console.log('[Outbound Gmail] ⚠️ Skipped: no connection or no contact email');
+        } else if (activeChannel === 'sms') {
+          // Send via Twilio if a connection exists
+          const conn = await db.channelConnection.findFirst({
+            where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+          });
+          if (conn && convo?.contact?.phone) {
+            const { decryptJson } = await import('../services/channels/encryption.js');
+            const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
+            const twilio = (await import('twilio')).default;
+            const client = twilio(creds.accountSid, creds.authToken);
+            await client.messages.create({
+              body: msgBody,
+              from: conn.twilioPhoneNumber!,
+              to: convo.contact.phone,
+            }).catch(console.error);
+            // Save contact phone as externalId so inbound replies thread into this conversation
+            if (!convo?.externalId) {
+              await db.conversation.update({
+                where: { id: req.params.id },
+                data: { externalId: convo.contact.phone },
+              }).catch(() => null);
+            }
+          }
         }
-      } else if (activeChannel === 'sms') {
-        // Send via Twilio if a connection exists
-        const conn = await db.channelConnection.findFirst({
-          where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
-        });
-        if (conn && convo?.contact?.phone) {
-          const { decryptJson } = await import('../services/channels/encryption.js');
-          const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
-          const twilio = (await import('twilio')).default;
-          const client = twilio(creds.accountSid, creds.authToken);
-          await client.messages.create({
-            body: msgBody,
-            from: conn.twilioPhoneNumber!,
-            to: convo.contact.phone,
-          }).catch(console.error);
-        }
+      } catch (dispatchErr: unknown) {
+        console.error('[Outbound dispatch] Non-fatal error during channel dispatch:', dispatchErr);
       }
     }
 

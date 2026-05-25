@@ -73,10 +73,42 @@ export default function Companies() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-bg h-full">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-surface border-t-primary rounded-full animate-spin"></div>
-          <div className="text-text-muted font-medium text-sm animate-pulse">Loading companies...</div>
+      <div className="flex flex-col h-full w-full relative bg-bg">
+        <div className="px-8 flex items-center justify-between border-b border-border bg-surface h-[73px]">
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-16 rounded-full" />
+            <div className="skeleton h-7 w-24 rounded-full" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-7 w-40 rounded-full" />
+            <div className="skeleton h-7 w-20 rounded-lg" />
+            <div className="skeleton h-8 w-32 rounded-lg" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 border border-border/50 shadow-luxury">
+          <table className="w-full text-left">
+            <thead className="border-b border-border/50 bg-surface/80">
+              <tr>
+                {[48, 160, 120, 140, 200, 100, 120, 80].map((w, i) => (
+                  <th key={i} className="p-3"><div className="skeleton h-3 rounded" style={{ width: w }} /></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="border-b border-border/50">
+                  <td className="p-3"><div className="skeleton w-4 h-4 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-36 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-28 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-5 w-20 rounded-full" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-48 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-16 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-3 w-24 rounded" /></td>
+                  <td className="p-3"><div className="skeleton h-6 w-12 rounded-lg mx-auto" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -123,22 +155,22 @@ export default function Companies() {
             />
           </div>
           
-          <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+          <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
             <Download className="w-4 h-4" /> Import
           </button>
           
-          <button onClick={() => setPanelOpen('new_company')} className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-border text-[13px] font-medium text-text-muted hover:text-text-main transition-colors active:scale-95 shadow-sm bg-surface">
+          <button onClick={() => setPanelOpen('new_company')} className="btn-primary">
             <Plus className="w-4 h-4" /> Add Account
           </button>
 
           <div className="w-[1px] h-5 bg-border mx-1"></div>
 
           <div className="relative flex items-center gap-2">
-            <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
+            <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
               <Settings className="w-4 h-4" /> Manage fields
             </button>
             <div className="relative">
-              <button className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
+              <button className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-lg transition-colors border border-border bg-surface shadow-sm">
                 <MoreVertical className="w-5 h-5" />
               </button>
             </div>
@@ -214,18 +246,18 @@ export default function Companies() {
         <div className="font-semibold text-text-muted flex items-center gap-3">
           Page 1 of 1
           <div className="w-[1px] h-4 bg-border"></div>
-          <span className="px-2.5 py-0.5 rounded-[4px] text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary/60"></span>
             {companies.length} Accounts
           </span>
         </div>
         <div className="flex items-center gap-5">
-          <div className="flex items-center gap-1.5 border border-border rounded-[4px] px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
+          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
           </div>
           <div className="flex items-center gap-1.5 font-semibold">
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-            <button className="px-3.5 py-1.5 rounded-[4px] shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
           </div>
         </div>
