@@ -105,14 +105,20 @@ async function startServer() {
     if (body.object !== 'page' && body.object !== 'instagram') return;
     try {
       for (const entry of body.entry ?? []) {
+        // entry.id is the Facebook Page ID or Instagram account ID
+        const pageId = entry.id as string | undefined;
         const webhookEvent = entry.messaging?.[0];
         if (!webhookEvent?.message) continue;
         const senderId: string = webhookEvent.sender.id;
         const msgText: string = webhookEvent.message.text ?? '';
         const provider = body.object === 'instagram' ? 'instagram' : 'facebook';
-        // Resolve workspace from Integration table (workspace owns the page access token)
+        
+        // Resolve workspace by matching the specific page/account ID
+        const whereClause: any = { provider };
+        if (pageId) whereClause.accountId = pageId;
+        
         const integration = await db.integration.findFirst({
-          where: { provider },
+          where: whereClause,
           select: { workspaceId: true },
         });
         if (!integration) continue;

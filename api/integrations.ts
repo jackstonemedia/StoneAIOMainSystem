@@ -61,6 +61,7 @@ router.get('/callback/:provider', async (req: Request, res: Response): Promise<a
 
   try {
     let accessToken = '';
+    let accountId: string | null = null;
     
     if (provider === 'facebook' || provider === 'instagram') {
       // 1. Exchange code for Short-Lived User Token
@@ -87,16 +88,22 @@ router.get('/callback/:provider', async (req: Request, res: Response): Promise<a
       
       accessToken = longLivedRes.data.access_token;
       
-      // In a pure production map, we would immediately call `/me/accounts`
-      // to get the Page ID and Page Access Token. For this implementation, we will save the User token.
+      // 3. Call /me/accounts to get the Page ID for the connected account.
+      //    This is critical — the webhook payload includes entry.id (the Page ID),
+      //    and we need to resolve the correct workspace by matching this ID.
+      const accountsRes = await axios.get(`https://graph.facebook.com/v18.0/me/accounts`, {
+        params: { access_token: accessToken }
+      });
+      const pages = accountsRes.data?.data ?? [];
+      accountId = pages.length > 0 ? pages[0].id : null;
     }
 
     if (!accessToken) throw new Error("Token exchange yielded empty token");
 
     await db.integration.upsert({
       where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } },
-      update: { accessToken, updatedAt: new Date() },
-      create: { workspaceId: req.workspaceId, provider, accessToken }
+      update: { accessToken, accountId: accountId ?? undefined, updatedAt: new Date() },
+      create: { workspaceId: req.workspaceId, provider, accessToken, accountId: accountId ?? undefined }
     });
 
     res.redirect('/business/conversations/chat?integration_success=true');
