@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../../infrastructure/database/client.js';
+import { encryptString } from '../services/channels/encryption.js';
 
 const router = Router();
 
@@ -31,13 +32,14 @@ router.put('/api-keys', async (req, res) => {
   try {
     const { provider, key } = req.body;
     if (!provider || !key) return res.status(400).json({ error: 'provider and key required' });
+    const encrypted = encryptString(key);
     const existing = await db.apiKey.findUnique({
       where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } },
     });
     if (existing) {
-      await db.apiKey.update({ where: { id: existing.id }, data: { keyEncrypted: key } });
+      await db.apiKey.update({ where: { id: existing.id }, data: { keyEncrypted: encrypted } });
     } else {
-      await db.apiKey.create({ data: { workspaceId: req.workspaceId, provider, keyEncrypted: key } });
+      await db.apiKey.create({ data: { workspaceId: req.workspaceId, provider, keyEncrypted: encrypted } });
     }
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
