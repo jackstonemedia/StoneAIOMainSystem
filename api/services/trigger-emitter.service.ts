@@ -87,31 +87,32 @@ async function dispatchToNativeEngine(
   // Lazy-import queue service to avoid circular dependency at module load time
   const { queueService } = await import('./workflow-engine/queue.service.js');
 
-  for (const sub of subscriptions) {
-    // Only fire for published native workflows
-    if (sub.workflow?.status !== 'published') continue;
-    if (sub.workflow?.engineType !== 'native') continue;
+  const eligible = subscriptions.filter(sub => {
+    if (sub.workflow?.status !== 'published') return false;
+    if (sub.workflow?.engineType !== 'native') return false;
 
-    // Apply optional filters stored in filtersJson
     let filtersJson: Record<string, unknown> = {};
-    try {
-      filtersJson = sub.filtersJson ? JSON.parse(sub.filtersJson) : {};
-    } catch { /* ignore */ }
+    try { filtersJson = sub.filtersJson ? JSON.parse(sub.filtersJson) : {}; } catch { /* ignore */ }
 
-    // Simple filter check: pipelineId / stageId / tagName, etc.
-    if (filtersJson.pipelineId && payload.pipelineId !== filtersJson.pipelineId) continue;
-    if (filtersJson.stageId && payload.stageId !== filtersJson.stageId) continue;
-    if (filtersJson.tagName && !String(payload.tags || '').includes(String(filtersJson.tagName))) continue;
+    if (filtersJson.pipelineId && payload.pipelineId !== filtersJson.pipelineId) return false;
+    if (filtersJson.stageId && payload.stageId !== filtersJson.stageId) return false;
+    if (filtersJson.tagName && !String(payload.tags || '').includes(String(filtersJson.tagName))) return false;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[NATIVE TRIGGER] ${event} → workflow ${sub.workflowId}`);
-    }
+    return true;
+  });
 
-    await queueService.enqueue({
-      workspaceId,
-      workflowId: sub.workflowId,
-      triggerData: { event, entityType, eventType, data: payload },
-      mode: 'production'
-    });
+  if (process.env.NODE_ENV !== 'production' && eligible.length) {
+    console.log(`[NATIVE TRIGGER] ${event} → ${eligible.length} workflow(s)`);
   }
+
+  await Promise.all(
+    eligible.map(sub =>
+      queueService.enqueue({
+        workspaceId,
+        workflowId: sub.workflowId,
+        triggerData: { event, entityType, eventType, data: payload },
+        mode: 'production',
+      })
+    )
+  );
 }

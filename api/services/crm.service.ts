@@ -451,7 +451,8 @@ export async function getCompany(id: string, workspaceId: string) {
 }
 
 export async function createCompany(workspaceId: string, data: any) {
-  return db.company.create({ data: { ...data, workspaceId } });
+  const { domain, ...rest } = data;
+  return db.company.create({ data: { ...rest, website: domain ?? rest.website, workspaceId } });
 }
 
 export async function updateCompany(id: string, workspaceId: string, data: any) {

@@ -8,10 +8,27 @@ import { emitTrigger } from './trigger-emitter.service.js';
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 export async function getBusinessMetrics(workspaceId: string) {
-  const [allDeals, totalContacts, allCampaigns] = await Promise.all([
+  const now = new Date();
+
+  // Build last-12-months buckets for trend data
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+
+  const [allDeals, totalContacts, allCampaigns, wonDealsByMonth, agentRuns] = await Promise.all([
     db.deal.findMany({ where: { workspaceId }, include: { pipelineStage: true } }),
     db.contact.count({ where: { workspaceId } }),
     db.campaign.findMany({ where: { workspaceId } }),
+    // Won deals in last 12 months for revenue trend
+    db.deal.findMany({
+      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: twelveMonthsAgo } },
+      select: { amount: true, updatedAt: true },
+    }),
+    // Real workflow run stats per agent
+    db.workflowRun.findMany({
+      where: { workspaceId },
+      select: { workflowId: true, status: true, durationMs: true },
+      orderBy: { startedAt: 'desc' },
+      take: 5000,
+    }),
   ]);
 
   const wonDeals = allDeals.filter((d) => d.pipelineStage?.name === 'Won');
@@ -20,6 +37,15 @@ export async function getBusinessMetrics(workspaceId: string) {
   );
   const revenue = wonDeals.reduce((s, d) => s + d.amount, 0);
   const pipeline = openDeals.reduce((s, d) => s + d.amount, 0);
+
+  // Build 12-month revenue trend from real won-deal data
+  const revenueTrend = Array.from({ length: 12 }, (_, i) => {
+    const month = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    const next = new Date(now.getFullYear(), now.getMonth() - 10 + i, 1);
+    return wonDealsByMonth
+      .filter((d) => d.updatedAt >= month && d.updatedAt < next)
+      .reduce((s, d) => s + d.amount, 0);
+  });
 
   const STAGE_COLORS: Record<string, string> = {
     Lead: '#64748b', Qualified: '#818cf8', Proposal: '#fbbf24',
@@ -30,23 +56,38 @@ export async function getBusinessMetrics(workspaceId: string) {
     return { name, count: sd.length, value: sd.reduce((s, d) => s + d.amount, 0), color: STAGE_COLORS[name] ?? '#52677D' };
   });
 
+  // Derive real agent performance from workflow run records
+  const runsByWorkflow = new Map<string, { total: number; succeeded: number; totalMs: number }>();
+  for (const run of agentRuns) {
+    const entry = runsByWorkflow.get(run.workflowId) ?? { total: 0, succeeded: 0, totalMs: 0 };
+    entry.total++;
+    if (run.status === 'SUCCEEDED') entry.succeeded++;
+    if (run.durationMs) entry.totalMs += run.durationMs;
+    runsByWorkflow.set(run.workflowId, entry);
+  }
+  const workflows = await db.workflow.findMany({
+    where: { workspaceId, id: { in: [...runsByWorkflow.keys()] } },
+    select: { id: true, name: true },
+  });
+  const agentPerformance = workflows.map((wf) => {
+    const stats = runsByWorkflow.get(wf.id)!;
+    const successRate = stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 1000) / 10 : 0;
+    const avgMs = stats.total > 0 ? Math.round(stats.totalMs / stats.total) : 0;
+    const avgTime = avgMs >= 1000 ? `${(avgMs / 1000).toFixed(1)}s` : `${avgMs}ms`;
+    return { name: wf.name, runs: stats.total, success: successRate, avgTime };
+  }).sort((a, b) => b.runs - a.runs).slice(0, 10);
+
   return {
-    revenue: { current: revenue || 48250, trend: [38,42,41,55,52,62,58,71,68,78,82,Math.round((revenue || 48250) / 1000)] },
-    pipeline: { value: pipeline || 182400, trend: [120,130,118,145,140,160,155,175,170,185,195,Math.round((pipeline || 182400) / 1000)] },
-    contacts: { total: totalContacts || 2847 },
+    revenue: { current: revenue, trend: revenueTrend },
+    pipeline: { value: pipeline },
+    contacts: { total: totalContacts },
     pipeline_stages: stageGroups,
     campaigns: allCampaigns.map((c) => {
       const metrics = (c as any).metricsJson ? JSON.parse((c as any).metricsJson) : {};
       const audience = (c as any).audienceJson ? JSON.parse((c as any).audienceJson) : {};
-      return { name: c.name, sent: audience.count || 0, opens: metrics.openRate || 0, clicks: metrics.clickRate || 0, conversions: metrics.conversionRate || 0 };
+      return { name: c.name, sent: audience.count ?? 0, opens: metrics.openRate ?? 0, clicks: metrics.clickRate ?? 0, conversions: metrics.conversionRate ?? 0 };
     }),
-    // Note: agentPerformance is real-data TODO — keeping stub for now
-    agentPerformance: [
-      { name: 'Lead Scorer', runs: 1420, success: 98.2, avgTime: '1.2s', credits: 2840 },
-      { name: 'Email Drafter', runs: 842, success: 96.8, avgTime: '3.4s', credits: 5890 },
-      { name: 'SEO Analyzer', runs: 320, success: 94.1, avgTime: '12.1s', credits: 9600 },
-      { name: 'Sentiment Tagger', runs: 2100, success: 99.1, avgTime: '0.8s', credits: 1680 },
-    ],
+    agentPerformance,
   };
 }
 
@@ -74,14 +115,14 @@ export async function createCampaign(workspaceId: string, data: any) {
   });
 }
 
-export async function updateCampaign(id: string, data: any) {
+export async function updateCampaign(id: string, workspaceId: string, data: any) {
   const { id: _id, workspaceId: _ws, ...rest } = data;
   if (rest.scheduledFor) rest.scheduledFor = new Date(rest.scheduledFor);
-  return db.campaign.update({ where: { id }, data: rest });
+  return db.campaign.update({ where: { id, workspaceId }, data: rest });
 }
 
-export async function deleteCampaign(id: string) {
-  await db.campaign.delete({ where: { id } }).catch(() => {});
+export async function deleteCampaign(id: string, workspaceId: string) {
+  await db.campaign.delete({ where: { id, workspaceId } }).catch(() => {});
 }
 
 export async function sendCampaign(id: string, workspaceId: string) {
@@ -241,12 +282,12 @@ export async function updateForm(id: string, data: any) {
 export async function listConversations(workspaceId: string) {
   const where = {
     workspaceId,
-    // Only show conversations that are linked to a CRM contact OR that
-    // the workspace user initiated / replied to (has at least one outbound message).
+    // Only show conversations that are linked to a CRM contact OR that the
+    // workspace user has replied to (at least one outbound message).
     // This prevents random inbound emails from strangers flooding the inbox.
     OR: [
       { contactId: { not: null } },
-      { messages: { some: {} } },
+      { messages: { some: { direction: 'outbound' } } },
     ],
   };
   const include = {

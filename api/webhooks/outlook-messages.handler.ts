@@ -22,14 +22,14 @@ export async function outlookWebhookHandler(req: Request, res: Response): Promis
       const conn = await db.channelConnection.findUnique({ where: { id: connectionId } });
       if (!conn?.isActive) continue;
 
-      const { decryptJson } = await import('../services/channels/encryption.js');
-      const creds = decryptJson<{ access_token: string; refresh_token: string; expires_at: number }>(
-        conn.credentialsJson
-      );
+      // Use getToken() which checks expiry and refreshes automatically.
+      // Reading creds.access_token directly would silently break after 1 hour.
+      const { getToken } = await import('../services/channels/outlook.service.js');
+      const accessToken = await getToken(connectionId);
 
       const msgRes = await axios.get(
         `https://graph.microsoft.com/v1.0/me/messages/${notification.resourceData?.id}`,
-        { headers: { Authorization: `Bearer ${creds.access_token}` } }
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       ).catch(() => null);
 
       if (!msgRes) continue;

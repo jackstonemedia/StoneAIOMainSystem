@@ -6,9 +6,7 @@
  */
 
 import Queue from 'bull';
-import cron from 'node-cron';
 import { db } from '../../infrastructure/database/client.js';
-import { decryptJson } from './channels/encryption.js';
 import { sendGmailMessage } from './channels/gmail.service.js';
 
 // ── Queue Setup ──────────────────────────────────────────────────────────────
@@ -28,12 +26,11 @@ async function sendEmail(to: string, subject: string, body: string, html: boolea
   // Try Gmail first
   if (process.env.GMAIL_CLIENT_ID) {
     const gmailConn = await db.channelConnection.findFirst({
-      where: { workspaceId, type: 'gmail', status: 'connected', isActive: true },
+      where: { workspaceId, provider: 'gmail', isActive: true },
     }).catch(() => null);
 
     if (gmailConn?.credentialsJson) {
       try {
-        const creds = decryptJson<{ accessToken?: string; refreshToken?: string }>(gmailConn.credentialsJson as string);
         const result = await sendGmailMessage(
           gmailConn.id,
           to,
@@ -55,7 +52,7 @@ async function sendEmail(to: string, subject: string, body: string, html: boolea
       const Resend = (await import('resend')).Resend;
       const resend = new Resend(process.env.RESEND_API_KEY);
       const { data, error } = await resend.emails.send({
-        from: 'info@stoneaio.com', // TODO: configurable sender
+        from: process.env.RESEND_FROM_EMAIL || 'noreply@stoneaio.com',
         to: [to],
         subject,
         ...(html ? { html: body } : { text: body }),
@@ -101,8 +98,7 @@ export function initializeCampaignQueue(): void {
             contactId: contactId || undefined,
             type: 'email_sent',
             title: 'Campaign email sent',
-            content: `${email} - ${subject}`,
-            metadataJson: JSON.stringify({ campaignId, provider: result.provider }),
+            notes: `${email} - ${subject}`,
           },
         }).catch(() => {});
 
@@ -172,23 +168,24 @@ export async function queueCampaign(id: string, workspaceId: string): Promise<{ 
   for (const contact of contacts) {
     // Personalize subject/body with contact name
     let subject = campaign.subject || 'No subject';
-    let body = campaign.body || '';
+    let body = campaign.content || '';
+    const contactEmail = contact.email ?? '';
 
     // Simple template substitution
     subject = subject.replace(/\{\{first_name\}\}/gi, contact.firstName || 'there');
     subject = subject.replace(/\{\{last_name\}\}/gi, contact.lastName || '');
-    subject = subject.replace(/\{\{email\}\}/gi, contact.email);
+    subject = subject.replace(/\{\{email\}\}/gi, contactEmail);
     body = body.replace(/\{\{first_name\}\}/gi, contact.firstName || 'there');
     body = body.replace(/\{\{last_name\}\}/gi, contact.lastName || '');
-    body = body.replace(/\{\{email\}\}/gi, contact.email);
+    body = body.replace(/\{\{email\}\}/gi, contactEmail);
 
     await campaignQueue.add({
       campaignId: id,
       workspaceId,
-      email: contact.email,
+      email: contactEmail,
       subject,
       body,
-      html: campaign.html !== false,
+      html: true,
       contactId: contact.id,
     }, {
       attempts: 3,

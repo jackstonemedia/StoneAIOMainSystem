@@ -21,6 +21,7 @@ import { communicationSendSms } from './communication-send-sms.js';
 import { logicIfElse } from './logic-if-else.js';
 import { logicWait } from './logic-wait.js';
 import { logicTransform } from './logic-transform.js';
+import { logicLoop } from './logic-loop.js';
 
 // ── AI nodes ───────────────────────────────────────────────────────────────────
 import { aiLlm } from './ai-llm.js';
@@ -53,6 +54,7 @@ export function registerAllNodes(): void {
   nodeRegistry.register(logicIfElse);
   nodeRegistry.register(logicWait);
   nodeRegistry.register(logicTransform);
+  nodeRegistry.register(logicLoop);
 
   // AI
   nodeRegistry.register(aiLlm);

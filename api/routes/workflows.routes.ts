@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { db } from '../infrastructure/database/client.js';
+import crypto from 'crypto';
+import { db } from '../../infrastructure/database/client.js';
+import { nodeRegistry } from '../services/workflow-engine/node-runner.js';
 
 const router = Router();
 
@@ -13,7 +15,7 @@ const router = Router();
 // GET /api/workflows — List all workflows for workspace
 router.get('/', async (req, res) => {
   try {
-    const { status, triggerType, search, cursor, limit = '20' } = req.query as Record<string, string>;
+    const { status, triggerType, search, limit = '20' } = req.query as Record<string, string>;
 
     const where: any = { workspaceId: req.workspaceId };
     if (status) where.status = status;
@@ -167,7 +169,7 @@ router.post('/webhooks/:webhookId/test', async (req, res) => {
     });
     if (!hook) return res.status(404).json({ error: 'Not found' });
     
-    const { queueService } = await import('./services/workflow-engine/queue.service.js');
+    const { queueService } = await import('../services/workflow-engine/queue.service.js');
     await queueService.enqueue({
       workspaceId: req.workspaceId!,
       workflowId: hook.workflowId,
@@ -196,15 +198,19 @@ router.post('/credentials', async (req, res) => {
     const { name, type, data } = req.body;
     
     // Encrypt data
+    if (!process.env.ENCRYPTION_KEY && !process.env.CHANNEL_ENCRYPTION_KEY) {
+      return res.status(500).json({ error: 'No encryption key configured. Set CHANNEL_ENCRYPTION_KEY in your environment.' });
+    }
+    const rawKey = (process.env.CHANNEL_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY)!;
     const algorithm = 'aes-256-cbc';
-    const key = Buffer.from((process.env.ENCRYPTION_KEY || '12345678901234567890123456789012').substring(0, 32));
+    const key = Buffer.from(rawKey.substring(0, 32));
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(algorithm, key, iv);
     let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const encryptedData = `${iv.toString('hex')}:${encrypted}`;
     
-    const cred = await (db as any).workflowCredential?.create({
+    const cred = await db.workflowCredential.create({
       data: {
         workspaceId: req.workspaceId,
         name,
@@ -219,7 +225,7 @@ router.post('/credentials', async (req, res) => {
 // DELETE /api/workflows/credentials/:id
 router.delete('/credentials/:id', async (req, res) => {
   try {
-    await (db as any).workflowCredential?.delete({
+    await db.workflowCredential.delete({
       where: { id: req.params.id, workspaceId: req.workspaceId }
     });
     res.json({ success: true });
@@ -227,10 +233,10 @@ router.delete('/credentials/:id', async (req, res) => {
 });
 
 // GET /api/workflows/templates
-router.get('/templates', async (req, res) => {
+router.get('/templates', async (_req, res) => {
   try {
     const templates = await db.workflow.findMany({
-      where: { isSystem: true, status: 'published' }
+      where: { status: 'published' }
     });
     res.json(templates);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -311,7 +317,7 @@ router.put('/:id', async (req, res) => {
       where: { id: req.params.id, workspaceId: req.workspaceId },
     });
 
-    const { name, description, trigger, tags } = req.body;
+    const { name, description, tags } = req.body;
 
     // Update local record
     const updated = await db.workflow.update({
@@ -389,8 +395,6 @@ router.patch('/:id/folder', async (req, res) => {
 // NATIVE ENGINE ROUTES
 // ═════════════════════════════════════════════════════════════════════════════
 
-import { nodeRegistry } from './services/workflow-engine/node-runner.js';
-import crypto from 'crypto';
 
 // GET /api/workflows/:id/definition — Native workflow definition
 router.get('/:id/definition', async (req, res) => {
@@ -476,7 +480,7 @@ router.post('/:id/publish-native', async (req, res) => {
     });
     
     // Reload schedules
-    const { schedulerService } = await import('./services/workflow-engine/scheduler.service.js');
+    const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
     await schedulerService.initialize();
     
     res.json({ success: true, status: 'published' });
@@ -494,7 +498,7 @@ router.post('/:id/pause-native', async (req, res) => {
     });
     
     // Reload schedules
-    const { schedulerService } = await import('./services/workflow-engine/scheduler.service.js');
+    const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
     await schedulerService.initialize();
     
     res.json({ success: true, status: 'paused' });
@@ -506,7 +510,7 @@ router.post('/:id/pause-native', async (req, res) => {
 // POST /api/workflows/:id/test-native
 router.post('/:id/test-native', async (req, res) => {
   try {
-    const { queueService } = await import('./services/workflow-engine/queue.service.js');
+    const { queueService } = await import('../services/workflow-engine/queue.service.js');
     const runId = await queueService.enqueue({
       workspaceId: req.workspaceId!,
       workflowId: req.params.id,
@@ -523,7 +527,7 @@ router.post('/:id/test-native', async (req, res) => {
 // POST /api/workflows/:id/test-node
 router.post('/:id/test-node', async (req, res) => {
   try {
-    const { engineService } = await import('./services/workflow-engine/engine.service.js');
+    const { engineService } = await import('../services/workflow-engine/engine.service.js');
     const { nodeId, inputItems } = req.body;
     
     const def = await db.nativeWorkflowDefinition.findUniqueOrThrow({
@@ -535,16 +539,15 @@ router.post('/:id/test-node', async (req, res) => {
     if (!targetNode) throw new Error('Node not found');
     
     const start = Date.now();
-    const result = await engineService.testNode(targetNode, inputItems || [{}], {
+    const output = await engineService.testNode({
       workspaceId: req.workspaceId!,
       workflowId: req.params.id,
-      runId: 'test_node_run',
-      triggerData: {},
-      variables: {},
-      mode: 'test'
+      nodeId,
+      inputItems: inputItems || [{ json: {} }],
+      userId: req.userId ?? 'unknown',
     });
     
-    res.json({ output: result.output, duration: Date.now() - start });
+    res.json({ output, duration: Date.now() - start });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

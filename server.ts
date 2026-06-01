@@ -1,33 +1,35 @@
 /**
  * Stone AIO — Server Bootstrap
  *
- * This file is intentionally slim: ~60 lines.
- * All route logic lives in api/routes/*.routes.ts
- * All API modules live in api/*.ts
- * Infrastructure lives in infrastructure/
+ * Route logic:      api/routes/*.routes.ts
+ * Business logic:   api/services/*.service.ts
+ * Middleware:       api/middleware/*.ts
+ * Webhooks:         api/webhooks/*.handler.ts
+ * Infrastructure:   infrastructure/
  */
 
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 
-// ── Route modules (split from api/*.ts) ──────────────────────────────────────
-import crmRouter        from './api/routes/crm.routes.js';
-import businessRouter   from './api/routes/business.routes.js';
-import settingsRouter   from './api/routes/settings.routes.js';
+// ── Route modules (api/routes/*.routes.ts) ───────────────────────────────────
+import crmRouter           from './api/routes/crm.routes.js';
+import businessRouter      from './api/routes/business.routes.js';
+import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
-import billingRouter    from './api/routes/billing.routes.js';
-import workflowRouter   from './api/workflows.js';
-import tablesRouter     from './api/tables.js';
-
-// ── API feature modules ───────────────────────────────────────────────────────
-import workflowAiRouter   from './api/workflow-ai.js';
-import chatRouter         from './api/chat.js';
-import agentsRouter       from './api/agents.js';
-import voiceAgentsRouter  from './api/voice-agents.js';
-import crmActionsRouter   from './api/crm-actions.js';
-import integrationsRouter from './api/integrations.js';
-import { releasesRouter } from './api/releases.js';
+import billingRouter       from './api/routes/billing.routes.js';
+import workflowRouter      from './api/routes/workflows.routes.js';
+import tablesRouter        from './api/routes/tables.routes.js';
+import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
+import chatRouter          from './api/routes/chat.routes.js';
+import agentsRouter        from './api/routes/agents.routes.js';
+import voiceAgentsRouter   from './api/routes/voice-agents.routes.js';
+import crmActionsRouter    from './api/routes/crm-actions.routes.js';
+import integrationsRouter  from './api/routes/integrations.routes.js';
+import { releasesRouter }  from './api/routes/releases.routes.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -50,11 +52,24 @@ import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/
 import { queueService } from './api/services/workflow-engine/queue.service.js';
 import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
 import { initializeCampaignQueue } from './api/services/campaign-engine.js';
-import { initializeSequenceWorker } from './api/services/sequence-engine.js';
 
 async function startServer() {
   const app = express();
+
+  // ── Security + perf middleware ────────────────────────────────────────────
+  app.use(helmet({ contentSecurityPolicy: false })); // CSP handled by Vite in dev
+  app.use(compression());
   app.use(express.json());
+
+  // ── Rate limiting — 300 req / 1 min per IP (generous for a platform API) ─
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again in a minute.' },
+  });
+  app.use('/api', apiLimiter);
 
   // ── Health ───────────────────────────────────────────────────────────────
   app.get('/api/health', async (_req, res) => {
@@ -75,15 +90,18 @@ async function startServer() {
   // These routes receive requests from Twilio, Microsoft, and Meta that do NOT
   // carry a Clerk JWT. Workspace is resolved from the payload inside each handler.
 
-  // Native workflow engine webhooks (existing)
-  app.all('/api/hooks/*', webhookHandler);
-
-  // Twilio inbound SMS — uses urlencoded body parser (NOT global json parser)
+  // Twilio inbound SMS — MUST be before the wildcard app.all below.
+  // Uses urlencoded body parser (NOT global json parser).
   app.post('/api/hooks/twilio-sms', express.urlencoded({ extended: false }), twilioSmsHandler);
 
-  // Outlook push notifications (POST = events, GET = validation challenge)
+  // Outlook push notifications — MUST be before the wildcard app.all below.
+  // POST = events, GET = Microsoft validation challenge.
   app.post('/api/hooks/outlook-messages', outlookWebhookHandler);
   app.get('/api/hooks/outlook-messages', outlookWebhookHandler);
+
+  // Native workflow engine webhooks — wildcard MUST come last so specific
+  // handlers above are not intercepted and killed with a 404.
+  app.all('/api/hooks/*', webhookHandler);
 
   // Meta (Facebook/Instagram) webhook
   // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
@@ -174,7 +192,6 @@ async function startServer() {
   // ── Domain routes ─────────────────────────────────────────────────────────
   app.use('/api/crm',            crmRouter);
   app.use('/api/business',       businessRouter);
-  app.use('/api/business/analytics', businessRouter); // analytics sub-path
   app.use('/api/settings',       settingsRouter);
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api',                billingRouter); // stripe + public forms
@@ -232,13 +249,6 @@ async function startServer() {
       console.error('❌ Failed to initialize Campaign Queue:', e.message);
     }
 
-    // ── Sequence Worker ────────────────────────────────────────────────────
-    try {
-      initializeSequenceWorker(60_000); // check every 60s
-    } catch (e: any) {
-      console.error('❌ Failed to initialize Sequence Worker:', e.message);
-    }
-
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────
     initRealtime();
 
@@ -286,3 +296,22 @@ async function startServer() {
 }
 
 startServer();
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+// Ensures in-flight workflow runs, Redis connections, and DB pool are closed
+// cleanly on SIGTERM (deployment rollover) or SIGINT (Ctrl+C in dev).
+async function shutdown(signal: string) {
+  console.log(`[${signal}] Graceful shutdown initiated…`);
+  try {
+    const { queueService: qs } = await import('./api/services/workflow-engine/queue.service.js');
+    if ((qs as any).queue) await (qs as any).queue.close();
+  } catch { /* queue may not be initialized */ }
+  try {
+    const { db: prisma } = await import('./infrastructure/database/client.js');
+    await prisma.$disconnect();
+  } catch { /* ignore */ }
+  console.log('[shutdown] Done. Exiting.');
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));

@@ -4,7 +4,7 @@ import {
   Plus, Search, Filter, MoreHorizontal, ArrowUpRight, 
   Play, Pause, Trash2, Clock, CheckCircle2, AlertCircle, Zap
 } from 'lucide-react';
-import { useWorkflows, useDeleteWorkflow } from '../hooks/useWorkflows';
+import { useWorkflows, useDeleteWorkflow, useCreateWorkflow } from '../hooks/useWorkflows';
 import { useToast } from '../components/ui/Toast';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -23,6 +23,7 @@ export default function Workflows() {
   const [search, setSearch] = useState('');
   const { data: workflows = [], isLoading } = useWorkflows();
   const deleteWorkflow = useDeleteWorkflow();
+  const createWorkflow = useCreateWorkflow();
   
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
 
@@ -49,7 +50,18 @@ export default function Workflows() {
           <p className="text-sm text-text-muted mt-1">Build event-driven sequences and autonomous agents to run your business.</p>
         </div>
         <button
-          onClick={() => navigate('/workflows/new/builder')}
+          onClick={async () => {
+            try {
+              const wf: any = await createWorkflow.mutateAsync({ name: 'Untitled Workflow' });
+              if (wf?.id) {
+                navigate(`/automations/${wf.id}`);
+              } else {
+                toast('error', 'Failed to create workflow');
+              }
+            } catch (e: any) {
+              toast('error', e?.message || 'Failed to create workflow');
+            }
+          }}
           className="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 shadow-sm"
         >
           <Plus className="w-4 h-4" />
@@ -118,7 +130,7 @@ export default function Workflows() {
                     return (
                       <tr 
                         key={workflow.id} 
-                        onClick={() => navigate(`/workflows/${workflow.id}/builder`)}
+                        onClick={() => navigate(`/automations/${workflow.id}`)}
                         className="group hover:bg-bg/50 transition-colors cursor-pointer"
                       >
                         <td className="px-6 py-4">
@@ -157,7 +169,7 @@ export default function Workflows() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                             <button 
-                              onClick={() => navigate(`/workflows/${workflow.id}/builder`)}
+                              onClick={() => navigate(`/automations/${workflow.id}`)}
                               className="p-1.5 text-text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                               title="Edit Workflow"
                             >

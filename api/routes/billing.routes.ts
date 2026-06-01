@@ -4,9 +4,13 @@ import Stripe from 'stripe';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
-  apiVersion: '2026-04-22.dahlia' as any,
-});
+
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('Stripe is not configured. Set STRIPE_SECRET_KEY.');
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' as any });
+}
 
 // Public form submission (no auth)
 router.post('/forms/:id/submit', async (req, res) => {
@@ -49,7 +53,7 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
     const { amount, dealId } = req.body;
     if (!amount) return res.status(400).json({ error: 'Amount is required' });
 
-    let contactEmail = 'customer@example.com';
+    let contactEmail: string | null = null;
     let deal = null;
 
     if (dealId) {
@@ -57,18 +61,14 @@ router.post('/stripe/create-payment-intent', async (req, res) => {
         where: { id: dealId },
         include: { contact: true }
       });
-      if (deal?.contact?.email) {
-        contactEmail = deal.contact.email;
-      }
+      if (deal?.contact?.email) contactEmail = deal.contact.email;
     }
 
-    if (!process.env.STRIPE_SECRET_KEY) {
-      // Mock mode if no key provided
-      return res.json({ 
-        success: true, 
-        message: 'Mock invoice sent (No Stripe key configured)' 
-      });
+    if (!contactEmail) {
+      return res.status(400).json({ error: 'No contact email found. Link a contact with an email to this deal.' });
     }
+
+    const stripe = getStripe();
 
     // 1. Create or retrieve customer
     const customer = await stripe.customers.create({
@@ -113,7 +113,7 @@ router.post('/stripe/webhook', async (req, res) => {
     if (endpointSecret && sig) {
       // requires body parser as raw buffer, but express.json() is used globally.
       // Assuming we handle raw body via a middleware or skipping signature in dev for now
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      event = getStripe().webhooks.constructEvent(req.body, sig, endpointSecret);
     } else {
       event = req.body;
     }

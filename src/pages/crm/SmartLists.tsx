@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Search, Plus, Filter, Download, MoreVertical, 
+  Search, Plus, Filter, Download,
   Settings, ChevronDown, Check, Edit2, Trash2, List as ListIcon, X,
   Table2, LayoutGrid, Columns, Eye, EyeOff
 } from 'lucide-react';
@@ -162,16 +162,16 @@ export default function SmartLists() {
       {/* Unified Toolbar */}
       <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer text-text-main bg-bg border border-border shadow-sm">
-            <ListIcon className="w-4 h-4 text-primary" />
-            <span className="text-[13px] font-bold">All Lists</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer text-text-main bg-surface-hover border border-border text-[13px] font-medium">
+            <ListIcon className="w-3.5 h-3.5 text-primary" />
+            <span>All Lists</span>
           </div>
-          <div className="w-[1px] h-5 bg-border mx-2"></div>
-          <button className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm ml-1">
-            <Filter className="w-3.5 h-3.5" /> Filter Views
+          <div className="w-[1px] h-5 bg-border mx-2" />
+          <button className="btn-secondary">
+            <Filter className="w-4 h-4" /> Filter Views
           </button>
-          <button className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm">
-            <ChevronDown className="w-3.5 h-3.5" /> Sort
+          <button className="btn-secondary">
+            <ChevronDown className="w-4 h-4" /> Sort
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -185,43 +185,23 @@ export default function SmartLists() {
               className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
             />
           </div>
-          <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+          <button className="btn-secondary">
             <Download className="w-4 h-4" /> Export
           </button>
-          <button onClick={() => { resetPanel(); setPanelOpen(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-[4px] border border-border text-[13px] font-medium text-text-muted hover:text-text-main transition-colors active:scale-95 shadow-sm bg-surface">
+          <button onClick={() => { resetPanel(); setPanelOpen(true); }} className="btn-primary">
             <Plus className="w-4 h-4" /> Create Smart List
           </button>
-          <div className="w-[1px] h-5 bg-border mx-1"></div>
-          <div className="relative flex items-center gap-2">
-            <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-[4px] bg-surface shadow-sm">
-              <Settings className="w-4 h-4" /> Manage columns
-            </button>
-            <div className="relative">
-              <button className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-[4px] transition-colors border border-border bg-surface shadow-sm">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          <div className="w-[1px] h-5 bg-border mx-1" />
+          <button className="btn-secondary">
+            <Settings className="w-4 h-4" /> Manage columns
+          </button>
         </div>
       </div>
 
       {/* Table Content */}
       <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5">
         {lists.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-20 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-primary/5 border border-primary/20 flex items-center justify-center mb-4">
-              <ListIcon className="w-7 h-7 text-primary" />
-            </div>
-            <h3 className="text-[15px] font-bold text-text-main mb-1">No Smart Lists yet</h3>
-            <p className="text-[13px] text-text-muted mb-5">Create your first smart list to segment your contacts.</p>
-            <button
-              onClick={() => setPanelOpen(true)}
-              className="flex items-center gap-2 px-5 py-2 text-white rounded-xl text-[13px] font-semibold shadow-sm"
-              style={{ backgroundColor: 'var(--primary)' }}
-            >
-              <Plus className="w-4 h-4" /> Create Smart List
-            </button>
-          </div>
+          <div className="py-24" />
         ) : (
           <table className="w-full text-left">
             <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">

@@ -1,15 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { getAIClient, DEFAULT_MODEL } from '../packages/ai/client.js';
-import { WORKFLOW_SYSTEM_PROMPT } from '../packages/ai/prompts/workflow-gen.v1.js';
+import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
+import { WORKFLOW_SYSTEM_PROMPT } from '../../packages/ai/prompts/workflow-gen.v1.js';
 
 const router = Router();
-
-
 
 router.post('/generate', async (req: Request, res: Response) => {
   try {
     const { prompt, existingWorkflow, apiKey } = req.body;
-    
+
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
@@ -33,11 +31,9 @@ router.post('/generate', async (req: Request, res: Response) => {
     });
 
     const text = response.text || '';
-    
-    // Extract JSON from response
+
     const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
     if (!jsonMatch) {
-      // Try parsing the entire response as JSON
       try {
         const parsed = JSON.parse(text);
         return res.json(parsed);
@@ -48,13 +44,9 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     const workflow = JSON.parse(jsonMatch[1]);
     return res.json(workflow);
-
   } catch (error: any) {
     console.error('Workflow AI error:', error);
-    return res.status(500).json({ 
-      error: 'Generation failed', 
-      message: error.message || 'Unknown error' 
-    });
+    return res.status(500).json({ error: 'Generation failed', message: error.message || 'Unknown error' });
   }
 });
 

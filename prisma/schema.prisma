@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -640,7 +641,7 @@ model Sequence {
   workspaceId String               @map("workspace_id")
   name        String
   status      String               @default("active")
-  stepsJson   String?              @map("steps_json")   -- JSON array of SequenceStepDef
+  stepsJson   String?              @map("steps_json")
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
   workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -656,7 +657,7 @@ model SequenceEnrollment {
   status        String    @default("active")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   completedAt   DateTime? @map("completed_at")
-  sequenceData  String?   @map("sequence_data")  -- EnrollmentProgress JSON
+  sequenceData  String?   @map("sequence_data")
 
   sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)

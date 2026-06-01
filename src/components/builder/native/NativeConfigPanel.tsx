@@ -30,10 +30,7 @@ export function NativeConfigPanel({
   const handleChange = (field: string, value: any) => {
     setLocalNode((prev: any) => ({
       ...prev,
-      data: {
-        ...prev.data,
-        config: { ...prev.data.config, [field]: value }
-      }
+      config: { ...(prev.config || {}), [field]: value },
     }));
   };
 
@@ -52,8 +49,11 @@ export function NativeConfigPanel({
       setIsTesting(false);
     }
   };
-
-  const schemaProps = Object.entries(nodeImpl?.configSchema?.properties || {});
+  
+  // Native engine nodes expose configSchema as NodeConfigField[] from the backend
+  const configFields: any[] = Array.isArray(nodeImpl?.configSchema)
+    ? (nodeImpl.configSchema as any[])
+    : [];
 
   return (
     <div className="w-96 border-l border-border bg-surface flex flex-col h-full z-10 shrink-0">
@@ -97,32 +97,39 @@ export function NativeConfigPanel({
         <div className="space-y-4">
           <h4 className="text-xs font-semibold text-text-main uppercase tracking-wider border-b border-border pb-1">Configuration</h4>
           
-          {schemaProps.length === 0 ? (
+          {configFields.length === 0 ? (
             <p className="text-xs text-text-muted">No configuration required for this node.</p>
           ) : (
-            schemaProps.map(([key, prop]: [string, any]) => {
-              const value = localNode.data?.config?.[key] ?? prop.default ?? '';
-              
-              if (prop.enum) {
+            configFields.map((field: any) => {
+              const key = field.key as string;
+              const label = field.label || key;
+              const fieldType = field.type as string;
+              const value = (localNode.config && localNode.config[key] !== undefined)
+                ? localNode.config[key]
+                : field.default ?? '';
+
+              // Select / multiselect
+              if (fieldType === 'select' && Array.isArray(field.options)) {
                 return (
                   <div key={key} className="space-y-1.5">
-                    <label className="text-xs font-medium text-text-main">{prop.title || key}</label>
+                    <label className="text-xs font-medium text-text-main">{label}</label>
                     <select
                       value={value}
                       onChange={(e) => handleChange(key, e.target.value)}
                       className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary"
                     >
                       <option value="">Select option...</option>
-                      {prop.enum.map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
+                      {field.options.map((opt: any) => (
+                        <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
-                    {prop.description && <p className="text-[10px] text-text-muted">{prop.description}</p>}
+                    {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
                   </div>
                 );
               }
 
-              if (prop.type === 'boolean') {
+              // Boolean toggle
+              if (fieldType === 'boolean') {
                 return (
                   <div key={key} className="flex items-center gap-2">
                     <input
@@ -132,22 +139,34 @@ export function NativeConfigPanel({
                       onChange={(e) => handleChange(key, e.target.checked)}
                       className="rounded border-border text-primary focus:ring-primary bg-bg"
                     />
-                    <label htmlFor={key} className="text-xs font-medium text-text-main">{prop.title || key}</label>
+                    <label htmlFor={key} className="text-xs font-medium text-text-main">{label}</label>
                   </div>
                 );
               }
-              
+
+              // Text / textarea / other simple inputs
+              const isTextArea = fieldType === 'textarea' || fieldType === 'code' || fieldType === 'json';
+
               return (
                 <div key={key} className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-main">{prop.title || key}</label>
-                  <input
-                    type={prop.type === 'number' ? 'number' : 'text'}
-                    value={value}
-                    onChange={(e) => handleChange(key, prop.type === 'number' ? Number(e.target.value) : e.target.value)}
-                    placeholder={prop.default ? `Default: ${prop.default}` : ''}
-                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary font-mono"
-                  />
-                  {prop.description && <p className="text-[10px] text-text-muted">{prop.description}</p>}
+                  <label className="text-xs font-medium text-text-main">{label}</label>
+                  {isTextArea ? (
+                    <textarea
+                      value={value}
+                      onChange={(e) => handleChange(key, e.target.value)}
+                      placeholder={field.default ? `Default: ${field.default}` : ''}
+                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px]"
+                    />
+                  ) : (
+                    <input
+                      type={fieldType === 'number' ? 'number' : 'text'}
+                      value={value}
+                      onChange={(e) => handleChange(key, fieldType === 'number' ? Number(e.target.value) : e.target.value)}
+                      placeholder={field.default ? `Default: ${field.default}` : ''}
+                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary font-mono"
+                    />
+                  )}
+                  {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
                 </div>
               );
             })

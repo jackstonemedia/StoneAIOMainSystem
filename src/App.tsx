@@ -9,7 +9,6 @@ import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/cle
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from './components/ui/Toast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-import PageLoader from './components/common/PageLoader';
 import { AuthTokenProvider } from './lib/AuthTokenProvider';
 import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
 
@@ -49,7 +48,6 @@ const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboar
 const Campaigns           = lazy(() => import('./pages/business/Campaigns'));
 const Calendar            = lazy(() => import('./pages/business/Calendar'));
 const Forms               = lazy(() => import('./pages/business/Forms'));
-const Sequences           = lazy(() => import('./pages/business/Sequences'));
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
 const Reputation          = lazy(() => import('./pages/business/Reputation'));
 const ConversationsLayout = lazy(() => import('./pages/business/conversations/ConversationsLayout'));
@@ -99,7 +97,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
   return (
     <ErrorBoundary>
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <Routes>
           {/* ── Public ─────────────────────────────────────────────────────── */}
           <Route path="/"           element={<Landing />} />
@@ -156,7 +154,6 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<BusinessDashboard />} />
               <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
-              <Route path="sequences"   element={<ErrorBoundary><Sequences /></ErrorBoundary>} />
               <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
               <Route path="forms"       element={<ErrorBoundary><Forms /></ErrorBoundary>} />
               <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />

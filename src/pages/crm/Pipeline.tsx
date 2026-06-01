@@ -156,7 +156,7 @@ export default function Opportunities() {
               <div className="relative">
                 <button
                   onClick={() => setSortDropOpen(o => !o)}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
+                  className="btn-secondary"
                 >
                   <ChevronDown className="w-4 h-4" /> Sort
                 </button>

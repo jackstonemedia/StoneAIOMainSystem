@@ -583,14 +583,15 @@
   .btn-primary {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
     background: var(--text-main);
     color: var(--bg);
-    border-radius: 9px;
-    font-size: 13.5px;
+    border-radius: 8px;
+    font-size: 13px;
     font-weight: 600;
-    border: none;
+    border: 1px solid transparent;
     cursor: pointer;
     position: relative;
     overflow: hidden;
@@ -608,12 +609,13 @@
   .btn-secondary {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 9px 18px;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
     background: var(--surface);
     color: var(--text-main);
-    border-radius: 9px;
-    font-size: 13.5px;
+    border-radius: 8px;
+    font-size: 13px;
     font-weight: 500;
     border: 1px solid var(--border);
     cursor: pointer;
@@ -738,6 +740,11 @@
   @keyframes shimmer {
     0%   { background-position: 200% 0;  }
     100% { background-position: -200% 0; }
+  }
+
+  @keyframes appShellFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
 
   @keyframes fade-up {

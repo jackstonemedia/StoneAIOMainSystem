@@ -2,8 +2,8 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 
 const workspaceNav = [
-  { to: 'pipeline',    label: 'Opportunities' },
   { to: 'contacts',    label: 'Contacts' },
+  { to: 'pipeline',    label: 'Opportunities' },
   { to: 'companies',   label: 'Companies' },
   { to: 'tasks',       label: 'Tasks' },
   { to: 'smart-lists', label: 'Smart Lists' },

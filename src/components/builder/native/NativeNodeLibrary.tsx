@@ -27,7 +27,7 @@ export function NativeNodeLibrary({ onAddNode }: { onAddNode: (nodeImpl: any) =>
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    apiClient.get('/api/workflows/nodes/catalog')
+    apiClient.get('/workflows/nodes/catalog')
       .then(res => setCatalog(res.data))
       .catch(console.error)
       .finally(() => setIsLoading(false));

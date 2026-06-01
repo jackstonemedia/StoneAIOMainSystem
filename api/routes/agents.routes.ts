@@ -4,15 +4,12 @@
  * Execution transport (SSE) is kept here as it deals directly with the response stream.
  */
 import { Router } from 'express';
-import * as agentsService from './services/agents.service.js';
+import { db } from '../../infrastructure/database/client.js';
+import * as agentsService from '../services/agents.service.js';
 
 const router = Router();
-console.log('📦 Loading Agents API Router...');
 
-router.get('/ping', (_req, res) => {
-  console.log('🏓 Pong!');
-  res.send('pong');
-});
+router.get('/ping', (_req, res) => res.send('pong'));
 
 // ── Agent CRUD ────────────────────────────────────────────────────────────────
 
@@ -37,7 +34,6 @@ router.get('/:id', async (req, res) => {
   try {
     const agent = await agentsService.getAgent(req.params.id);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    // Parse config from JSON string → object so the frontend receives a typed object
     let parsedConfig: Record<string, unknown> = {};
     try { parsedConfig = JSON.parse(agent.config as string); } catch { /* keep empty */ }
     res.json({ ...agent, config: parsedConfig });
@@ -46,7 +42,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── Partial update (status toggle, name rename, etc.) ─────────────────────────
 router.patch('/:id', async (req, res) => {
   try {
     const agent = await agentsService.updateAgent(req.params.id, req.body);
@@ -57,7 +52,6 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ── Delete agent ──────────────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
     await agentsService.deleteAgent(req.params.id);
@@ -71,7 +65,6 @@ router.delete('/:id', async (req, res) => {
 // ── Execution run history ─────────────────────────────────────────────────────
 router.get('/:id/runs', async (req, res) => {
   try {
-    const { db } = await import('../infrastructure/database/client.js');
     const runs = await db.agentRun.findMany({
       where: { agentId: req.params.id },
       include: { steps: { orderBy: { startedAt: 'asc' } } },
@@ -102,7 +95,7 @@ router.post('/:id/run', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  const sendEvent = (data: any) => {
+  const sendEvent = (data: unknown) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
@@ -154,19 +147,18 @@ router.post('/:id/run', async (req, res) => {
       return res.end();
     }
 
-    // Sequential Execution
     const context: Record<string, any> = {};
 
     for (const nodeId of executionOrder) {
       const node = nodeMap[nodeId];
       const nodeDefId = node.data?.nodeDefId || node.type;
-      
-      sendEvent({ 
-        type: 'log', 
-        nodeId, 
-        status: 'running', 
+
+      sendEvent({
+        type: 'log',
+        nodeId,
+        status: 'running',
         time: new Date().toLocaleTimeString(),
-        message: `Executing [${node.data?.label || nodeDefId}]...` 
+        message: `Executing [${node.data?.label || nodeDefId}]...`,
       });
 
       const stepStart = Date.now();
@@ -177,41 +169,23 @@ router.post('/:id/run', async (req, res) => {
       try {
         if (nodeDefId === 'trigger-webhook') {
           nodeOutput = { received: true, payload: req.body };
-        } else if (nodeDefId === 'ai-llm' || nodeDefId === 'ai-extract') {
-          await new Promise((resolve) => setTimeout(resolve, 800));
-          nodeOutput = { status: 'processed', aiOutput: 'Simulated LLM response' };
-        } else if (nodeDefId === 'logic-delay') {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-          nodeOutput = { delayed: true };
         } else if (nodeDefId === 'comm-discord') {
           const webhookUrl = node.data?.webhook_url;
           const content = node.data?.content;
-          
-          if (!webhookUrl || !content) {
-            throw new Error('Discord Webhook URL and Content are required');
-          }
-
+          if (!webhookUrl || !content) throw new Error('Discord Webhook URL and Content are required');
           const payload: any = { content };
           if (node.data?.username) payload.username = node.data.username;
           if (node.data?.avatar_url) payload.avatar_url = node.data.avatar_url;
           if (node.data?.tts) payload.tts = node.data.tts;
           if (node.data?.embeds) {
-            try {
-              payload.embeds = typeof node.data.embeds === 'string' ? JSON.parse(node.data.embeds) : node.data.embeds;
-            } catch (e) {
-              console.warn('Invalid embeds JSON for discord webhook', e);
-            }
+            try { payload.embeds = typeof node.data.embeds === 'string' ? JSON.parse(node.data.embeds) : node.data.embeds; } catch { /* ignore */ }
           }
-
           const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
           });
-
-          if (!response.ok) {
-            throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
-          }
+          if (!response.ok) throw new Error(`Discord API error: ${response.status} ${response.statusText}`);
           nodeOutput = { status: 'success', delivered: true };
         } else {
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -227,12 +201,12 @@ router.post('/:id/run', async (req, res) => {
       await agentsService.createAgentRunStep(run.id, nodeId, isSuccess ? 'success' : 'failed', nodeOutput, nodeError, duration);
 
       if (!isSuccess) {
-        sendEvent({ type: 'log', nodeId, status: 'error', time: new Date().toLocaleTimeString(), message: `❌ Failed: ${nodeError}` });
+        sendEvent({ type: 'log', nodeId, status: 'error', time: new Date().toLocaleTimeString(), message: `Failed: ${nodeError}` });
         await agentsService.updateAgentRun(run.id, 'failed');
         return res.end();
       }
 
-      sendEvent({ type: 'log', nodeId, status: 'success', time: new Date().toLocaleTimeString(), message: `✅ Completed [${node.data?.label || nodeDefId}] in ${duration}ms` });
+      sendEvent({ type: 'log', nodeId, status: 'success', time: new Date().toLocaleTimeString(), message: `Completed [${node.data?.label || nodeDefId}] in ${duration}ms` });
     }
 
     await agentsService.updateAgentRun(run.id, 'success');

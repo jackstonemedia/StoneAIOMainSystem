@@ -7,7 +7,6 @@
  */
 
 import { db } from '../../infrastructure/database/client.js';
-import { decryptJson } from './channels/encryption.js';
 import { sendGmailMessage } from './channels/gmail.service.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,12 +32,11 @@ async function sendEmail(to: string, subject: string, body: string, html: boolea
   // Try Gmail first
   if (process.env.GMAIL_CLIENT_ID) {
     const gmailConn = await db.channelConnection.findFirst({
-      where: { workspaceId, type: 'gmail', status: 'connected', isActive: true },
+      where: { workspaceId, provider: 'gmail', isActive: true },
     }).catch(() => null);
 
     if (gmailConn?.credentialsJson) {
       try {
-        const creds = decryptJson<{ accessToken?: string; refreshToken?: string }>(gmailConn.credentialsJson as string);
         const result = await sendGmailMessage(gmailConn.id, to, subject, body, undefined, html ? body : undefined);
         return { success: true, messageId: result?.messageId, provider: 'gmail' };
       } catch (gmailErr) {
@@ -139,7 +137,7 @@ async function processEnrollment(
           contactId: contact.id,
           type: 'info',
           title: 'Sequence skipped — contact replied',
-          content: `Contact replied, removed from sequence "${enrollment.sequence.name}"`,
+          notes: `Contact replied, removed from sequence "${enrollment.sequence.name}"`,
         },
       }).catch(() => {});
       return;
@@ -183,8 +181,7 @@ async function processEnrollment(
           contactId: contact.id,
           type: 'email_sent',
           title: `Sequence email: ${step.subject || '(no subject)'}`,
-          content: `Sent to ${contact.email} via ${result.provider}`,
-          metadataJson: JSON.stringify({ sequenceId: enrollment.sequenceId, sequenceName: enrollment.sequence.name, stepIndex: stepIdx }),
+          notes: `Sent to ${contact.email} via ${result.provider}`,
         },
       }).catch(() => {});
     } else {
@@ -196,18 +193,32 @@ async function processEnrollment(
   }
 
   if (step.type === 'sms' && contact.phone) {
-    // TODO: integrate with Twilio send (same pattern as conversation messages)
-    console.log(`[Sequence] SMS step for ${contact.phone}: ${step.body}`);
-    await db.activity.create({
-      data: {
-        workspaceId: enrollment.workspaceId,
-        contactId: contact.id,
-        type: 'sms_sent',
-        title: 'Sequence SMS sent',
-        content: `Sent to ${contact.phone}`,
-        metadataJson: JSON.stringify({ sequenceId: enrollment.sequenceId, stepIndex: stepIdx }),
-      },
-    }).catch(() => {});
+    try {
+      const twilioConn = await db.channelConnection.findFirst({
+        where: { workspaceId: enrollment.workspaceId, provider: 'twilio', isActive: true },
+      });
+      if (twilioConn && twilioConn.twilioPhoneNumber) {
+        const { decryptJson } = await import('./channels/encryption.js');
+        const creds = decryptJson(twilioConn.credentialsJson as string) as { accountSid: string; authToken: string };
+        const twilio = (await import('twilio')).default;
+        await twilio(creds.accountSid, creds.authToken).messages.create({
+          body: step.body || '',
+          from: twilioConn.twilioPhoneNumber,
+          to: contact.phone,
+        });
+      }
+      await db.activity.create({
+        data: {
+          workspaceId: enrollment.workspaceId,
+          contactId: contact.id,
+          type: 'sms_sent',
+          title: 'Sequence SMS sent',
+          notes: `Sent to ${contact.phone}`,
+        },
+      }).catch(() => {});
+    } catch (err) {
+      console.error(`[Sequence] SMS failed for ${contact.phone}:`, err);
+    }
     advanceEnrollment(enrollment, stepIdx, steps);
   }
 }
@@ -237,34 +248,6 @@ async function advanceEnrollment(enrollment: any, currentIdx: number, steps: Seq
       } as EnrollmentProgress),
     },
   });
-}
-
-// ── Worker: scans for due enrollments periodically ────────────────────────────
-
-export function initializeSequenceWorker(intervalMs: number = 60_000): void {
-  console.log(`[SequenceWorker] Starting — checking every ${intervalMs / 1000}s`);
-
-  setInterval(async () => {
-    try {
-      const enrollments = await db.sequenceEnrollment.findMany({
-        where: { status: 'active' },
-        include: { sequence: true },
-      });
-
-      let processed = 0;
-      for (const enrollment of enrollments) {
-        const steps = JSON.parse((enrollment.sequence as any).stepsJson || '[]') as SequenceStepDef[];
-        if (steps.length === 0) continue;
-        await processEnrollment(enrollment, steps);
-        processed++;
-      }
-      if (processed > 0) {
-        console.log(`[SequenceWorker] Processed ${processed} enrollments`);
-      }
-    } catch (err) {
-      console.error('[SequenceWorker] Error:', err);
-    }
-  }, intervalMs);
 }
 
 // ── Enrollment API ─────────────────────────────────────────────────────────────

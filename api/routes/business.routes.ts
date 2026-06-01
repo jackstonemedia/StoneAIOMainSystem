@@ -4,9 +4,9 @@
  */
 import { Router } from 'express';
 import * as biz from '../services/business.service.js';
-import { queueCampaign, getCampaignStats, initializeCampaignQueue } from '../services/campaign-engine.js';
-import { enrollContact, getEnrollmentProgress } from '../services/sequence-engine.js';
+import { queueCampaign, getCampaignStats } from '../services/campaign-engine.js';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
+import { db } from '../../infrastructure/database/client.js';
 
 const router = Router();
 
@@ -33,13 +33,13 @@ router.post('/campaigns', async (req, res) => {
 });
 
 router.put('/campaigns/:id', async (req, res) => {
-  try { res.json(await biz.updateCampaign(req.params.id, req.body)); }
+  try { res.json(await biz.updateCampaign(req.params.id, req.workspaceId, req.body)); }
   catch (e) { err500(res, e); }
 });
 
 router.delete('/campaigns/:id', async (req, res) => {
-  try { await biz.deleteCampaign(req.params.id); res.json({ success: true }); }
-  catch (e) { res.json({ success: true }); }
+  try { await biz.deleteCampaign(req.params.id, req.workspaceId); res.json({ success: true }); }
+  catch (e) { err500(res, e); }
 });
 
 router.post('/campaigns/:id/send', async (req, res) => {
@@ -83,15 +83,15 @@ router.put('/forms/:id', async (req, res) => {
 
 router.delete('/forms/:id', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    await db.form.delete({ where: { id: req.params.id } });
+
+    await db.form.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
     res.json({ success: true });
-  } catch (e) { res.json({ success: true }); }
+  } catch (e) { err500(res, e); }
 });
 
 router.get('/forms/:id/submissions', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const subs = await db.formSubmission.findMany({ where: { formId: req.params.id }, orderBy: { submittedAt: 'desc' } });
     res.json(subs.map((s) => ({ ...s, data: JSON.parse((s as any).data ?? '{}') })));
   } catch (e) { res.json([]); }
@@ -99,7 +99,7 @@ router.get('/forms/:id/submissions', async (req, res) => {
 
 router.post('/forms/:id/submissions', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const sub = await db.formSubmission.create({ data: { formId: req.params.id, data: JSON.stringify(req.body) } });
     await db.form.update({ where: { id: req.params.id }, data: { visits: { increment: 1 } } }).catch(() => {});
     
@@ -121,7 +121,7 @@ router.get('/reviews', async (req, res) => {
 
 router.post('/reviews', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const { platform, rating, body, reviewerName } = req.body;
     const review = await db.review.create({
       data: {
@@ -153,17 +153,20 @@ router.put('/reviews/:id', async (req, res) => {
 });
 
 router.delete('/reviews/:id', async (req, res) => {
-  try { await biz.deleteReview(req.params.id); res.json({ success: true }); }
-  catch (e) { res.json({ success: true }); }
+  try {
+
+    await db.review.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    res.json({ success: true });
+  } catch (e) { err500(res, e); }
 });
 
 router.post('/reviews/request', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     await db.activity.create({
       data: { workspaceId: req.workspaceId, type: 'email', title: 'Review Request Campaign Sent', notes: `Sent review request. Message: ${req.body.message ?? ''}` },
     });
-    res.json({ success: true, sent: 142 });
+    res.json({ success: true });
   } catch (e) { err500(res, e); }
 });
 
@@ -196,7 +199,7 @@ router.get('/conversations', async (req, res) => {
 
 router.post('/conversations', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const { contactId, channel, subject } = req.body;
     if (!channel) return res.status(400).json({ error: 'channel is required' });
     const convo = await db.conversation.create({
@@ -224,7 +227,7 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
 router.post('/conversations/:id/messages', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const {
       body: msgBody, sender, direction = 'outbound',
       channel: msgChannel, to: msgTo,
@@ -244,54 +247,58 @@ router.post('/conversations/:id/messages', async (req, res) => {
           include: { contact: true },
         });
         const activeChannel = msgChannel ?? convo?.channel;
-        console.log(`[Outbound] channel=${activeChannel}, contactEmail=${convo?.contact?.email ?? 'NONE'}, contactPhone=${convo?.contact?.phone ?? 'NONE'}`);
 
         if (activeChannel === 'email' || activeChannel === 'gmail') {
-          // Send via Gmail if a connection exists
+          // ── Gmail outbound ────────────────────────────────────────────────
           const conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
           });
-          console.log(`[Outbound Gmail] connection=${conn?.id ?? 'NONE'}, to=${convo?.contact?.email ?? 'NONE'}`);
           const recipientEmail = msgTo || convo?.contact?.email;
           const emailSubject = msgSubject || convo?.subject || '(no subject)';
           if (conn && recipientEmail) {
-            // Update conversation subject if a new one was provided
             if (msgSubject && msgSubject !== convo?.subject) {
               await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
             }
-            // Store full outbound email metadata so the UI can render it properly
             const now = new Date().toUTCString();
             await db.conversationMessage.update({
               where: { id: msg.id },
-              data: {
-                attachments: JSON.stringify({
-                  toEmail: recipientEmail,
-                  subject: emailSubject,
-                  date: now,
-                  htmlBody: msgHtmlBody ?? null,
-                }),
-              },
+              data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
             }).catch(() => null);
             const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
             const sent = await sendGmailMessage(
               conn.id, recipientEmail, emailSubject, msgBody,
               convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
             ).catch(err => { console.error('[Outbound Gmail] ❌ Failed:', err.message); return null; });
-            if (sent) {
-              console.log('[Outbound Gmail] ✅ Sent successfully, threadId:', sent.threadId);
-              // Save threadId as externalId so inbound replies thread into this conversation
-              if (!convo?.externalId && sent.threadId) {
-                await db.conversation.update({
-                  where: { id: req.params.id },
-                  data: { externalId: sent.threadId },
-                }).catch(() => null);
-              }
+            if (sent && !convo?.externalId && sent.threadId) {
+              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
             }
-          } else {
-            console.log('[Outbound Gmail] ⚠️ Skipped: no connection or no contact email');
+          }
+        } else if (activeChannel === 'outlook') {
+          // ── Outlook outbound ──────────────────────────────────────────────
+          const conn = await db.channelConnection.findFirst({
+            where: { workspaceId: req.workspaceId, provider: 'outlook', isActive: true },
+          });
+          const recipientEmail = msgTo || convo?.contact?.email;
+          const emailSubject = msgSubject || convo?.subject || '(no subject)';
+          if (conn && recipientEmail) {
+            if (msgSubject && msgSubject !== convo?.subject) {
+              await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
+            }
+            const now = new Date().toUTCString();
+            await db.conversationMessage.update({
+              where: { id: msg.id },
+              data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
+            }).catch(() => null);
+            const { sendOutlookMessage } = await import('../services/channels/outlook.service.js');
+            const sent = await sendOutlookMessage(
+              conn.id, recipientEmail, emailSubject, msgBody, convo?.externalId ?? undefined,
+            ).catch((err: Error) => { console.error('[Outbound Outlook] ❌ Failed:', err.message); return null; });
+            if (sent && !convo?.externalId && sent.conversationId) {
+              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.conversationId } }).catch(() => null);
+            }
           }
         } else if (activeChannel === 'sms') {
-          // Send via Twilio if a connection exists
+          // ── SMS / Twilio outbound ─────────────────────────────────────────
           const conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
           });
@@ -305,12 +312,8 @@ router.post('/conversations/:id/messages', async (req, res) => {
               from: conn.twilioPhoneNumber!,
               to: convo.contact.phone,
             }).catch(console.error);
-            // Save contact phone as externalId so inbound replies thread into this conversation
             if (!convo?.externalId) {
-              await db.conversation.update({
-                where: { id: req.params.id },
-                data: { externalId: convo.contact.phone },
-              }).catch(() => null);
+              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: convo.contact.phone } }).catch(() => null);
             }
           }
         }
@@ -325,7 +328,7 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
 router.patch('/conversations/:id', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     const { status, starred, assignedUserId, subject } = req.body;
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
@@ -333,7 +336,7 @@ router.patch('/conversations/:id', async (req, res) => {
     if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
     if (subject !== undefined) data.subject = subject;
     const updated = await db.conversation.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, workspaceId: req.workspaceId },
       data,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true } },
@@ -346,142 +349,18 @@ router.patch('/conversations/:id', async (req, res) => {
 
 router.delete('/conversations/:id', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
+
     // Messages cascade-delete via the schema onDelete: Cascade
-    await db.conversation.delete({ where: { id: req.params.id } });
+    await db.conversation.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
     res.json({ success: true });
   } catch (e) { err500(res, e); }
 });
 
 router.post('/conversations/:id/read-receipts', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    await db.conversation.update({ where: { id: req.params.id }, data: { unreadCount: 0 } });
+
+    await db.conversation.update({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 0 } });
     res.json({ success: true });
-  } catch (e) { res.json({ success: true }); }
-});
-
-// ── Sequences ─────────────────────────────────────────────────────────────────
-
-// List sequences
-router.get('/sequences', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    const sequences = await db.sequence.findMany({
-      where: { workspaceId: req.workspaceId },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json(sequences.map(s => ({
-      ...s,
-      steps: JSON.parse((s as any).stepsJson || '[]'),
-    })));
-  } catch (e) { err500(res, e); }
-});
-
-// Create sequence
-router.post('/sequences', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    const { name, steps } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
-    if (!steps || !Array.isArray(steps) || steps.length === 0) return res.status(400).json({ error: 'steps array is required' });
-    const seq = await db.sequence.create({
-      data: {
-        workspaceId: req.workspaceId,
-        name,
-        stepsJson: JSON.stringify(steps),
-      },
-    });
-    res.json({ ...seq, steps });
-  } catch (e) { err500(res, e); }
-});
-
-// Update sequence
-router.put('/sequences/:id', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    const { name, steps, status } = req.body;
-    const data: Record<string, unknown> = {};
-    if (name !== undefined) data.name = name;
-    if (status !== undefined) data.status = status;
-    if (steps !== undefined) data.stepsJson = JSON.stringify(steps);
-    const seq = await db.sequence.update({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-      data,
-    });
-    res.json({ ...seq, steps: steps || JSON.parse((seq as any).stepsJson || '[]') });
-  } catch (e) { err500(res, e); }
-});
-
-// Delete sequence
-router.delete('/sequences/:id', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    await db.sequence.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
-    res.json({ success: true });
-  } catch (e) { err500(res, e); }
-});
-
-// Enroll a contact in a sequence
-router.post('/sequences/:id/enroll', async (req, res) => {
-  try {
-    const { contactId } = req.body;
-    if (!contactId) return res.status(400).json({ error: 'contactId is required' });
-    const result = await enrollContact(req.params.id, contactId, req.workspaceId);
-    if (!result.success) return res.status(400).json({ error: result.error });
-    res.json(result);
-  } catch (e) { err500(res, e); }
-});
-
-// Get enrollment progress
-router.get('/sequences/enrollments/:enrollmentId', async (req, res) => {
-  try {
-    const progress = await getEnrollmentProgress(req.params.enrollmentId);
-    if (!progress) return res.status(404).json({ error: 'Enrollment not found' });
-    res.json(progress);
-  } catch (e) { err500(res, e); }
-});
-
-// List enrollments for a sequence
-router.get('/sequences/:id/enrollments', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    const enrollments = await db.sequenceEnrollment.findMany({
-      where: { sequenceId: req.params.id },
-      include: { contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
-      orderBy: { enrolledAt: 'desc' },
-    });
-    res.json(enrollments.map(e => ({
-      ...e,
-      progress: JSON.parse((e as any).sequenceData || '{}'),
-    })));
-  } catch (e) { err500(res, e); }
-});
-
-// Update enrollment status
-router.put('/sequences/enrollments/:enrollmentId/status', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    const { status } = req.body;
-    if (!['active', 'paused', 'unsubscribed', 'completed'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-    const enrollment = await db.sequenceEnrollment.findUnique({
-      where: { id: req.params.enrollmentId },
-      include: { sequence: true },
-    });
-    if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
-    // Verify workspace ownership
-    const workspaceCheck = await db.sequence.findUnique({
-      where: { id: enrollment.sequenceId, workspaceId: req.workspaceId },
-    });
-    if (!workspaceCheck) return res.status(403).json({ error: 'Not found' });
-    const updated = await db.sequenceEnrollment.update({
-      where: { id: req.params.enrollmentId },
-      data: { status },
-      include: { contact: { select: { id: true, firstName: true, lastName: true, email: true } } },
-    });
-    res.json(updated);
   } catch (e) { err500(res, e); }
 });
 

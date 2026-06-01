@@ -1,6 +1,6 @@
 import React, { useState } from 'react'; 
 import { 
-  Search, Filter, List as ListIcon, Plus, Download, MoreVertical, 
+  Search, Filter, List as ListIcon, Plus, Download,
   Settings, Phone, Mail, ChevronDown, Check,
   User, CheckSquare, X, Eye, EyeOff
 } from 'lucide-react';
@@ -130,12 +130,13 @@ export default function Contacts() {
   
   // Panel states
   const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
-  const [moreActionsDropdownOpen, setMoreActionsDropdownOpen] = useState(false);
+
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [advancedContactOptionsOpen, setAdvancedContactOptionsOpen] = useState(false);
 
-  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc' });
+  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [] as string[] });
+  const [newContactTagInput, setNewContactTagInput] = useState('');
   const [bulkTagInput, setBulkTagInput] = useState('');
 
   // Find duplicates
@@ -379,11 +380,11 @@ export default function Contacts() {
                 ))}
 
                 <div className="w-[1px] h-5 bg-border mx-2"></div>
-                <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm ml-1">
+                <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
                   <Filter className="w-4 h-4" /> Advanced filters
                 </button>
                 <div className="relative">
-                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
+                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
                     <ChevronDown className="w-4 h-4" /> Sort
                   </button>
                   <AnimatePresence>
@@ -432,7 +433,7 @@ export default function Contacts() {
                 </div>
                 
                 <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+                <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
                   <Download className="w-4 h-4" /> Import
                 </button>
                 
@@ -448,36 +449,9 @@ export default function Contacts() {
                 <div className="w-[1px] h-5 bg-border mx-1"></div>
 
                 <div className="relative flex items-center gap-2">
-                  <button onClick={() => setPanelOpen('manage')} className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
+                  <button onClick={() => setPanelOpen('manage')} className="btn-secondary">
                     <Settings className="w-4 h-4" /> Manage fields
                   </button>
-                  <div className="relative">
-                    <button onClick={() => setMoreActionsDropdownOpen(!moreActionsDropdownOpen)} className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-lg transition-colors border border-border bg-surface shadow-sm">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                    <AnimatePresence>
-                      {moreActionsDropdownOpen && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setMoreActionsDropdownOpen(false)} />
-                          <motion.div 
-                            initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                            className="absolute right-0 top-[calc(100%+8px)] w-[240px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                          >
-                            <div className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1">More Actions</div>
-                            <button onClick={() => { setMoreActionsDropdownOpen(false); setPanelOpen('new_contact'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                              <User className="w-4 h-4 shrink-0" /> Open Full Contact Form
-                            </button>
-                            <button onClick={() => { setMoreActionsDropdownOpen(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                              <ListIcon className="w-4 h-4 shrink-0" /> Import via CSV Array
-                            </button>
-                            <button onClick={() => { setMoreActionsDropdownOpen(false); setPanelOpen('duplicates'); }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                              <Search className="w-4 h-4 shrink-0" /> Find Duplicates
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
                 </div>
               </div>
             </motion.div>
@@ -634,98 +608,172 @@ export default function Contacts() {
               </div>
               <div className="p-6 flex-1 overflow-auto bg-surface">
                 {panelOpen === 'new_contact' && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">First Name <span className="text-red-400">*</span></label>
-                        <input type="text" placeholder="John" value={newContact.firstName} onChange={(e) => setNewContact({...newContact, firstName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Last Name</label>
-                        <input type="text" placeholder="Doe" value={newContact.lastName} onChange={(e) => setNewContact({...newContact, lastName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Email Address</label>
-                      <input type="email" placeholder="john@example.com" value={newContact.email} onChange={(e) => setNewContact({...newContact, email: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Phone Number</label>
-                      <input type="tel" placeholder="+1 555-0000" value={newContact.phone} onChange={(e) => setNewContact({...newContact, phone: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                    </div>
-                    
-                    <div className="h-[1px] bg-border/50 my-4"></div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Company</label>
-                        <input type="text" placeholder="Apple Inc." value={newContact.businessName} onChange={(e) => setNewContact({...newContact, businessName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Job Title</label>
-                        <input type="text" placeholder="CEO" value={newContact.title} onChange={(e) => setNewContact({...newContact, title: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                    </div>
+                  <div className="space-y-5">
 
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Contact Status</label>
-                      <select value={newContact.status} onChange={(e) => setNewContact({...newContact, status: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
-                        <option value="Lead">Lead</option>
-                        <option value="Active">Active Customer</option>
-                        <option value="Churned">Churned</option>
-                        <option value="Partner">Partner</option>
-                      </select>
-                    </div>
-
-                    <div className="border border-border rounded-[6px] overflow-hidden mt-4">
-                      <button 
-                        onClick={() => setAdvancedContactOptionsOpen(!advancedContactOptionsOpen)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 bg-surface-hover/50 hover:bg-surface-hover transition-colors text-[13px] font-semibold text-text-main"
+                    {/* ── Avatar + Color Picker ── */}
+                    <div className="flex flex-col items-center gap-3 pb-5 border-b border-border/50">
+                      <div
+                        className="w-[60px] h-[60px] rounded-full flex items-center justify-center text-[22px] font-bold text-bg shadow-md ring-[3px] ring-border/30 transition-all"
+                        style={{ backgroundColor: newContact.color }}
                       >
-                        Advanced Details
-                        <ChevronDown className={`w-4 h-4 transition-transform ${advancedContactOptionsOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      <AnimatePresence>
-                        {advancedContactOptionsOpen && (
-                          <motion.div 
-                            initial={{ height: 0, opacity: 0 }} 
-                            animate={{ height: 'auto', opacity: 1 }} 
-                            exit={{ height: 0, opacity: 0 }} 
-                            className="px-4 py-4 border-t border-border bg-surface-hover/20 space-y-4"
-                          >
-                            <div className="space-y-1.5">
-                              <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">About (Bio/Notes)</label>
-                              <textarea 
-                                placeholder="Any additional notes..." 
-                                value={newContact.about} 
-                                onChange={(e) => setNewContact({...newContact, about: e.target.value})} 
-                                className="w-full px-3 py-2 bg-surface border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors min-h-[60px]"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Source</label>
-                                <input type="text" placeholder="e.g. LinkedIn, Referral" value={newContact.source} onChange={(e) => setNewContact({...newContact, source: e.target.value})} className="w-full px-3 py-2 bg-surface border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                              </div>
-                              <div className="space-y-1.5">
-                                <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Profile Color</label>
-                                <div className="flex gap-2">
-                                  {['#7dd3fc', '#fca5a5', '#bef264', '#fcd34d', '#c4b5fd', '#f472b6'].map(c => (
-                                    <button 
-                                      key={c}
-                                      onClick={() => setNewContact({...newContact, color: c})}
-                                      className={`w-6 h-6 rounded-full border-2 transition-transform ${newContact.color === c ? 'border-text-main scale-110' : 'border-transparent hover:scale-110'}`}
-                                      style={{ backgroundColor: c }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                        {(newContact.firstName[0] || newContact.email[0] || '?').toUpperCase()}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Profile Color</p>
+                        <div className="flex gap-2 justify-center flex-wrap">
+                          {['#7dd3fc','#fca5a5','#bef264','#fcd34d','#c4b5fd','#f472b6','#34d399','#fb923c','#94a3b8'].map(c => (
+                            <button key={c} onClick={() => setNewContact({...newContact, color: c})}
+                              className={`w-5 h-5 rounded-full border-2 transition-all ${newContact.color === c ? 'border-text-main scale-125 shadow-sm' : 'border-transparent hover:scale-110'}`}
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
+                    {/* ── Identity ── */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Identity</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">First Name <span className="text-red-400">*</span></label>
+                          <input type="text" placeholder="John" value={newContact.firstName} onChange={e => setNewContact({...newContact, firstName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Last Name</label>
+                          <input type="text" placeholder="Doe" value={newContact.lastName} onChange={e => setNewContact({...newContact, lastName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Contact Methods ── */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Contact Methods</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Email</label>
+                        <input type="email" placeholder="john@example.com" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Phone</label>
+                        <input type="tel" placeholder="+1 555-0000" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Professional ── */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Professional</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Job Title</label>
+                          <input type="text" placeholder="CEO" value={newContact.title} onChange={e => setNewContact({...newContact, title: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Company</label>
+                          <input type="text" placeholder="Acme Inc." value={newContact.businessName} onChange={e => setNewContact({...newContact, businessName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Classification ── */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Classification</p>
+
+                      {/* Status pills */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {[
+                            { val: 'Lead',    color: 'text-primary',        bg: 'bg-primary/10',      border: 'border-primary/30' },
+                            { val: 'Active',  color: 'text-emerald-400',    bg: 'bg-emerald-400/10',  border: 'border-emerald-400/30' },
+                            { val: 'Churned', color: 'text-text-muted',     bg: 'bg-surface-hover',   border: 'border-border' },
+                            { val: 'Partner', color: 'text-violet-400',     bg: 'bg-violet-400/10',   border: 'border-violet-400/30' },
+                          ].map(s => (
+                            <button key={s.val} onClick={() => setNewContact({...newContact, status: s.val})}
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                                newContact.status === s.val
+                                  ? `${s.bg} ${s.border} ${s.color}`
+                                  : 'bg-surface border-border text-text-muted hover:bg-surface-hover'
+                              }`}
+                            >
+                              {s.val}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Source select */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Source</label>
+                        <select value={newContact.source} onChange={e => setNewContact({...newContact, source: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
+                          <option value="">— None —</option>
+                          {['LinkedIn','Referral','Website','Google','Cold Outreach','Conference','Email Campaign','Social Media','Partner','Other'].map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Tags ── */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Tags</p>
+                      {newContact.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {newContact.tags.map((tag, i) => (
+                            <span key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold">
+                              {tag}
+                              <button onClick={() => setNewContact({...newContact, tags: newContact.tags.filter((_, j) => j !== i)})} className="ml-0.5 text-primary/60 hover:text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Type tag and press Enter or comma..."
+                        value={newContactTagInput}
+                        onChange={e => setNewContactTagInput(e.target.value)}
+                        onKeyDown={e => {
+                          if ((e.key === 'Enter' || e.key === ',') && newContactTagInput.trim()) {
+                            e.preventDefault();
+                            const tag = newContactTagInput.trim().replace(/,/g, '');
+                            if (tag && !newContact.tags.includes(tag)) setNewContact({...newContact, tags: [...newContact.tags, tag]});
+                            setNewContactTagInput('');
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50"
+                      />
+                      {newContact.tags.length === 0 && (
+                        <div className="flex gap-1.5 flex-wrap pt-1">
+                          {['VIP','Prospect','Hot Lead','Follow-up'].map(t => (
+                            <button key={t} onClick={() => setNewContact({...newContact, tags: [...newContact.tags, t]})}
+                              className="px-2.5 py-1 rounded-full bg-surface border border-border text-text-muted text-[11px] font-medium hover:bg-surface-hover hover:text-text-main transition-colors">
+                              + {t}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Notes ── */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Notes</p>
+                      <textarea
+                        placeholder="Additional context about this contact..."
+                        value={newContact.about}
+                        onChange={e => setNewContact({...newContact, about: e.target.value})}
+                        rows={3}
+                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-text-muted/50"
+                      />
+                    </div>
 
                   </div>
                 )}
@@ -961,8 +1009,10 @@ export default function Contacts() {
                         about: newContact.about,
                         source: newContact.source,
                         color: newContact.color,
+                        tagsJson: newContact.tags.length ? JSON.stringify(newContact.tags) : undefined,
                       });
-                      setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc' });
+                      setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [] });
+                      setNewContactTagInput('');
                       setPanelOpen(null);
                     } catch {
                       setContactError('Something went wrong. Please try again.');
@@ -973,8 +1023,7 @@ export default function Contacts() {
                     setPanelOpen(null);
                   }
                   }}
-                  style={{ backgroundColor: 'var(--primary)' }} 
-                  className="px-5 py-2 text-white rounded-[6px] text-[13px] font-semibold font-medium disabled:opacity-40"
+                  className="btn-primary disabled:opacity-40"
                 >
                   {panelOpen === 'filter' ? 'Apply' : panelOpen === 'new_contact' ? (createContact.isPending ? 'Adding...' : 'Add Contact') : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : 'Save'}
                 </button>

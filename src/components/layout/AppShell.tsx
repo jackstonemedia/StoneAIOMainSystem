@@ -1,14 +1,19 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, Suspense } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../context/ThemeContext';
-import { Menu, X, Zap } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
+
+function ContentFallback() {
+  return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
+}
 
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isDevBypass = IS_DEV_AUTH_BYPASS;
+  const location = useLocation();
 
   const content = (
       <ThemeProvider>
@@ -22,12 +27,12 @@ export default function AppShell() {
             style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--sidebar-border)' }}
           >
             <div className="flex items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-              >
-                <Zap className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} strokeWidth={1.8} />
-              </div>
+              <img
+                src="https://res.cloudinary.com/dbdrkehcp/image/upload/v1779753173/ChatGPT_Image_May_25_2026_07_51_34_PM_shkd53.png"
+                alt="Stone AIO"
+                className="w-9 h-9 object-contain shrink-0"
+                style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
+              />
               <span
                 className="font-bold text-[14.5px] tracking-tight"
                 style={{ color: 'var(--text-main)' }}
@@ -55,7 +60,11 @@ export default function AppShell() {
             className="flex-1 flex flex-col overflow-hidden pt-[52px] md:pt-0"
             style={{ background: 'var(--bg)' }}
           >
-            <Outlet />
+            <Suspense fallback={<ContentFallback />}>
+              <div key={location.pathname.split('/').slice(0, 2).join('/')} className="flex flex-col h-full w-full" style={{ animation: 'appShellFadeIn 0.18s cubic-bezier(0.16,1,0.3,1) both' }}>
+                <Outlet />
+              </div>
+            </Suspense>
           </main>
         </div>
       </ThemeProvider>

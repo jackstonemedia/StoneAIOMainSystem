@@ -11,30 +11,37 @@ import { db } from '../../infrastructure/database/client.js';
  *            the userId, then looks up the user's workspace via WorkspaceMember.
  */
 export async function resolveWorkspace(req: Request, res: Response, next: NextFunction) {
-  console.log(`[resolveWorkspace] Processing request for ${req.path}`);
+  if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] Processing request for ${req.path}`);
   try {
     // ── OAuth callback bypass — browser redirects from Google/Microsoft ────────
     // These don't carry JWT tokens; they authenticate via the signed state param.
     if (req.path.match(/\/channels\/(gmail|outlook)\/callback/)) {
-      console.log(`[resolveWorkspace] Skipping JWT for OAuth callback: ${req.path}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] Skipping JWT for OAuth callback: ${req.path}`);
       return next();
     }
 
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
-      console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);
       req.userId = 'test_user_new';
       // We fall through to check for workspace membership even in dev mode
       // so we can test the auto-provisioning logic.
     } else {
-      console.log(`[resolveWorkspace] 🔒 CLERK_SECRET_KEY is present. Verifying token...`);
-      // ── Validate Authorization header ─────────────────────────────────────────
+      if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] 🔒 CLERK_SECRET_KEY is present. Verifying token...`);
+      // ── Validate Authorization header (or ?token= query param for SSE) ──────
+      // EventSource cannot set custom headers, so SSE clients pass the JWT as a
+      // query param. Accept it as a fallback only — never for mutating requests.
       const authHeader = req.headers.authorization;
-      if (!authHeader?.startsWith('Bearer ')) {
+      const queryToken = typeof req.query.token === 'string' ? req.query.token : null;
+      const rawToken = authHeader?.startsWith('Bearer ')
+        ? authHeader.split(' ')[1]
+        : queryToken;
+
+      if (!rawToken) {
         return res.status(401).json({ error: 'Missing or invalid Authorization header' });
       }
 
-      const token = authHeader.split(' ')[1];
+      const token = rawToken;
 
       // ── Verify Clerk JWT server-side ──────────────────────────────────────────
       const { verifyToken } = await import('@clerk/express');
@@ -45,7 +52,7 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
           secretKey: process.env.CLERK_SECRET_KEY,
         });
         userId = payload.sub;
-        console.log(`[resolveWorkspace] ✅ Token verified. Clerk User ID (sub): ${userId}`);
+        if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ✅ Token verified. Clerk User ID (sub): ${userId}`);
       } catch (err: any) {
         console.error(`[resolveWorkspace] ❌ Token verification failed:`, err.message);
         return res.status(401).json({ error: 'Invalid or expired token' });
@@ -63,7 +70,7 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
     });
 
     if (!member) {
-      console.log(`[resolveWorkspace] New user detected (${userId}). Initializing workspace and n8n...`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] New user detected (${userId}). Initializing workspace...`);
 
       try {
         // ── Atomic initialization of User, Workspace, and Membership ───────────
@@ -106,7 +113,7 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
     }
 
     req.workspaceId = member.workspaceId;
-    console.log(`[resolveWorkspace] Resolved: ${userId} -> ${member.workspaceId} (${req.path})`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] Resolved: ${userId} -> ${member.workspaceId} (${req.path})`);
     next();
   } catch (error) {
     console.error('[resolveWorkspace] Error:', error);

@@ -3,7 +3,7 @@
  * Entry point for time-based workflow execution.
  */
 import { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
-import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../src/types/automation.js';
+import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../../src/types/automation.js';
 
 export const triggerSchedule: NodeImplementation = {
   type: 'trigger.schedule',

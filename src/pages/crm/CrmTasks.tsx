@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Filter, ChevronDown, Search, Settings, Edit2, Trash2, Check, Clock, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Filter, ChevronDown, Search, Settings, Edit2, Trash2, Check, Clock, X, Phone, Mail, Video, Users, CheckSquare, FileText, Zap, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -18,7 +18,23 @@ export default function CrmTasks() {
   const [activeTab, setActiveTab] = useState('all');
   const [panelOpen, setPanelOpen] = useState<'new_task' | null>(null);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '' });
+  const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', dueTime: '', priority: 'medium', type: 'task' });
+  const [taskContactSearch, setTaskContactSearch] = useState('');
+  const [taskContacts, setTaskContacts] = useState<any[]>([]);
+  const [selectedTaskContact, setSelectedTaskContact] = useState<any | null>(null);
+  const [taskContactFocused, setTaskContactFocused] = useState(false);
+
+  useEffect(() => {
+    if (!taskContactFocused) { setTaskContacts([]); return; }
+    const t = setTimeout(() => {
+      fetch('/api/crm/contacts').then(r => r.ok ? r.json() : {}).then((res: any) => {
+        const all: any[] = Array.isArray(res) ? res : (res?.contacts ?? []);
+        const q = taskContactSearch.toLowerCase();
+        setTaskContacts(!q ? all.slice(0, 6) : all.filter((c: any) => `${c.firstName ?? ''} ${c.lastName ?? ''} ${c.email ?? ''}`.toLowerCase().includes(q)).slice(0, 6));
+      }).catch(() => {});
+    }, 150);
+    return () => clearTimeout(t);
+  }, [taskContactSearch, taskContactFocused]);
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
@@ -119,27 +135,25 @@ export default function CrmTasks() {
             { id: 'today', label: 'Due Today' },
             { id: 'upcoming', label: 'Upcoming' },
           ].map(tab => (
-            <div 
+            <div
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer transition-colors border ${
-                activeTab === tab.id ? 'bg-bg border-border text-text-main shadow-sm font-bold' : 'border-transparent text-text-muted hover:text-text-main hover:bg-surface-hover font-medium'
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
+                activeTab === tab.id ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
               }`}
             >
-              <span className="text-[13px]">{tab.label}</span>
+              <span>{tab.label}</span>
             </div>
           ))}
-          <div className="w-[1px] h-5 bg-border mx-2"></div>
-          <div className="px-4 py-1.5 bg-surface-hover border border-border rounded-full flex items-center justify-between cursor-pointer hover:border-primary/40 transition-colors min-w-[130px] ml-1">
-            <span className="text-[13px] font-medium text-text-muted">Assignee: <span className="text-text-main">Any</span></span>
-            <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-          </div>
-          <div className="px-4 py-1.5 bg-surface-hover border border-border rounded-full flex items-center justify-between cursor-pointer hover:border-primary/40 transition-colors min-w-[130px]">
-            <span className="text-[13px] font-medium text-text-muted">Status: <span className="text-text-main">Any</span></span>
-            <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-          </div>
-          <button className="flex items-center gap-2 px-4 py-1.5 bg-bg border border-border rounded-full text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm">
-            <Filter className="w-3.5 h-3.5" /> More
+          <div className="w-[1px] h-5 bg-border mx-2" />
+          <button className="btn-secondary">
+            <span className="text-text-muted">Assignee:</span> Any <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button className="btn-secondary">
+            <span className="text-text-muted">Status:</span> Any <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button className="btn-secondary">
+            <Filter className="w-4 h-4" /> More filters
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -155,7 +169,7 @@ export default function CrmTasks() {
             <Plus className="w-4 h-4" /> New Task
           </button>
           <div className="w-[1px] h-5 bg-border mx-1"></div>
-          <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
+          <button className="btn-secondary">
             <Settings className="w-4 h-4" /> Manage
           </button>
         </div>
@@ -276,26 +290,138 @@ export default function CrmTasks() {
                 </button>
               </div>
               <div className="p-6 flex-1 overflow-auto bg-surface">
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Title</label>
-                    <input type="text" placeholder="Task Title" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Description</label>
-                    <textarea placeholder="Describe the task..." value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary min-h-[100px] resize-y" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Assignee</label>
-                    <div className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main flex items-center justify-between cursor-pointer">
-                      <span>Select Assignee...</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+                <div className="space-y-5">
+
+                  {/* ── Task Details ── */}
+                  <div className="space-y-2.5">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Task Details</p>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Title <span className="text-red-400">*</span></label>
+                      <input type="text" placeholder="e.g. Follow up with John about proposal" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Description</label>
+                      <textarea placeholder="Additional context or instructions..." value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} rows={2} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-text-muted/50" />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Due Date</label>
-                    <input type="date" value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+
+                  <div className="h-px bg-border/40" />
+
+                  {/* ── Priority ── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Priority</p>
+                    <div className="flex gap-2">
+                      {[
+                        { val: 'low',    label: 'Low',    color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/30', dot: 'bg-emerald-400' },
+                        { val: 'medium', label: 'Medium', color: 'text-amber-400',   bg: 'bg-amber-400/10',   border: 'border-amber-400/30',   dot: 'bg-amber-400' },
+                        { val: 'high',   label: 'High',   color: 'text-red-400',     bg: 'bg-red-400/10',     border: 'border-red-400/30',     dot: 'bg-red-400' },
+                      ].map(p => (
+                        <button key={p.val} onClick={() => setNewTask({...newTask, priority: p.val})}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[8px] border text-[12px] font-bold transition-all ${
+                            newTask.priority === p.val
+                              ? `${p.bg} ${p.border} ${p.color}`
+                              : 'bg-surface border-border text-text-muted hover:bg-surface-hover'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${newTask.priority === p.val ? p.dot : 'bg-text-muted/30'}`} />
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+
+                  <div className="h-px bg-border/40" />
+
+                  {/* ── Task Type ── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Type</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { val: 'task',      label: 'Task',      Icon: CheckSquare },
+                        { val: 'call',      label: 'Call',      Icon: Phone },
+                        { val: 'email',     label: 'Email',     Icon: Mail },
+                        { val: 'meeting',   label: 'Meeting',   Icon: Video },
+                        { val: 'followup',  label: 'Follow-up', Icon: FileText },
+                        { val: 'demo',      label: 'Demo',      Icon: Zap },
+                      ].map(({ val, label, Icon }) => (
+                        <button key={val} onClick={() => setNewTask({...newTask, type: val})}
+                          className={`flex flex-col items-center gap-1 py-2 px-1 rounded-[8px] border text-[11px] font-semibold transition-all ${
+                            newTask.type === val
+                              ? 'bg-primary/10 border-primary/30 text-primary'
+                              : 'bg-surface border-border text-text-muted hover:bg-surface-hover hover:text-text-main'
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-border/40" />
+
+                  {/* ── Due Date + Time ── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Due</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Date</label>
+                        <input type="date" value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Time</label>
+                        <input type="time" value={newTask.dueTime} onChange={e => setNewTask({...newTask, dueTime: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-border/40" />
+
+                  {/* ── Link to Contact ── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Link to Contact <span className="normal-case font-normal text-text-muted/50">(optional)</span></p>
+                    {selectedTaskContact ? (
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-[8px] border border-primary/30 bg-primary/5">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shrink-0" style={{ backgroundColor: selectedTaskContact.color ?? '#7dd3fc' }}>
+                          {((selectedTaskContact.firstName?.[0] ?? '') + (selectedTaskContact.lastName?.[0] ?? '')).toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-bold text-text-main truncate">{`${selectedTaskContact.firstName ?? ''} ${selectedTaskContact.lastName ?? ''}`.trim()}</p>
+                          <p className="text-[11px] text-text-muted truncate">{selectedTaskContact.email ?? ''}</p>
+                        </div>
+                        <button onClick={() => { setSelectedTaskContact(null); setTaskContactSearch(''); }} className="p-1 text-text-muted hover:text-text-main transition-colors"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+                        <input
+                          value={taskContactSearch}
+                          onChange={e => setTaskContactSearch(e.target.value)}
+                          onFocus={() => setTaskContactFocused(true)}
+                          onBlur={() => setTimeout(() => setTaskContactFocused(false), 200)}
+                          placeholder="Search contacts..."
+                          className="w-full pl-9 pr-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-main focus:outline-none focus:border-primary/40 transition-colors placeholder:text-text-muted/50"
+                        />
+                        {taskContactFocused && taskContacts.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 rounded-[8px] border border-border overflow-hidden shadow-luxury z-20 max-h-44 overflow-y-auto bg-surface">
+                            {taskContacts.map((c: any) => (
+                              <button key={c.id} onClick={() => { setSelectedTaskContact(c); setTaskContactSearch(''); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover transition-colors text-left">
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-bg shrink-0" style={{ backgroundColor: c.color ?? '#7dd3fc' }}>
+                                  {((c.firstName?.[0] ?? '') + (c.lastName?.[0] ?? '')).toUpperCase() || '?'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[12px] font-bold text-text-main truncate">{`${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'Unknown'}</p>
+                                  <p className="text-[10px] text-text-muted truncate">{c.email ?? ''}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
               <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-hover/50 shrink-0">
@@ -306,13 +432,18 @@ export default function CrmTasks() {
                       await createTask.mutateAsync({
                         title: newTask.title,
                         description: newTask.description,
-                        dueDate: newTask.dueDate || null,
+                        dueDate: newTask.dueDate ? (newTask.dueTime ? `${newTask.dueDate}T${newTask.dueTime}` : newTask.dueDate) : null,
+                        priority: newTask.priority,
+                        type: newTask.type,
+                        contactId: selectedTaskContact?.id ?? undefined,
                       });
-                      setNewTask({ title: '', description: '', dueDate: '' });
+                      setNewTask({ title: '', description: '', dueDate: '', dueTime: '', priority: 'medium', type: 'task' });
+                      setSelectedTaskContact(null);
+                      setTaskContactSearch('');
                       setPanelOpen(null);
                     }
                   }}
-                  style={{ backgroundColor: 'var(--primary)' }} className="px-5 py-2 text-white rounded-[6px] text-[13px] font-semibold font-medium">
+                  className="btn-primary">
                   Create Task
                 </button>
               </div>

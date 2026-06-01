@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { 
-  Search, Filter, List as ListIcon, Plus, Download, MoreVertical, 
+  Search, Filter, List as ListIcon, Plus, Download,
   Settings, ChevronDown, Check, Edit2, Trash2, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,7 +11,7 @@ import { ConfirmDelete } from '../../components/ui/ConfirmDelete';
 interface Company {
   id: string;
   name: string;
-  domain: string;
+  website: string;
   industry: string;
   employees: string;
   location: string;
@@ -53,7 +53,7 @@ export default function Companies() {
 
   // Form States
   const [newSmartListName, setNewSmartListName] = useState('');
-  const [newCompany, setNewCompany] = useState({ name: '', domain: '', industry: '', employees: '', location: '', description: '' });
+  const [newCompany, setNewCompany] = useState({ name: '', website: '', industry: '', employees: '', location: '', description: '', revenue: '', logoUrl: '' });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string, name: string } | null>(null);
 
   const toggleSelect = (id: string) => {
@@ -122,27 +122,23 @@ export default function Companies() {
       <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
         <div className="flex items-center gap-2">
           {smartLists.map(list => (
-            <div 
+            <div
               key={list.id}
               onClick={() => setActiveList(list.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full cursor-pointer shadow-sm border transition-colors ${
-                activeList === list.id ? 'text-text-main bg-bg border-border font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover border-transparent'
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
+                activeList === list.id ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
               }`}
             >
-              {list.id === 'all' && <ListIcon className="w-4 h-4 text-primary" />}
-              <span className="text-[13px]">{list.name}</span>
+              {list.id === 'all' && <ListIcon className="w-3.5 h-3.5 text-primary" />}
+              <span>{list.name}</span>
             </div>
           ))}
-          <button onClick={() => setPanelOpen('smartlist')} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors border border-transparent mr-2">
-            <Plus className="w-4 h-4" />
-            <span className="text-[13px] font-medium">Add smart list</span>
+          <div className="w-[1px] h-5 bg-border mx-2" />
+          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
+            <Filter className="w-4 h-4" /> Advanced filters
           </button>
-          <div className="w-[1px] h-5 bg-border mx-2"></div>
-          <button onClick={() => setPanelOpen('filter')} className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm ml-1">
-            <Filter className="w-3.5 h-3.5" /> Advanced filters
-          </button>
-          <button className="flex items-center gap-2 px-4 py-1.5 border border-border bg-surface-hover rounded-full text-[13px] font-medium text-text-main transition-colors shadow-sm">
-            <ChevronDown className="w-3.5 h-3.5" /> Sort
+          <button className="btn-secondary">
+            <ChevronDown className="w-4 h-4" /> Sort
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -155,7 +151,7 @@ export default function Companies() {
             />
           </div>
           
-          <button className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main transition-colors shadow-sm bg-surface">
+          <button className="btn-secondary">
             <Download className="w-4 h-4" /> Import
           </button>
           
@@ -165,16 +161,9 @@ export default function Companies() {
 
           <div className="w-[1px] h-5 bg-border mx-1"></div>
 
-          <div className="relative flex items-center gap-2">
-            <button className="flex items-center gap-2 text-[13px] px-3 py-1.5 font-medium text-text-muted hover:text-text-main transition-colors border border-border rounded-lg bg-surface shadow-sm">
-              <Settings className="w-4 h-4" /> Manage fields
-            </button>
-            <div className="relative">
-              <button className="flex items-center justify-center p-1.5 text-text-muted hover:text-text-main rounded-lg transition-colors border border-border bg-surface shadow-sm">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          <button className="btn-secondary">
+            <Settings className="w-4 h-4" /> Manage fields
+          </button>
         </div>
       </div>
 
@@ -215,7 +204,7 @@ export default function Companies() {
                   <Link to={`/crm/companies/${a.id}`} className="text-[13px] font-semibold text-text-main hover:text-primary transition-colors cursor-pointer">{a.name}</Link>
                 </td>
                 <td className="p-3">
-                  <a href={a.domain} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-primary hover:underline">{a.domain}</a>
+                  <a href={a.website} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-primary hover:underline">{a.website}</a>
                 </td>
                 <td className="p-3">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -286,27 +275,90 @@ export default function Companies() {
               </div>
               <div className="p-6 flex-1 overflow-auto bg-surface">
                 {panelOpen === 'new_company' && (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Account Name</label>
-                      <input type="text" placeholder="e.g. Acme Corp" value={newCompany.name} onChange={(e) => setNewCompany({...newCompany, name: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+                  <div className="space-y-5">
+
+                    {/* ── Logo Preview ── */}
+                    <div className="flex flex-col items-center gap-3 pb-5 border-b border-border/50">
+                      <div className="w-[60px] h-[60px] rounded-[14px] flex items-center justify-center text-[24px] font-bold text-bg shadow-md ring-[3px] ring-border/30 bg-primary/70 overflow-hidden">
+                        {newCompany.logoUrl ? (
+                          <img src={newCompany.logoUrl} alt="logo" className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span>{(newCompany.name[0] || '?').toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="w-full space-y-1">
+                        <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest block">Logo URL <span className="normal-case font-normal text-text-muted/50">(optional)</span></label>
+                        <input type="url" placeholder="https://company.com/logo.png" value={newCompany.logoUrl} onChange={e => setNewCompany({...newCompany, logoUrl: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-main focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50" />
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Domain</label>
-                      <input type="text" placeholder="https://acme.com" value={newCompany.domain} onChange={(e) => setNewCompany({...newCompany, domain: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+
+                    {/* ── Core Info ── */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Account Details</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Company Name <span className="text-red-400">*</span></label>
+                        <input type="text" placeholder="e.g. Acme Corp" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Website</label>
+                        <input type="url" placeholder="https://acme.com" value={newCompany.website} onChange={e => setNewCompany({...newCompany, website: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Headquarters</label>
+                        <input type="text" placeholder="New York, NY" value={newCompany.location} onChange={e => setNewCompany({...newCompany, location: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Industry</label>
-                      <input type="text" placeholder="e.g. Software, Data" value={newCompany.industry} onChange={(e) => setNewCompany({...newCompany, industry: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Industry & Size ── */}
+                    <div className="space-y-2.5">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Industry & Size</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Industry</label>
+                        <select value={newCompany.industry} onChange={e => setNewCompany({...newCompany, industry: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
+                          <option value="">— Select Industry —</option>
+                          {['SaaS','E-commerce','Healthcare','Finance','Education','Real Estate','Manufacturing','Consulting','Media & Entertainment','Retail','Logistics','Legal','Cybersecurity','AI & Data','Other'].map(i => (
+                            <option key={i} value={i}>{i}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Employees</label>
+                          <select value={newCompany.employees} onChange={e => setNewCompany({...newCompany, employees: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
+                            <option value="">— Size —</option>
+                            {['1–10','11–50','51–200','201–500','501–1000','1000+'].map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Revenue</label>
+                          <select value={newCompany.revenue} onChange={e => setNewCompany({...newCompany, revenue: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
+                            <option value="">— Range —</option>
+                            {['< $1M','$1M–$10M','$10M–$50M','$50M–$200M','$200M+'].map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
+
+                    <div className="h-px bg-border/40" />
+
+                    {/* ── Description ── */}
                     <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Headquarters</label>
-                      <input type="text" placeholder="New York, NY" value={newCompany.location} onChange={(e) => setNewCompany({...newCompany, location: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Description</p>
+                      <textarea
+                        placeholder="Brief overview of the company, what they do, why they matter..."
+                        value={newCompany.description}
+                        onChange={e => setNewCompany({...newCompany, description: e.target.value})}
+                        rows={3}
+                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-text-muted/50"
+                      />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-text-muted uppercase tracking-wider">Employees</label>
-                      <input type="text" placeholder="100-500" value={newCompany.employees} onChange={(e) => setNewCompany({...newCompany, employees: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
-                    </div>
+
                   </div>
                 )}
                 {panelOpen === 'filter' && (
@@ -337,19 +389,21 @@ export default function Companies() {
                     } else if (panelOpen === 'new_company' && newCompany.name) {
                       await createCompany.mutateAsync({
                         name: newCompany.name,
-                        domain: newCompany.domain || '',
+                        website: newCompany.website || '',
                         industry: newCompany.industry || '',
                         employees: newCompany.employees || '',
                         location: newCompany.location || '',
-                        description: newCompany.description || ''
+                        description: newCompany.description || '',
+                        revenue: newCompany.revenue || '',
+                        logoUrl: newCompany.logoUrl || '',
                       });
-                      setNewCompany({ name: '', domain: '', industry: '', employees: '', location: '', description: '' });
+                      setNewCompany({ name: '', website: '', industry: '', employees: '', location: '', description: '', revenue: '', logoUrl: '' });
                       setPanelOpen(null);
                     } else {
                       setPanelOpen(null);
                     }
                   }}
-                  style={{ backgroundColor: 'var(--primary)' }} className="px-5 py-2 text-white rounded-[6px] text-[13px] font-semibold font-medium">
+                  className="btn-primary">
                   {panelOpen === 'filter' ? 'Apply' : panelOpen === 'new_company' ? 'Add Account' : 'Save'}
                 </button>
               </div>

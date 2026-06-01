@@ -3,7 +3,7 @@
  * Entry point for CRM events (contact created, deal stage changed, etc.).
  */
 import { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
-import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../src/types/automation.js';
+import { WorkflowItem, ExecutionContext, NodeConfigField } from '../../../../src/types/automation.js';
 
 export const triggerCrmEvent: NodeImplementation = {
   type: 'trigger.crm_event',

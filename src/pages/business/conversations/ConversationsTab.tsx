@@ -321,10 +321,7 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
   const { data: connections = [], refetch: refetchConnections } = useChannelConnections();
   const disconnectMutation = useDisconnectChannel();
 
-  // Social integration status (facebook, instagram, etc.) — reserved for future use
-  useEffect(() => {
-    fetch('/api/integrations').then(r => r.json()).catch(console.error);
-  }, []);
+  // Social integration status (facebook, instagram) will be fetched here when needed.
 
   const [showSmsForm, setShowSmsForm]     = useState(false);
   const [smsForm, setSmsForm]             = useState({ accountSid: '', authToken: '', phoneNumber: '' });
@@ -934,48 +931,39 @@ export default function ConversationsTab() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
 
-      {/* ══ TOOLBAR — matches Contacts page ══ */}
-      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px] shrink-0">
+      {/* ── Toolbar ── */}
+      <div className="px-8 flex items-center justify-between bg-surface h-[73px] border-b border-border shrink-0 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
         <div className="flex items-center gap-2">
-          {/* Filter tabs */}
           {([
             { id: 'all',     label: 'All' },
             { id: 'unread',  label: 'Unread' },
             { id: 'starred', label: 'Starred' },
           ] as { id: FilterMode; label: string }[]).map(tab => (
             <button key={tab.id} onClick={() => setFilter(tab.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-[13px] font-medium ${
+              className={`px-3 py-1.5 rounded-[8px] text-[13px] font-semibold transition-colors ${
                 filter === tab.id
-                  ? 'text-text-main bg-surface-hover border-border'
-                  : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
+                  ? 'bg-surface-hover text-text-main border border-border shadow-sm'
+                  : 'text-text-muted hover:text-text-main hover:bg-surface-hover/50'
               }`}>
               {tab.label}
               {tab.id === 'unread' && convos.filter(c => c.unreadCount > 0).length > 0 && (
-                <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-primary/10 text-primary">
+                <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/15 text-primary">
                   {convos.filter(c => c.unreadCount > 0).length}
                 </span>
               )}
             </button>
           ))}
-
-          <div className="w-[1px] h-5 bg-border mx-2" />
-
+          <div className="w-[1px] h-4 bg-border mx-1" />
           <button onClick={() => setShowSettingsModal(true)}
-            className="flex items-center gap-2 px-3 py-1.5 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
-            <Settings className="w-4 h-4" /> Channels
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors border border-transparent hover:border-border">
+            <Settings className="w-3.5 h-3.5" /> Channels
           </button>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative shadow-sm rounded-full flex items-center">
-            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
-            <input
-              type="text"
-              placeholder="Search conversations"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
-            />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..."
+              className="pl-9 pr-3 py-2 bg-surface-hover border border-border/60 rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary/40 placeholder:text-text-muted w-[220px] transition-colors" />
           </div>
           <button onClick={() => setShowNewModal(true)} className="btn-primary">
             <Plus className="w-4 h-4" /> Compose
@@ -983,194 +971,171 @@ export default function ConversationsTab() {
         </div>
       </div>
 
-      {/* ══ CONVERSATION TABLE ══ */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 relative">
-        {convosLoading ? (
-          <table className="w-full text-left">
-            <thead className="border-b border-border/50 bg-surface/80">
+      {/* ── Content: list ↔ thread toggle ── */}
+      <AnimatePresence mode="wait" initial={false}>
+      {selected ? (
+
+        /* ── Frosted glass thread panel ── */
+        <motion.div
+          key="thread"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          className="flex-1 overflow-hidden flex flex-col mx-8 my-6 rounded-2xl border border-border/50 ring-1 ring-white/5 shadow-luxury"
+          style={{ background: 'var(--surface)' }}
+        >
+          <ConversationThread
+            key={selected.id}
+            selected={selected}
+            onClose={() => setSelectedId(null)}
+            setSelectedId={setSelectedId}
+            showToast={showToast}
+          />
+        </motion.div>
+
+      ) : (
+
+        /* ── Conversation list + footer ── */
+        <motion.div
+          key="list"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[12px] bg-surface/30 border border-border/50 shadow-luxury">
+        <table className="w-full text-left">
+          <thead className="border-b border-border/50 bg-surface/80 sticky top-0 z-10">
+            <tr>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Contact</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Channel</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Subject / Preview</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Last Message</th>
+              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-[72px] text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {convosLoading ? (
+              Array.from({ length: 7 }).map((_, i) => (
+                <tr key={i} className="border-b border-border/30">
+                  <td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="skeleton w-8 h-8 rounded-full shrink-0" /><div className="skeleton h-3 w-28 rounded" /></div></td>
+                  <td className="px-4 py-3"><div className="skeleton h-5 w-16 rounded-full" /></td>
+                  <td className="px-4 py-3"><div className="skeleton h-3 w-40 rounded" /></td>
+                  <td className="px-4 py-3"><div className="skeleton h-5 w-14 rounded-full" /></td>
+                  <td className="px-4 py-3"><div className="skeleton h-3 w-20 rounded" /></td>
+                  <td className="px-4 py-3" />
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
               <tr>
-                {[180, 100, 220, 80, 100].map((w, i) => (
-                  <th key={i} className="p-3"><div className="skeleton h-3 rounded" style={{ width: w }} /></th>
-                ))}
+                <td colSpan={6} className="px-4 py-16 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <MessageSquare className="w-8 h-8 text-border" />
+                    <p className="text-[14px] font-semibold text-text-muted">
+                      {search ? 'No matches found' : connections.length === 0 ? 'No channels connected yet' : 'No conversations'}
+                    </p>
+                    {!search && connections.length === 0 && (
+                      <button onClick={() => setShowSettingsModal(true)} className="btn-primary mt-1">
+                        <Settings className="w-4 h-4" /> Connect Channel
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="skeleton w-7 h-7 rounded-full" />
-                      <div className="skeleton h-3 w-32 rounded" />
+            ) : filtered.map(convo => {
+              const ConvoIcon = CH_ICON[convo.channel as Channel] ?? MessageSquare;
+              const previewText = convo.channel === 'email' && convo.subject
+                ? convo.subject
+                : convo.messages?.[0]?.body ?? '—';
+              const isUnread = convo.unreadCount > 0;
+              return (
+                <tr key={convo.id} onClick={() => setSelectedId(convo.id)}
+                  className={`border-b border-border/30 last:border-0 cursor-pointer table-row-hover transition-colors group ${isUnread ? 'bg-primary/[0.03]' : ''}`}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shadow-sm shrink-0"
+                        style={{ backgroundColor: convo.contact?.color ?? '#7dd3fc' }}>
+                        {contactInitials(convo.contact)}
+                      </div>
+                      <div>
+                        <p className={`text-[13px] truncate max-w-[140px] ${isUnread ? 'font-bold text-text-main' : 'font-semibold text-text-main'}`}>
+                          {contactDisplayName(convo.contact)}
+                        </p>
+                        <p className="text-[11px] text-text-muted truncate max-w-[140px]">{convo.contact?.email ?? ''}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="p-3"><div className="skeleton h-3 w-16 rounded" /></td>
-                  <td className="p-3"><div className="skeleton h-3 w-48 rounded" /></td>
-                  <td className="p-3"><div className="skeleton h-5 w-12 rounded-full" /></td>
-                  <td className="p-3"><div className="skeleton h-3 w-20 rounded" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 py-20 text-center">
-            {connections.length === 0 ? (
-              <>
-                <div className="w-12 h-12 rounded-[12px] bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-bold text-text-main mb-1">Connect a channel first</p>
-                  <p className="text-[13px] text-text-muted">Connect Gmail, SMS, or WhatsApp to start receiving messages.</p>
-                </div>
-                <button onClick={() => setShowSettingsModal(true)} className="btn-primary">
-                  <Settings className="w-4 h-4" /> Connect a Channel
-                </button>
-              </>
-            ) : (
-              <>
-                <MessageSquare className="w-8 h-8 text-border" />
-                <p className="text-[13px] font-bold text-text-muted">No conversations found</p>
-                <button onClick={() => setShowNewModal(true)} className="btn-primary">
-                  <Plus className="w-4 h-4" /> Compose
-                </button>
-              </>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-left">
-            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
-              <tr>
-                <th className="p-3 text-[13px] font-semibold text-text-muted whitespace-nowrap">Contact</th>
-                <th className="p-3 text-[13px] font-semibold text-text-muted whitespace-nowrap">Channel</th>
-                <th className="p-3 text-[13px] font-semibold text-text-muted whitespace-nowrap">Last Message</th>
-                <th className="p-3 text-[13px] font-semibold text-text-muted whitespace-nowrap">Status</th>
-                <th className="p-3 text-[13px] font-semibold text-text-muted whitespace-nowrap">Last Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(convo => {
-                const ConvoIcon = CH_ICON[convo.channel as Channel] ?? MessageSquare;
-                const previewText = convo.channel === 'email' && convo.subject
-                  ? convo.subject
-                  : convo.messages?.[0]?.body ?? '—';
-                const isUnread = convo.unreadCount > 0;
-                return (
-                  <tr key={convo.id}
-                    onClick={() => setSelectedId(convo.id)}
-                    className={`border-b border-border/50 transition-colors cursor-pointer group ${
-                      selectedId === convo.id ? 'bg-primary/5' : 'hover:bg-surface-hover/50'
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border"
+                      style={{ backgroundColor: `${CH_COLOR[convo.channel as Channel] ?? '#7dd3fc'}18`, borderColor: `${CH_COLOR[convo.channel as Channel] ?? '#7dd3fc'}40`, color: CH_COLOR[convo.channel as Channel] ?? '#7dd3fc' }}>
+                      {React.createElement(ConvoIcon, { className: 'w-3 h-3' })}
+                      {CH_LABEL[convo.channel as Channel] ?? convo.channel}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 max-w-[240px]">
+                    <p className={`text-[13px] truncate ${isUnread ? 'font-semibold text-text-main' : 'text-text-muted'}`}>
+                      {previewText || '—'}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                      convo.status === 'open'
+                        ? 'bg-accent-green/10 text-accent-green border border-accent-green/20'
+                        : 'bg-bg text-text-muted border border-border'
                     }`}>
-                    {/* Contact */}
-                    <td className="p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm"
-                            style={{ backgroundColor: convo.contact?.color ?? '#7dd3fc' }}>
-                            {contactInitials(convo.contact)}
-                          </div>
-                          {convo.status === 'open' && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent-green border-[1.5px] border-surface" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[13px] transition-colors hover:text-primary ${isUnread ? 'font-bold text-text-main' : 'font-medium text-text-main'}`}>
-                            {contactDisplayName(convo.contact)}
-                          </span>
-                          {isUnread && (
-                            <span className="w-4 h-4 rounded-full bg-primary text-bg text-[9px] font-bold flex items-center justify-center shadow-sm shrink-0">
-                              {convo.unreadCount}
-                            </span>
-                          )}
-                          {convo.starred && (
-                            <Star className="w-3 h-3 text-accent-amber fill-accent-amber shrink-0" />
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    {/* Channel */}
-                    <td className="p-3">
-                      <div className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted">
-                        <ConvoIcon className="w-3.5 h-3.5 shrink-0" style={{ color: CH_COLOR[convo.channel as Channel] ?? '#7dd3fc' }} />
-                        {CH_LABEL[convo.channel as Channel] ?? convo.channel}
-                      </div>
-                    </td>
-                    {/* Preview */}
-                    <td className="p-3 max-w-[280px]">
-                      <p className={`text-[13px] truncate ${isUnread ? 'font-semibold text-text-main' : 'font-medium text-text-muted'}`}>
-                        {previewText}
-                      </p>
-                    </td>
-                    {/* Status */}
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold whitespace-nowrap shadow-sm border ${
-                        convo.status === 'open'
-                          ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
-                          : 'border-border bg-bg text-text-muted'
-                      }`}>
-                        {convo.status}
-                      </span>
-                    </td>
-                    {/* Timestamp */}
-                    <td className="p-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[11px] font-medium text-text-muted opacity-60 whitespace-nowrap">
-                          {timeAgo(convo.lastMessageAt ?? convo.updatedAt)}
+                      {convo.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      {isUnread && (
+                        <span className="w-4 h-4 rounded-full bg-primary text-bg text-[9px] font-bold flex items-center justify-center shrink-0">
+                          {convo.unreadCount}
                         </span>
-                        <button
-                          onClick={e => handleStar(convo.id, e)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent-amber"
-                        >
-                          <Star className={`w-3.5 h-3.5 ${convo.starred ? 'fill-accent-amber text-accent-amber' : ''}`} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                      )}
+                      <span className="text-[12px] text-text-muted">{timeAgo(convo.lastMessageAt ?? convo.updatedAt)}</span>
+                      {convo.starred && <Star className="w-3 h-3 text-accent-amber fill-accent-amber ml-1" />}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={e => handleStar(convo.id, e)}
+                        className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent-amber transition-colors">
+                        <Star className={`w-3.5 h-3.5 ${convo.starred ? 'fill-accent-amber text-accent-amber' : ''}`} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
-      {/* ══ FOOTER ══ */}
-      <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0">
+      {/* ── Footer ── */}
+      <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 sticky bottom-0 z-10">
         <div className="font-semibold text-text-muted flex items-center gap-3">
           <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary/60" />
-            {filtered.length} {filter === 'all' ? 'Conversations' : filter === 'unread' ? 'Unread' : 'Starred'}
+            {filtered.length} conversations
           </span>
+          <span>{convos.filter(c => c.status === 'open').length} open</span>
         </div>
-        <div className="text-[12px] font-medium text-text-muted">
-          {convos.filter(c => c.status === 'open').length} open · {convos.filter(c => c.status === 'closed').length} closed
+        <div className="flex items-center gap-1.5 font-semibold">
+          <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
+          <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+          <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
         </div>
       </div>
 
-      {/* ══ CENTERED THREAD MODAL ══ */}
-      <AnimatePresence>
-        {selected && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
-              onClick={() => setSelectedId(null)}
-            />
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0, y: 12 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 12 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative w-[860px] h-[82vh] bg-surface shadow-2xl z-50 flex flex-col border border-border rounded-xl overflow-hidden"
-            >
-              <ConversationThread
-                key={selected.id}
-                selected={selected}
-                onClose={() => setSelectedId(null)}
-                setSelectedId={setSelectedId}
-                showToast={showToast}
-              />
-            </motion.div>
-          </div>
-        )}
+        </motion.div>
+      )}
       </AnimatePresence>
 
       {/* ══ NEW CONVERSATION MODAL ══ */}

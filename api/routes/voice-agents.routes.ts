@@ -3,8 +3,8 @@
  * All SDK logic is delegated to api/services/voice.service.ts.
  */
 import { Router } from 'express';
-import * as voiceService from './services/voice.service.js';
-import { emitTrigger } from './services/trigger-emitter.service.js';
+import * as voiceService from '../services/voice.service.js';
+import { emitTrigger } from '../services/trigger-emitter.service.js';
 
 const router = Router();
 
@@ -46,12 +46,7 @@ router.post('/voices/search', async (req, res) => {
 router.post('/voices/add', async (req, res) => {
   try {
     const { provider_voice_id, voice_name, voice_provider, public_user_id } = req.body;
-    const voice = await voiceService.addVoice({
-      provider_voice_id,
-      voice_name,
-      voice_provider,
-      public_user_id,
-    });
+    const voice = await voiceService.addVoice({ provider_voice_id, voice_name, voice_provider, public_user_id });
     res.json(voice);
   } catch (error: any) {
     console.error('[Retell] Error adding voice:', error.message);
@@ -64,7 +59,7 @@ router.post('/voices/add', async (req, res) => {
 router.post('/webhook', async (req, res) => {
   try {
     const { event, call } = req.body;
-    const workspaceId = call?.metadata?.workspaceId || (req as any).workspaceId || 'default';
+    const workspaceId = call?.metadata?.workspaceId || req.workspaceId;
 
     if (event === 'call_started') {
       emitTrigger(workspaceId, 'agent.call_started', {

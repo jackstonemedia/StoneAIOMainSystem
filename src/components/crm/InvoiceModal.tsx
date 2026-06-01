@@ -42,9 +42,9 @@ export function InvoiceModal({ isOpen, onClose, dealId, amount }: InvoiceModalPr
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-surface border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden z-10">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-surface-hover/20">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/30" />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative rounded-xl shadow-2xl w-full max-w-md overflow-hidden z-10 border border-white/10" style={{ background: 'rgba(15,26,43,0.75)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)' }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-white/[0.04]">
               <div>
                 <h3 className="text-[16px] font-bold text-text-main">Issue Invoice</h3>
                 <p className="text-[12px] text-text-muted mt-0.5">Automated billing via Stripe</p>

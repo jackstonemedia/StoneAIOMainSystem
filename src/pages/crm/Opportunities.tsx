@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { Draggable } from '@hello-pangea/dnd';
 import { InvoiceModal } from '../../components/crm/InvoiceModal';
 import {
   Plus, Search, Filter, ChevronDown, MoreVertical, X,
-  LayoutGrid, List, Download, Phone, Mail, MessageSquare,
+  List, Download, Phone, Mail, MessageSquare,
   Calendar, CheckSquare, Trash2, Edit2, GripVertical,
-  Settings, ChevronLeft, ChevronRight,
+  Settings, ChevronLeft,
   AlertCircle, Check, Target, TrendingUp, Zap,
   PlayCircle, PauseCircle, CheckCircle2,
-  XCircle, Activity, GitBranch, MoreHorizontal, ArrowUpDown
+  XCircle, Activity, GitBranch
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -27,8 +27,6 @@ interface Deal {
 }
 interface Contact { id: string; name: string; firstName: string; lastName: string; email?: string; phone?: string; }
 
-type TabMode = 'opportunities' | 'pipelines' | 'bulk';
-type ViewMode = 'kanban' | 'list';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,17 +115,18 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={onClose} />
       <motion.div initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.18 }}
-        className="relative w-[680px] max-h-[90vh] bg-surface border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden z-10"
+        className="relative w-[680px] max-h-[90vh] rounded-2xl flex flex-col overflow-hidden z-10 border border-white/20 ring-1 ring-white/5 shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
+        style={{ background: 'rgba(15,26,43,0.62)', backdropFilter: 'blur(32px) saturate(200%) brightness(1.10)', WebkitBackdropFilter: 'blur(32px) saturate(200%) brightness(1.10)' }}
       >
-        <div className="flex items-start justify-between px-6 py-5 border-b border-border bg-surface-hover/30">
+        <div className="flex items-start justify-between px-6 py-5 border-b border-white/10 bg-white/[0.06]">
           <div><h2 className="text-[16px] font-bold text-text-main">Add new opportunity</h2><p className="text-[12px] text-text-muted mt-0.5">Fill in the details and select a contact to get started.</p></div>
           <button onClick={onClose} className="p-1.5 rounded-full text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-[148px] border-r border-border bg-surface-hover/20 p-4 shrink-0 pt-5">
+          <div className="w-[148px] border-r border-white/10 bg-white/[0.03] p-4 shrink-0 pt-5">
             <div className="text-[12px] font-bold text-primary border-l-2 border-primary pl-2.5 py-1 bg-primary/5 rounded-r-[4px]">Opportunity Details</div>
           </div>
 
@@ -244,8 +243,8 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
         </div>
 
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30 shrink-0">
-          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-muted border border-border hover:bg-surface-hover transition-colors">Cancel</button>
-          <button onClick={submit} disabled={mut.isPending || isCreatingContact} className="px-5 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50">
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={submit} disabled={mut.isPending || isCreatingContact} className="btn-primary disabled:opacity-50">
             {mut.isPending || isCreatingContact ? 'Creating...' : 'Create'}
           </button>
         </div>
@@ -453,9 +452,12 @@ function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipel
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="relative w-[480px] bg-surface border border-border rounded-2xl shadow-2xl z-10">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+        className="relative w-[480px] rounded-2xl z-10 border border-white/20 ring-1 ring-white/5 shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
+        style={{ background: 'rgba(15,26,43,0.62)', backdropFilter: 'blur(32px) saturate(200%) brightness(1.10)', WebkitBackdropFilter: 'blur(32px) saturate(200%) brightness(1.10)' }}
+      >
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.06]">
           <h2 className="text-[15px] font-bold text-text-main">Edit Opportunity</h2>
           <button onClick={onClose} className="p-1.5 rounded-full text-text-muted hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
         </div>
@@ -488,8 +490,8 @@ function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipel
           {error && <p className="text-[12px] text-red-400">{error}</p>}
         </div>
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30">
-          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-muted border border-border hover:bg-surface-hover transition-colors">Cancel</button>
-          <button onClick={save} disabled={saving} className="px-5 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 disabled:opacity-50 transition-opacity">{saving ? 'Saving...' : 'Save'}</button>
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
         </div>
       </motion.div>
     </div>
@@ -529,9 +531,7 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
             <p className="text-[13px] text-text-muted mt-1 max-w-xl">Manage your sales pipelines and configure stages. Each pipeline can have its own stages, colors, and win probabilities.</p>
           </div>
         </div>
-        <button onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-[8px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
-        >
+        <button onClick={() => setCreateOpen(true)} className="btn-primary">
           <Plus className="w-4 h-4" /> Create Pipeline
         </button>
       </div>
@@ -540,7 +540,7 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
           { label: 'Total Pipelines', value: pipelines.length, icon: GitBranch2, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'Total Stages', value: pipelines.reduce((s, p) => s + (p.stages?.length || 0), 0), icon: LayoutGrid, color: 'text-violet-400', bg: 'bg-violet-400/10' },
+          { label: 'Total Stages', value: pipelines.reduce((s, p) => s + (p.stages?.length || 0), 0), icon: GitBranch, color: 'text-violet-400', bg: 'bg-violet-400/10' },
           { label: 'Default Pipeline', value: pipelines.find(p => p.isDefault)?.name || '—', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
         ].map((stat, i) => (
           <div key={i} className="bg-surface border border-border rounded-[10px] px-5 py-4 flex items-center gap-4 shadow-sm">
@@ -681,7 +681,7 @@ function BulkActionsTab() {
           <h1 className="text-[20px] font-bold text-text-main">Bulk Actions</h1>
           <p className="text-[12px] text-text-muted mt-0.5">Run and monitor operations on multiple contacts at once.</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity shadow-sm">
+        <button className="btn-primary">
           <Plus className="w-4 h-4" /> New Bulk Action
         </button>
       </div>
@@ -801,38 +801,27 @@ function BulkActionsTab() {
 
 export default function Opportunities() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<TabMode>('opportunities');
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
-  const [selectedPipelineId, setSelectedPipelineId] = useState('');
-  const [pipelineDropOpen, setPipelineDropOpen] = useState(false);
+  const [pipelinesOpen, setPipelinesOpen] = useState(false);
+  const [selectedPipelineId, setSelectedPipelineId] = useState('all');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [search, setSearch] = useState('');
-  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sortDropOpen, setSortDropOpen] = useState(false);
   const [invoiceDeal, setInvoiceDeal] = useState<{ id: string; amount: number } | null>(null);
 
   const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<Pipeline[]>({ queryKey: ['pipelines'], queryFn: () => apiFetch('/api/crm/pipelines') });
   const { data: rawDeals = [], isLoading: loadingDeals } = useQuery<Deal[]>({ queryKey: ['deals'], queryFn: () => apiFetch('/api/crm/deals') });
   const { data: contacts = [] } = useQuery<Contact[]>({ queryKey: ['contacts'], queryFn: () => apiFetch('/api/crm/contacts').then((res: any) => res.contacts || []) });
 
-  useEffect(() => { if (pipelines.length && !selectedPipelineId) setSelectedPipelineId(pipelines[0].id); }, [pipelines]);
+  const allStages = pipelines.flatMap(p => p.stages || []);
+  const stageMap = new Map(allStages.map(s => [s.id, { ...s, pipeline: pipelines.find(p => p.stages?.some(ps => ps.id === s.id)) }]));
 
-  const selectedPipeline = pipelines.find(p => p.id === selectedPipelineId) || pipelines[0];
-  const stages = (selectedPipeline?.stages ?? []).sort((a, b) => a.order - b.order);
-  const stageIds = new Set(stages.map(s => s.id));
-
-  const deals = rawDeals
-    .filter(d => stageIds.has((d as any).pipelineStageId || d.pipelineStage?.id))
-    .filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()) || (d.company?.name || '').toLowerCase().includes(search.toLowerCase()));
-
-  // ── Drag and drop ──
-  const moveDeal = useMutation({
-    mutationFn: async ({ dealId, stageId }: { dealId: string; stageId: string }) => {
-      const r = await fetch(`/api/crm/deals/${dealId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pipelineStageId: stageId }) });
-      if (!r.ok) throw new Error('Failed');
-      return r.json();
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
+  const deals = rawDeals.filter(d => {
+    const stageId = (d as any).pipelineStageId || d.pipelineStage?.id;
+    const pipelineMatch = selectedPipelineId === 'all' || pipelines.find(p => p.stages?.some(s => s.id === stageId))?.id === selectedPipelineId;
+    const searchMatch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || (d.company?.name || '').toLowerCase().includes(search.toLowerCase());
+    return pipelineMatch && searchMatch;
   });
 
   const deleteDeal = useMutation({
@@ -840,281 +829,204 @@ export default function Opportunities() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
   });
 
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-    const { draggableId, destination } = result;
-    const destStageId = destination.droppableId;
-    // Find current deal stage
-    const deal = rawDeals.find(d => d.id === draggableId);
-    const currentStageId = (deal as any)?.pipelineStageId || deal?.pipelineStage?.id;
-    
-    if (currentStageId !== destStageId) {
-      moveDeal.mutate({ dealId: draggableId, stageId: destStageId });
-      
-      // Auto-trigger Invoice Modal if dragged to a 'Won' stage
-      const destStage = stages.find(s => s.id === destStageId);
-      if (destStage && destStage.name.toLowerCase().includes('won') && deal) {
-        setInvoiceDeal({ id: deal.id, amount: deal.amount || 0 });
-      }
-    }
-  };
+  const toggleSelect = (id: string) => { setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
+  const toggleAll = () => { if (selected.size === deals.length && deals.length > 0) setSelected(new Set()); else setSelected(new Set(deals.map(d => d.id))); };
 
-  const totalDeals = deals.length;
   const isLoading = loadingPipelines || loadingDeals;
+  const AVATAR_COLORS = ['#4F8EF7', '#52C27E', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C', '#3498DB', '#E67E22'];
 
-  const TABS: { id: TabMode; label: string }[] = [
-    { id: 'opportunities', label: 'Opportunities' },
-    { id: 'pipelines', label: 'Pipelines' },
-    { id: 'bulk', label: 'Bulk Actions' },
-  ];
   return (
     <div className="flex flex-col h-full w-full bg-bg relative">
 
+      {/* ── Toolbar — exact Contacts layout ── */}
+      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px] shrink-0">
+        <div className="flex items-center gap-2">
+          {/* All pill */}
+          <button
+            onClick={() => setSelectedPipelineId('all')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-[13px] font-medium ${
+              selectedPipelineId === 'all'
+                ? 'text-text-main bg-surface-hover border-border'
+                : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
+            }`}
+          >
+            <List className="w-3.5 h-3.5 text-primary" /><span>All</span>
+          </button>
+          {/* Pipeline pills */}
+          {pipelines.map(p => (
+            <button key={p.id} onClick={() => setSelectedPipelineId(p.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-[13px] font-medium ${
+                selectedPipelineId === p.id
+                  ? 'text-text-main bg-surface-hover border-border'
+                  : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
+              }`}
+            >{p.name}</button>
+          ))}
 
-      {tab === 'pipelines' ? (
-        <PipelinesTab pipelines={pipelines} onRefresh={() => qc.invalidateQueries({ queryKey: ['pipelines'] })} onBack={() => setTab('opportunities')} />
-      ) : tab === 'bulk' ? (
-        <BulkActionsTab />
+          <div className="w-[1px] h-5 bg-border mx-2" />
+
+          <button className="btn-secondary"><Filter className="w-4 h-4" /> Advanced filters</button>
+
+          <div className="relative">
+            <button onClick={() => setSortDropOpen(o => !o)} className="btn-secondary"><ChevronDown className="w-4 h-4" /> Sort</button>
+            <AnimatePresence>
+              {sortDropOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropOpen(false)} />
+                  <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                    className="absolute left-0 mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {['Newest First', 'Oldest First', 'Value (High → Low)', 'Value (Low → High)', 'Name (A–Z)'].map(opt => (
+                      <button key={opt} onClick={() => setSortDropOpen(false)} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">{opt}</button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative shadow-sm rounded-full flex items-center mr-2">
+            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
+            <input type="text" placeholder="Search Opportunities" value={search} onChange={e => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted" />
+          </div>
+          <button className="btn-secondary"><Download className="w-4 h-4" /> Import</button>
+          <button onClick={() => setAddModalOpen(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add Opportunity</button>
+          <div className="w-[1px] h-5 bg-border mx-1" />
+          <button onClick={() => setPipelinesOpen(true)} className="btn-secondary"><Settings className="w-4 h-4" /> Pipeline Config</button>
+        </div>
+      </div>
+
+      {/* ── Table — matches Contacts container + row style ── */}
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
       ) : (
-        <>
-          {/* Main Toolbar */}
-          <div className="px-8 flex items-center justify-between bg-surface h-[73px] border-b border-border shrink-0 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
-            <div className="flex items-center gap-2">
-              <button onClick={() => setTab('pipelines')} className="flex items-center gap-2 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
-                <Settings className="w-3.5 h-3.5" /> Pipeline Config
-              </button>
-              {/* Pipeline selector */}
-              <div className="relative">
-                <button onClick={() => setPipelineDropOpen(!pipelineDropOpen)}
-                  className="flex items-center justify-between px-3 py-1.5 bg-surface border border-border/60 rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:border-border hover:bg-surface-hover transition-colors w-[200px]"
-                >
-                  <span className="truncate">{selectedPipeline?.name || 'Select Pipeline'}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" />
-                </button>
-                <AnimatePresence>
-                  {pipelineDropOpen && (
-                    <>
-                      <div className="fixed inset-0 z-20" onClick={() => setPipelineDropOpen(false)} />
-                      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                        className="absolute left-0 top-[calc(100%+4px)] w-[200px] bg-surface border border-border rounded-[4px] shadow-luxury z-30 py-1"
-                      >
-                        {pipelines.map(p => (
-                          <button key={p.id} onClick={() => { setSelectedPipelineId(p.id); setPipelineDropOpen(false); }}
-                            className="w-full flex items-center justify-between px-3 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                          >
-                            {p.name} {p.id === selectedPipelineId && <Check className="w-3.5 h-3.5 text-primary" />}
-                          </button>
-                        ))}
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <span className="text-[12px] text-text-muted">
-                {totalDeals} {totalDeals === 1 ? 'deal' : 'deals'}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* View toggle */}
-              <div className="flex items-center border border-border rounded-[4px] overflow-hidden bg-surface">
-                <button onClick={() => setViewMode('kanban')} className={`px-3 py-1.5 text-[13px] font-medium flex items-center gap-1.5 transition-colors ${viewMode === 'kanban' ? 'bg-surface-hover text-text-main' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}>
-                  <LayoutGrid className="w-3.5 h-3.5" /> Kanban
-                </button>
-                <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 text-[13px] font-medium flex items-center gap-1.5 border-l border-border transition-colors ${viewMode === 'list' ? 'bg-surface-hover text-text-main' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}>
-                  <List className="w-3.5 h-3.5" /> List
-                </button>
-              </div>
-
-              <button className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
-                <Download className="w-4 h-4" /> Import
-              </button>
-              <button onClick={() => setAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
-              >
-                <Plus className="w-4 h-4" /> Add opportunity
-              </button>
-              <button className="flex items-center justify-center p-2 rounded-[4px] border border-border bg-surface text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors">
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Secondary View Toolbar — removed, view toggle moved to main toolbar */}
-
-          {/* Filters Toolbar */}
-          <div className="px-8 py-2.5 border-b border-border bg-bg flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
-                <Filter className="w-3.5 h-3.5" /> Advanced Filters
-              </button>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 border border-border/60 bg-surface rounded-[4px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover hover:border-border transition-colors">
-                <ArrowUpDown className="w-3.5 h-3.5" /> Sort
-              </button>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-                <input type="text" placeholder="Search opportunities…" value={search} onChange={e => setSearch(e.target.value)}
-                  className="pl-8 pr-4 py-1.5 w-[220px] border border-border bg-bg text-text-main rounded-[4px] text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-text-muted/60"
-                />
-              </div>
-              <button className="flex items-center gap-1.5 text-[12px] font-medium text-text-muted hover:text-text-main transition-colors">
-                <Settings className="w-3.5 h-3.5" /> Manage Fields
-              </button>
-            </div>
-          </div>
-
-          {/* Content */}
-          {isLoading ? (
-            <div className="flex-1 overflow-hidden p-6 flex gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex-1 min-w-0 bg-surface rounded-xl p-4 space-y-3 border border-border">
-                  <div className="skeleton h-4 w-20 rounded" />
-                  <div className="skeleton h-5 w-10 rounded" />
-                  {Array.from({ length: 3 }).map((_, j) => (
-                    <div key={j} className="skeleton h-[72px] rounded-lg" />
-                  ))}
-                </div>
-              ))}
-            </div>
-          ) : viewMode === 'kanban' ? (
-            <DragDropContext onDragEnd={onDragEnd}>
-              <div className="flex-1 overflow-x-auto overflow-y-hidden bg-bg p-6">
-                <div className="flex h-full min-w-max gap-4 items-start">
-                  {stages.map(stage => {
-                    const stageDeals = deals.filter(d => ((d as any).pipelineStageId || d.pipelineStage?.id) === stage.id);
-                    const stageValue = stageDeals.reduce((s, d) => s + (d.amount || 0), 0);
-                    const isCollapsed = collapsedStages.has(stage.id);
-
-                    if (isCollapsed) {
-                      return (
-                        <div key={stage.id} className="w-12 shrink-0 flex flex-col bg-surface border border-border rounded-[8px] overflow-hidden shadow-sm">
-                          <div style={{ backgroundColor: stage.color }} className="h-[3px] w-full" />
-                          <div className="flex-1 flex flex-col items-center py-4 gap-2">
-                            <div className="text-[10px] font-bold text-text-muted">{stageDeals.length}</div>
-                            <div className="text-[10px] font-bold text-text-muted" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{stage.name}</div>
-                          </div>
-                          <button onClick={() => setCollapsedStages(s => { const n = new Set(s); n.delete(stage.id); return n; })} className="h-8 flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors border-t border-border">
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 relative">
+          <table className="w-full text-left">
+            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
+              <tr>
+                <th className="w-12 p-3 text-center">
+                  <button onClick={toggleAll} className="w-4 h-4 border border-border rounded flex items-center justify-center transition-colors bg-bg hover:border-primary text-primary">
+                    {selected.size === deals.length && deals.length > 0 ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
+                  </button>
+                </th>
+                {['Opportunity', 'Contact', 'Pipeline / Stage', 'Value', 'Status', 'Created (EDT)', 'Last activity (EDT)'].map(h => (
+                  <th key={h} className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
+                    <div className="flex items-center gap-2">{h} <ChevronDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer transition-opacity" /></div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {deals.length === 0 ? (
+                <tr><td colSpan={8} className="py-24" /></tr>
+              ) : deals.map(deal => {
+                const raw = rawDeals.find(d => d.id === deal.id) as any;
+                const stageId = (raw as any)?.pipelineStageId || raw?.pipelineStage?.id;
+                const stage = stageMap.get(stageId);
+                const contactName = raw?.contact ? `${raw.contact.firstName || ''} ${raw.contact.lastName || ''}`.trim() || '—' : '—';
+                const initials = deal.title.substring(0, 2).toUpperCase();
+                const avatarColor = AVATAR_COLORS[deal.title.charCodeAt(0) % AVATAR_COLORS.length];
+                return (
+                  <tr key={deal.id}
+                    className={`border-b border-border/50 transition-colors cursor-pointer ${selected.has(deal.id) ? 'bg-primary/5' : 'hover:bg-surface-hover/50'}`}
+                    onClick={() => setEditingDeal(raw as Deal)}
+                  >
+                    <td className="p-3 text-center" onClick={e => { e.stopPropagation(); toggleSelect(deal.id); }}>
+                      <button className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center transition-colors hover:border-primary text-primary">
+                        {selected.has(deal.id) ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
+                      </button>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm shrink-0" style={{ backgroundColor: avatarColor }}>
+                          {initials}
                         </div>
-                      );
-                    }
-
-                    return (
-                      <div key={stage.id} className="w-[300px] shrink-0 flex flex-col gap-3">
-                        {/* Stage color bar & header card */}
-                        <div className="bg-surface border border-border rounded-[8px] shadow-sm relative overflow-hidden">
-                          <div className="h-[3px] w-full absolute top-0 left-0 right-0" style={{ backgroundColor: stage.color }} />
-                          <div className="p-4 pt-4 pb-3">
-                            <div className="flex items-center justify-between mb-1">
-                            <h3 className="text-[13px] font-medium text-text-main">{stage.name}</h3>
-                              <button onClick={() => setCollapsedStages(s => { const n = new Set(s); n.add(stage.id); return n; })} className="text-text-muted hover:text-text-main transition-colors">
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-text-muted font-medium">
-                              <span>{stageDeals.length} Opportunities</span>
-                              <span className="font-bold text-text-main ml-auto">{fmt(stageValue)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Droppable area */}
-                        <Droppable droppableId={stage.id}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className={`flex flex-col gap-2 transition-colors min-h-[120px] rounded-[8px] ${snapshot.isDraggingOver ? 'bg-primary/5 p-2 border border-primary/20 border-dashed' : ''}`}
-                            >
-                              {stageDeals.map((deal, idx) => (
-                                <DealCard key={deal.id} deal={deal} index={idx}
-                                  onDelete={() => deleteDeal.mutate(deal.id)}
-                                  onEdit={() => setEditingDeal(rawDeals.find(d => d.id === deal.id) as Deal || deal)}
-                                />
-                              ))}
-                              {provided.placeholder}
-                              {stageDeals.length === 0 && !snapshot.isDraggingOver && (
-                                <div className="flex flex-col items-center justify-center py-6 text-center opacity-40">
-                                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-border flex items-center justify-center mb-2">
-                                    <Plus className="w-3.5 h-3.5 text-text-muted" />
-                                  </div>
-                                  <p className="text-[11px] text-text-muted">Drop here or add</p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </Droppable>
+                        <span className="text-[13px] font-medium text-text-main truncate">{deal.title}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </DragDropContext>
-          ) : (
-            /* List view */
-            <div className="flex-1 overflow-auto">
-              <table className="w-full text-left">
-                <thead className="sticky top-0 bg-surface border-b border-border z-10">
-                  <tr>{['Opportunity', 'Contact', 'Company', 'Stage', 'Value', 'Source', 'Status', ''].map(h => (
-                    <th key={h} className="px-5 py-3.5 text-[11px] font-bold text-text-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {deals.length === 0 ? (
-                    <tr><td colSpan={8} className="px-5 py-16 text-center text-[13px] text-text-muted">No opportunities in this pipeline.</td></tr>
-                  ) : deals.map(deal => {
-                    const raw = rawDeals.find(d => d.id === deal.id) as any;
-                    const stage = stages.find(s => s.id === ((raw?.pipelineStageId) || raw?.pipelineStage?.id));
-                    return (
-                      <tr key={deal.id} className="hover:bg-surface-hover/40 transition-colors cursor-pointer" onClick={() => setEditingDeal(raw as Deal)}>
-                        <td className="px-5 py-3 text-[13px] font-semibold text-text-main">{deal.title}</td>
-                        <td className="px-5 py-3 text-[12px] text-text-muted">{raw?.contact ? `${raw.contact.firstName} ${raw.contact.lastName}` : '—'}</td>
-                        <td className="px-5 py-3 text-[12px] text-text-muted">{raw?.company?.name || '—'}</td>
-                        <td className="px-5 py-3">
-                          {stage ? <span className="px-2 py-0.5 rounded-[4px] text-[11px] font-semibold" style={{ background: `${stage.color}20`, color: stage.color }}>{stage.name}</span> : '—'}
-                        </td>
-                        <td className="px-5 py-3 text-[13px] font-bold text-text-main">${(deal.amount || 0).toLocaleString()}</td>
-                        <td className="px-5 py-3 text-[12px] text-text-muted">{raw?.source || '—'}</td>
-                        <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${raw?.status === 'won' ? 'bg-emerald-400/10 text-emerald-400' : raw?.status === 'lost' ? 'bg-red-400/10 text-red-400' : 'bg-primary/10 text-primary'}`}>
-                            {raw?.status || 'open'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3">
-                          <button onClick={e => { e.stopPropagation(); deleteDeal.mutate(deal.id); }} className="w-7 h-7 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors opacity-0 group-hover:opacity-100">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
+                    </td>
+                    <td className="p-3 text-[13px] font-medium text-text-main">{contactName}</td>
+                    <td className="p-3">
+                      {stage
+                        ? <span className="px-2 py-0.5 rounded-[4px] text-[11px] font-semibold" style={{ background: `${stage.color}22`, color: stage.color }}>{stage.name}</span>
+                        : <span className="text-[12px] text-text-muted">—</span>}
+                    </td>
+                    <td className="p-3 text-[13px] font-bold text-text-main">${(deal.amount || 0).toLocaleString()}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${raw?.status === 'won' ? 'bg-emerald-400/10 text-emerald-400' : raw?.status === 'lost' ? 'bg-red-400/10 text-red-400' : 'bg-primary/10 text-primary'}`}>
+                        {raw?.status || 'open'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-[11px] font-medium whitespace-nowrap text-text-muted opacity-60">
+                      {deal.createdAt ? new Date(deal.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                    </td>
+                    <td className="p-3 text-[11px] font-medium whitespace-nowrap text-text-muted opacity-60">
+                      {(raw as any)?.updatedAt ? new Date((raw as any).updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Modals */}
+      {/* ── Footer — exact Contacts layout ── */}
+      <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0">
+        <div className="font-semibold text-text-muted flex items-center gap-3">
+          Page 1 of 1
+          <div className="w-[1px] h-4 bg-border" />
+          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-primary/60" />
+            {deals.length} Opportunities
+          </span>
+        </div>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
+            20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+          </div>
+          <div className="flex items-center gap-1.5 font-semibold">
+            <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
+            <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Pipeline Config slide-over ── */}
+      <AnimatePresence>
+        {pipelinesOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 z-40 backdrop-blur-[2px]"
+              onClick={() => setPipelinesOpen(false)} />
+            <motion.div
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-[640px] bg-surface shadow-luxury z-50 flex flex-col border-l border-border overflow-hidden"
+            >
+              <div className="flex-1 overflow-auto">
+                <PipelinesTab pipelines={pipelines} onRefresh={() => qc.invalidateQueries({ queryKey: ['pipelines'] })} onBack={() => setPipelinesOpen(false)} />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modals ── */}
       <AnimatePresence>
         {addModalOpen && (
-          <AddOpportunityModal pipelines={pipelines} contacts={contacts} defaultPipelineId={selectedPipelineId} onClose={() => setAddModalOpen(false)} onSave={() => setAddModalOpen(false)} />
+          <AddOpportunityModal pipelines={pipelines} contacts={contacts} defaultPipelineId={selectedPipelineId === 'all' ? (pipelines[0]?.id || '') : selectedPipelineId} onClose={() => setAddModalOpen(false)} onSave={() => setAddModalOpen(false)} />
         )}
         {editingDeal && (
           <EditDealModal deal={editingDeal} pipelines={pipelines} onClose={() => setEditingDeal(null)} onSave={() => setEditingDeal(null)} />
         )}
         {invoiceDeal && (
-          <InvoiceModal
-            isOpen={true}
-            onClose={() => setInvoiceDeal(null)}
-            dealId={invoiceDeal.id}
-            amount={invoiceDeal.amount}
-          />
+          <InvoiceModal isOpen={true} onClose={() => setInvoiceDeal(null)} dealId={invoiceDeal.id} amount={invoiceDeal.amount} />
         )}
       </AnimatePresence>
     </div>

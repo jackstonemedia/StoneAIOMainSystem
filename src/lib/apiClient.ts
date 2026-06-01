@@ -15,6 +15,12 @@ export function setTokenGetter(fn: (() => Promise<string | null>) | null) {
   _getToken = fn;
 }
 
+/** Returns the current JWT, or null in dev-bypass mode or when not signed in. */
+export async function getStoredToken(): Promise<string | null> {
+  if (!_getToken) return null;
+  try { return await _getToken(); } catch { return null; }
+}
+
 // ── Global fetch override for /api paths ───────────────────────────────────────
 const originalFetch = window.fetch;
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {

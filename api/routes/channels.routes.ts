@@ -81,7 +81,7 @@ router.get('/gmail/callback', async (req, res) => {
       },
     });
 
-    res.redirect('/business/conversations/chat?channel_connected=gmail');
+    res.redirect('/conversations/chat?channel_connected=gmail');
   } catch (e) {
     console.error('[Gmail callback]', e);
     res.status(500).send('Failed to connect Gmail. Check server logs.');
@@ -140,7 +140,7 @@ router.get('/outlook/callback', async (req, res) => {
       );
     }
 
-    res.redirect('/business/conversations/chat?channel_connected=outlook');
+    res.redirect('/conversations/chat?channel_connected=outlook');
   } catch (e) {
     console.error('[Outlook callback]', e);
     res.status(500).send('Failed to connect Outlook. Check server logs.');

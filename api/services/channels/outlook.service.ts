@@ -47,7 +47,7 @@ export async function exchangeOutlookCode(
   return { credentials, email: profile.data.mail ?? profile.data.userPrincipalName };
 }
 
-async function getToken(connectionId: string): Promise<string> {
+export async function getToken(connectionId: string): Promise<string> {
   const conn = await db.channelConnection.findUnique({ where: { id: connectionId } });
   if (!conn) throw new Error(`Outlook connection ${connectionId} not found`);
   const creds = decryptJson<OutlookCredentials>(conn.credentialsJson);
@@ -97,6 +97,33 @@ export async function sendOutlookEmail(
   await axios.post(`${GRAPH}/me/sendMail`, payload, {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   });
+}
+
+/** Sends an Outlook message and returns the conversationId for threading.
+ *  Use this from the outbound dispatch block — it provides the conversationId
+ *  so inbound replies can be threaded into the same Stone AIO conversation. */
+export async function sendOutlookMessage(
+  connectionId: string,
+  to: string,
+  subject: string,
+  body: string,
+  outlookConversationId?: string,
+): Promise<{ conversationId: string | null }> {
+  const token = await getToken(connectionId);
+  const payload: any = {
+    subject,
+    body: { contentType: 'HTML', content: body },
+    toRecipients: [{ emailAddress: { address: to } }],
+  };
+  if (outlookConversationId) payload.conversationId = outlookConversationId;
+  const res = await axios.post(`${GRAPH}/me/messages`, payload, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  });
+  const draftId: string = res.data.id;
+  await axios.post(`${GRAPH}/me/messages/${draftId}/send`, null, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return { conversationId: res.data.conversationId ?? null };
 }
 
 /** Creates a Microsoft push subscription so Outlook messages arrive in real-time.

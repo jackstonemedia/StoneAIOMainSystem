@@ -36,17 +36,19 @@ export class WorkflowEngine {
     }
 
     // Parse definition and settings
-    let nodes: NativeNode[] = [];
+    let rawNodes: any[] = [];
     let edges: NativeEdge[] = [];
     let settings: NativeWorkflowSettings = {};
 
     try {
-      nodes = JSON.parse(workflow.nativeDefinition.nodesJson) as NativeNode[];
+      rawNodes = JSON.parse(workflow.nativeDefinition.nodesJson) as any[];
       edges = JSON.parse(workflow.nativeDefinition.edgesJson) as NativeEdge[];
       settings = JSON.parse(workflow.settingsJson) as NativeWorkflowSettings;
     } catch (e) {
       throw new Error('Failed to parse workflow definition JSON');
     }
+
+    const nodes: NativeNode[] = this.normalizeNodes(rawNodes);
 
     // 3. Create WorkflowRun record
     const run = await db.workflowRun.create({
@@ -126,6 +128,33 @@ export class WorkflowEngine {
     return graph;
   }
 
+  /**
+   * Normalize raw stored nodes (which may be React Flow-style with data.config or data.node.config)
+   * into NativeNode objects expected by the engine.
+   */
+  private normalizeNodes(rawNodes: any[]): NativeNode[] {
+    return (rawNodes || []).map((n: any) => {
+      const config = (n.config ?? n.data?.config ?? n.data?.node?.config) || {};
+      const label = n.label ?? n.data?.label ?? n.data?.node?.label ?? n.type;
+
+      const native: NativeNode = {
+        id: n.id,
+        type: n.type,
+        label,
+        position: n.position || { x: 0, y: 0 },
+        config,
+        disabled: n.disabled ?? n.data?.disabled ?? n.data?.node?.disabled ?? false,
+        continueOnFail: n.continueOnFail ?? n.data?.node?.continueOnFail,
+        retryOnFail: n.retryOnFail ?? n.data?.node?.retryOnFail,
+        maxRetries: n.maxRetries ?? n.data?.node?.maxRetries,
+        retryWaitMs: n.retryWaitMs ?? n.data?.node?.retryWaitMs,
+        notes: n.notes ?? n.data?.node?.notes,
+      };
+
+      return native;
+    });
+  }
+
   private async failRun(runId: string, errorMessage: string) {
     await db.workflowRun.update({
       where: { id: runId },
@@ -142,9 +171,18 @@ export class WorkflowEngine {
     inputItems: WorkflowItem[],
     context: ExecutionContext,
     allNodes: NativeNode[],
-    graph: Map<string, NativeEdge[]>
+    graph: Map<string, NativeEdge[]>,
+    visited: Set<string> = new Set()
   ): Promise<void> {
-    
+
+    // Cycle detection: if we've already executed this node in the current path,
+    // stop recursion. Prevents stack overflows from cyclic workflow graphs.
+    if (visited.has(node.id)) {
+      console.warn(`[WorkflowEngine] Cycle detected at node ${node.id} in run ${context.runId}. Stopping branch.`);
+      return;
+    }
+    visited.add(node.id);
+
     // Process the node
     const result = await this.executeNode(node, inputItems, context);
     
@@ -172,7 +210,7 @@ export class WorkflowEngine {
         if (branchItems && branchItems.length > 0) {
           const targetNode = allNodes.find(n => n.id === edge.target);
           if (targetNode) {
-            await this.executeNodeRecursive(targetNode, branchItems, context, allNodes, graph);
+            await this.executeNodeRecursive(targetNode, branchItems, context, allNodes, graph, new Set(visited));
           }
         }
       }
@@ -181,7 +219,7 @@ export class WorkflowEngine {
       for (const edge of outgoingEdges) {
         const targetNode = allNodes.find(n => n.id === edge.target);
         if (targetNode) {
-          await this.executeNodeRecursive(targetNode, result.output, context, allNodes, graph);
+          await this.executeNodeRecursive(targetNode, result.output, context, allNodes, graph, new Set(visited));
         }
       }
     }
@@ -268,7 +306,8 @@ export class WorkflowEngine {
       throw new Error('Workflow not found');
     }
 
-    const nodes = JSON.parse(workflow.nativeDefinition.nodesJson) as NativeNode[];
+    const rawNodes = JSON.parse(workflow.nativeDefinition.nodesJson) as any[];
+    const nodes = this.normalizeNodes(rawNodes);
     const node = nodes.find(n => n.id === nodeId);
     if (!node) throw new Error('Node not found');
 

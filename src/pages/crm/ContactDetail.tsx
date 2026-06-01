@@ -11,7 +11,6 @@ import ActivityTimeline from '../../components/crm/ActivityTimeline';
 import ContactTasksTab from '../../components/crm/ContactTasksTab';
 import ContactFilesTab from '../../components/crm/ContactFilesTab';
 import ContactDealsTab from '../../components/crm/ContactDealsTab';
-import ContactSequencesTab from '../../components/crm/ContactSequencesTab';
 import { useToast } from '../../components/ui/Toast';
 
 export default function ContactDetail() {
@@ -383,7 +382,7 @@ export default function ContactDetail() {
           
           {/* Main Content Tabs */}
           <div className="px-8 pt-4 flex items-center gap-6 border-b border-border/50 bg-transparent shrink-0 z-[4] overflow-x-auto styled-scrollbar">
-            {['Activity', 'Notes', 'Emails', 'Calls', 'Tasks', 'Deals', 'Files', 'Sequences', 'Forms', 'Automations'].map(tab => (
+            {['Activity', 'Notes', 'Emails', 'Calls', 'Tasks', 'Deals', 'Files', 'Forms', 'Automations'].map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase())} 
@@ -542,14 +541,6 @@ export default function ContactDetail() {
                 <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
                   <h3 className="text-[15px] font-bold text-text-main mb-4">Files & Attachments</h3>
                   <ContactFilesTab contactId={id} />
-                </div>
-              )}
-
-              {/* Sequences Tab */}
-              {activeTab === 'sequences' && id && (
-                <div className="bg-surface border border-border shadow-sm rounded-[12px] p-6">
-                  <h3 className="text-[15px] font-bold text-text-main mb-4">Sequences</h3>
-                  <ContactSequencesTab contactId={id} />
                 </div>
               )}
 

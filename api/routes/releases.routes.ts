@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../infrastructure/database/client.js';
+import { db } from '../../infrastructure/database/client.js';
 
 const router = Router();
 
@@ -12,7 +12,6 @@ router.get('/', async (req, res) => {
     });
     res.json(releases);
   } catch (error: any) {
-    // If the table doesn't exist yet, just return empty array
     if (error.code === 'P2021') return res.json([]);
     res.status(500).json({ error: error.message });
   }
@@ -22,32 +21,19 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, description } = req.body;
-    
-    // Create release snapshot (dummy logic for spec fulfillment)
     const release = await db.release.create({
       data: {
         workspaceId: req.workspaceId,
-        name: name || `Release v${Date.now()}`,
+        name: name || `Release ${new Date().toISOString().slice(0, 10)}`,
         description,
         status: 'PUBLISHED',
       },
     });
-
     res.status(201).json(release);
   } catch (error: any) {
     if (error.code === 'P2021') {
-      return res.status(201).json({ id: 'dummy', name: req.body.name || 'Release v1.0', status: 'PUBLISHED', createdAt: new Date() });
+      return res.status(503).json({ error: 'Releases table not yet created. Run prisma migrate dev.' });
     }
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/releases/git/push
-router.post('/git/push', async (req, res) => {
-  try {
-    // Implement dummy git push for the UI
-    res.json({ success: true, message: 'Successfully pushed to Git repository.' });
-  } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });

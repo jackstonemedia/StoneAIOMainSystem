@@ -1,8 +1,8 @@
 'use strict';
 
 import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
-import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../src/types/automation.js';
-import { db } from '../../../infrastructure/database/client.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
 
 /**
  * Logic Wait / Delay node.

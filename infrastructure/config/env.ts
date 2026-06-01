@@ -34,17 +34,17 @@ const envSchema = z.object({
   // Email
   RESEND_API_KEY: z.string().optional(),
 
-  // Activepieces
-  ACTIVEPIECES_URL: z.string().default('http://localhost:3000'),
-  ACTIVEPIECES_PLATFORM_ID: z.string().optional(),
-  ACTIVEPIECES_PROJECT_ID: z.string().optional(),
-  ACTIVEPIECES_ADMIN_EMAIL: z.string().optional(),
-  ACTIVEPIECES_ADMIN_PASSWORD: z.string().optional(),
-  ACTIVEPIECES_WEBHOOK_SECRET: z.string().optional(),
+  // TikTok OAuth
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
 
-  // n8n Provisioning
-  N8N_PROVISIONING_API_URL: z.string().default('http://localhost:3001'),
-  N8N_PROVISIONING_SECRET: z.string().optional(),
+  // LinkedIn OAuth
+  LINKEDIN_CLIENT_ID: z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
+
+  // Stripe
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
 
   // Gmail OAuth
   GMAIL_CLIENT_ID: z.string().optional(),

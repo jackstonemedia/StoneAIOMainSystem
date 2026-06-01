@@ -4,6 +4,7 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { conversationsApi, channelConnectionsApi } from '../lib/api/conversations';
+import { getStoredToken } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryKeys';
 import type { Conversation, SendMessageInput } from '../types/conversation';
 
@@ -12,20 +13,37 @@ export function useConversations() {
 
   // Real-time SSE — invalidates list whenever the server publishes a new_message event.
   // Falls back to polling (refetchInterval) automatically if Redis is not configured.
+  // NOTE: EventSource cannot set Authorization headers, so we pass the JWT as a query
+  // param (?token=...) and the server middleware reads it from req.query for SSE paths.
   useEffect(() => {
-    const es = new EventSource('/api/channels/sse');
-    es.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        if (payload.type === 'new_message') {
-          qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
-          if (payload.conversationId) {
-            qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(payload.conversationId) });
+    let es: EventSource | null = null;
+    let cancelled = false;
+
+    const connect = async () => {
+      let url = '/api/channels/sse';
+      const token = await getStoredToken();
+      if (token) url += `?token=${encodeURIComponent(token)}`;
+
+      if (cancelled) return;
+      es = new EventSource(url);
+      es.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.type === 'new_message') {
+            qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
+            if (payload.conversationId) {
+              qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(payload.conversationId) });
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      };
     };
-    return () => es.close();
+
+    connect();
+    return () => {
+      cancelled = true;
+      es?.close();
+    };
   }, [qc]);
 
   return useQuery({

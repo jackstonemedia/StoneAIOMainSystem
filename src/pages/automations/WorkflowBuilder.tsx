@@ -130,9 +130,10 @@ export default function WorkflowBuilder() {
       else if (connection.sourceHandle === 'false') label = 'False';
       else if (connection.sourceHandle === 'loop') label = 'Loop';
       
-      const newEdge = {
+      const newEdge: Edge = {
         ...connection,
         id: `e-${connection.source}-${connection.target}-${connection.sourceHandle || ''}`,
+        targetHandle: connection.targetHandle || undefined,
         label,
         animated: true,
         markerEnd: { type: MarkerType.ArrowClosed },
@@ -256,7 +257,7 @@ export default function WorkflowBuilder() {
     setTestError(null);
     try {
       await handleSave(); // Auto save before test
-      const run = await testNative.mutateAsync();
+      const run = await testNative.mutateAsync({});
       setSelectedRunId(run.runId);
       setShowRunLog(true);
     } catch (e: any) {

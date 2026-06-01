@@ -44,7 +44,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     { name: 'CRM',            path: '/crm/contacts',               icon: Users },
     { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
     { name: 'Campaigns',      path: '/business/campaigns',         icon: Reply },
-    { name: 'Sequences',      path: '/business/sequences',         icon: Zap },
     { name: 'Calendar',       path: '/business/calendar',          icon: Calendar },
     { name: 'Analytics',      path: '/business/analytics',         icon: BarChart3 },
     { name: 'Forms',          path: '/business/forms',             icon: FileText },
@@ -68,6 +67,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       if (itemPath === '/agents') return location.pathname === '/agents' && !searchParams.get('type');
       if (itemPath === '/business') return location.pathname === itemPath;
       if (itemPath === '#') return false;
+      if (itemPath.startsWith('/crm/')) return location.pathname.startsWith('/crm/');
       return location.pathname.startsWith(itemPath);
     })();
 
@@ -137,14 +137,24 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           }`}
           style={{ borderColor: 'var(--sidebar-border)' }}
         >
+          {collapsed && (
+            <div className="flex items-center justify-center w-full">
+              <img
+                  src="https://res.cloudinary.com/dbdrkehcp/image/upload/v1779753173/ChatGPT_Image_May_25_2026_07_51_34_PM_shkd53.png"
+                  alt="Stone AIO"
+                  className="w-9 h-9 object-contain shrink-0"
+                  style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
+                />
+            </div>
+          )}
           {!collapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <div
-                className="w-7 h-7 rounded-[6px] flex items-center justify-center text-[11px] font-black shrink-0 shadow-sm"
-                style={{ background: 'var(--primary)', color: 'var(--bg)' }}
-              >
-                S
-              </div>
+              <img
+                src="https://res.cloudinary.com/dbdrkehcp/image/upload/v1779753173/ChatGPT_Image_May_25_2026_07_51_34_PM_shkd53.png"
+                alt="Stone AIO"
+                className="w-9 h-9 object-contain shrink-0"
+                style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
+              />
               <div className="min-w-0 leading-tight">
                 <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>Stone AIO</p>
                 <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Pro Trial</p>
