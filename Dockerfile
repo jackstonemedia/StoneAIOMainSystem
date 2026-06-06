@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install ALL deps (needed for vite build + prisma generate)
-RUN npm ci
+RUN npm install
 
 # Copy source
 COPY . .
