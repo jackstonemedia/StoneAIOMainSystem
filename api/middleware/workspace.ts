@@ -38,27 +38,33 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
         : queryToken;
 
       if (!rawToken) {
-        return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+        // In non-production, fall back to dev bypass even if CLERK_SECRET_KEY is set.
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[resolveWorkspace] Dev mode & no token. Falling back to dev bypass user.');
+          req.userId = 'test_user_new';
+        } else {
+          return res.status(401).json({ error: 'Missing or invalid Authorization header' });
+        }
+      } else {
+        const token = rawToken;
+
+        // ── Verify Clerk JWT server-side ──────────────────────────────────────
+        const { verifyToken } = await import('@clerk/express');
+
+        let userId: string;
+        try {
+          const payload = await verifyToken(token, {
+            secretKey: process.env.CLERK_SECRET_KEY,
+          });
+          userId = payload.sub;
+          if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ✅ Token verified. Clerk User ID (sub): ${userId}`);
+        } catch (err: any) {
+          console.error(`[resolveWorkspace] ❌ Token verification failed:`, err.message);
+          return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        req.userId = userId;
       }
-
-      const token = rawToken;
-
-      // ── Verify Clerk JWT server-side ──────────────────────────────────────────
-      const { verifyToken } = await import('@clerk/express');
-
-      let userId: string;
-      try {
-        const payload = await verifyToken(token, {
-          secretKey: process.env.CLERK_SECRET_KEY,
-        });
-        userId = payload.sub;
-        if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ✅ Token verified. Clerk User ID (sub): ${userId}`);
-      } catch (err: any) {
-        console.error(`[resolveWorkspace] ❌ Token verification failed:`, err.message);
-        return res.status(401).json({ error: 'Invalid or expired token' });
-      }
-
-      req.userId = userId;
     }
 
     const userId = req.userId!;

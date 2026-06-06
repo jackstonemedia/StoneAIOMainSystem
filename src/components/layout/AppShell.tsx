@@ -1,10 +1,14 @@
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { Menu, X } from 'lucide-react';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
+import TopBar from './TopBar';
+import CommandPalette from '../ui/CommandPalette';
+import NotificationPanel from '../ui/NotificationPanel';
+import AIAssistant from '../ai/AIAssistant';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -12,8 +16,16 @@ function ContentFallback() {
 
 export default function AppShell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const isDevBypass = IS_DEV_AUTH_BYPASS;
   const location = useLocation();
+
+  useEffect(() => {
+    const onOpenCmd = () => setCommandPaletteOpen(true);
+    document.addEventListener('open-command-palette', onOpenCmd);
+    return () => document.removeEventListener('open-command-palette', onOpenCmd);
+  }, []);
 
   const content = (
       <ThemeProvider>
@@ -60,6 +72,10 @@ export default function AppShell() {
             className="flex-1 flex flex-col overflow-hidden pt-[52px] md:pt-0"
             style={{ background: 'var(--bg)' }}
           >
+            <TopBar 
+              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+              onOpenNotifications={() => setNotificationPanelOpen(true)}
+            />
             <Suspense fallback={<ContentFallback />}>
               <div key={location.pathname.split('/').slice(0, 2).join('/')} className="flex flex-col h-full w-full" style={{ animation: 'appShellFadeIn 0.18s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <Outlet />
@@ -67,6 +83,10 @@ export default function AppShell() {
             </Suspense>
           </main>
         </div>
+
+        <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+        <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
+        <AIAssistant />
       </ThemeProvider>
   );
 

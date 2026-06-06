@@ -70,7 +70,7 @@ export default function DealSlideOver({ isOpen, onClose, dealId, defaultStage, o
 
   const { data: contacts = [] } = useQuery<ContactOption[]>({
     queryKey: ['contacts'],
-    queryFn: () => apiClient.get('/crm/contacts').then(r => r.data),
+    queryFn: () => apiClient.get('/crm/contacts').then(r => r.data.contacts || []),
     enabled: isOpen,
   });
 

@@ -55,6 +55,8 @@ export default { useSyncExternalStoreWithSelector };
         'react', 'react-dom', 'react-dom/client',
         'react/jsx-runtime', 'react/jsx-dev-runtime',
         'react-router-dom',
+        'react-grid-layout',
+        'react-resizable'
       ],
     },
     optimizeDeps: {
@@ -81,8 +83,12 @@ export default { useSyncExternalStoreWithSelector };
         '@xyflow/react',
         'nanoid',
         'swr',
+        'retell-client-js-sdk',
+        'react-grid-layout',
+        'react-resizable',
+        '@google/genai'
       ],
-      exclude: ['@clerk/clerk-react'],
+      exclude: ['@clerk/clerk-react', '@templatical/editor', '@templatical/renderer'],
     },
     html: {
       // Disable automatic CSP nonce — Turnstile needs to run inline scripts

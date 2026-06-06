@@ -6,6 +6,8 @@ import {
   Settings, HelpCircle, ChevronDown, Zap,
   Users, Calendar, Star, MessageSquare,
   Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
+  Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
+  AppWindow, Share2, CheckSquare, LayoutList, Sparkles
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -39,20 +41,55 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
   const initial = user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U';
   const fullName = user?.fullName || user?.emailAddresses?.[0]?.emailAddress || 'User';
 
-  const crmMenu = [
-    { name: 'Dashboard',      path: '/business',                   icon: LayoutDashboard },
-    { name: 'CRM',            path: '/crm/contacts',               icon: Users },
-    { name: 'Conversations',  path: '/conversations',              icon: MessageSquare },
-    { name: 'Campaigns',      path: '/business/campaigns',         icon: Reply },
-    { name: 'Calendar',       path: '/business/calendar',          icon: Calendar },
-    { name: 'Analytics',      path: '/business/analytics',         icon: BarChart3 },
-    { name: 'Forms',          path: '/business/forms',             icon: FileText },
-    { name: 'Reputation',     path: '/business/reputation',        icon: Star },
-  ];
-
-  const automationMenu = [
-    { name: 'Workflows',      path: '/workflows',                  icon: Zap },
-    { name: 'Voice Agents',   path: '/agents/voice/new',           icon: Mic },
+  const navGroups = [
+    {
+      label: 'Main',
+      items: [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }]
+    },
+    {
+      label: 'CRM',
+      items: [
+        { name: 'Contacts', path: '/crm/contacts', icon: Users },
+        { name: 'Companies', path: '/crm/companies', icon: Building2 },
+        { name: 'Deals', path: '/crm/pipeline', icon: Briefcase }
+      ]
+    },
+    {
+      label: 'Marketing',
+      items: [
+        { name: 'Campaigns', path: '/business/campaigns', icon: Mail },
+        { name: 'Automations', path: '/workflows', icon: Zap },
+        { name: 'Sites & Forms', path: '/marketing/sites', icon: AppWindow },
+        { name: 'Social', path: '/marketing/social', icon: Share2 }
+      ]
+    },
+    {
+      label: 'Communication',
+      items: [
+        { name: 'Inbox', path: '/conversations', icon: MessageSquare },
+        { name: 'Calendar', path: '/business/calendar', icon: Calendar }
+      ]
+    },
+    {
+      label: 'Work',
+      items: [
+        { name: 'Tasks', path: '/crm/tasks', icon: CheckSquare },
+        { name: 'Projects', path: '/projects', icon: LayoutList }
+      ]
+    },
+    {
+      label: 'Insights',
+      items: [
+        { name: 'Reports', path: '/reports', icon: BarChart3 },
+        { name: 'AI Insights', path: '/ai-insights', icon: Sparkles }
+      ]
+    },
+    {
+      label: 'Settings',
+      items: [
+        { name: 'Settings', path: '/settings', icon: Settings }
+      ]
+    }
   ];
 
   const NavItem = ({ item }: { item: { name: string; path: string; icon: any } }) => {
@@ -236,25 +273,23 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
           <div className="mx-3 mb-2" style={{ height: '1px', background: 'var(--sidebar-border)' }} />
 
-          {/* ── Section label: Workspace ── */}
-          {!collapsed && (
-            <div className="px-4 pt-1 pb-1 shrink-0">
-              <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>Workspace</span>
-            </div>
-          )}
-
-          {/* ── Navigation items ── */}
+          {/* ── Navigation groups ── */}
           <div className="flex-1 pb-2">
-            {crmMenu.map((item) => <NavItem key={item.name} item={item} />)}
-
-            <div className="my-2.5 mx-3" style={{ height: '1px', background: 'var(--sidebar-border)', opacity: 0.6 }} />
-
-            {!collapsed && (
-              <div className="px-4 pb-1 shrink-0">
-                <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>Automation</span>
+            {navGroups.map((group, idx) => (
+              <div key={group.label}>
+                {!collapsed && (
+                  <div className="px-4 pt-4 pb-1 shrink-0">
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>
+                      {group.label}
+                    </span>
+                  </div>
+                )}
+                {collapsed && idx !== 0 && (
+                  <div className="my-2.5 mx-3" style={{ height: '1px', background: 'var(--sidebar-border)', opacity: 0.6 }} />
+                )}
+                {group.items.map((item) => <NavItem key={item.name} item={item} />)}
               </div>
-            )}
-            {automationMenu.map((item) => <NavItem key={item.name} item={item} />)}
+            ))}
           </div>
         </nav>
 

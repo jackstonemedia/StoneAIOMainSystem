@@ -7,7 +7,6 @@ import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider } from './components/ui/Toast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuthTokenProvider } from './lib/AuthTokenProvider';
 import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
@@ -42,10 +41,15 @@ const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
 const Marketplace        = lazy(() => import('./pages/Marketplace'));
 
-// Business Hub
+// Business Hub & Dashboard
 const BusinessLayout      = lazy(() => import('./pages/business/BusinessLayout'));
 const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboard'));
+const DashboardPage       = lazy(() => import('./pages/Dashboard'));
 const Campaigns           = lazy(() => import('./pages/business/Campaigns'));
+const Sites               = lazy(() => import('./pages/marketing/Sites'));
+const EmailCampaignsPage  = lazy(() => import('./pages/marketing/EmailCampaignsPage'));
+const CampaignBuilderPage = lazy(() => import('./pages/marketing/CampaignBuilderPage'));
+const CampaignAnalyticsPage = lazy(() => import('./pages/marketing/CampaignAnalyticsPage'));
 const Calendar            = lazy(() => import('./pages/business/Calendar'));
 const Forms               = lazy(() => import('./pages/business/Forms'));
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
@@ -66,7 +70,7 @@ const CrmSettings   = lazy(() => import('./pages/crm/Settings'));
 const SmartLists    = lazy(() => import('./pages/crm/SmartLists'));
 const BulkActions   = lazy(() => import('./pages/crm/BulkActions'));
 const CrmTasks      = lazy(() => import('./pages/crm/CrmTasks'));
-const Opportunities = lazy(() => import('./pages/crm/Opportunities')); // 72KB
+const Opportunities = lazy(() => import('./pages/crm/Opportunities'));
 
 // ── App config ────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -110,6 +114,10 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route element={<AppShell />}>
 
             {/* Unified CRM Routes */}
+            <Route
+              path="/dashboard"
+              element={<ErrorBoundary><Protect><DashboardPage /></Protect></ErrorBoundary>}
+            />
             <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
             <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
             <Route path="/workflows"          element={<ErrorBoundary><Protect><Workflows /></Protect></ErrorBoundary>} />
@@ -150,6 +158,15 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="trigger-links"  element={<TriggerLinksTab />} />
             </Route>
 
+            {/* Marketing Hub */}
+            <Route path="/marketing" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
+              <Route path="sites"   element={<ErrorBoundary><Sites /></ErrorBoundary>} />
+              <Route path="email"   element={<ErrorBoundary><EmailCampaignsPage /></ErrorBoundary>} />
+            </Route>
+
+            {/* Campaign Analytics (inside shell) */}
+            <Route path="/marketing/email/:id/analytics" element={<ErrorBoundary><Protect><CampaignAnalyticsPage /></Protect></ErrorBoundary>} />
+
             {/* Business Hub */}
             <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<BusinessDashboard />} />
@@ -180,6 +197,10 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/settings"    element={<ErrorBoundary><Protect><SettingsPage /></Protect></ErrorBoundary>} />
           </Route>
 
+          {/* ── Fullscreen Builder Routes (no sidebar / no topbar) ─────── */}
+          <Route path="/marketing/email/new"       element={<ErrorBoundary><Protect><CampaignBuilderPage /></Protect></ErrorBoundary>} />
+          <Route path="/marketing/email/:id/edit"  element={<ErrorBoundary><Protect><CampaignBuilderPage /></Protect></ErrorBoundary>} />
+
           {/* Redirect unknown routes */}
           {withAuth && (
             <Route path="*" element={
@@ -199,27 +220,25 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        {IS_DEV_AUTH_BYPASS ? (
-          <BrowserRouter>
-            <AppRoutes withAuth={false} />
-          </BrowserRouter>
-        ) : (
-          <ClerkProvider 
-            publishableKey={CLERK_PUBLISHABLE_KEY}
-            signInUrl="/login"
-            signUpUrl="/signup"
-            signInForceRedirectUrl="/crm"
-            signUpForceRedirectUrl="/crm"
-          >
-            <AuthTokenProvider>
-              <BrowserRouter>
-                <AppRoutes withAuth={true} />
-              </BrowserRouter>
-            </AuthTokenProvider>
-          </ClerkProvider>
-        )}
-      </ToastProvider>
+      {IS_DEV_AUTH_BYPASS ? (
+        <BrowserRouter>
+          <AppRoutes withAuth={false} />
+        </BrowserRouter>
+      ) : (
+        <ClerkProvider 
+          publishableKey={CLERK_PUBLISHABLE_KEY}
+          signInUrl="/login"
+          signUpUrl="/signup"
+          signInForceRedirectUrl="/crm"
+          signUpForceRedirectUrl="/crm"
+        >
+          <AuthTokenProvider>
+            <BrowserRouter>
+              <AppRoutes withAuth={true} />
+            </BrowserRouter>
+          </AuthTokenProvider>
+        </ClerkProvider>
+      )}
     </QueryClientProvider>
   );
 }

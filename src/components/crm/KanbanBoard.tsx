@@ -50,15 +50,17 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          style={provided.draggableProps.style}
+          style={{ ...provided.draggableProps.style, borderLeftColor: stageColor }}
           onClick={onEdit}
-          className={`group transition-all select-none rounded-xl border ${
-            snapshot.isDragging ? 'shadow-2xl border-primary/40 rotate-1 z-50 scale-105 cursor-grabbing bg-surface' : 'bg-surface border-border shadow-sm hover:shadow-md cursor-pointer hover:border-primary/50'
+          className={`group transition-all select-none rounded-xl border border-l-[3px] ${
+            snapshot.isDragging 
+              ? 'bg-surface/90 backdrop-blur-2xl ring-1 ring-white/10 shadow-[0_32px_64px_rgba(0,0,0,0.4)] border-primary/50 rotate-2 z-50 scale-[1.02] cursor-grabbing' 
+              : 'bg-surface/60 border-border/60 shadow-sm hover:shadow-md cursor-pointer hover:bg-surface'
           }`}
         >
-          <div className="p-3 relative flex flex-col gap-2">
+          <div className="p-3.5 relative flex flex-col gap-3">
             <div className="flex justify-between items-start">
-              <h4 className="font-bold text-text-main text-[13px] leading-snug pr-2 group-hover:text-primary transition-colors line-clamp-2">{deal.title}</h4>
+              <h4 className="font-semibold text-primary text-[14px] leading-snug pr-2 hover:underline cursor-pointer line-clamp-2">{deal.title}</h4>
               <div className="relative shrink-0 -mt-1 -mr-1">
                 <button onClick={e => { e.stopPropagation(); setMenuOpen(o => !o); }}
                   className="text-text-muted hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-hover">
@@ -77,36 +79,40 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-[15px] font-bold text-text-main leading-none">
-                ${(deal.value || 0).toLocaleString()}
+            <div className="flex flex-col gap-1">
+              <div className="text-[12px] font-medium text-text-main">
+                Amount: ${(deal.value || 0).toLocaleString()}
               </div>
-              {deal.expectedCloseDate && (
-                <div className="text-[10px] font-bold text-text-muted flex items-center gap-1 bg-surface-hover px-1.5 py-0.5 rounded shadow-sm">
-                  <Calendar className="w-3 h-3 text-primary/70" /> {deal.expectedCloseDate}
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-muted mt-1">
+                {deal.expectedCloseDate ? (
+                  <><Calendar className="w-3 h-3" /> Task {deal.expectedCloseDate}</>
+                ) : (
+                  <>! No activity scheduled</>
+                )}
+              </div>
             </div>
 
-            <ProbabilityBar value={deal.probability} color={stageColor} />
-
             {(deal.contact || deal.company || deal.stageAge !== undefined) && (
-              <div className="flex items-center gap-1.5 mt-0.5 pt-2 border-t border-border/60">
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/40">
                 {deal.contact && (
-                  <div className="flex items-center gap-1 bg-surface-hover px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-[10px] font-bold text-text-muted max-w-[90px]">
-                    <Users className="w-3 h-3 shrink-0 text-accent-teal" />
-                    <span className="truncate">{deal.contact.firstName}</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style={{ backgroundColor: stageColor }}>
+                      {deal.contact.firstName.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-[12px] font-medium text-text-main truncate">
+                      {deal.contact.firstName} {deal.contact.lastName || ''}
+                    </span>
                   </div>
                 )}
-                {deal.company && (
-                  <div className="flex items-center gap-1 bg-primary/[0.04] px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-[10px] font-bold text-primary/80 max-w-[90px]">
-                    <Building2 className="w-3 h-3 shrink-0" />
+                {!deal.contact && deal.company && (
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 text-[12px] font-medium text-text-main">
+                    <Building2 className="w-3.5 h-3.5 shrink-0 text-primary/80" />
                     <span className="truncate">{deal.company.name}</span>
                   </div>
                 )}
                 {deal.stageAge !== undefined && (
-                  <div className={`ml-auto flex items-center gap-1 px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.02)] text-[10px] font-bold ${isRotting ? 'bg-red/10 text-accent-red' : 'bg-surface-hover text-text-muted'}`}>
-                    <Clock className={`w-3 h-3 ${isRotting ? 'text-accent-red' : 'text-primary/70'}`} /> {deal.stageAge}d
+                  <div className={`ml-auto shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[10px] font-bold ${isRotting ? 'bg-red-400/10 text-red-400' : 'bg-surface-hover border border-border text-text-muted'}`}>
+                    <Clock className={`w-3 h-3 ${isRotting ? 'text-red-400' : 'text-text-muted/70'}`} /> {deal.stageAge}d
                   </div>
                 )}
               </div>
@@ -134,47 +140,33 @@ export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, o
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex h-full w-full overflow-x-auto px-6 py-4 gap-6 bg-bg styled-scrollbar relative">
+      <div className="flex h-full w-full overflow-x-auto bg-transparent styled-scrollbar relative">
         {stages.map(stage => {
           const hex = getStageHex(stage.color);
           const columnDeals = deals.filter(d => d.stage === stage.name);
           const total = columnDeals.reduce((acc, d) => acc + d.value, 0);
-          const weighted = columnDeals.reduce((acc, d) => acc + d.value * (d.probability / 100), 0);
 
           return (
-            <div key={stage.id} className="flex flex-col w-[310px] shrink-0 h-full relative z-10 glass-panel border border-border/50 shadow-none bg-surface/50 hover:bg-surface transition-colors rounded-2xl overflow-hidden p-2">
+            <div key={stage.id} className="flex-1 min-w-[280px] flex flex-col h-full relative z-10 border-r border-border/50 transition-colors last:border-r-0">
               {/* Column Header */}
-              <div className="mb-4 px-3 pt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ background: hex }} />
-                    <h3 className="font-bold text-text-main text-[14px] uppercase tracking-wider">{stage.name}</h3>
-                    <span className="text-[11px] font-bold text-white px-2 py-0.5 rounded-full" style={{ background: hex }}>
-                      {columnDeals.length}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[12px] bg-bg/50 px-3 py-1.5 rounded-lg border border-border/50">
-                  <span className="font-bold text-text-main">${total.toLocaleString()}</span>
-                  <div className="flex items-center gap-1.5 text-text-muted">
-                    <Target className="w-3.5 h-3.5" style={{ color: hex }} />
-                    <span className="font-bold">${Math.round(weighted).toLocaleString()} wtd</span>
-                  </div>
-                </div>
-                {/* Stage progress bar */}
-                <div className="h-1 w-full bg-border/40 rounded-full mt-3 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ background: hex, color: hex, width: columnDeals.length > 0 ? '100%' : '0%' }} />
-                </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-surface/40 backdrop-blur-md border-b border-border/50">
+                <h3 className="font-bold text-text-main text-[12px] uppercase tracking-wider">{stage.name}</h3>
+                <span className="text-[12px] font-bold text-text-main">{columnDeals.length}</span>
               </div>
 
-              {/* Droppable */}
               <Droppable droppableId={stage.name}>
                 {(provided, snapshot) => (
                   <div
                     {...provided.droppableProps}
                     ref={provided.innerRef}
-                    className={`flex-1 flex flex-col gap-3 rounded-xl p-2 transition-colors overflow-y-auto w-full ${snapshot.isDraggingOver ? 'bg-primary/5 ring-1 ring-primary/20' : 'bg-transparent'}`}
+                    className={`flex-1 flex flex-col gap-3 rounded-xl p-2 transition-colors overflow-y-auto w-full ${
+                      snapshot.isDraggingOver ? 'bg-surface ring-2 ring-inset' : 'bg-transparent'
+                    }`}
+                    style={snapshot.isDraggingOver ? { '--tw-ring-color': hex + '40' } as React.CSSProperties : undefined}
                   >
+                    {columnDeals.length === 0 && !snapshot.isDraggingOver && (
+                      <div className="flex-1" />
+                    )}
                     {columnDeals.map((deal, index) => (
                       <DealCard
                         key={deal.id}
@@ -191,7 +183,7 @@ export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, o
                     {/* Add deal inline */}
                     <button
                       onClick={() => onAddDeal?.(stage.name)}
-                      className="w-full py-3 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-surface/50 text-[13px] font-medium text-text-muted hover:text-text-main hover:border-primary/40 hover:bg-surface-hover transition-all mt-2"
+                      className="w-full py-2 flex items-center justify-center gap-1.5 rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface/50 transition-all mt-auto shrink-0 border border-transparent hover:border-border/50"
                     >
                       <Plus className="w-4 h-4" /> Add deal
                     </button>
@@ -201,11 +193,6 @@ export default function KanbanBoard({ deals, stages, onDealMove, onDealDelete, o
             </div>
           );
         })}
-
-        {/* Add stage placeholder */}
-        <div className="w-[280px] shrink-0 bg-surface border-2 border-dashed border-border/70 rounded-2xl h-[80px] flex items-center justify-center text-text-muted font-semibold text-[14px] hover:bg-surface-hover hover:border-text-muted hover:text-text-main transition-all cursor-pointer mt-2 opacity-60 hover:opacity-100">
-          <Plus className="w-5 h-5 mr-2" /> Add stage
-        </div>
       </div>
     </DragDropContext>
   );

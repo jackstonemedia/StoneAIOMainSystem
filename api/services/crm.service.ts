@@ -303,6 +303,26 @@ export async function createContact(workspaceId: string, data: any) {
     tags: JSON.parse(c.tagsJson ?? '[]'),
   }).catch(err => console.error('[trigger]', err));
 
+  try {
+    const name = `${c.firstName} ${c.lastName ?? ''}`.trim() || 'New contact';
+    const summaryParts: string[] = [];
+    if (c.email) summaryParts.push(`Email: ${c.email}`);
+    if (c.phone) summaryParts.push(`Phone: ${c.phone}`);
+    if (c.company?.name) summaryParts.push(`Company: ${c.company.name}`);
+
+    await db.activity.create({
+      data: {
+        workspaceId,
+        contactId: c.id,
+        type: 'contact.created',
+        title: name,
+        notes: summaryParts.length ? summaryParts.join(' • ') : null,
+      },
+    });
+  } catch (e) {
+    console.error('[crm.activity] Failed to log contact.created', e);
+  }
+
   return formatContact(c);
 }
 
@@ -341,6 +361,22 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
     updatedFields: Object.keys(data),
     contact: formatted,
   }).catch(err => console.error('[trigger]', err));
+
+  try {
+    const name = `${formatted.firstName} ${formatted.lastName ?? ''}`.trim() || 'Contact updated';
+    const changed = Object.keys(data || {});
+    await db.activity.create({
+      data: {
+        workspaceId,
+        contactId: formatted.id,
+        type: 'contact.updated',
+        title: name,
+        notes: changed.length ? `Updated: ${changed.join(', ')}` : null,
+      },
+    });
+  } catch (e) {
+    console.error('[crm.activity] Failed to log contact.updated', e);
+  }
 
   return formatted;
 }

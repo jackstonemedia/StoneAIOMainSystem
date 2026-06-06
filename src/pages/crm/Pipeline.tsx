@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Plus, BarChart3, List, LayoutGrid, RefreshCw,
+  Plus, BarChart3, List, LayoutGrid, RefreshCw, Search, X,
   DollarSign, Target, TrendingUp, MoreVertical,
-  ChevronDown
+  ChevronDown, ChevronUp, ArrowUpDown, Settings
 } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 import KanbanBoard, { KanbanDeal } from '../../components/crm/KanbanBoard';
 import DealSlideOver from '../../components/crm/DealSlideOver';
 import ForecastView from '../../components/crm/ForecastView';
+import { PipelinesTab } from '../../components/crm/PipelineConfig';
 import { apiClient } from '../../lib/apiClient';
+import { motion, AnimatePresence } from 'motion/react';
 
 type ViewMode = 'kanban' | 'list' | 'forecast';
 
@@ -22,10 +24,14 @@ export default function Opportunities() {
   const [view, setView] = useState<ViewMode>('kanban');
   const [selectedDealId, setSelectedDealId] = useState<string | null>(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
+  const [pipelinesOpen, setPipelinesOpen] = useState(false);
   const [defaultStage, setDefaultStage] = useState<string | undefined>(undefined);
   const [sortField, setSortField] = useState<string>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [sortDropOpen, setSortDropOpen] = useState(false);
+  const [activePipelineId, setActivePipelineId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'won' | 'lost'>('all');
 
   const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<Pipeline[]>({
     queryKey: ['pipelines'],
@@ -57,7 +63,9 @@ export default function Opportunities() {
     onError: () => toast('error', 'Failed to delete deal'),
   });
 
-  const pipeline = pipelines[0];
+  const pipeline = pipelines.find(p => p.id === activePipelineId) ?? pipelines[0];
+  // Auto-select first pipeline when loaded
+  if (pipelines.length > 0 && !activePipelineId) setActivePipelineId(pipelines[0].id);
   const stages: Stage[] = (pipeline?.stages ?? []).map((s: any) => ({
     id: s.id,
     name: s.name,
@@ -90,8 +98,39 @@ export default function Opportunities() {
 
   const isLoading = loadingPipelines || loadingDeals;
 
-  // List view sorting
-  const sortedDeals = [...rawDeals].sort((a, b) => {
+  // Filter deals
+  const filterDeals = (dealArr: any[]) => dealArr.filter(d => {
+    const title = (d.title ?? '').toLowerCase();
+    const contact = d.contact ? `${d.contact.firstName} ${d.contact.lastName ?? ''}`.toLowerCase() : '';
+    const company = (d.company?.name ?? '').toLowerCase();
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || title.includes(q) || contact.includes(q) || company.includes(q);
+    const stage = d.pipelineStage?.name ?? d.stage ?? '';
+    const status = d.status ?? '';
+    const matchStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'won' && (stage === 'Won' || status === 'won')) ||
+      (filterStatus === 'lost' && (stage === 'Lost' || status === 'lost')) ||
+      (filterStatus === 'open' && stage !== 'Won' && stage !== 'Lost' && status !== 'won' && status !== 'lost');
+    return matchSearch && matchStatus;
+  });
+
+  const filteredDeals: KanbanDeal[] = filterDeals(rawDeals).map((d: any) => ({
+    id: d.id,
+    title: d.title,
+    value: d.amount ?? 0,
+    stage: d.pipelineStage?.name ?? d.stage ?? (stages[0]?.name ?? 'Lead'),
+    probability: d.probability ?? 0,
+    expectedCloseDate: d.closeDate
+      ? new Date(d.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : undefined,
+    stageAge: d.daysInStage,
+    contact: d.contact ? { firstName: d.contact.firstName, lastName: d.contact.lastName } : null,
+    company: d.company ? { name: d.company.name } : null,
+  }));
+
+  // List view
+  const sortedDeals = [...filterDeals(rawDeals)].sort((a, b) => {
     let av: any = a[sortField];
     let bv: any = b[sortField];
     if (sortField === 'amount') { av = Number(av) || 0; bv = Number(bv) || 0; }
@@ -150,6 +189,20 @@ export default function Opportunities() {
             </button>
           ))}
 
+          {/* Pipeline switcher */}
+          {pipelines.length > 1 && (
+            <>
+              <div className="w-[1px] h-5 bg-border mx-2" />
+              <select
+                value={activePipelineId ?? ''}
+                onChange={e => setActivePipelineId(e.target.value)}
+                className="bg-surface border border-border rounded-lg px-3 py-1.5 text-[13px] font-medium text-text-muted hover:text-text-main focus:outline-none focus:border-primary transition-colors"
+              >
+                {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </>
+          )}
+
           {view === 'list' && (
             <>
               <div className="w-[1px] h-5 bg-border mx-2" />
@@ -158,7 +211,7 @@ export default function Opportunities() {
                   onClick={() => setSortDropOpen(o => !o)}
                   className="btn-secondary"
                 >
-                  <ChevronDown className="w-4 h-4" /> Sort
+                  <ArrowUpDown className="w-3.5 h-3.5" /> Sort
                 </button>
                 {sortDropOpen && (
                   <>
@@ -183,19 +236,56 @@ export default function Opportunities() {
           )}
         </div>
 
-        {/* Right — Actions */}
+        {/* Right — Search + Filter + Actions */}
         <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search deals…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-[200px] pl-8 pr-7 py-1.5 bg-bg border border-border rounded-lg text-[13px] text-text-main placeholder:text-text-muted/50 focus:outline-none focus:border-primary transition-colors"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main transition-colors">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Status filter */}
+          <div className="flex items-center gap-1 bg-bg border border-border rounded-lg p-0.5">
+            {(['all', 'open', 'won', 'lost'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`px-2.5 py-1 rounded-[5px] text-[12px] font-medium capitalize transition-colors ${
+                  filterStatus === s ? 'bg-surface border border-border text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-[1px] h-5 bg-border" />
           <button
             onClick={() => qc.invalidateQueries({ queryKey: ['deals'] })}
             className="flex items-center gap-2 px-3 py-2 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => openNewDeal()}
             className="btn-primary"
           >
             <Plus className="w-4 h-4" /> Add Deal
+          </button>
+          <div className="w-[1px] h-5 bg-border mx-1" />
+          <button onClick={() => setPipelinesOpen(true)} className="btn-secondary">
+            <Settings className="w-4 h-4" /> Pipeline Config
           </button>
         </div>
       </div>
@@ -253,7 +343,7 @@ export default function Opportunities() {
       ) : view === 'kanban' ? (
         <div className="flex-1 overflow-hidden">
           <KanbanBoard
-            deals={deals}
+            deals={filteredDeals}
             stages={stages}
             onDealMove={(dealId, stageName) => moveDeal.mutate({ dealId, stageName })}
             onDealDelete={(dealId) => deleteDeal.mutate(dealId)}
@@ -271,10 +361,12 @@ export default function Opportunities() {
           {sortedDeals.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted">
               <Target className="w-10 h-10 opacity-20" strokeWidth={1} />
-              <div className="text-[14px]">No deals yet</div>
-              <button onClick={() => openNewDeal()} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:bg-surface-hover transition-colors">
-                <Plus className="w-4 h-4" /> Add Deal
-              </button>
+              <div className="text-[14px]">{searchQuery || filterStatus !== 'all' ? 'No deals match your filters' : 'No deals yet'}</div>
+              {!searchQuery && filterStatus === 'all' && (
+                <button onClick={() => openNewDeal()} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface rounded-lg text-[13px] font-medium text-text-muted hover:bg-surface-hover transition-colors">
+                  <Plus className="w-4 h-4" /> Add Deal
+                </button>
+              )}
             </div>
           ) : (
             <table className="w-full text-left">
@@ -355,6 +447,26 @@ export default function Opportunities() {
           setSelectedDealId(null);
         }}
       />
+
+      {/* Pipeline Config Slide-Over */}
+      <AnimatePresence>
+        {pipelinesOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/30 z-40 backdrop-blur-[2px]"
+              onClick={() => setPipelinesOpen(false)} />
+            <motion.div
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-[640px] bg-surface shadow-luxury z-50 flex flex-col border-l border-border overflow-hidden"
+            >
+              <div className="flex-1 overflow-auto bg-surface">
+                <PipelinesTab pipelines={pipelines} onRefresh={() => qc.invalidateQueries({ queryKey: ['pipelines'] })} onBack={() => setPipelinesOpen(false)} />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
