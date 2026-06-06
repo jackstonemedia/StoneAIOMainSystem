@@ -36,6 +36,7 @@ COPY tsconfig.json tsconfig.server.json ./
 COPY api ./api
 COPY infrastructure ./infrastructure
 COPY prisma ./prisma
+COPY packages ./packages
 
 # Re-install tsx for runtime TypeScript execution (dev dep)
 RUN npm install --no-save tsx
