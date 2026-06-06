@@ -8,6 +8,7 @@
     "dev:ui": "vite",
     "dev:server": "tsx watch server.ts",
     "build": "vite build",
+    "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "eslint src --ext .ts,.tsx --report-unused-disable-directives --max-warnings 0",
