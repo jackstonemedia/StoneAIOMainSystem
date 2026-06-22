@@ -72,6 +72,16 @@ const BulkActions   = lazy(() => import('./pages/crm/BulkActions'));
 const CrmTasks      = lazy(() => import('./pages/crm/CrmTasks'));
 const Opportunities = lazy(() => import('./pages/crm/Opportunities'));
 
+// Ad Manager
+const AdsLayout              = lazy(() => import('./pages/ads/AdsLayout'));
+const AdsDashboard           = lazy(() => import('./pages/ads/AdsDashboard'));
+const AdsCampaigns           = lazy(() => import('./pages/ads/AdsCampaigns'));
+const AdsSettings            = lazy(() => import('./pages/ads/AdsSettings'));
+const AdsReports             = lazy(() => import('./pages/ads/AdsReports'));
+const CampaignTypePickerPage = lazy(() => import('./pages/ads/CampaignTypePickerPage'));
+const CampaignBuilder        = lazy(() => import('./pages/ads/CampaignBuilder'));
+const CampaignDetail         = lazy(() => import('./pages/ads/CampaignDetail'));
+
 // ── App config ────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,17 +97,18 @@ const queryClient = new QueryClient({
   },
 });
 
+function Protect({ children, withAuth }: { children: React.ReactNode; withAuth: boolean }) {
+  if (!withAuth) return <>{children}</>;
+  return (
+    <>
+      <SignedIn>{children}</SignedIn>
+      <SignedOut><RedirectToSignIn /></SignedOut>
+    </>
+  );
+}
+
 // ── Route tree ────────────────────────────────────────────────────────────────
 function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
-  function Protect({ children }: { children: React.ReactNode }) {
-    if (!withAuth) return <>{children}</>;
-    return (
-      <>
-        <SignedIn>{children}</SignedIn>
-        <SignedOut><RedirectToSignIn /></SignedOut>
-      </>
-    );
-  }
 
   return (
     <ErrorBoundary>
@@ -116,15 +127,15 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             {/* Unified CRM Routes */}
             <Route
               path="/dashboard"
-              element={<ErrorBoundary><Protect><DashboardPage /></Protect></ErrorBoundary>}
+              element={<ErrorBoundary><Protect withAuth={withAuth}><DashboardPage /></Protect></ErrorBoundary>}
             />
-            <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-            <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-            <Route path="/workflows"          element={<ErrorBoundary><Protect><Workflows /></Protect></ErrorBoundary>} />
-            <Route path="/automations/:id"      element={<ErrorBoundary><Protect><WorkflowBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/workflows"          element={<ErrorBoundary><Protect withAuth={withAuth}><Workflows /></Protect></ErrorBoundary>} />
+            <Route path="/automations/:id"      element={<ErrorBoundary><Protect withAuth={withAuth}><WorkflowBuilder /></Protect></ErrorBoundary>} />
 
             {/* Automations sub-pages (with sidebar layout) */}
-            <Route path="/automations" element={<ErrorBoundary><Protect><AutomationsLayout /></Protect></ErrorBoundary>}>
+            <Route path="/automations" element={<ErrorBoundary><Protect withAuth={withAuth}><AutomationsLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="/workflows" replace />} />
               <Route path="runs" element={<Navigate to="/workflows" replace />} />
               <Route path="connections" element={<Navigate to="/workflows" replace />} />
@@ -135,7 +146,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             </Route>
 
             {/* Platform Admin */}
-            <Route path="/admin" element={<ErrorBoundary><Protect><PlatformAdminLayout /></Protect></ErrorBoundary>}>
+            <Route path="/admin" element={<ErrorBoundary><Protect withAuth={withAuth}><PlatformAdminLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="projects" replace />} />
               <Route path="projects" element={<AdminProjects />} />
               <Route path="users" element={<AdminUsers />} />
@@ -150,7 +161,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             </Route>
 
             {/* Conversations (Business Hub) */}
-            <Route path="/conversations" element={<ErrorBoundary><Protect><ConversationsLayout /></Protect></ErrorBoundary>}>
+            <Route path="/conversations" element={<ErrorBoundary><Protect withAuth={withAuth}><ConversationsLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="chat" replace />} />
               <Route path="chat"           element={<ConversationsTab />} />
               <Route path="manual-actions" element={<ManualActionsTab />} />
@@ -159,16 +170,16 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             </Route>
 
             {/* Marketing Hub */}
-            <Route path="/marketing" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
+            <Route path="/marketing" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route path="sites"   element={<ErrorBoundary><Sites /></ErrorBoundary>} />
               <Route path="email"   element={<ErrorBoundary><EmailCampaignsPage /></ErrorBoundary>} />
             </Route>
 
             {/* Campaign Analytics (inside shell) */}
-            <Route path="/marketing/email/:id/analytics" element={<ErrorBoundary><Protect><CampaignAnalyticsPage /></Protect></ErrorBoundary>} />
+            <Route path="/marketing/email/:id/analytics" element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignAnalyticsPage /></Protect></ErrorBoundary>} />
 
             {/* Business Hub */}
-            <Route path="/business" element={<ErrorBoundary><Protect><BusinessLayout /></Protect></ErrorBoundary>}>
+            <Route path="/business" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<BusinessDashboard />} />
               <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
               <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
@@ -178,7 +189,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             </Route>
 
             {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
-            <Route path="/crm" element={<ErrorBoundary><Protect><CrmLayout /></Protect></ErrorBoundary>}>
+            <Route path="/crm" element={<ErrorBoundary><Protect withAuth={withAuth}><CrmLayout /></Protect></ErrorBoundary>}>
               <Route index                  element={<Navigate to="contacts" replace />} />
               <Route path="contacts"        element={<ErrorBoundary><Contacts /></ErrorBoundary>} />
               <Route path="contacts/:id"    element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
@@ -192,16 +203,31 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             </Route>
 
             {/* Shared */}
-            <Route path="/marketplace" element={<ErrorBoundary><Protect><Marketplace /></Protect></ErrorBoundary>} />
-            <Route path="/billing"     element={<ErrorBoundary><Protect><Billing /></Protect></ErrorBoundary>} />
-            <Route path="/settings"    element={<ErrorBoundary><Protect><SettingsPage /></Protect></ErrorBoundary>} />
-          </Route>
+            <Route path="/marketplace" element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
+            <Route path="/billing"     element={<ErrorBoundary><Protect withAuth={withAuth}><Billing /></Protect></ErrorBoundary>} />
+            <Route path="/settings"    element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
+
+            {/* Ad Manager */}
+            <Route path="/ads" element={<ErrorBoundary><Protect withAuth={withAuth}><AdsLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview"   element={<ErrorBoundary><AdsDashboard /></ErrorBoundary>} />
+              <Route path="campaigns"  element={<ErrorBoundary><AdsCampaigns /></ErrorBoundary>} />
+              <Route path="campaigns/:id" element={<ErrorBoundary><CampaignDetail /></ErrorBoundary>} />
+              <Route path="reports"    element={<ErrorBoundary><AdsReports /></ErrorBoundary>} />
+              <Route path="settings"   element={<ErrorBoundary><AdsSettings /></ErrorBoundary>} />
+            </Route>
 
           {/* ── Fullscreen Builder Routes (no sidebar / no topbar) ─────── */}
-          <Route path="/marketing/email/new"       element={<ErrorBoundary><Protect><CampaignBuilderPage /></Protect></ErrorBoundary>} />
-          <Route path="/marketing/email/:id/edit"  element={<ErrorBoundary><Protect><CampaignBuilderPage /></Protect></ErrorBoundary>} />
+          <Route path="/marketing/email/new"       element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilderPage /></Protect></ErrorBoundary>} />
+          <Route path="/marketing/email/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilderPage /></Protect></ErrorBoundary>} />
+        </Route>
 
-          {/* Redirect unknown routes */}
+        {/* ── Fullscreen Ad Campaign Routes (no sidebar) ──────────────── */}
+        <Route path="/ads/campaigns/new"     element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignTypePickerPage /></Protect></ErrorBoundary>} />
+        <Route path="/ads/campaigns/new/:type" element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
+        <Route path="/ads/campaigns/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
+
+        {/* Redirect unknown routes */}
           {withAuth && (
             <Route path="*" element={
               <>

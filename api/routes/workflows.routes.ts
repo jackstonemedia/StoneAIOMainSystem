@@ -127,6 +127,7 @@ router.get('/runs', async (req, res) => {
 
     res.json({
       data: runs.map((r) => ({
+        id: r.id,
         localId: r.id,
         workflowId: r.workflowId,
         flowName: r.workflow.name,
@@ -134,7 +135,7 @@ router.get('/runs', async (req, res) => {
         startTime: r.startedAt.toISOString(),
         finishTime: r.finishedAt?.toISOString(),
         duration: r.durationMs,
-        stepCount: r.stepCount,
+        stepCount: r.stepCount ?? (r.runData ? Object.keys(JSON.parse(r.runData)).length : 0),
         errorMessage: r.errorMessage,
       })),
       total,
@@ -233,13 +234,67 @@ router.delete('/credentials/:id', async (req, res) => {
 });
 
 // GET /api/workflows/templates
-router.get('/templates', async (_req, res) => {
+router.get('/templates', async (req, res) => {
   try {
-    const templates = await db.workflow.findMany({
-      where: { status: 'published' }
+    const templates = await db.workflowTemplate.findMany({
+      where: { OR: [{ isSystem: true, workspaceId: null }, { workspaceId: req.workspaceId }] },
+      select: {
+        id: true, name: true, description: true, category: true,
+        tags: true, thumbnailUrl: true, usageCount: true, isSystem: true,
+        workspaceId: true, createdAt: true,
+      },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
     res.json(templates);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/workflows/templates/:templateId/install
+router.post('/templates/:templateId/install', async (req, res) => {
+  try {
+    const { name } = req.body as { name?: string };
+
+    const template = await db.workflowTemplate.findFirst({
+      where: {
+        id: req.params.templateId,
+        OR: [{ isSystem: true, workspaceId: null }, { workspaceId: req.workspaceId }],
+      },
+    });
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+
+    const def = JSON.parse(template.definitionJson as string) as { nodes: any[]; edges: any[] };
+
+    const workflow = await db.$transaction(async (tx) => {
+      const wf = await tx.workflow.create({
+        data: {
+          workspaceId: req.workspaceId!,
+          name: name?.trim() || template.name,
+          description: template.description,
+          engineType: 'native',
+          status: 'draft',
+        },
+      });
+      await tx.nativeWorkflowDefinition.create({
+        data: {
+          workflowId: wf.id,
+          nodesJson: JSON.stringify(def.nodes),
+          edgesJson: JSON.stringify(def.edges),
+        },
+      });
+      return wf;
+    });
+
+    db.workflowTemplate.update({
+      where: { id: template.id },
+      data: { usageCount: { increment: 1 } },
+    }).catch(() => {});
+
+    res.status(201).json(workflow);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // POST /api/workflows/from-template/:templateId
@@ -276,6 +331,24 @@ router.post('/from-template/:templateId', async (req, res) => {
     
     res.json(workflow);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+// GET /api/workflows/:id/runs — Run history for a specific workflow
+router.get('/:id/runs', async (req, res) => {
+  try {
+    const runs = await db.workflowRun.findMany({
+      where: { workflowId: req.params.id, workspaceId: req.workspaceId },
+      orderBy: { startedAt: 'desc' },
+      take: 50,
+    });
+    // Normalize for frontend: include id + compute stepCount from runData
+    const data = runs.map((r) => ({
+      ...r,
+      stepCount: r.stepCount ?? (r.runData ? Object.keys(JSON.parse(r.runData)).length : 0),
+    }));
+    res.json({ data, total: runs.length });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/workflows/:id — Get single workflow
@@ -350,6 +423,47 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/workflows/:id/duplicate — Deep-copy a workflow (canvas + definition)
+router.post('/:id/duplicate', async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId!;
+    const source = await db.workflow.findFirstOrThrow({
+      where: { id: req.params.id, workspaceId },
+      include: { nativeDefinition: true },
+    });
+
+    // Create the new workflow record in draft state
+    const copy = await db.workflow.create({
+      data: {
+        workspaceId,
+        name: `${source.name} (Copy)`,
+        description: source.description,
+        status: 'draft',
+        engineType: source.engineType,
+        triggerType: source.triggerType,
+        folderId: source.folderId,
+        tags: source.tags,
+        variablesJson: source.variablesJson,
+        settingsJson: source.settingsJson,
+      },
+    });
+
+    // Deep-copy the canvas definition if one exists
+    if (source.nativeDefinition) {
+      await db.nativeWorkflowDefinition.create({
+        data: {
+          workflowId: copy.id,
+          nodesJson: source.nativeDefinition.nodesJson,
+          edgesJson: source.nativeDefinition.edgesJson,
+        },
+      });
+    }
+
+    res.status(201).json(copy);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 
 // PATCH /api/workflows/:id/favorite — toggle star/favorite
@@ -426,45 +540,76 @@ router.get('/:id/definition', async (req, res) => {
 router.post('/:id/definition', async (req, res) => {
   try {
     const { nodes, edges } = req.body;
-    
-    // Save definition
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Verify workspace ownership
+    await db.workflow.findFirstOrThrow({ where: { id: workflowId, workspaceId } });
+
+    // 2. Save definition
     await db.nativeWorkflowDefinition.upsert({
-      where: { workflowId: req.params.id },
+      where: { workflowId },
       update: { nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) },
-      create: { workflowId: req.params.id, nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) }
+      create: { workflowId, nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) },
     });
-    
-    // Process triggers to create subscriptions, webhooks, schedules
-    const triggers = nodes.filter((n: any) => n.type.startsWith('trigger.'));
-    
-    // First, clear old triggers for this workflow
-    await (db as any).workflowSchedule?.deleteMany({ where: { workflowId: req.params.id } });
-    await (db as any).workflowWebhook?.deleteMany({ where: { workflowId: req.params.id } });
-    await (db as any).crmTriggerSubscription?.deleteMany({ where: { workflowId: req.params.id } });
-    
-    for (const node of triggers) {
-      if (node.type === 'trigger.schedule') {
-        const cron = node.data.config?.cronExpression || '* * * * *';
-        await (db as any).workflowSchedule?.create({
-          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, cronExpr: cron, timezone: 'UTC', active: true }
+
+    // 3. Process triggers
+    const triggerNodes = nodes.filter((n: any) => {
+      const type = n.data?.node?.type || n.type;
+      return type && type.startsWith('trigger.');
+    });
+
+    // Clear old subscriptions and schedules
+    await db.workflowSchedule.deleteMany({ where: { workflowId } });
+    await db.crmTriggerSubscription.deleteMany({ where: { workflowId } });
+
+    // For webhooks, fetch existing to preserve paths
+    const existingWebhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
+    const existingWebhookMap = new Map(existingWebhooks.map(w => [w.nodeId, w.path]));
+    await db.workflowWebhook.deleteMany({ where: { workflowId } });
+
+    const { nanoid } = await import('nanoid');
+
+    for (const node of triggerNodes) {
+      const type = node.data?.node?.type || node.type;
+      const config = node.data?.node?.config || node.data?.config || {};
+
+      if (type === 'trigger.schedule') {
+        const cron = config.cronExpression || '* * * * *';
+        await db.workflowSchedule.create({
+          data: { workspaceId, workflowId, nodeId: node.id, cronExpr: cron, timezone: 'UTC', active: false },
         });
-      } else if (node.type === 'trigger.webhook') {
-        const method = node.data.config?.method || 'POST';
-        const path = `/hook/${req.params.id}/${node.id}`; // Needs to be globally unique
-        await (db as any).workflowWebhook?.create({
-          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, method, path, active: true }
+      } else if (type === 'trigger.webhook') {
+        const method = config.method || 'POST';
+        const path = existingWebhookMap.get(node.id) || `/hooks/${nanoid(16)}`;
+        await db.workflowWebhook.create({
+          data: { workspaceId, workflowId, nodeId: node.id, method, path, active: false },
         });
-      } else if (node.type === 'trigger.crm_event') {
-        const eventStr = node.data.config?.event || 'contact.created';
+      } else if (type === 'trigger.crm_event') {
+        const eventStr = config.eventType || 'contact.created';
         const [entityType, eventType] = eventStr.split('.');
-        const filters = node.data.config?.filters || {};
-        
-        await (db as any).crmTriggerSubscription?.create({
-          data: { workspaceId: req.workspaceId!, workflowId: req.params.id, nodeId: node.id, entityType, eventType, active: true, filtersJson: JSON.stringify(filters) }
+        const filters = config.filters || {};
+        await db.crmTriggerSubscription.create({
+          data: { workspaceId, workflowId, nodeId: node.id, entityType, eventType, active: false, filtersJson: JSON.stringify(filters) },
         });
       }
     }
-    
+
+    // 4. Sync workflow.triggerType so the list view shows the correct trigger label
+    if (triggerNodes.length > 0) {
+      const triggerType = triggerNodes[0].data?.node?.type || triggerNodes[0].type;
+      const TRIGGER_TYPE_MAP: Record<string, string> = {
+        'trigger.webhook':   'webhook',
+        'trigger.schedule':  'schedule',
+        'trigger.crm_event': 'crm_event',
+        'trigger.manual':    'manual',
+      };
+      const mappedType = TRIGGER_TYPE_MAP[triggerType] ?? null;
+      if (mappedType) {
+        await db.workflow.update({ where: { id: workflowId }, data: { triggerType: mappedType as any } });
+      }
+    }
+
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -474,15 +619,43 @@ router.post('/:id/definition', async (req, res) => {
 // POST /api/workflows/:id/publish-native
 router.post('/:id/publish-native', async (req, res) => {
   try {
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Verify workspace ownership
+    await db.workflow.findFirstOrThrow({ where: { id: workflowId, workspaceId } });
+
+    // 2. Set status to published
     await db.workflow.update({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-      data: { status: 'published', engineType: 'native' }
+      where: { id: workflowId },
+      data: { status: 'published', engineType: 'native' },
     });
-    
-    // Reload schedules
+
     const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
-    await schedulerService.initialize();
-    
+
+    // 3. Activate and schedule WorkflowSchedule records
+    const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
+    for (const schedule of schedules) {
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: true } });
+      schedulerService.scheduleWorkflow({ ...schedule, active: true });
+    }
+
+    // 4. Activate WorkflowWebhook records and reload registry
+    const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
+    for (const hook of webhooks) {
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: true } });
+    }
+    if (webhooks.length > 0) {
+      const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
+      await webhookRegistry.reload();
+    }
+
+    // 5. Activate CRM subscriptions
+    await db.crmTriggerSubscription.updateMany({
+      where: { workflowId },
+      data: { active: true },
+    });
+
     res.json({ success: true, status: 'published' });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -492,15 +665,43 @@ router.post('/:id/publish-native', async (req, res) => {
 // POST /api/workflows/:id/pause-native
 router.post('/:id/pause-native', async (req, res) => {
   try {
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Verify workspace ownership
+    await db.workflow.findFirstOrThrow({ where: { id: workflowId, workspaceId } });
+
+    // 2. Set status to paused
     await db.workflow.update({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
-      data: { status: 'paused' }
+      where: { id: workflowId },
+      data: { status: 'paused' },
     });
-    
-    // Reload schedules
+
     const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
-    await schedulerService.initialize();
-    
+
+    // 3. Deactivate and unschedule WorkflowSchedule records
+    const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
+    for (const schedule of schedules) {
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: false } });
+      schedulerService.unscheduleWorkflow(schedule.id);
+    }
+
+    // 4. Deactivate WorkflowWebhook records and reload registry
+    const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
+    for (const hook of webhooks) {
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: false } });
+    }
+    if (webhooks.length > 0) {
+      const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
+      await webhookRegistry.reload();
+    }
+
+    // 5. Deactivate CRM subscriptions
+    await db.crmTriggerSubscription.updateMany({
+      where: { workflowId },
+      data: { active: false },
+    });
+
     res.json({ success: true, status: 'paused' });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -511,14 +712,43 @@ router.post('/:id/pause-native', async (req, res) => {
 router.post('/:id/test-native', async (req, res) => {
   try {
     const { queueService } = await import('../services/workflow-engine/queue.service.js');
-    const runId = await queueService.enqueue({
+    
+    // Auto-generate mock trigger data if none provided
+    let triggerData = req.body.triggerData || {};
+    if (Object.keys(triggerData).length === 0) {
+      const def = await db.nativeWorkflowDefinition.findUnique({ where: { workflowId: req.params.id } });
+      if (def) {
+        const nodes = JSON.parse(def.nodesJson);
+        const triggerNode = nodes.find((n: any) => n.data?.node?.type?.startsWith('trigger.'));
+        if (triggerNode && triggerNode.data?.node?.type === 'trigger.crm_event') {
+          const eventStr = triggerNode.data.node.config?.eventType || 'contact.created';
+          const [entityType, eventType] = eventStr.split('.');
+          triggerData = {
+            event: eventStr,
+            entityType,
+            eventType,
+            data: {
+              id: 'mock-id-123',
+              email: 'test@example.com',
+              name: 'Test User',
+              firstName: 'Test',
+              lastName: 'User',
+              phone: '+15551234567',
+              businessName: 'Mock Inc.'
+            }
+          };
+        }
+      }
+    }
+
+    const result = await queueService.enqueue({
       workspaceId: req.workspaceId!,
       workflowId: req.params.id,
-      triggerData: req.body.triggerData || {},
+      triggerData,
       mode: 'test'
     });
-    
-    res.json({ runId });
+    // result is already { runId: string } — return it directly
+    res.json(result);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

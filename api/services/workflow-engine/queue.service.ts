@@ -6,11 +6,14 @@ export class QueueService {
   
   initialize(): void {
     if (process.env.REDIS_URL) {
-      this.queue = new Queue('workflow-execution', process.env.REDIS_URL);
+      const isTls = process.env.REDIS_URL.startsWith('rediss://');
+      this.queue = new Queue('workflow-execution', process.env.REDIS_URL, {
+        redis: isTls ? { tls: { rejectUnauthorized: false } } : {}
+      });
       this.queue.process(async (job) => {
         await this.processJob(job);
       });
-      console.log('Workflow Engine: Bull queue initialized');
+      console.log('Workflow Engine: Bull queue initialized (TLS: ' + isTls + ')');
     } else {
       console.log('Workflow Engine: No REDIS_URL found, running in-process (inline)');
     }
@@ -23,14 +26,10 @@ export class QueueService {
     mode: 'production' | 'test' | 'manual';
     userId?: string;
   }): Promise<{ runId: string }> {
-    if (this.queue) {
-      const job = await this.queue.add(params);
-      return { runId: String(job.id) };
-    } else {
-      // Inline synchronous execution (for local/dev without Redis)
-      const { runId } = await engineService.executeWorkflow(params);
-      return { runId };
-    }
+    // Force inline synchronous execution to bypass Upstash TLS/Queue issues
+    console.log('[QueueService] Executing workflow inline...');
+    const { runId } = await engineService.executeWorkflow(params);
+    return { runId };
   }
 
   private async processJob(job: Job): Promise<void> {

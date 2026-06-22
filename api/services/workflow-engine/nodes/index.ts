@@ -29,6 +29,14 @@ import { aiLlm } from './ai-llm.js';
 // ── Data/Integration nodes ─────────────────────────────────────────────────────
 import { integrationHttpRequest } from './integration-http-request.js';
 import { integrationParseJson } from './integration-parse-json.js';
+import { workflowRunWorkflow } from './workflow-run-workflow.js';
+
+// ── NEW nodes ────────────────────────────────────────────────────────────────
+import { crmUpdateDeal } from './crm-update-deal.js';
+import { crmAddTag } from './crm-add-tag.js';
+import { crmRemoveTag } from './crm-remove-tag.js';
+import { crmCreateNote } from './crm-create-note.js';
+import { notificationSendInternal } from './notification-send-internal.js';
 
 /**
  * Register all workflow node implementations into the NodeRegistry singleton.
@@ -62,6 +70,16 @@ export function registerAllNodes(): void {
   // Integration / Data
   nodeRegistry.register(integrationHttpRequest);
   nodeRegistry.register(integrationParseJson);
+  nodeRegistry.register(workflowRunWorkflow);
+
+  // NEW CRM Actions
+  nodeRegistry.register(crmUpdateDeal);
+  nodeRegistry.register(crmAddTag);
+  nodeRegistry.register(crmRemoveTag);
+  nodeRegistry.register(crmCreateNote);
+
+  // NEW Communication
+  nodeRegistry.register(notificationSendInternal);
 }
 
 /**

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
-  LayoutDashboard, Search, Bell,
+  LayoutDashboard, Bell,
   BarChart3, Reply, FileText,
   Settings, HelpCircle, ChevronDown, Zap,
   Users, Calendar, Star, MessageSquare,
   Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
-  AppWindow, Share2, CheckSquare, LayoutList, Sparkles
+  AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -43,51 +43,23 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
   const navGroups = [
     {
-      label: 'Main',
-      items: [{ name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }]
-    },
-    {
-      label: 'CRM',
+      label: 'Workspace',
       items: [
-        { name: 'Contacts', path: '/crm/contacts', icon: Users },
-        { name: 'Companies', path: '/crm/companies', icon: Building2 },
-        { name: 'Deals', path: '/crm/pipeline', icon: Briefcase }
+        { name: 'Dashboard',    path: '/dashboard',          icon: LayoutDashboard },
+        { name: 'CRM',          path: '/crm/contacts',       icon: Users },
+        { name: 'Conversations',path: '/conversations',      icon: MessageSquare },
+        { name: 'Campaigns',    path: '/business/campaigns', icon: Mail },
+        { name: 'Ad Manager',   path: '/ads/overview',       icon: Megaphone },
+        { name: 'Calendar',     path: '/business/calendar',  icon: Calendar },
+        { name: 'Reputation',   path: '/business/reputation',icon: Star },
+        { name: 'Sites & Forms',path: '/marketing/sites',    icon: AppWindow },
       ]
     },
     {
-      label: 'Marketing',
+      label: 'Automation',
       items: [
-        { name: 'Campaigns', path: '/business/campaigns', icon: Mail },
-        { name: 'Automations', path: '/workflows', icon: Zap },
-        { name: 'Sites & Forms', path: '/marketing/sites', icon: AppWindow },
-        { name: 'Social', path: '/marketing/social', icon: Share2 }
-      ]
-    },
-    {
-      label: 'Communication',
-      items: [
-        { name: 'Inbox', path: '/conversations', icon: MessageSquare },
-        { name: 'Calendar', path: '/business/calendar', icon: Calendar }
-      ]
-    },
-    {
-      label: 'Work',
-      items: [
-        { name: 'Tasks', path: '/crm/tasks', icon: CheckSquare },
-        { name: 'Projects', path: '/projects', icon: LayoutList }
-      ]
-    },
-    {
-      label: 'Insights',
-      items: [
-        { name: 'Reports', path: '/reports', icon: BarChart3 },
-        { name: 'AI Insights', path: '/ai-insights', icon: Sparkles }
-      ]
-    },
-    {
-      label: 'Settings',
-      items: [
-        { name: 'Settings', path: '/settings', icon: Settings }
+        { name: 'Workflows',    path: '/workflows',          icon: Zap },
+        { name: 'Voice Agents', path: '/voice-agents',       icon: Mic },
       ]
     }
   ];
@@ -105,6 +77,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       if (itemPath === '/business') return location.pathname === itemPath;
       if (itemPath === '#') return false;
       if (itemPath.startsWith('/crm/')) return location.pathname.startsWith('/crm/');
+      if (itemPath === '/ads/overview') return location.pathname.startsWith('/ads');
       return location.pathname.startsWith(itemPath);
     })();
 
@@ -167,40 +140,33 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           borderColor: 'var(--sidebar-border)',
         }}
       >
-        {/* ── Workspace Header ── */}
+        {/* ── Header — aligns with CRM tabs row ── */}
         <div
-          className={`h-[52px] border-b flex items-center shrink-0 transition-all ${
-            collapsed ? 'justify-center px-0' : 'px-3 justify-between'
+          className={`h-[57px] border-b shrink-0 flex items-center transition-all ${
+            collapsed ? 'justify-center px-0' : 'px-4 justify-between'
           }`}
           style={{ borderColor: 'var(--sidebar-border)' }}
         >
-          {collapsed && (
-            <div className="flex items-center justify-center w-full">
-              <img
-                  src="https://res.cloudinary.com/dbdrkehcp/image/upload/v1779753173/ChatGPT_Image_May_25_2026_07_51_34_PM_shkd53.png"
-                  alt="Stone AIO"
-                  className="w-9 h-9 object-contain shrink-0"
-                  style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
-                />
-            </div>
-          )}
           {!collapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
-              <img
-                src="https://res.cloudinary.com/dbdrkehcp/image/upload/v1779753173/ChatGPT_Image_May_25_2026_07_51_34_PM_shkd53.png"
-                alt="Stone AIO"
-                className="w-9 h-9 object-contain shrink-0"
-                style={{ filter: 'invert(1)', mixBlendMode: 'screen' }}
-              />
-              <div className="min-w-0 leading-tight">
-                <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>Stone AIO</p>
-                <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Pro Trial</p>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold leading-tight truncate" style={{ color: 'var(--text-main)' }}>Stone AIO</p>
               </div>
+              <span
+                className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none"
+                style={{
+                  background: 'rgba(82,103,125,0.18)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid rgba(82,103,125,0.3)',
+                }}
+              >
+                Pro Trial
+              </span>
             </div>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)] shrink-0"
             style={{ color: 'var(--text-muted)' }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
@@ -210,68 +176,44 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           </button>
         </div>
 
-        {/* ── Search ── */}
-        <div
-          className={`border-b shrink-0 flex items-center gap-2 transition-all ${
-            collapsed ? 'justify-center py-2.5 px-0' : 'px-3 py-2'
-          }`}
-          style={{ borderColor: 'var(--sidebar-border)' }}
-        >
-          {collapsed ? (
-            <button
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
-              style={{ color: 'var(--text-muted)' }}
-              title="Search"
-            >
-              <Search className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-          ) : (
-            <div
-              className="flex items-center gap-2 flex-1 px-2.5 py-1.5 rounded-lg cursor-text transition-colors hover:bg-[var(--surface-hover)]"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <Search className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
-              <span className="text-[12px] font-medium flex-1" style={{ opacity: 0.7 }}>Search…</span>
-              <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                style={{ background: 'var(--surface-hover)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-              >⌘K</span>
-            </div>
-          )}
-        </div>
+
 
         {/* ── Scrollable Nav Body ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col">
 
           {/* Notifications */}
-          <div className="pt-2 pb-1 shrink-0">
-            <button
-              className={`group w-full flex items-center transition-all rounded-lg mx-2 my-px text-[13px] font-medium ${
-                collapsed ? 'justify-center w-8 h-8 p-0 mx-auto' : 'gap-2.5 px-2.5 py-[7px]'
-              }`}
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'var(--surface-hover)';
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-main)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-              }}
-              title={collapsed ? 'Notifications' : undefined}
-            >
-              <div className="relative shrink-0">
-                <Bell className="w-4 h-4" strokeWidth={1.75} />
+          <div className={`pt-2 pb-1 shrink-0 ${collapsed ? 'px-0' : 'px-2'}`}>
+            {collapsed ? (
+              <button
+                className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-muted)' }}
+                title="Notifications"
+              >
+                <div className="relative">
+                  <Bell className="w-4 h-4" strokeWidth={1.75} />
+                  <span
+                    className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[8px] font-black flex items-center justify-center"
+                    style={{ background: 'var(--primary)', color: 'var(--bg)' }}
+                  >5</span>
+                </div>
+              </button>
+            ) : (
+              <button
+                className="w-full flex items-center gap-2.5 px-2.5 py-[7px] my-px rounded-lg text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <div className="relative shrink-0">
+                  <Bell className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <span className="flex-1 text-left">Notifications</span>
                 <span
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[8px] font-black flex items-center justify-center"
+                  className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
                   style={{ background: 'var(--primary)', color: 'var(--bg)' }}
                 >5</span>
-              </div>
-              {!collapsed && <span className="flex-1 text-left">Notifications</span>}
-            </button>
+              </button>
+            )}
           </div>
-
-          <div className="mx-3 mb-2" style={{ height: '1px', background: 'var(--sidebar-border)' }} />
+          <div className="mx-3 mb-1" style={{ height: '1px', background: 'var(--sidebar-border)' }} />
 
           {/* ── Navigation groups ── */}
           <div className="flex-1 pb-2">

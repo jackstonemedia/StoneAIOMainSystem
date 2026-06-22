@@ -55,4 +55,16 @@ export const queryKeys = {
     nodes: () => [...queryKeys.workflows.all, 'nodes'] as const,
     connections: () => [...queryKeys.workflows.all, 'connections'] as const,
   },
+
+  ads: {
+    all: ['ads'] as const,
+    accounts: () => [...queryKeys.ads.all, 'accounts'] as const,
+    campaigns: (filters?: Record<string, string>) => [...queryKeys.ads.all, 'campaigns', filters ?? {}] as const,
+    campaign: (id: string) => [...queryKeys.ads.all, 'campaigns', id] as const,
+    metrics: (filters?: Record<string, string>) => [...queryKeys.ads.all, 'metrics', filters ?? {}] as const,
+    chartData: (filters?: Record<string, string>) => [...queryKeys.ads.all, 'chart', filters ?? {}] as const,
+    campaignMetrics: (id: string, filters?: Record<string, string>) => [...queryKeys.ads.all, 'metrics', id, filters ?? {}] as const,
+    leads: (filters?: Record<string, string>) => [...queryKeys.ads.all, 'leads', filters ?? {}] as const,
+    settings: () => [...queryKeys.ads.all, 'settings'] as const,
+  },
 };

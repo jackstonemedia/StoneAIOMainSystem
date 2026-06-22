@@ -71,8 +71,9 @@ export async function sendGmailMessage(
   body: string,
   threadId?: string,
   htmlBody?: string,
+  fromName?: string,
 ): Promise<{ messageId: string; threadId: string }> {
-  const { gmail } = await getAuthenticatedGmail(connectionId);
+  const { gmail, conn } = await getAuthenticatedGmail(connectionId);
 
   // Build a multipart/alternative MIME email so recipients see proper HTML formatting
   // while also having a plain-text fallback for email clients that don't render HTML.
@@ -81,7 +82,17 @@ export async function sendGmailMessage(
     ?? body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
            .replace(/\n/g, '<br>');
 
-  const mime = [
+  // Build From header: use fromName if provided with the connected email address
+  // RFC 5321: "Display Name <email@domain>" or just the email address
+  const connEmail = conn.email;
+  const fromHeader = fromName && connEmail
+    ? `From: ${fromName} <${connEmail}>`
+    : connEmail
+      ? `From: ${connEmail}`
+      : '';
+
+  const mimeLines = [
+    ...(fromHeader ? [fromHeader] : []),
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
@@ -100,8 +111,9 @@ export async function sendGmailMessage(
     `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#222;">${htmlPart}</body></html>`,
     '',
     `--${boundary}--`,
-  ].join('\r\n');
+  ];
 
+  const mime = mimeLines.join('\r\n');
   const raw = Buffer.from(mime).toString('base64url');
   const res = await gmail.users.messages.send({
     userId: 'me',

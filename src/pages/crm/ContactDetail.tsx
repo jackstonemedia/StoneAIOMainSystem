@@ -12,6 +12,7 @@ import ContactTasksTab from '../../components/crm/ContactTasksTab';
 import ContactFilesTab from '../../components/crm/ContactFilesTab';
 import ContactDealsTab from '../../components/crm/ContactDealsTab';
 import { useToast } from '../../components/ui/Toast';
+import { getTagColor } from '../../lib/tagColors';
 
 export default function ContactDetail() {
   const { id } = useParams();
@@ -187,7 +188,19 @@ export default function ContactDetail() {
               <span className="text-[14px] font-bold text-primary">{contact.name.substring(0, 1)}</span>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-[16px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-[16px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
+                {contact.source === 'Facebook Lead Ads' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" /> Meta Ad Lead
+                  </span>
+                )}
+                {contact.source === 'Google Lead Ads' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-600 border border-red-500/20">
+                    <span className="w-2 h-2 rounded-full bg-red-500" /> Google Ad Lead
+                  </span>
+                )}
+              </div>
               <span className="text-[12px] font-medium text-text-muted">{contact.jobTitle ? `${contact.jobTitle} at ` : ''}{contact.businessName || 'No Company'}</span>
             </div>
           </div>
@@ -321,15 +334,16 @@ export default function ContactDetail() {
                 <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Tags</h4>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(contact.tags || []).map((tag: string, i: number) => (
-                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-bg border border-border rounded-full text-[12px] font-medium text-text-main group cursor-pointer hover:border-red-400/50 transition-colors shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary/60"></span>
+                {(contact.tags || []).map((tag: string, i: number) => {
+                  const tagColor = getTagColor(tag);
+                  return (
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 bg-bg border border-black/5 rounded-full text-[12px] font-bold text-text-main group cursor-pointer shadow-sm transition-transform hover:scale-[1.02]" style={{ backgroundColor: tagColor }}>
                     {tag}
-                    <div onClick={() => handleRemoveTag(tag)} className="w-3.5 h-3.5 rounded-full hover:bg-red-400/20 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100">
+                    <div onClick={() => handleRemoveTag(tag)} className="w-3.5 h-3.5 rounded-full hover:bg-black/10 text-text-main flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100">
                       <span className="text-[10px] leading-none mb-0.5">&times;</span>
                     </div>
                   </div>
-                ))}
+                )})}
                 {isAddingTag ? (
                   <input
                     autoFocus

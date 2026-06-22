@@ -177,18 +177,31 @@ router.get('/appointments', async (req, res) => {
 });
 
 router.post('/appointments', async (req, res) => {
-  try { res.json(await biz.createAppointment(req.workspaceId, req.body)); }
-  catch (e) { err500(res, e); }
+  try {
+    const appt = await biz.createAppointment(req.workspaceId, req.body);
+    emitTrigger(req.workspaceId, 'appointment.booked', appt as Record<string, unknown>).catch(console.error);
+    res.json(appt);
+  } catch (e) { err500(res, e); }
 });
 
 router.put('/appointments/:id', async (req, res) => {
-  try { res.json(await biz.updateAppointment(req.params.id, req.body)); }
-  catch (e) { err500(res, e); }
+  try {
+    const appt = await biz.updateAppointment(req.params.id, req.body);
+    if (req.body.status === 'completed') {
+      emitTrigger(req.workspaceId, 'appointment.completed', appt as Record<string, unknown>).catch(console.error);
+    } else if (req.body.status === 'cancelled') {
+      emitTrigger(req.workspaceId, 'appointment.cancelled', appt as Record<string, unknown>).catch(console.error);
+    }
+    res.json(appt);
+  } catch (e) { err500(res, e); }
 });
 
 router.delete('/appointments/:id', async (req, res) => {
-  try { await biz.deleteAppointment(req.params.id); res.json({ success: true }); }
-  catch (e) { err500(res, e); }
+  try {
+    const appt = await biz.deleteAppointment(req.params.id);
+    emitTrigger(req.workspaceId, 'appointment.cancelled', { id: req.params.id, ...(appt ?? {}) } as Record<string, unknown>).catch(console.error);
+    res.json({ success: true });
+  } catch (e) { err500(res, e); }
 });
 
 // ── Conversations ─────────────────────────────────────────────────────────────

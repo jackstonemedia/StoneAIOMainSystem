@@ -30,6 +30,10 @@ import voiceAgentsRouter   from './api/routes/voice-agents.routes.js';
 import crmActionsRouter    from './api/routes/crm-actions.routes.js';
 import integrationsRouter  from './api/routes/integrations.routes.js';
 import { releasesRouter }  from './api/routes/releases.routes.js';
+import adsRouter           from './api/routes/ads.routes.js';
+import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webhooks/facebook-leads.webhook.js';
+import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
+import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -99,6 +103,15 @@ async function startServer() {
   // POST = events, GET = Microsoft validation challenge.
   app.post('/api/hooks/outlook-messages', outlookWebhookHandler);
   app.get('/api/hooks/outlook-messages', outlookWebhookHandler);
+
+  // Facebook Lead Ads webhook — BEFORE resolveWorkspace (no JWT from Facebook)
+  app.get('/api/hooks/facebook-leads', facebookLeadsWebhookVerify);
+  app.post(
+    '/api/hooks/facebook-leads',
+    express.raw({ type: 'application/json' }),
+    (req, res, next) => { (req as any).rawBody = req.body; next(); },
+    facebookLeadsWebhookPost,
+  );
 
   // Native workflow engine webhooks — wildcard MUST come last so specific
   // handlers above are not intercepted and killed with a 404.
@@ -199,6 +212,7 @@ async function startServer() {
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);
+  app.use('/api/ads',            adsRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -248,6 +262,14 @@ async function startServer() {
       initializeCampaignQueue();
     } catch (e: any) {
       console.error('❌ Failed to initialize Campaign Queue:', e.message);
+    }
+
+    // ── Ad Manager Jobs ───────────────────────────────────────────────────
+    try {
+      startAdsMetricsSyncJob();
+      startGoogleLeadPollJob();
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Ad Manager jobs:', e.message);
     }
 
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────

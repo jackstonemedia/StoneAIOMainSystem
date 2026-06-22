@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Search, Bell, Command } from 'lucide-react';
+import { db, StorageKey } from '../../../lib/storage';
 
 const TABS = [
   { to: 'chat',           label: 'Conversations' },
@@ -9,11 +12,24 @@ const TABS = [
 
 export default function ConversationsLayout() {
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const notifs = await db.get<any>(StorageKey.NOTIFICATIONS);
+        setUnreadCount(notifs.filter((n: any) => !n.isRead).length);
+      } catch (_) {}
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex flex-col h-full w-full text-sm font-sans relative z-0 bg-bg">
       {/* ── Top Navigation Bar ── */}
-      <div className="w-full flex items-center justify-between px-8 pt-6 pb-0 shrink-0 bg-surface border-b border-border z-10 sticky top-0 relative shadow-sm">
+      <div className="w-full flex items-center justify-between px-8 pt-6 pb-0 shrink-0 bg-surface border-b border-border z-10 sticky top-0 shadow-sm">
         <div className="flex items-center">
           <nav className="flex items-center gap-6">
             {TABS.map((tab) => {
@@ -36,6 +52,36 @@ export default function ConversationsLayout() {
               );
             })}
           </nav>
+        </div>
+
+        {/* Right: Search + Bell */}
+        <div className="flex items-center gap-3 pb-3">
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+            style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
+            <Search className="w-4 h-4" />
+            <span className="text-[13px]">Search</span>
+            <div
+              className="flex items-center gap-1 ml-3 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
+              style={{ background: 'var(--surface-hover)' }}
+            >
+              <Command className="w-3 h-3" />
+              <span>K</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
+            className="relative p-2 rounded-lg transition-colors hover:bg-surface-hover"
+            style={{ color: 'var(--text-main)' }}
+          >
+            <Bell className="w-[18px] h-[18px]" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-surface" />
+            )}
+          </button>
         </div>
       </div>
 

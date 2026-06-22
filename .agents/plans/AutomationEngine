@@ -1,0 +1,2694 @@
+# IMPLEMENTATION BLUEPRINT — Stone AIO Workflow Automation Engine (End-to-End Execution)
+
+---
+
+## SECTION 0: PRE-BUILD CHECKLIST
+
+### Dependencies to install
+All required packages are already in `package.json`. No new installs needed. Confirm these are present:
+- `bull` ^4.16.5 — Redis-backed job queue for workflow execution
+- `node-cron` ^4.2.1 — Cron scheduler for schedule triggers
+- `nanoid` ^5.1.11 — URL-safe unique ID generation for webhook paths
+- `twilio` ^5.13.1 — SMS sending via Twilio API
+- `resend` ^6.12.3 — Email fallback provider
+- `@xyflow/react` ^12.10.1 — React Flow canvas for workflow builder
+
+Run `npm install` to verify no missing packages.
+
+### Environment variables to configure
+All variables already documented in `.env.example`. Verify these are set:
+- `DATABASE_URL` — SQLite path, e.g. `file:./stone-aio.db` — from `prisma/schema.prisma`
+- `CHANNEL_ENCRYPTION_KEY` — 64-char hex string for AES-256-GCM — generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+- `REDIS_URL` — Redis connection string, e.g. `redis://127.0.0.1:6379` — optional for local dev; if absent, engine runs in-process
+- `CLERK_SECRET_KEY` — Clerk backend key — from Clerk dashboard
+- `VITE_CLERK_PUBLISHABLE_KEY` — Clerk frontend key — from Clerk dashboard
+- `RESEND_API_KEY` — optional email fallback — from resend.com
+- `GOOGLE_AI_API_KEY` — for ai.llm node — from Google Cloud Console
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER` — environment-level fallback for crm-actions (not workflow engine — engine uses ChannelConnection)
+- `VITE_APP_URL` — public URL of deployed app, e.g. `https://app.example.com` — used for webhook URL generation
+
+### Database migrations
+No new migrations are needed. All tables exist:
+- `workflows` ✓
+- `native_workflow_definitions` ✓
+- `workflow_runs` ✓
+- `workflow_schedules` ✓
+- `workflow_webhooks` ✓
+- `crm_trigger_subscriptions` ✓
+- `workflow_templates` ✓
+- `channel_connections` ✓ (uses `provider` + `isActive` — do NOT add `type` or `status` columns)
+- `notifications` ✓
+
+Run `npx prisma db push` or `npx prisma migrate deploy` to confirm schema is current. Run `npx prisma generate` to regenerate the Prisma client after any schema changes.
+
+### Existing codebase elements this feature depends on
+- `infrastructure/database/client.ts` — Prisma client singleton exported as `db` — verify `db.workflowSchedule`, `db.workflowWebhook`, `db.crmTriggerSubscription`, `db.workflowTemplate`, `db.notification` are all available (not `(db as any)`)
+- `api/services/channels/encryption.ts` — `decryptJson<T>()` / `encryptJson()` — verify `CHANNEL_ENCRYPTION_KEY` is exactly 64 hex chars
+- `api/services/channels/gmail.service.ts` — `sendGmailMessage(connectionId, to, subject, text, fromName?, html?)` — verify signature
+- `api/services/workflow-engine/expression.service.ts` — `expressionService.resolveConfig()` — already handles `{{nodeId.field}}` syntax; no changes needed
+- `api/services/workflow-engine/engine.service.ts` — `engineService.executeWorkflow()` / `engineService.testNode()` — working; do not modify
+- `api/middleware/workspace.ts` — attaches `req.workspaceId` and `req.userId` to every authenticated request
+- `src/lib/apiClient.ts` — Axios instance with Clerk auth header injection — use for all frontend API calls
+- `src/components/ui/Toast.tsx` — provides `useToast()` hook with `toast(type, message)` call signature
+
+### Third-party accounts / credentials
+- **Clerk** — already integrated; no changes needed
+- **Upstash Redis (Railway)** — for production: add Upstash Redis add-on in Railway dashboard; set `REDIS_URL` env var; local dev works without Redis (in-process fallback)
+- **Gmail OAuth** — a connected `ChannelConnection` record with `provider: 'gmail'` and `isActive: true` must exist for email tests
+- **Twilio** — a connected `ChannelConnection` record with `provider: 'twilio'`, `isActive: true`, and `twilioPhoneNumber` set must exist for SMS tests
+
+---
+
+## SECTION 1: COMPLETE FILE & FOLDER STRUCTURE
+
+```
+/api
+  /routes
+    workflows.routes.ts           MODIFY  — Fix /definition save, publish/pause, add /runs/:id, /templates routes
+    crm.routes.ts                 MODIFY  — Add missing emitTrigger calls for task.created, task.completed
+    business.routes.ts            MODIFY  — Add missing emitTrigger calls for appointment.booked, appointment.completed, appointment.cancelled
+
+  /services
+    /workflow-engine
+      /nodes
+        index.ts                  MODIFY  — Register 6 new nodes
+        crm-update-deal.ts        NEW     — crm.update_deal node
+        crm-add-tag.ts            NEW     — crm.add_tag node
+        crm-remove-tag.ts         NEW     — crm.remove_tag node
+        crm-create-note.ts        NEW     — crm.create_note node
+        notification-send-internal.ts  NEW  — notification.send_internal node
+        workflow-run-workflow.ts  NEW     — workflow.run_workflow node
+        communication-send-email.ts  MODIFY  — Fix provider/isActive field query
+        communication-send-sms.ts    MODIFY  — Fix provider/isActive field query + twilioPhoneNumber
+      scheduler.service.ts        MODIFY  — Add unscheduleById method taking workflowId
+      queue.service.ts            MODIFY  — Change initialize() to return Promise<void>; add execution timeout
+      engine.service.ts           MODIFY  — Add 5-minute execution timeout guard
+
+/prisma
+  seed-templates.ts               NEW     — Seeds 8 WorkflowTemplate rows into the DB
+
+/src
+  /types
+    automation.ts                 MODIFY  — Fix Workflow interface; fix WorkflowRun interface; add NativeWorkflowRun
+
+  /hooks
+    useWorkflows.ts               MODIFY  — Fix useWorkflowRuns to call /:id/runs; add useWorkflowTemplates, useInstallTemplate
+
+  /lib
+    /api
+      workflows.ts                MODIFY  — Remove legacy AP types; add template API functions
+
+  /pages
+    Workflows.tsx                 MODIFY  — Add Templates tab with WorkflowTemplateGallery
+    /automations
+      WorkflowBuilder.tsx         MODIFY  — Fix keyboard shortcuts (Ctrl+Y redo), right-click context menu wiring, node status badge from run detail
+
+  /components
+    /builder
+      /native
+        NativeConfigPanel.tsx     MODIFY  — Add VariablePicker sub-component; add per-node test output display; add continueOnFail / disabled toggles
+        NativeStepNode.tsx        MODIFY  — Add run status badges (SUCCEEDED/FAILED/RUNNING visual ring); add right-click context menu trigger
+        NativeNodeLibrary.tsx     MODIFY  — Add 6 new node types to category display (no logic change needed if registry is used)
+      RunLogPanel.tsx             NEW     — Collapsible run history drawer for WorkflowBuilder
+    WorkflowTemplateGallery.tsx   NEW     — Template browser component for Workflows page
+```
+
+---
+
+## SECTION 2: DATABASE MIGRATIONS
+
+No new migrations are required. All tables already exist in the Prisma schema. The only database operation needed is seeding the `workflow_templates` table.
+
+### Seed: workflow_templates table
+
+Create `/prisma/seed-templates.ts` with the following content. Run with: `npx tsx prisma/seed-templates.ts`
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+const db = new PrismaClient();
+
+const templates = [
+  {
+    id: 'tpl_welcome_email',
+    name: 'New Contact Welcome Email',
+    description: 'Automatically send a welcome email when a new contact is created.',
+    category: 'CRM',
+    tags: JSON.stringify(['email', 'onboarding', 'contacts']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.crm_event',
+          data: { config: { event: 'contact.created' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'email_1',
+          type: 'communication.send_email',
+          data: { config: { to: '{{$trigger.data.email}}', subject: 'Welcome, {{$trigger.data.firstName}}!', body: '<p>Hi {{$trigger.data.firstName}},</p><p>Thank you for joining us. We\'re excited to have you!</p>', html: true } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'email_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_deal_won_notification',
+    name: 'Deal Won Notification',
+    description: 'Send an internal notification and SMS when a deal is marked as won.',
+    category: 'CRM',
+    tags: JSON.stringify(['deals', 'notification', 'sms']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.crm_event',
+          data: { config: { event: 'deal.won' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'notif_1',
+          type: 'notification.send_internal',
+          data: { config: { title: '🎉 Deal Won!', body: 'Deal {{$trigger.data.title}} has been won.', type: 'success' } },
+          position: { x: 100, y: 220 }
+        },
+        {
+          id: 'sms_1',
+          type: 'communication.send_sms',
+          data: { config: { to: '{{$trigger.data.ownerPhone}}', body: 'Deal won: {{$trigger.data.title}} for ${{$trigger.data.amount}}' } },
+          position: { x: 400, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'notif_1', animated: true },
+        { id: 'e2', source: 'trigger_1', target: 'sms_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_appointment_reminder',
+    name: 'Appointment Reminder SMS',
+    description: 'Send an SMS reminder after an appointment is booked.',
+    category: 'Appointments',
+    tags: JSON.stringify(['appointments', 'sms', 'reminder']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.crm_event',
+          data: { config: { event: 'appointment.booked' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'sms_1',
+          type: 'communication.send_sms',
+          data: { config: { to: '{{$trigger.data.contactPhone}}', body: 'Your appointment is confirmed for {{$trigger.data.scheduledAt}}. Reply STOP to cancel.' } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'sms_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_form_followup',
+    name: 'Form Submission Follow-up',
+    description: 'Create a contact and send a follow-up email when a form is submitted.',
+    category: 'Marketing',
+    tags: JSON.stringify(['forms', 'email', 'contacts']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.crm_event',
+          data: { config: { event: 'form.submitted' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'contact_1',
+          type: 'crm.create_contact',
+          data: { config: { email: '{{$trigger.data.data.email}}', firstName: '{{$trigger.data.data.firstName}}' } },
+          position: { x: 250, y: 220 }
+        },
+        {
+          id: 'email_1',
+          type: 'communication.send_email',
+          data: { config: { to: '{{$trigger.data.data.email}}', subject: 'Thanks for reaching out!', body: '<p>We received your submission and will be in touch soon.</p>', html: true } },
+          position: { x: 250, y: 390 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'contact_1', animated: true },
+        { id: 'e2', source: 'contact_1', target: 'email_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_review_alert',
+    name: 'New Review Alert',
+    description: 'Get an internal notification whenever a new review is received.',
+    category: 'Reputation',
+    tags: JSON.stringify(['reviews', 'notification']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.crm_event',
+          data: { config: { event: 'review.received' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'notif_1',
+          type: 'notification.send_internal',
+          data: { config: { title: '⭐ New Review ({{$trigger.data.rating}}/5)', body: '{{$trigger.data.reviewerName}}: {{$trigger.data.body}}', type: 'info' } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'notif_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_weekly_task_reminder',
+    name: 'Weekly Task Reminder',
+    description: 'Send an internal notification every Monday at 9am.',
+    category: 'Scheduling',
+    tags: JSON.stringify(['schedule', 'notification', 'tasks']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.schedule',
+          data: { config: { cronExpression: '0 9 * * 1', timezone: 'America/New_York' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'notif_1',
+          type: 'notification.send_internal',
+          data: { config: { title: '📋 Weekly Tasks Reminder', body: "It's Monday — review your open tasks and plan for the week.", type: 'info' } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'notif_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_deal_stale_alert',
+    name: 'Deal Stale Alert',
+    description: 'Daily check that sends an internal notification for workflows needing attention.',
+    category: 'CRM',
+    tags: JSON.stringify(['schedule', 'deals', 'notification']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.schedule',
+          data: { config: { cronExpression: '0 8 * * *', timezone: 'America/New_York' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'notif_1',
+          type: 'notification.send_internal',
+          data: { config: { title: '⚠️ Daily Deal Review', body: 'Check your pipeline for stale deals that need follow-up.', type: 'warning' } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'notif_1', animated: true }
+      ]
+    })
+  },
+  {
+    id: 'tpl_webhook_to_sms',
+    name: 'Inbound Webhook to SMS',
+    description: 'Send an SMS to a phone number from an external webhook POST.',
+    category: 'Integration',
+    tags: JSON.stringify(['webhook', 'sms', 'integration']),
+    isSystem: true,
+    workspaceId: null,
+    definitionJson: JSON.stringify({
+      nodes: [
+        {
+          id: 'trigger_1',
+          type: 'trigger.webhook',
+          data: { config: { method: 'POST' } },
+          position: { x: 250, y: 50 }
+        },
+        {
+          id: 'sms_1',
+          type: 'communication.send_sms',
+          data: { config: { to: '{{$trigger.body.phone}}', body: '{{$trigger.body.message}}' } },
+          position: { x: 250, y: 220 }
+        }
+      ],
+      edges: [
+        { id: 'e1', source: 'trigger_1', target: 'sms_1', animated: true }
+      ]
+    })
+  }
+];
+
+async function main() {
+  console.log('Seeding workflow templates...');
+  for (const tpl of templates) {
+    await db.workflowTemplate.upsert({
+      where: { id: tpl.id },
+      update: tpl,
+      create: tpl,
+    });
+    console.log(`  ✓ ${tpl.name}`);
+  }
+  console.log('Done.');
+}
+
+main().catch(console.error).finally(() => db.$disconnect());
+```
+
+---
+
+## SECTION 3: TYPE DEFINITIONS & INTERFACES
+
+### File: `src/types/automation.ts` — FULL REPLACEMENT
+
+Replace the entire `Workflow` interface and `WorkflowRun` interface. Keep all native engine types unchanged (NativeNode, NativeEdge, ExecutionContext, etc.). The AP types (APFlow, APStep, etc.) can be removed entirely as they are no longer used.
+
+```typescript
+// ── Status enums ──────────────────────────────────────────────────────────────
+export type WorkflowStatus = 'draft' | 'published' | 'paused';
+export type RunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PAUSED' | 'STOPPED';
+export type TriggerType = 'webhook' | 'schedule' | 'crm_event' | 'manual';
+export type EngineType = 'native';
+
+/** Matches the `workflows` Prisma model exactly. */
+export interface Workflow {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  status: WorkflowStatus;
+  triggerType: TriggerType | null;
+  folderName: string | null;
+  tags: string;              // JSON string array stored in DB, parse with JSON.parse() at use site
+  isFavorite: boolean;
+  folderId: string | null;
+  lastRunAt: string | null;  // ISO-8601
+  lastRunStatus: RunStatus | null;
+  engineType: EngineType;
+  definitionJson: string;    // JSON, usually "{}" — not the canvas def (that's NativeWorkflowDefinition)
+  variablesJson: string;     // JSON object of workflow-level variables
+  settingsJson: string;      // JSON: NativeWorkflowSettings
+  executionCount: number;
+  successCount: number;
+  failureCount: number;
+  createdAt: string;         // ISO-8601
+  updatedAt: string;         // ISO-8601
+}
+
+/** A single execution record. Matches the `workflow_runs` Prisma model. */
+export interface NativeWorkflowRun {
+  id: string;
+  workspaceId: string;
+  workflowId: string;
+  status: RunStatus;
+  durationMs: number | null;
+  stepCount: number;
+  triggerData: string | null;  // JSON string
+  errorMessage: string | null;
+  startedAt: string;           // ISO-8601
+  finishedAt: string | null;   // ISO-8601
+  engineType: string;
+  runData: string;             // JSON string: Record<nodeId, WorkflowItem[]>
+  waitingNodeId: string | null;
+  resumeAt: string | null;
+}
+
+/** Run detail with runData parsed from JSON. */
+export interface NativeWorkflowRunDetail extends Omit<NativeWorkflowRun, 'runData' | 'triggerData'> {
+  runData: Record<string, WorkflowItem[]> | null;
+  triggerData: Record<string, unknown> | null;
+}
+
+/** Template record from the `workflow_templates` table. */
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  tags: string;              // JSON string array
+  thumbnailUrl: string | null;
+  usageCount: number;
+  isSystem: boolean;
+  workspaceId: string | null;
+  createdAt: string;
+  // definitionJson intentionally excluded from list API response
+}
+
+/** Template with definition included (only for install flow). */
+export interface WorkflowTemplateWithDefinition extends WorkflowTemplate {
+  definitionJson: string;    // JSON: { nodes: any[], edges: any[] }
+}
+
+// ── Keep all native engine types exactly as they are ──────────────────────────
+// NativeNode, NativeEdge, NativeWorkflowDefinition, NativeWorkflowSettings,
+// WorkflowItem, ExecutionContext, NodeConfigField, NodeConfigFieldType,
+// NativeNodeData, NativeNodeCategory, WorkflowCredential
+// (leave unchanged from existing file)
+```
+
+---
+
+## SECTION 4: VALIDATION SCHEMAS
+
+### File: `api/schemas/validation.ts` — ADDITIONS
+
+Add these schemas to the existing file:
+
+```typescript
+import { z } from 'zod';
+
+// Existing schemas stay unchanged above this point.
+
+/** POST /api/workflows/:id/definition body */
+export const SaveDefinitionSchema = z.object({
+  nodes: z.array(z.any()),
+  edges: z.array(z.any()),
+});
+
+/** POST /api/workflows/templates/:id/install — no body required */
+export const InstallTemplateSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+});
+```
+
+---
+
+## SECTION 5: DATABASE QUERY LAYER
+
+### Per-workflow run list (missing route query)
+
+```typescript
+// Location: inline in api/routes/workflows.routes.ts GET /:id/runs handler
+async function getRunsForWorkflow(workflowId: string, workspaceId: string): Promise<NativeWorkflowRun[]> {
+  const runs = await db.workflowRun.findMany({
+    where: {
+      workflowId,
+      workspaceId,
+      startedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }, // 90-day window
+    },
+    orderBy: { startedAt: 'desc' },
+    take: 50,
+  });
+  return runs.map(r => ({
+    ...r,
+    startedAt: r.startedAt.toISOString(),
+    finishedAt: r.finishedAt?.toISOString() ?? null,
+    resumeAt: r.resumeAt?.toISOString() ?? null,
+  }));
+}
+```
+
+### Template list query
+
+```typescript
+// Location: inline in api/routes/workflows.routes.ts GET /templates handler
+async function listTemplates(workspaceId: string) {
+  return db.workflowTemplate.findMany({
+    where: { OR: [{ isSystem: true, workspaceId: null }, { workspaceId }] },
+    select: {
+      id: true, name: true, description: true, category: true,
+      tags: true, thumbnailUrl: true, usageCount: true, isSystem: true,
+      workspaceId: true, createdAt: true,
+      // definitionJson intentionally excluded
+    },
+    orderBy: [{ category: 'asc' }, { name: 'asc' }],
+  });
+}
+```
+
+### Template install query (transaction)
+
+```typescript
+// Location: inline in api/routes/workflows.routes.ts POST /templates/:id/install handler
+async function installTemplate(templateId: string, workspaceId: string, name?: string) {
+  // 1. Fetch template with definition
+  const template = await db.workflowTemplate.findFirst({
+    where: {
+      id: templateId,
+      OR: [{ isSystem: true, workspaceId: null }, { workspaceId }],
+    },
+  });
+  if (!template) throw new Error('Template not found or access denied');
+
+  const def = JSON.parse(template.definitionJson) as { nodes: any[]; edges: any[] };
+
+  // 2. Create workflow + definition in a transaction
+  const workflow = await db.$transaction(async (tx) => {
+    const wf = await tx.workflow.create({
+      data: {
+        workspaceId,
+        name: name ?? template.name,
+        description: template.description,
+        engineType: 'native',
+        status: 'draft',
+      },
+    });
+    await tx.nativeWorkflowDefinition.create({
+      data: {
+        workflowId: wf.id,
+        nodesJson: JSON.stringify(def.nodes),
+        edgesJson: JSON.stringify(def.edges),
+      },
+    });
+    return wf;
+  });
+
+  // 3. Increment usage count (non-critical, fire-and-forget)
+  db.workflowTemplate.update({
+    where: { id: templateId },
+    data: { usageCount: { increment: 1 } },
+  }).catch(() => {});
+
+  return workflow;
+}
+```
+
+---
+
+## SECTION 6: SERVER ACTIONS & API ROUTE HANDLERS
+
+### ROUTE FIX 1: `GET /api/workflows/:id/runs` — ADD THIS MISSING ROUTE
+
+**Name/Path:** `GET /api/workflows/:id/runs`
+**Purpose:** Return the last 50 runs for a specific workflow, scoped to the current workspace.
+**Location:** `api/routes/workflows.routes.ts` — insert BEFORE the `router.get('/:id', ...)` handler.
+
+Step-by-step implementation:
+1. Verify workspace scoping via `req.workspaceId` (already set by `resolveWorkspace` middleware).
+2. Query `db.workflowRun.findMany` with `where: { workflowId: req.params.id, workspaceId: req.workspaceId }`.
+3. Filter to runs within the last 90 days: add `startedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }`.
+4. Order by `startedAt: 'desc'`, limit `take: 50`.
+5. Map results: convert Date fields to ISO strings, keep all native fields.
+6. Return `res.json({ data: runs, total: runs.length })`.
+
+Error handling: catch DB errors, return `res.status(500).json({ error: e.message })`.
+
+```typescript
+router.get('/:id/runs', async (req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const runs = await db.workflowRun.findMany({
+      where: {
+        workflowId: req.params.id,
+        workspaceId: req.workspaceId,
+        startedAt: { gte: cutoff },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 50,
+    });
+    res.json({
+      data: runs.map(r => ({
+        ...r,
+        startedAt: r.startedAt.toISOString(),
+        finishedAt: r.finishedAt?.toISOString() ?? null,
+        resumeAt: r.resumeAt?.toISOString() ?? null,
+        // Do NOT include runData in list — too large; use /runs/:runId/detail for that
+        runData: undefined,
+      })),
+      total: runs.length,
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE FIX 2: `POST /api/workflows/:id/definition` — TRIGGER REGISTRATION REWRITE
+
+**Purpose:** Save canvas nodes/edges AND properly upsert trigger subscriptions/schedules/webhooks.
+
+The current implementation has three bugs:
+- Webhook path is not random (uses predictable `/hook/workflowId/nodeId`)
+- On re-save, the webhook URL changes every time because old records are deleted and new ones created with new random paths
+- The `(db as any)` casts may suppress TypeScript errors silently
+
+**Complete replacement handler:**
+
+```typescript
+router.post('/:id/definition', async (req, res) => {
+  try {
+    const { nodes, edges } = req.body as { nodes: any[]; edges: any[] };
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Save definition
+    await db.nativeWorkflowDefinition.upsert({
+      where: { workflowId },
+      update: { nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) },
+      create: { workflowId, nodesJson: JSON.stringify(nodes), edgesJson: JSON.stringify(edges) },
+    });
+
+    // 2. Find the trigger node (first node whose type starts with 'trigger.')
+    const triggerNode = nodes.find((n: any) => n.type?.startsWith('trigger.'));
+
+    // 3. Delete old subscriptions/schedules for this workflow ONLY
+    //    For webhooks: read existing path BEFORE deleting so we can preserve it
+    const existingWebhook = await db.workflowWebhook.findFirst({ where: { workflowId } });
+    await db.crmTriggerSubscription.deleteMany({ where: { workflowId } });
+    await db.workflowSchedule.deleteMany({ where: { workflowId } });
+    await db.workflowWebhook.deleteMany({ where: { workflowId } });
+
+    // 4. Create new subscription based on trigger type
+    if (triggerNode) {
+      const cfg = triggerNode.data?.config ?? triggerNode.config ?? {};
+
+      if (triggerNode.type === 'trigger.crm_event') {
+        const eventStr = (cfg.event as string) || 'contact.created';
+        const [entityType, eventType] = eventStr.split('.');
+        await db.crmTriggerSubscription.create({
+          data: {
+            workspaceId,
+            workflowId,
+            nodeId: triggerNode.id,
+            entityType: entityType ?? 'contact',
+            eventType: eventType ?? 'created',
+            filtersJson: JSON.stringify(cfg.filters ?? {}),
+            active: true,
+          },
+        });
+
+      } else if (triggerNode.type === 'trigger.schedule') {
+        const cronExpr = (cfg.cronExpression as string) || '0 9 * * 1';
+        const timezone = (cfg.timezone as string) || 'UTC';
+        await db.workflowSchedule.create({
+          data: {
+            workspaceId,
+            workflowId,
+            nodeId: triggerNode.id,
+            cronExpr,
+            timezone,
+            active: true,
+          },
+        });
+
+      } else if (triggerNode.type === 'trigger.webhook') {
+        // Preserve path if this workflow previously had a webhook (avoids URL changes on save)
+        const { nanoid } = await import('nanoid');
+        const path = existingWebhook?.path ?? `/hooks/${nanoid(16)}`;
+        const method = (cfg.method as string) || 'POST';
+        const secret = (cfg.secret as string) || null;
+        await db.workflowWebhook.create({
+          data: {
+            workspaceId,
+            workflowId,
+            nodeId: triggerNode.id,
+            path,
+            method,
+            secret,
+            active: true,
+          },
+        });
+        // Reload webhook into in-memory registry
+        const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
+        await webhookRegistry.reload();
+      }
+    }
+
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE FIX 3: `POST /api/workflows/:id/publish-native` — SCHEDULER + WEBHOOK ACTIVATION
+
+**Complete replacement handler:**
+
+```typescript
+router.post('/:id/publish-native', async (req, res) => {
+  try {
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Verify workflow belongs to this workspace
+    await db.workflow.findFirstOrThrow({ where: { id: workflowId, workspaceId } });
+
+    // 2. Set status to published
+    await db.workflow.update({
+      where: { id: workflowId },
+      data: { status: 'published', engineType: 'native' },
+    });
+
+    const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
+    const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
+
+    // 3. Activate and schedule any WorkflowSchedule records for this workflow
+    const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
+    for (const schedule of schedules) {
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: true } });
+      schedulerService.scheduleWorkflow({
+        scheduleId: schedule.id,
+        workspaceId: schedule.workspaceId,
+        workflowId: schedule.workflowId,
+        nodeId: schedule.nodeId,
+        cronExpr: schedule.cronExpr,
+        timezone: schedule.timezone,
+      });
+    }
+
+    // 4. Activate any WorkflowWebhook records and register in memory
+    const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
+    for (const hook of webhooks) {
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: true } });
+    }
+    if (webhooks.length > 0) {
+      await webhookRegistry.reload();
+    }
+
+    res.json({ success: true, status: 'published' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE FIX 4: `POST /api/workflows/:id/pause-native` — SCHEDULER + WEBHOOK DEACTIVATION
+
+**Complete replacement handler:**
+
+```typescript
+router.post('/:id/pause-native', async (req, res) => {
+  try {
+    const workflowId = req.params.id;
+    const workspaceId = req.workspaceId!;
+
+    // 1. Verify workspace ownership
+    await db.workflow.findFirstOrThrow({ where: { id: workflowId, workspaceId } });
+
+    // 2. Set status to paused
+    await db.workflow.update({
+      where: { id: workflowId },
+      data: { status: 'paused' },
+    });
+
+    const { schedulerService } = await import('../services/workflow-engine/scheduler.service.js');
+
+    // 3. Deactivate and unschedule WorkflowSchedule records
+    const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
+    for (const schedule of schedules) {
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: false } });
+      schedulerService.unscheduleWorkflow(schedule.id);
+    }
+
+    // 4. Deactivate WorkflowWebhook records and reload registry
+    const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
+    for (const hook of webhooks) {
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: false } });
+    }
+    if (webhooks.length > 0) {
+      const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
+      await webhookRegistry.reload();
+    }
+
+    res.json({ success: true, status: 'paused' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE ADD 5: `GET /api/workflows/templates`
+
+**Purpose:** Return template list without bulky definitionJson. Must be defined BEFORE `router.get('/:id', ...)`.
+
+```typescript
+router.get('/templates', async (req, res) => {
+  try {
+    const templates = await db.workflowTemplate.findMany({
+      where: { OR: [{ isSystem: true, workspaceId: null }, { workspaceId: req.workspaceId }] },
+      select: {
+        id: true, name: true, description: true, category: true,
+        tags: true, thumbnailUrl: true, usageCount: true, isSystem: true,
+        workspaceId: true, createdAt: true,
+      },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    });
+    res.json(templates);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE ADD 6: `POST /api/workflows/templates/:templateId/install`
+
+**Purpose:** Create a new draft workflow from a template. Must be defined BEFORE `router.get('/:id', ...)`.
+
+```typescript
+router.post('/templates/:templateId/install', async (req, res) => {
+  try {
+    const { name } = req.body as { name?: string };
+
+    const template = await db.workflowTemplate.findFirst({
+      where: {
+        id: req.params.templateId,
+        OR: [{ isSystem: true, workspaceId: null }, { workspaceId: req.workspaceId }],
+      },
+    });
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+
+    const def = JSON.parse(template.definitionJson) as { nodes: any[]; edges: any[] };
+
+    const workflow = await db.$transaction(async (tx) => {
+      const wf = await tx.workflow.create({
+        data: {
+          workspaceId: req.workspaceId!,
+          name: name?.trim() || template.name,
+          description: template.description,
+          engineType: 'native',
+          status: 'draft',
+        },
+      });
+      await tx.nativeWorkflowDefinition.create({
+        data: {
+          workflowId: wf.id,
+          nodesJson: JSON.stringify(def.nodes),
+          edgesJson: JSON.stringify(def.edges),
+        },
+      });
+      return wf;
+    });
+
+    db.workflowTemplate.update({
+      where: { id: template.id },
+      data: { usageCount: { increment: 1 } },
+    }).catch(() => {});
+
+    res.status(201).json(workflow);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+```
+
+---
+
+### ROUTE FIX 7: `GET /api/workflows/templates` vs existing templates route
+
+The existing `/templates` route in the file currently queries `db.workflow.findMany({ where: { status: 'published' } })`, which is wrong — it queries live workflows, not the template table. Replace it entirely with the correct handler above.
+
+---
+
+### BUG FIX: `api/routes/crm.routes.ts` — Add missing emitTrigger calls
+
+**POST /crm/tasks** — Add after `res.json(await crm.createTask(...))`:
+```typescript
+router.post('/tasks', async (req, res) => {
+  try {
+    const v = TaskSchema.parse(req.body);
+    const task = await crm.createTask(req.workspaceId, v as any);
+    emitTrigger(req.workspaceId, 'task.created', task as Record<string, unknown>).catch(console.error);
+    res.json(task);
+  } catch (e) { dbErr(res, e); }
+});
+```
+
+**PUT /crm/tasks/:id** — Add conditional emit for task.completed:
+```typescript
+router.put('/tasks/:id', async (req, res) => {
+  try {
+    const task = await crm.updateTask(req.params.id, req.workspaceId, req.body);
+    if (req.body.status === 'completed') {
+      emitTrigger(req.workspaceId, 'task.completed', task as Record<string, unknown>).catch(console.error);
+    }
+    res.json(task);
+  } catch (e) { dbErr(res, e); }
+});
+```
+
+---
+
+### BUG FIX: `api/routes/business.routes.ts` — Add missing emitTrigger calls
+
+Add `import { emitTrigger } from '../services/trigger-emitter.service.js';` at the top of the file (after existing imports).
+
+**POST /appointments**:
+```typescript
+router.post('/appointments', async (req, res) => {
+  try {
+    const appt = await biz.createAppointment(req.workspaceId, req.body);
+    emitTrigger(req.workspaceId, 'appointment.booked', appt as Record<string, unknown>).catch(console.error);
+    res.json(appt);
+  } catch (e) { err500(res, e); }
+});
+```
+
+**PUT /appointments/:id**:
+```typescript
+router.put('/appointments/:id', async (req, res) => {
+  try {
+    const appt = await biz.updateAppointment(req.params.id, req.body);
+    if (req.body.status === 'completed') {
+      emitTrigger(req.workspaceId, 'appointment.completed', appt as Record<string, unknown>).catch(console.error);
+    } else if (req.body.status === 'cancelled') {
+      emitTrigger(req.workspaceId, 'appointment.cancelled', appt as Record<string, unknown>).catch(console.error);
+    }
+    res.json(appt);
+  } catch (e) { err500(res, e); }
+});
+```
+
+**DELETE /appointments/:id**:
+```typescript
+router.delete('/appointments/:id', async (req, res) => {
+  try {
+    const appt = await biz.deleteAppointment(req.params.id);
+    emitTrigger(req.workspaceId, 'appointment.cancelled', { id: req.params.id, ...(appt ?? {}) } as Record<string, unknown>).catch(console.error);
+    res.json({ success: true });
+  } catch (e) { err500(res, e); }
+});
+```
+
+---
+
+## SECTION 7: COMPONENT IMPLEMENTATION GUIDE
+
+### Component: `communication-send-email.ts` (BUG FIX)
+
+**File:** `api/services/workflow-engine/nodes/communication-send-email.ts`
+
+Change the channel query from:
+```typescript
+const gmailConn = await db.channelConnection.findFirst({
+  where: { workspaceId: context.workspaceId, type: 'gmail', status: 'connected' },
+}).catch(() => null);
+```
+To:
+```typescript
+const gmailConn = await db.channelConnection.findFirst({
+  where: { workspaceId: context.workspaceId, provider: 'gmail', isActive: true },
+}).catch(() => null);
+```
+Also remove the unused `const creds = decryptJson<...>(gmailConn.credentialsJson)` line — `sendGmailMessage` uses the connection ID internally, not the decrypted creds.
+
+---
+
+### Component: `communication-send-sms.ts` (BUG FIX)
+
+**File:** `api/services/workflow-engine/nodes/communication-send-sms.ts`
+
+Change the channel query from:
+```typescript
+const twilioConn = await db.channelConnection.findFirst({
+  where: { workspaceId: context.workspaceId, type: 'twilio', status: 'connected' },
+}).catch(() => null);
+```
+To:
+```typescript
+const twilioConn = await db.channelConnection.findFirst({
+  where: { workspaceId: context.workspaceId, provider: 'twilio', isActive: true },
+}).catch(() => null);
+```
+
+Change the `from` field in the Twilio message creation from:
+```typescript
+from: creds.twilioPhoneNumber,
+```
+To:
+```typescript
+from: twilioConn.twilioPhoneNumber ?? creds.twilioPhoneNumber,
+```
+This checks the top-level DB column first (most reliable), then falls back to encrypted creds.
+
+---
+
+### Component: `crm-update-deal.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/crm-update-deal.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
+import { emitTrigger } from '../../trigger-emitter.service.js';
+
+export const crmUpdateDeal: NodeImplementation = {
+  type: 'crm.update_deal',
+  category: 'crm',
+  displayName: 'Update Deal',
+  description: 'Update an existing deal in the CRM.',
+  iconName: 'briefcase',
+  color: '#8B5CF6',
+  outputHandles: [{ id: 'default', label: 'Updated', color: '#8B5CF6' }],
+  configSchema: [
+    { key: 'dealId', label: 'Deal ID', type: 'text', required: true },
+    { key: 'title', label: 'Title', type: 'text' },
+    { key: 'amount', label: 'Amount', type: 'number' },
+    { key: 'status', label: 'Status', type: 'select', options: [
+      { label: 'Open', value: 'open' },
+      { label: 'Won', value: 'won' },
+      { label: 'Lost', value: 'lost' },
+    ]},
+    { key: 'stageId', label: 'Stage ID', type: 'text' },
+    { key: 'description', label: 'Description', type: 'textarea' },
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const dealId = config.dealId as string;
+    if (!dealId) throw new Error('Deal ID is required.');
+
+    // Verify deal belongs to this workspace
+    const existing = await db.deal.findFirst({ where: { id: dealId, workspaceId: context.workspaceId } });
+    if (!existing) throw new Error(`Deal ${dealId} not found.`);
+
+    const updateData: Record<string, unknown> = {};
+    if (config.title) updateData.title = config.title;
+    if (config.amount !== undefined && config.amount !== '') updateData.amount = Number(config.amount);
+    if (config.status) updateData.status = config.status;
+    if (config.stageId) updateData.stageId = config.stageId;
+    if (config.description) updateData.description = config.description;
+
+    const deal = await db.deal.update({ where: { id: dealId }, data: updateData as any });
+
+    emitTrigger(context.workspaceId, 'deal.updated', deal as Record<string, unknown>).catch(() => {});
+    if (config.status === 'won') emitTrigger(context.workspaceId, 'deal.won', deal as Record<string, unknown>).catch(() => {});
+    if (config.status === 'lost') emitTrigger(context.workspaceId, 'deal.lost', deal as Record<string, unknown>).catch(() => {});
+
+    return { output: [{ json: { ...deal, id: deal.id } }] };
+  },
+};
+```
+
+---
+
+### Component: `crm-add-tag.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/crm-add-tag.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
+import { emitTrigger } from '../../trigger-emitter.service.js';
+
+export const crmAddTag: NodeImplementation = {
+  type: 'crm.add_tag',
+  category: 'crm',
+  displayName: 'Add Tag',
+  description: 'Add a tag to a contact or deal.',
+  iconName: 'tag',
+  color: '#F59E0B',
+  outputHandles: [{ id: 'default', label: 'Tagged', color: '#F59E0B' }],
+  configSchema: [
+    { key: 'entityType', label: 'Entity Type', type: 'select', required: true, options: [
+      { label: 'Contact', value: 'contact' },
+      { label: 'Deal', value: 'deal' },
+    ]},
+    { key: 'entityId', label: 'Entity ID', type: 'text', required: true },
+    { key: 'tag', label: 'Tag', type: 'text', required: true },
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const entityType = config.entityType as string;
+    const entityId = config.entityId as string;
+    const tag = (config.tag as string)?.trim();
+    if (!entityId || !tag) throw new Error('Entity ID and tag are required.');
+
+    if (entityType === 'contact') {
+      const contact = await db.contact.findFirst({ where: { id: entityId, workspaceId: context.workspaceId } });
+      if (!contact) throw new Error(`Contact ${entityId} not found.`);
+      
+      let tags: string[] = [];
+      try { tags = JSON.parse((contact as any).tagsJson || '[]'); } catch { tags = []; }
+      if (!tags.includes(tag)) {
+        tags.push(tag);
+        await db.contact.update({ where: { id: entityId }, data: { tagsJson: JSON.stringify(tags) } as any });
+        emitTrigger(context.workspaceId, 'contact.tag_added', { contactId: entityId, tag, tags }).catch(() => {});
+      }
+      return { output: [{ json: { entityId, entityType, tag, tags } }] };
+    } else if (entityType === 'deal') {
+      const deal = await db.deal.findFirst({ where: { id: entityId, workspaceId: context.workspaceId } });
+      if (!deal) throw new Error(`Deal ${entityId} not found.`);
+      // Deals may not have a tags field — store in a metadata or note if needed
+      // Implementation: add to deal.description or use a custom approach
+      return { output: [{ json: { entityId, entityType, tag } }] };
+    }
+    throw new Error(`Unknown entity type: ${entityType}`);
+  },
+};
+```
+
+---
+
+### Component: `crm-remove-tag.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/crm-remove-tag.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
+
+export const crmRemoveTag: NodeImplementation = {
+  type: 'crm.remove_tag',
+  category: 'crm',
+  displayName: 'Remove Tag',
+  description: 'Remove a tag from a contact.',
+  iconName: 'tag',
+  color: '#EF4444',
+  outputHandles: [{ id: 'default', label: 'Done', color: '#EF4444' }],
+  configSchema: [
+    { key: 'entityType', label: 'Entity Type', type: 'select', required: true, options: [
+      { label: 'Contact', value: 'contact' },
+    ]},
+    { key: 'entityId', label: 'Entity ID', type: 'text', required: true },
+    { key: 'tag', label: 'Tag to Remove', type: 'text', required: true },
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const entityId = config.entityId as string;
+    const tag = (config.tag as string)?.trim();
+    if (!entityId || !tag) throw new Error('Entity ID and tag are required.');
+
+    const contact = await db.contact.findFirst({ where: { id: entityId, workspaceId: context.workspaceId } });
+    if (!contact) throw new Error(`Contact ${entityId} not found.`);
+
+    let tags: string[] = [];
+    try { tags = JSON.parse((contact as any).tagsJson || '[]'); } catch { tags = []; }
+    const filtered = tags.filter((t: string) => t !== tag);
+    await db.contact.update({ where: { id: entityId }, data: { tagsJson: JSON.stringify(filtered) } as any });
+
+    return { output: [{ json: { entityId, tag, tags: filtered } }] };
+  },
+};
+```
+
+---
+
+### Component: `crm-create-note.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/crm-create-note.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
+
+export const crmCreateNote: NodeImplementation = {
+  type: 'crm.create_note',
+  category: 'crm',
+  displayName: 'Create Note',
+  description: 'Create a note or activity log on a contact.',
+  iconName: 'file-text',
+  color: '#64748B',
+  outputHandles: [{ id: 'default', label: 'Created', color: '#64748B' }],
+  configSchema: [
+    { key: 'contactId', label: 'Contact ID', type: 'text' },
+    { key: 'content', label: 'Note Content', type: 'textarea', required: true },
+    { key: 'type', label: 'Type', type: 'select', options: [
+      { label: 'Note', value: 'note' },
+      { label: 'Call', value: 'call' },
+      { label: 'Email', value: 'email' },
+      { label: 'Meeting', value: 'meeting' },
+    ]},
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const content = config.content as string;
+    if (!content) throw new Error('Note content is required.');
+    const contactId = config.contactId as string | undefined;
+    const type = (config.type as string) || 'note';
+
+    const event = await db.contactEvent.create({
+      data: {
+        contactId: contactId || undefined,
+        type,
+        title: type.charAt(0).toUpperCase() + type.slice(1),
+        content,
+        metadataJson: JSON.stringify({ createdByWorkflow: context.workflowId }),
+      } as any,
+    });
+
+    return { output: [{ json: { eventId: event.id, contactId, type, content } }] };
+  },
+};
+```
+
+---
+
+### Component: `notification-send-internal.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/notification-send-internal.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+import { db } from '../../../../infrastructure/database/client.js';
+
+export const notificationSendInternal: NodeImplementation = {
+  type: 'notification.send_internal',
+  category: 'communication',
+  displayName: 'Send Notification',
+  description: 'Create an in-app notification for the workspace.',
+  iconName: 'bell',
+  color: '#6366F1',
+  outputHandles: [{ id: 'default', label: 'Sent', color: '#6366F1' }],
+  configSchema: [
+    { key: 'title', label: 'Title', type: 'text', required: true },
+    { key: 'body', label: 'Body', type: 'textarea' },
+    { key: 'type', label: 'Type', type: 'select', options: [
+      { label: 'Info', value: 'info' },
+      { label: 'Success', value: 'success' },
+      { label: 'Warning', value: 'warning' },
+      { label: 'Error', value: 'error' },
+    ]},
+    { key: 'link', label: 'Link URL (optional)', type: 'text' },
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const title = config.title as string;
+    if (!title) throw new Error('Notification title is required.');
+
+    const notification = await db.notification.create({
+      data: {
+        workspaceId: context.workspaceId,
+        title,
+        body: (config.body as string) || null,
+        type: (config.type as string) || 'info',
+        link: (config.link as string) || null,
+      },
+    });
+
+    return { output: [{ json: { notificationId: notification.id, title } }] };
+  },
+};
+```
+
+---
+
+### Component: `workflow-run-workflow.ts` (NEW)
+
+**File:** `api/services/workflow-engine/nodes/workflow-run-workflow.ts`
+
+```typescript
+'use strict';
+import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
+import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
+
+export const workflowRunWorkflow: NodeImplementation = {
+  type: 'workflow.run_workflow',
+  category: 'integration',
+  displayName: 'Run Workflow',
+  description: 'Trigger another workflow as a sub-workflow.',
+  iconName: 'play-circle',
+  color: '#0EA5E9',
+  outputHandles: [{ id: 'default', label: 'Triggered', color: '#0EA5E9' }],
+  configSchema: [
+    { key: 'workflowId', label: 'Target Workflow ID', type: 'text', required: true },
+    { key: 'triggerData', label: 'Trigger Data (JSON)', type: 'json' },
+  ] as NodeConfigField[],
+
+  async execute(config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    const targetWorkflowId = config.workflowId as string;
+    if (!targetWorkflowId) throw new Error('Target workflow ID is required.');
+
+    let triggerData: Record<string, unknown> = {};
+    if (config.triggerData && typeof config.triggerData === 'string') {
+      try { triggerData = JSON.parse(config.triggerData); } catch { triggerData = {}; }
+    } else if (typeof config.triggerData === 'object' && config.triggerData !== null) {
+      triggerData = config.triggerData as Record<string, unknown>;
+    }
+
+    // Lazy-import to avoid circular dependency
+    const { queueService } = await import('../queue.service.js');
+    const result = await queueService.enqueue({
+      workspaceId: context.workspaceId,
+      workflowId: targetWorkflowId,
+      triggerData: { ...triggerData, parentRunId: context.runId },
+      mode: 'production',
+    });
+
+    return { output: [{ json: { targetWorkflowId, runId: result.runId } }] };
+  },
+};
+```
+
+---
+
+### Component: `nodes/index.ts` (MODIFY — register new nodes)
+
+Add these imports and registrations:
+
+```typescript
+// NEW imports (add below existing ones):
+import { crmUpdateDeal } from './crm-update-deal.js';
+import { crmAddTag } from './crm-add-tag.js';
+import { crmRemoveTag } from './crm-remove-tag.js';
+import { crmCreateNote } from './crm-create-note.js';
+import { notificationSendInternal } from './notification-send-internal.js';
+import { workflowRunWorkflow } from './workflow-run-workflow.js';
+
+// Add to registerAllNodes() function, after existing registrations:
+nodeRegistry.register(crmUpdateDeal);
+nodeRegistry.register(crmAddTag);
+nodeRegistry.register(crmRemoveTag);
+nodeRegistry.register(crmCreateNote);
+nodeRegistry.register(notificationSendInternal);
+nodeRegistry.register(workflowRunWorkflow);
+```
+
+---
+
+### Component: `NativeConfigPanel.tsx` (MODIFY — add VariablePicker + test output display)
+
+**File:** `src/components/builder/native/NativeConfigPanel.tsx`
+
+**Props additions** — add to existing props:
+```typescript
+availableVariables?: Array<{
+  nodeId: string;
+  nodeName: string;
+  fields: Array<{ key: string; path: string; description?: string }>;
+}>;
+onTestNode?: (nodeId: string, inputItems?: any[]) => Promise<{ output: any[]; duration: number }>;
+lastRunData?: Record<string, any[]>; // nodeId → WorkflowItem[] from most recent run
+```
+
+**Internal state additions:**
+```typescript
+const [showVarPicker, setShowVarPicker] = useState<string | null>(null); // key of open field
+const [varPickerTarget, setVarPickerTarget] = useState<{ fieldKey: string; cursorPos: number } | null>(null);
+const [isTesting, setIsTesting] = useState(false);
+const [testOutput, setTestOutput] = useState<any[] | null>(null);
+const [testError, setTestError] = useState<string | null>(null);
+const [testDuration, setTestDuration] = useState<number | null>(null);
+```
+
+**VariablePicker sub-component** — add inside NativeConfigPanel, before the return statement:
+
+```typescript
+function VariablePicker({
+  fieldKey,
+  onInsert,
+  onClose,
+  availableVars,
+}: {
+  fieldKey: string;
+  onInsert: (expression: string) => void;
+  onClose: () => void;
+  availableVars: typeof availableVariables;
+}) {
+  const [search, setSearch] = useState('');
+
+  return (
+    <div className="absolute z-50 right-0 top-8 w-72 bg-surface border border-border rounded-xl shadow-2xl">
+      <div className="p-3 border-b border-border flex items-center justify-between">
+        <span className="text-xs font-semibold text-text-main uppercase tracking-wider">Variables</span>
+        <button onClick={onClose} className="p-1 hover:bg-bg rounded transition-colors text-text-muted">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      <div className="p-2 border-b border-border">
+        <input
+          autoFocus
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search variables..."
+          className="w-full px-2 py-1.5 bg-bg border border-border rounded-md text-xs text-text-main focus:outline-none focus:border-primary"
+        />
+      </div>
+      <div className="max-h-64 overflow-y-auto p-1">
+        {(availableVars ?? []).map(group => {
+          const filtered = group.fields.filter(f =>
+            !search || f.key.toLowerCase().includes(search.toLowerCase())
+          );
+          if (!filtered.length) return null;
+          return (
+            <div key={group.nodeId} className="mb-2">
+              <div className="px-2 py-1 text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                {group.nodeName}
+              </div>
+              {filtered.map(field => (
+                <button
+                  key={field.path}
+                  onClick={() => { onInsert(`{{${field.path}}}`); onClose(); }}
+                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-bg transition-colors"
+                >
+                  <span className="text-xs font-mono text-accent">{field.key}</span>
+                  {field.description && (
+                    <span className="ml-2 text-[10px] text-text-muted">{field.description}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+        {!(availableVars?.length) && (
+          <p className="text-xs text-text-muted p-3 text-center">No variables yet. Run the workflow to generate data.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+**Modified text/textarea field rendering** — wrap each text or textarea field in a relative container with the `{{}}` variable picker button:
+
+```typescript
+// Inside the configFields.map(), for text/textarea/expression fields, replace the existing return with:
+const isTextArea = fieldType === 'textarea' || fieldType === 'code' || fieldType === 'json';
+const supportsVariables = fieldType === 'text' || fieldType === 'textarea' || fieldType === 'expression';
+
+return (
+  <div key={key} className="space-y-1.5">
+    <div className="flex items-center justify-between">
+      <label className="text-xs font-medium text-text-main">{label}</label>
+      {supportsVariables && (
+        <div className="relative">
+          <button
+            onClick={() => setShowVarPicker(showVarPicker === key ? null : key)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+            title="Insert variable"
+          >
+            {'{{ }}'}
+          </button>
+          {showVarPicker === key && (
+            <VariablePicker
+              fieldKey={key}
+              availableVars={availableVariables}
+              onInsert={(expr) => {
+                const current = String(value ?? '');
+                handleChange(key, current + expr);
+              }}
+              onClose={() => setShowVarPicker(null)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+    {isTextArea ? (
+      <textarea
+        value={String(value ?? '')}
+        onChange={(e) => handleChange(key, e.target.value)}
+        placeholder={field.placeholder || (field.default ? `Default: ${field.default}` : '')}
+        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px]"
+      />
+    ) : (
+      <input
+        type={fieldType === 'number' ? 'number' : 'text'}
+        value={String(value ?? '')}
+        onChange={(e) => handleChange(key, fieldType === 'number' ? Number(e.target.value) : e.target.value)}
+        placeholder={field.placeholder || (field.default ? `Default: ${field.default}` : '')}
+        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary font-mono"
+      />
+    )}
+    {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
+  </div>
+);
+```
+
+**Test button section** — replace the existing test footer section with:
+
+```typescript
+// In the Footer Actions section, replace handleTestClick with:
+const handleTestClick = async () => {
+  if (!onTestNode) return;
+  setIsTesting(true);
+  setTestOutput(null);
+  setTestError(null);
+  setTestDuration(null);
+  try {
+    const result = await onTestNode(localNode.id, [{ json: {} }]);
+    setTestOutput(result.output);
+    setTestDuration(result.duration);
+  } catch (err: any) {
+    setTestError(err.message || 'Test failed');
+  } finally {
+    setIsTesting(false);
+  }
+};
+```
+
+Add test output display block above the footer buttons:
+
+```typescript
+{/* Test Output */}
+{(testOutput !== null || testError !== null) && (
+  <div className="mx-4 mb-3">
+    {testError && (
+      <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+        <p className="font-semibold mb-1">Test failed</p>
+        <p className="font-mono">{testError}</p>
+      </div>
+    )}
+    {testOutput && (
+      <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-semibold text-green-400">Test passed</span>
+          {testDuration !== null && (
+            <span className="text-[10px] text-text-muted">{testDuration}ms</span>
+          )}
+        </div>
+        <pre className="text-[10px] font-mono text-text-main overflow-auto max-h-32 whitespace-pre-wrap">
+          {JSON.stringify(testOutput, null, 2)}
+        </pre>
+      </div>
+    )}
+  </div>
+)}
+```
+
+**ContinueOnFail / Disabled toggles** — add at the bottom of the Configuration section, above the footer:
+
+```typescript
+{/* Node Settings */}
+<div className="space-y-3 pt-3 border-t border-border">
+  <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Node Settings</h4>
+  <div className="flex items-center gap-2">
+    <input
+      type="checkbox"
+      id="continueOnFail"
+      checked={!!localNode.continueOnFail}
+      onChange={(e) => setLocalNode((prev: any) => ({ ...prev, continueOnFail: e.target.checked }))}
+      className="rounded border-border text-primary focus:ring-primary bg-bg"
+    />
+    <label htmlFor="continueOnFail" className="text-xs text-text-main">Continue on failure</label>
+  </div>
+  <div className="flex items-center gap-2">
+    <input
+      type="checkbox"
+      id="disabled"
+      checked={!!localNode.disabled}
+      onChange={(e) => setLocalNode((prev: any) => ({ ...prev, disabled: e.target.checked }))}
+      className="rounded border-border text-primary focus:ring-primary bg-bg"
+    />
+    <label htmlFor="disabled" className="text-xs text-text-muted">Disable this node</label>
+  </div>
+</div>
+```
+
+---
+
+### Component: `RunLogPanel.tsx` (NEW)
+
+**File:** `src/components/builder/RunLogPanel.tsx`
+
+```typescript
+import { useState } from 'react';
+import { X, ChevronDown, ChevronRight, Clock, CheckCircle2, XCircle, Loader2, Play } from 'lucide-react';
+import { useWorkflowRuns, useNativeWorkflowRunDetail } from '../../hooks/useWorkflows';
+import type { NativeWorkflowRun } from '../../types/automation';
+
+interface RunLogPanelProps {
+  workflowId: string;
+  onClose: () => void;
+  onRunSelect?: (runId: string) => void;
+  selectedRunId?: string | null;
+  canvasNodes?: Array<{ id: string; data: any }>; // for labeling nodes
+}
+
+const STATUS_CONFIG = {
+  SUCCEEDED: { color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', Icon: CheckCircle2 },
+  FAILED:    { color: 'text-red-400',   bg: 'bg-red-500/10',   border: 'border-red-500/20',   Icon: XCircle },
+  RUNNING:   { color: 'text-yellow-400',bg: 'bg-yellow-500/10',border: 'border-yellow-500/20',Icon: Loader2 },
+  PAUSED:    { color: 'text-blue-400',  bg: 'bg-blue-500/10',  border: 'border-blue-500/20',  Icon: Clock },
+  STOPPED:   { color: 'text-text-muted',bg: 'bg-surface',      border: 'border-border',       Icon: Clock },
+};
+
+export function RunLogPanel({ workflowId, onClose, onRunSelect, selectedRunId, canvasNodes }: RunLogPanelProps) {
+  const { data: runsResponse } = useWorkflowRuns(workflowId);
+  const runs: NativeWorkflowRun[] = (runsResponse as any)?.data ?? runsResponse ?? [];
+  const { data: runDetail } = useNativeWorkflowRunDetail(selectedRunId ?? '');
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+
+  const toggleNode = (nodeId: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatDuration = (ms: number | null | undefined) => {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
+  // Build per-node run data from runDetail
+  const nodeRunData = runDetail?.runData ?? {};
+  // Get node labels from canvas
+  const nodeLabel = (nodeId: string) => {
+    const n = canvasNodes?.find(cn => cn.id === nodeId);
+    return n?.data?.node?.label ?? nodeId;
+  };
+
+  return (
+    <div className="w-96 border-l border-border bg-surface flex flex-col h-full z-10 shrink-0">
+      {/* Header */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-border bg-bg/50 shrink-0">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-text-muted" />
+          <h3 className="text-sm font-semibold text-text-main">Run History</h3>
+          {runs.length > 0 && (
+            <span className="text-xs bg-accent/20 text-accent px-1.5 rounded-full">{runs.length}</span>
+          )}
+        </div>
+        <button onClick={onClose} className="p-1.5 text-text-muted hover:text-text-main hover:bg-bg rounded-lg">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Run list */}
+      <div className="w-full overflow-y-auto border-b border-border" style={{ maxHeight: '280px' }}>
+        {runs.length === 0 ? (
+          <div className="p-6 text-center">
+            <Play className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-50" />
+            <p className="text-sm text-text-muted">No runs yet. Click Test to execute.</p>
+          </div>
+        ) : (
+          runs.map((run) => {
+            const cfg = STATUS_CONFIG[run.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.STOPPED;
+            const isSelected = selectedRunId === run.id;
+            return (
+              <button
+                key={run.id}
+                onClick={() => onRunSelect?.(run.id)}
+                className={`w-full text-left px-4 py-3 border-b border-border transition-colors hover:bg-bg flex items-center gap-3 ${isSelected ? 'bg-accent/5 border-l-2 border-l-accent' : ''}`}
+              >
+                <cfg.Icon className={`w-4 h-4 shrink-0 ${cfg.color} ${run.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-xs font-semibold ${cfg.color}`}>{run.status}</span>
+                    <span className="text-[10px] text-text-muted">{formatDuration(run.durationMs)}</span>
+                  </div>
+                  <p className="text-[10px] text-text-muted truncate mt-0.5">{formatTime(run.startedAt)}</p>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {/* Run detail */}
+      {selectedRunId && runDetail && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Node Details</span>
+          </div>
+
+          {/* Error message at run level */}
+          {runDetail.errorMessage && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p className="text-xs font-semibold text-red-400 mb-1">Run Error</p>
+              <p className="text-[10px] font-mono text-red-300">{runDetail.errorMessage}</p>
+            </div>
+          )}
+
+          {/* Per-node cards */}
+          {Object.entries(nodeRunData).map(([nodeId, items]) => {
+            const isExpanded = expandedNodes.has(nodeId);
+            const isFailed = !items || (items as any[])[0]?.json?._error;
+            return (
+              <div key={nodeId} className="bg-bg border border-border rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggleNode(nodeId)}
+                  className="w-full flex items-center gap-2 p-3 hover:bg-surface/50 transition-colors"
+                >
+                  {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-text-muted shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+                  <div className="flex-1 text-left">
+                    <span className="text-xs font-medium text-text-main">{nodeLabel(nodeId)}</span>
+                  </div>
+                  {isFailed ? (
+                    <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                  )}
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-border p-3">
+                    <p className="text-[10px] font-semibold text-text-muted mb-1 uppercase tracking-wider">Output</p>
+                    <pre className="text-[10px] font-mono text-text-main overflow-auto max-h-48 whitespace-pre-wrap bg-surface rounded-md p-2">
+                      {JSON.stringify(items, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {Object.keys(nodeRunData).length === 0 && (
+            <p className="text-xs text-text-muted text-center py-4">No node output data available for this run.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+### Component: `WorkflowTemplateGallery.tsx` (NEW)
+
+**File:** `src/components/WorkflowTemplateGallery.tsx`
+
+```typescript
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Zap, Loader2 } from 'lucide-react';
+import { useWorkflowTemplates, useInstallTemplate } from '../hooks/useWorkflows';
+import { useToast } from './ui/Toast';
+import type { WorkflowTemplate } from '../types/automation';
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'CRM':          'bg-green-500/10 text-green-400 border-green-500/20',
+  'Appointments': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'Marketing':    'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  'Reputation':   'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  'Scheduling':   'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  'Integration':  'bg-orange-500/10 text-orange-400 border-orange-500/20',
+};
+
+export function WorkflowTemplateGallery() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { data: templates = [], isLoading } = useWorkflowTemplates();
+  const installTemplate = useInstallTemplate();
+  const [installing, setInstalling] = useState<string | null>(null);
+
+  const grouped = templates.reduce((acc: Record<string, WorkflowTemplate[]>, tpl) => {
+    acc[tpl.category] = acc[tpl.category] ?? [];
+    acc[tpl.category].push(tpl);
+    return acc;
+  }, {});
+
+  const handleInstall = async (templateId: string) => {
+    setInstalling(templateId);
+    try {
+      const workflow = await installTemplate.mutateAsync({ templateId });
+      toast('success', 'Template installed — opening builder');
+      navigate(`/automations/${workflow.id}`);
+    } catch (err: any) {
+      toast('error', err.message || 'Failed to install template');
+    } finally {
+      setInstalling(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Zap className="w-12 h-12 text-text-muted mb-4 opacity-40" />
+        <p className="text-sm text-text-muted">No templates available yet.</p>
+        <p className="text-xs text-text-muted mt-1">Run the seed script: <code className="font-mono text-accent">npx tsx prisma/seed-templates.ts</code></p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {Object.entries(grouped).map(([category, items]) => (
+        <div key={category}>
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">{category}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {items.map((tpl) => {
+              const catStyle = CATEGORY_COLORS[tpl.category] ?? 'bg-surface text-text-muted border-border';
+              const isInstalling = installing === tpl.id;
+              return (
+                <div
+                  key={tpl.id}
+                  className="bg-surface border border-border rounded-xl p-4 hover:shadow-md transition-all hover:border-accent/30 flex flex-col"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h4 className="text-sm font-semibold text-text-main leading-snug">{tpl.name}</h4>
+                    <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${catStyle}`}>
+                      {tpl.category}
+                    </span>
+                  </div>
+                  {tpl.description && (
+                    <p className="text-xs text-text-muted flex-1 mb-4 leading-relaxed">{tpl.description}</p>
+                  )}
+                  <button
+                    onClick={() => handleInstall(tpl.id)}
+                    disabled={isInstalling}
+                    className="mt-auto w-full flex items-center justify-center gap-2 py-2 px-3 bg-accent/10 text-accent border border-accent/20 rounded-lg text-xs font-semibold hover:bg-accent hover:text-white transition-all disabled:opacity-50"
+                  >
+                    {isInstalling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    {isInstalling ? 'Installing...' : 'Use Template'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+### Component: `NativeStepNode.tsx` (MODIFY — run status badges)
+
+Add these visual improvements to the NativeStepNode component. Insert after the existing status border logic:
+
+```typescript
+// In NativeStepNode, add inside the main div, after the header block:
+{runStatus && (
+  <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md
+    ${runStatus === 'SUCCEEDED' ? 'bg-green-500' : runStatus === 'FAILED' ? 'bg-red-500' : 'bg-yellow-500'}
+  `}>
+    {runStatus === 'SUCCEEDED' && (
+      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+      </svg>
+    )}
+    {runStatus === 'FAILED' && (
+      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    )}
+    {runStatus === 'RUNNING' && (
+      <svg className="w-3 h-3 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+    )}
+  </div>
+)}
+```
+
+---
+
+### Component: `WorkflowBuilder.tsx` (MODIFY)
+
+**Key changes to `src/pages/automations/WorkflowBuilder.tsx`:**
+
+1. **Import new components** — add to imports:
+```typescript
+import { RunLogPanel } from '../../components/builder/RunLogPanel';
+```
+
+2. **Add available variables computation** — add this derived value after the hooks block:
+```typescript
+const availableVariables = useMemo(() => {
+  if (!nativeDef || !nodes) return [];
+  const selectedNodeIndex = nodes.findIndex(n => n.id === selectedNativeNodeId);
+  // Only include nodes that appear before the selected node (topology-aware)
+  // For simplicity: include all other nodes except the current one
+  return nodes
+    .filter(n => n.id !== selectedNativeNodeId)
+    .map(n => {
+      const nodeData = n.data as any;
+      const runItems: any[] = nativeRunDetail?.runData?.[n.id] ?? [];
+      const fields = runItems.length > 0
+        ? Object.keys(runItems[0]?.json ?? {}).map(k => ({
+            key: k,
+            path: `$node.${n.id}.${k}`,
+            description: undefined,
+          }))
+        : [{ key: 'output', path: `$node.${n.id}`, description: 'Full node output' }];
+      return {
+        nodeId: n.id,
+        nodeName: nodeData?.node?.label ?? n.id,
+        fields,
+      };
+    });
+}, [nodes, selectedNativeNodeId, nativeRunDetail]);
+```
+Add `import { useMemo } from 'react';` to the React imports.
+
+3. **Fix the right-click context menu** — add `onNodeContextMenu` handler to ReactFlow:
+```typescript
+const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+
+const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node<any>) => {
+  event.preventDefault();
+  setContextMenu({ x: event.clientX, y: event.clientY, nodeId: node.id });
+}, []);
+```
+
+Add the context menu JSX inside the main wrapper div (absolute positioned):
+```typescript
+{contextMenu && (
+  <div
+    className="fixed z-50 bg-surface border border-border rounded-xl shadow-2xl py-1 w-44"
+    style={{ top: contextMenu.y, left: contextMenu.x }}
+    onMouseLeave={() => setContextMenu(null)}
+  >
+    {[
+      { label: 'Duplicate', action: () => { setSelectedNativeNodeId(contextMenu.nodeId); handleNativeDuplicate(); setContextMenu(null); } },
+      { label: 'Delete', action: () => { setSelectedNativeNodeId(contextMenu.nodeId); handleNativeDelete(); setContextMenu(null); }, danger: true },
+      { label: selectedNativeNodeId && nodes.find(n=>n.id===contextMenu.nodeId)?.data?.node?.disabled ? 'Enable Node' : 'Disable Node',
+        action: () => {
+          setNodes(nds => nds.map(n => n.id === contextMenu.nodeId ? { ...n, data: { ...n.data, node: { ...n.data.node, disabled: !n.data.node.disabled } } } : n));
+          setIsDirty(true);
+          setContextMenu(null);
+        }
+      },
+    ].map(item => (
+      <button
+        key={item.label}
+        onClick={item.action}
+        className={`w-full text-left px-3 py-2 text-xs hover:bg-bg transition-colors ${item.danger ? 'text-red-400 hover:text-red-300' : 'text-text-main'}`}
+      >
+        {item.label}
+      </button>
+    ))}
+  </div>
+)}
+```
+
+4. **Wire RunLogPanel into the JSX** — replace the existing run log inline code with:
+```typescript
+{/* Right side: Config panel or Run log */}
+{showRunLog ? (
+  <RunLogPanel
+    workflowId={id!}
+    onClose={() => setShowRunLog(false)}
+    onRunSelect={(runId) => {
+      setSelectedRunId(runId);
+      // Update canvas node statuses from run detail
+    }}
+    selectedRunId={selectedRunId}
+    canvasNodes={nodes as any[]}
+  />
+) : selectedNativeNodeId ? (
+  <NativeConfigPanel
+    node={nodes.find(n => n.id === selectedNativeNodeId)?.data?.node ?? {}}
+    nodeImpl={nodes.find(n => n.id === selectedNativeNodeId)?.data?.nodeImpl ?? {}}
+    onUpdate={handleNativeNodeUpdate}
+    onClose={() => setSelectedNativeNodeId(null)}
+    onDelete={handleNativeDelete}
+    onDuplicate={handleNativeDuplicate}
+    onTestNode={async (nodeId, inputItems) => {
+      const res = await testNativeNode.mutateAsync({ nodeId, inputItems });
+      return res;
+    }}
+    availableVariables={availableVariables}
+    lastRunData={nativeRunDetail?.runData ?? undefined}
+  />
+) : null}
+```
+
+5. **Node status from run detail** — fix the useEffect that loads nativeDef to correctly map run statuses:
+```typescript
+useEffect(() => {
+  if (workflow) setTitle(workflow.name);
+  if (nativeDef) {
+    const runDataMap: Record<string, any[]> = nativeRunDetail?.runData ?? {};
+    setNodes(nativeDef.nodes.map((n: any) => {
+      let runStatus: string | undefined;
+      if (selectedRunId && nativeRunDetail) {
+        const nodeOutput = runDataMap[n.id];
+        if (nodeOutput !== undefined) {
+          const hasError = nodeOutput.some((item: any) => item?.json?._error);
+          runStatus = hasError ? 'FAILED' : 'SUCCEEDED';
+        }
+      }
+      return {
+        ...n,
+        data: { ...n.data, runStatus }
+      };
+    }));
+    setEdges(nativeDef.edges);
+    setIsDirty(false);
+    if (history.length === 0) {
+      setHistory([{ nodes: nativeDef.nodes, edges: nativeDef.edges }]);
+      setHistoryIndex(0);
+    }
+  }
+}, [workflow, nativeDef, nativeRunDetail, selectedRunId]);
+```
+
+6. **Fix keyboard Ctrl+Y redo** — in the KeyboardHandler useEffect:
+```typescript
+// Replace the Ctrl+Shift+Z block with:
+if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+  e.preventDefault();
+  if (historyIndex < history.length - 1) {
+    const nextIdx = historyIndex + 1;
+    setHistoryIndex(nextIdx);
+    setNodes(history[nextIdx].nodes);
+    setEdges(history[nextIdx].edges);
+  }
+}
+// Add Delete key handler:
+if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNativeNodeId && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+  handleNativeDelete();
+}
+// Add Escape:
+if (e.key === 'Escape') {
+  setSelectedNativeNodeId(null);
+  setShowRunLog(false);
+}
+```
+
+---
+
+## SECTION 8: PAGE IMPLEMENTATION GUIDE
+
+### Page: `Workflows.tsx` (MODIFY — add Templates tab)
+
+**Add to imports:**
+```typescript
+import { WorkflowTemplateGallery } from '../components/WorkflowTemplateGallery';
+```
+
+**Add tab state:**
+```typescript
+const [activeTab, setActiveTab] = useState<'workflows' | 'templates'>('workflows');
+```
+
+**Add tabs below the page header, above the controls block:**
+```typescript
+<div className="flex border-b border-border mb-6">
+  {(['workflows', 'templates'] as const).map(tab => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      className={`px-4 py-2 text-sm font-medium transition-colors capitalize ${
+        activeTab === tab
+          ? 'border-b-2 border-accent text-accent'
+          : 'text-text-muted hover:text-text-main'
+      }`}
+    >
+      {tab === 'workflows' ? 'My Workflows' : 'Templates'}
+    </button>
+  ))}
+</div>
+```
+
+**Wrap the existing table block:**
+```typescript
+{activeTab === 'workflows' ? (
+  /* existing workflow table JSX */
+) : (
+  <WorkflowTemplateGallery />
+)}
+```
+
+---
+
+## SECTION 9: FORMS — COMPLETE IMPLEMENTATION
+
+### Form: Template Install (inline, no dedicated form component)
+
+**Located in:** `WorkflowTemplateGallery.tsx`
+
+Fields: None — install is one-click with the template name pre-populated.
+
+Submit handler logic:
+1. Call `installTemplate.mutateAsync({ templateId: tpl.id })`.
+2. While submitting: disable the Install button, show spinner.
+3. On success: `toast('success', 'Template installed — opening builder')`, then `navigate('/automations/${workflow.id}')`.
+4. On error: `toast('error', err.message)`, re-enable button.
+
+---
+
+## SECTION 10: STATE MANAGEMENT IMPLEMENTATION
+
+### State: Workflow templates list
+- Type: `WorkflowTemplate[]`
+- Managed by: TanStack React Query
+- Query key: `['workflow-templates']`
+- Fetched from: `GET /api/workflows/templates`
+- Hook: `useWorkflowTemplates()` in `src/hooks/useWorkflows.ts`
+
+### State: Selected run in builder
+- Type: `string | null` (run ID)
+- Managed by: `useState` in `WorkflowBuilder.tsx`
+- Name: `selectedRunId`
+- Set by: clicking a run in `RunLogPanel`, or by `testNative.mutateAsync()` success
+- Read by: `RunLogPanel`, `WorkflowBuilder` (for canvas node status badges), `useNativeWorkflowRunDetail` query
+
+### State: Canvas undo/redo history
+- Type: `{ nodes: any[], edges: any[] }[]`
+- Managed by: `useState` in `WorkflowBuilder.tsx`
+- Name: `history`, `historyIndex`
+- Max 50 entries
+- Set by: `saveHistorySnapshot()` called on any node/edge change
+- Read by: `KeyboardHandler` for Ctrl+Z / Ctrl+Y
+
+### New hooks to add to `src/hooks/useWorkflows.ts`:
+
+```typescript
+export function useWorkflowRuns(workflowId: string) {
+  return useQuery({
+    queryKey: workflowKeys.runs(workflowId),
+    queryFn: async () => {
+      // FIXED: was calling /workflows/${workflowId}/runs — this route now exists
+      const res = await apiClient.get<{ data: NativeWorkflowRun[] }>(`/workflows/${workflowId}/runs`);
+      return res.data.data ?? res.data;
+    },
+    enabled: !!workflowId,
+    refetchInterval: (query) => {
+      const runs: NativeWorkflowRun[] = (query.state.data as any)?.data ?? query.state.data ?? [];
+      return runs?.some((r) => r.status === 'RUNNING') ? 3000 : false;
+    },
+  });
+}
+
+export function useWorkflowTemplates() {
+  return useQuery({
+    queryKey: ['workflow-templates'],
+    queryFn: async () => {
+      const res = await apiClient.get<WorkflowTemplate[]>('/workflows/templates');
+      return res.data;
+    },
+  });
+}
+
+export function useInstallTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, name }: { templateId: string; name?: string }) => {
+      const res = await apiClient.post<Workflow>(`/workflows/templates/${templateId}/install`, { name });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.lists() });
+    },
+  });
+}
+```
+
+Also add `NativeWorkflowRun` and `WorkflowTemplate` to the imports from `'../types/automation'` in `useWorkflows.ts`.
+
+---
+
+## SECTION 11: AUTHENTICATION & AUTHORIZATION IMPLEMENTATION
+
+All routes are already protected by `resolveWorkspace` middleware applied globally in `server.ts`. Every query uses `req.workspaceId` for scoping — no changes needed.
+
+For template install: the route verifies `isSystem: true OR workspaceId === req.workspaceId` before copying. This already prevents cross-workspace template access.
+
+For new node types (crm-update-deal etc.): all queries include `workspaceId: context.workspaceId` to scope data. No row-level changes needed.
+
+---
+
+## SECTION 12: ERROR HANDLING IMPLEMENTATION
+
+### API error pattern (existing, no changes)
+All API handlers follow: `catch (e: any) { res.status(500).json({ error: e.message }); }`.
+
+### Toast notifications
+`useToast()` from `src/components/ui/Toast.tsx`. Call signature: `toast('success' | 'error' | 'warning' | 'info', 'Message string')`.
+
+Use in WorkflowBuilder:
+- Save success: already shows inline "Saved!" text — optionally add `toast('success', 'Workflow saved')`
+- Publish success: `toast('success', 'Workflow published and live')`
+- Test failure: `toast('error', testError ?? 'Workflow test failed')`
+- Template install success: `toast('success', 'Template installed')`
+
+### Silent failure points to prevent
+
+1. **emitTrigger failures** — already handled: all calls use `.catch(console.error)`. The trigger system is fire-and-forget by design. ✓
+
+2. **Scheduler initialization failures** — already wrapped in try/catch in server.ts. Add `console.error` logging for individual schedule failures in `schedulerService.scheduleWorkflow()`.
+
+3. **Definition save with no trigger node** — the route handles this: if no trigger node found, old subscriptions are deleted and no new ones created. This is correct (user removed the trigger).
+
+4. **WorkflowRun stuck in RUNNING** — add a 5-minute timeout guard in `engine.service.ts`:
+```typescript
+// In executeWorkflow(), wrap the execution with a timeout:
+const EXECUTION_TIMEOUT_MS = 5 * 60 * 1000;
+const timeout = new Promise<never>((_, reject) =>
+  setTimeout(() => reject(new Error('Execution timeout — max 5 minutes exceeded')), EXECUTION_TIMEOUT_MS)
+);
+try {
+  await Promise.race([
+    this.executeNodeRecursive(triggerNode, [...], context, nodes, graph),
+    timeout,
+  ]);
+  // ... success path
+} catch (error: any) {
+  await this.failRun(run.id, error.message || 'Unknown error');
+  return { runId: run.id, status: 'FAILED' };
+}
+```
+
+5. **Webhook path collisions** — `WorkflowWebhook.path` has a `@unique` constraint in the schema. The `nanoid(16)` path generation makes collisions astronomically unlikely, but the `create` call will throw if it occurs. The route handler's `catch` block will return a 500 error and the user can retry save.
+
+---
+
+## SECTION 13: THIRD-PARTY INTEGRATION IMPLEMENTATION
+
+### Gmail send (existing, verified)
+
+`sendGmailMessage(connectionId, to, subject, text, fromName?, html?)` — takes the `ChannelConnection.id`, not credentials directly. The service handles credential lookup and OAuth refresh internally. No changes needed to the gmail service.
+
+After fixing the query in `communication-send-email.ts`, pass `gmailConn.id` to `sendGmailMessage` — this is already done correctly in the existing code.
+
+### Twilio send (existing with bug fix)
+
+After fixing the query field names, the SMS node uses `twilioConn.twilioPhoneNumber` (DB column) as the `from` number. Fall back to `creds.twilioPhoneNumber` from decrypted JSON if the column is null (for legacy records). The `decryptJson` call should type the result as:
+```typescript
+const creds = decryptJson<{
+  twilioAccountSid?: string;
+  accountSid?: string;
+  twilioAuthToken?: string;
+  authToken?: string;
+  twilioPhoneNumber?: string;
+}>(twilioConn.credentialsJson as string);
+const accountSid = creds.twilioAccountSid ?? creds.accountSid ?? '';
+const authToken = creds.twilioAuthToken ?? creds.authToken ?? '';
+```
+
+---
+
+## SECTION 14: NOTIFICATIONS IMPLEMENTATION
+
+The `notification.send_internal` node creates records in the `notifications` table. These appear in the in-app notification bell component (`src/components/ui/NotificationPanel.tsx`). No new notification infrastructure is needed — the existing bell reads from `GET /api/notifications`.
+
+---
+
+## SECTION 15: IMPLEMENTATION ORDER — STEP BY STEP
+
+### PHASE 1: Bug Fixes (nothing else works until these are done)
+
+---
+
+**STEP 1: Fix Workflow interface in automation.ts**
+Files: `src/types/automation.ts`
+What to build: Replace the `Workflow` interface to match the actual DB schema. Remove all AP fields (`apFlowId`, `apProjectId`, `apVersionId`, `triggerPieceName`, `webhookUrl`, `apFlow`, `APFlow`, `APFlowVersion`, `APStep`, etc.). Add `engineType`, `definitionJson`, `variablesJson`, `settingsJson`, `executionCount`, `successCount`, `failureCount`, `isFavorite`, `folderId`. Add `NativeWorkflowRun`, `NativeWorkflowRunDetail`, and `WorkflowTemplate` interfaces as specified in Section 3. Keep all native types unchanged.
+Reference sections: Section 3
+Verify: Run `npx tsc --noEmit` — TypeScript errors in automation.ts should resolve. The `Workflows.tsx` page should load without type errors.
+
+---
+
+**STEP 2: Fix ChannelConnection query in email node**
+Files: `api/services/workflow-engine/nodes/communication-send-email.ts`
+What to build: Change `type: 'gmail', status: 'connected'` to `provider: 'gmail', isActive: true`. Remove the unused `creds` variable (the decryptJson call that's not used). Keep everything else unchanged.
+Reference sections: Section 7 (Component: communication-send-email.ts)
+Verify: Manually query the DB: `SELECT provider, isActive FROM channel_connections WHERE provider='gmail'`. The node should now find the connection. Add a breakpoint/console.log in the execute function to confirm `gmailConn` is non-null.
+
+---
+
+**STEP 3: Fix ChannelConnection query in SMS node**
+Files: `api/services/workflow-engine/nodes/communication-send-sms.ts`
+What to build: Change `type: 'twilio', status: 'connected'` to `provider: 'twilio', isActive: true`. Update `from` to use `twilioConn.twilioPhoneNumber ?? creds.twilioPhoneNumber`. Update creds destructuring to handle both field name variants.
+Reference sections: Section 7 (Component: communication-send-sms.ts)
+Verify: Same as Step 2 — confirm `twilioConn` is found. Test via `POST /api/workflows/:id/test-node`.
+
+---
+
+**STEP 4: Fix definition save handler — trigger registration**
+Files: `api/routes/workflows.routes.ts`
+What to build: Replace the `POST /:id/definition` handler completely as specified in Section 6 (Route Fix 2). Key change: preserve existing webhook path on re-save instead of generating new nanoid path each time.
+Reference sections: Section 6 (Route Fix 2)
+Verify: Save a workflow with a `trigger.webhook` node → check `workflow_webhooks` table → the path should be `/hooks/[16-char-id]`. Save again → path should be identical (not changed).
+
+---
+
+**STEP 5: Fix publish handler — scheduler + webhook activation**
+Files: `api/routes/workflows.routes.ts`
+What to build: Replace the `POST /:id/publish-native` handler as specified in Section 6 (Route Fix 3). Must call `schedulerService.scheduleWorkflow()` with the specific schedule, and `webhookRegistry.reload()`.
+Reference sections: Section 6 (Route Fix 3)
+Verify: Create a schedule trigger workflow → save → publish → check: `workflow_schedules.active = true`, `schedulerService.jobs` Map contains the schedule ID.
+
+---
+
+**STEP 6: Fix pause handler — scheduler + webhook deactivation**
+Files: `api/routes/workflows.routes.ts`
+What to build: Replace the `POST /:id/pause-native` handler as specified in Section 6 (Route Fix 4). Must call `schedulerService.unscheduleWorkflow(schedule.id)` and set `active = false`.
+Reference sections: Section 6 (Route Fix 4)
+Verify: Publish a scheduled workflow → pause it → check: `workflow_schedules.active = false`, `schedulerService.jobs` Map no longer contains the schedule ID.
+
+---
+
+**STEP 7: Add missing emitTrigger calls — tasks and appointments**
+Files: `api/routes/crm.routes.ts`, `api/routes/business.routes.ts`
+What to build: Add `task.created` emit in POST /tasks handler. Add `task.completed` emit in PUT /tasks/:id when `status === 'completed'`. Add `appointment.booked` emit in POST /appointments. Add `appointment.completed` / `appointment.cancelled` emits in PUT /appointments/:id. Add `appointment.cancelled` in DELETE /appointments/:id. Add `emitTrigger` import to business.routes.ts.
+Reference sections: Section 6 (Bug Fix sections)
+Verify: Create a task via the API → check that `emitTrigger` is called (add a temporary `console.log` inside `dispatchToNativeEngine` to see events firing).
+
+---
+
+**STEP 8: Add GET /:id/runs route**
+Files: `api/routes/workflows.routes.ts`
+What to build: Add `router.get('/:id/runs', ...)` handler as specified in Section 6 (Route Fix 1). Place it BEFORE the `router.get('/:id', ...)` handler to avoid /:id matching "runs" as a workflow ID segment.
+Reference sections: Section 6 (Route Fix 1)
+Verify: `GET /api/workflows/[any-workflow-id]/runs` returns `{ data: [...], total: N }`. The `useWorkflowRuns` hook in WorkflowBuilder should now show run history.
+
+---
+
+**STEP 9: Confirm server startup sequence**
+Files: `server.ts`
+What to build: Verify (no code change expected) that the startup sequence in `app.listen()` callback is: `registerAllNodes()` → `await queueService.initialize()` → `await webhookRegistry.initialize()` → `await schedulerService.initialize()`. Document in a comment. If `queueService.initialize()` is not async, change its return type to `Promise<void>` and await it. Add execution timeout to `engine.service.ts` as specified in Section 12.
+Reference sections: Section 0 (Pre-build Checklist), Section 12
+Verify: Server starts without errors. Logs show: "Workflow Node Registry: N nodes registered", "Workflow Engine: Bull queue initialized" (or in-process message), "Workflow Engine: Loaded N webhooks", "Workflow Engine: Scheduled N cron triggers".
+
+---
+
+**STEP 10: Fix WorkflowBuilder empty state handling**
+Files: `src/pages/automations/WorkflowBuilder.tsx`
+What to build: Add error handling for `useNativeWorkflowDefinition`. The API already auto-creates an empty definition, but add a guard: if `isError` on the definition query, initialize canvas with empty nodes and edges rather than showing a broken state. Add a `isError` check in the useEffect:
+```typescript
+if (nativeDefError) { setNodes([]); setEdges([]); }
+```
+Reference sections: Planning doc Bug 8
+Verify: Create a new workflow (which has no definition yet) → builder opens with empty canvas rather than error.
+
+---
+
+### PHASE 2: New Nodes
+
+---
+
+**STEP 11: Create crm-update-deal.ts node**
+Files: `api/services/workflow-engine/nodes/crm-update-deal.ts`
+What to build: Full node implementation as specified in Section 7. Queries `db.deal.findFirst` to verify workspace ownership, then `db.deal.update`. Fires `deal.updated` and conditionally `deal.won`/`deal.lost` emitTrigger calls.
+Reference sections: Section 7 (crm-update-deal.ts)
+Verify: After registering in index.ts (Step 16), test via `POST /api/workflows/:id/test-node` with `nodeId` pointing to a crm.update_deal node.
+
+---
+
+**STEP 12: Create crm-add-tag.ts node**
+Files: `api/services/workflow-engine/nodes/crm-add-tag.ts`
+What to build: Full node implementation as specified in Section 7. Handles contact tag addition by parsing/modifying the contact's `tagsJson` column. Fires `contact.tag_added`.
+Reference sections: Section 7 (crm-add-tag.ts)
+Verify: Run node with a valid contactId and tag → verify `tagsJson` updated in DB.
+
+---
+
+**STEP 13: Create crm-remove-tag.ts node**
+Files: `api/services/workflow-engine/nodes/crm-remove-tag.ts`
+What to build: Full node implementation as specified in Section 7.
+Reference sections: Section 7 (crm-remove-tag.ts)
+Verify: Run node with a tag that exists → verify it's removed from `tagsJson`.
+
+---
+
+**STEP 14: Create crm-create-note.ts node**
+Files: `api/services/workflow-engine/nodes/crm-create-note.ts`
+What to build: Full node implementation as specified in Section 7. Creates a `ContactEvent` record.
+Reference sections: Section 7 (crm-create-note.ts)
+Verify: Run node → check `contact_events` table for new record.
+
+---
+
+**STEP 15: Create notification-send-internal.ts node**
+Files: `api/services/workflow-engine/nodes/notification-send-internal.ts`
+What to build: Full node implementation as specified in Section 7. Creates a `Notification` record in DB.
+Reference sections: Section 7 (notification-send-internal.ts)
+Verify: Run node → check `notifications` table for new record. The notification bell in the UI should show the new notification.
+
+---
+
+**STEP 16: Create workflow-run-workflow.ts node**
+Files: `api/services/workflow-engine/nodes/workflow-run-workflow.ts`
+What to build: Full node implementation as specified in Section 7. Calls `queueService.enqueue()` for the target workflow.
+Reference sections: Section 7 (workflow-run-workflow.ts)
+Verify: Create two workflows. Trigger the first → it should queue a run for the second. Check `workflow_runs` table for runs of both workflows.
+
+---
+
+**STEP 17: Register all 6 new nodes in index.ts**
+Files: `api/services/workflow-engine/nodes/index.ts`
+What to build: Add 6 imports and 6 `nodeRegistry.register()` calls as specified in Section 7 (nodes/index.ts).
+Reference sections: Section 7 (nodes/index.ts)
+Verify: `GET /api/workflows/nodes/catalog` returns the new node types in the response.
+
+---
+
+### PHASE 3: Frontend UX
+
+---
+
+**STEP 18: Add NativeWorkflowRun type and fix useWorkflowRuns hook**
+Files: `src/types/automation.ts`, `src/hooks/useWorkflows.ts`
+What to build: Ensure `NativeWorkflowRun` interface is in types. Fix `useWorkflowRuns` to call `GET /workflows/${workflowId}/runs` (now exists from Step 8). Add `useWorkflowTemplates` and `useInstallTemplate` hooks.
+Reference sections: Section 3, Section 10
+Verify: `useWorkflowRuns` returns an array of `NativeWorkflowRun` objects. TypeScript errors gone.
+
+---
+
+**STEP 19: Modify NativeConfigPanel — VariablePicker + test output + settings toggles**
+Files: `src/components/builder/native/NativeConfigPanel.tsx`
+What to build: Add `availableVariables` and `onTestNode` props. Add `VariablePicker` sub-component. Add `{{}}` button next to text/textarea fields. Add test output display block. Add `continueOnFail` and `disabled` toggles. Update `handleTestClick` to call the new `onTestNode` prop and display structured output.
+Reference sections: Section 7 (NativeConfigPanel.tsx)
+Verify: Open a Send Email node in the builder → click `{{}}` → variable picker dropdown shows available variables → click one → it inserts `{{expression}}` into the field. Click "Test Step" → output shown below.
+
+---
+
+**STEP 20: Create RunLogPanel.tsx**
+Files: `src/components/builder/RunLogPanel.tsx`
+What to build: New component as specified in Section 7. Run list at top, run detail below. Node-by-node expandable output cards. Status badges.
+Reference sections: Section 7 (RunLogPanel.tsx)
+Verify: Open a workflow that has runs → click History → panel appears → click a run → see node output data.
+
+---
+
+**STEP 21: Modify NativeStepNode.tsx — status badges**
+Files: `src/components/builder/native/NativeStepNode.tsx`
+What to build: Add per-node run status badge (small circle with ✓/✗/spinner) in top-right corner of node card. Driven by `data.runStatus`.
+Reference sections: Section 7 (NativeStepNode.tsx)
+Verify: Run a test workflow → nodes show green ✓ or red ✗ badges based on execution result.
+
+---
+
+**STEP 22: Modify WorkflowBuilder.tsx — wire RunLogPanel + fix keyboard + context menu**
+Files: `src/pages/automations/WorkflowBuilder.tsx`
+What to build: Import `RunLogPanel`. Add `useMemo` for `availableVariables`. Replace right-panel rendering with RunLogPanel/NativeConfigPanel toggle. Wire `onTestNode` prop. Fix keyboard Ctrl+Y. Add `contextMenu` state and right-click handler. Wire context menu JSX. Fix node status update in the useEffect. Pass `lastRunData` to NativeConfigPanel.
+Reference sections: Section 7 (WorkflowBuilder.tsx), Section 10
+Verify: Ctrl+Z undoes; Ctrl+Y redoes; Delete removes selected node; Escape closes panel; Right-click on node shows context menu with Duplicate/Delete/Disable options.
+
+---
+
+### PHASE 4: Templates
+
+---
+
+**STEP 23: Seed workflow templates**
+Files: `prisma/seed-templates.ts`
+What to build: Create the seed script as specified in Section 2. Run it.
+Reference sections: Section 2
+Run: `npx tsx prisma/seed-templates.ts`
+Verify: `SELECT COUNT(*) FROM workflow_templates` returns 8.
+
+---
+
+**STEP 24: Fix GET /templates and add POST /templates/:id/install routes**
+Files: `api/routes/workflows.routes.ts`
+What to build: Replace the broken `/templates` GET route (which incorrectly queries `db.workflow`) with the correct handler that queries `db.workflowTemplate`. Add the `POST /templates/:templateId/install` route. Both must be defined BEFORE the `router.get('/:id', ...)` handler.
+Reference sections: Section 6 (Route Add 5, Route Add 6, Route Fix 7)
+Verify: `GET /api/workflows/templates` returns 8 template objects without `definitionJson`. `POST /api/workflows/templates/tpl_welcome_email/install` creates a new workflow and returns it.
+
+---
+
+**STEP 25: Create WorkflowTemplateGallery.tsx**
+Files: `src/components/WorkflowTemplateGallery.tsx`
+What to build: New component as specified in Section 7. Uses `useWorkflowTemplates` and `useInstallTemplate` hooks. Groups by category. Shows Install button that navigates to the new workflow on success.
+Reference sections: Section 7 (WorkflowTemplateGallery.tsx)
+Verify: Templates tab shows 8 templates grouped by category. Clicking "Use Template" creates a workflow and opens the builder.
+
+---
+
+**STEP 26: Add Templates tab to Workflows.tsx**
+Files: `src/pages/Workflows.tsx`
+What to build: Add `activeTab` state. Add tab buttons (My Workflows / Templates). Conditionally render `WorkflowTemplateGallery` or the existing workflow table.
+Reference sections: Section 8 (Workflows.tsx)
+Verify: Workflows page shows two tabs. Templates tab shows the gallery.
+
+---
+
+### PHASE 5: Deployment Config
+
+---
+
+**STEP 27: Create Dockerfile**
+Files: `Dockerfile`
+What to build:
+```dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+FROM node:20-alpine AS runtime
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/api ./api
+COPY --from=build /app/infrastructure ./infrastructure
+COPY --from=build /app/src/types ./src/types
+COPY package.json server.ts tsconfig.server.json ./
+RUN npm install -g tsx
+EXPOSE 3000
+ENV NODE_ENV=production
+CMD ["tsx", "server.ts"]
+```
+
+---
+
+**STEP 28: Create railway.json**
+Files: `railway.json`
+What to build:
+```json
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "npx prisma migrate deploy && tsx server.ts",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
+```
+
+---
+
+## SECTION 16: TESTING CHECKPOINTS
+
+### Milestone 1: Bug Fixes Complete (Steps 1–10)
+
+Tests to run:
+1. **TypeScript check**: `npx tsc --noEmit` — must produce zero errors in the workflow engine slice.
+2. **Email send**: Create a workflow with `trigger.crm_event` (contact.created) + `communication.send_email`. Publish it. Create a contact via the CRM. Within 2 seconds a `WorkflowRun` with `status=SUCCEEDED` should appear in `workflow_runs` table.
+3. **SMS send**: Same but with `communication.send_sms`. Verify Twilio receives the message.
+4. **Webhook trigger**: Save a workflow with `trigger.webhook`. Check `workflow_webhooks` table — a row exists with a random path. POST to `/api${path}` — a `WorkflowRun` is created.
+5. **Schedule trigger**: Save a workflow with `trigger.schedule` (cron: `* * * * *` = every minute). Publish. Wait 60 seconds. Check `workflow_runs` table for a new run.
+6. **Pause/unpause**: Publish a schedule workflow. Verify it runs. Pause it. Verify `workflow_schedules.active=false` and no new runs are created.
+7. **Run log route**: `GET /api/workflows/[id]/runs` — returns `{ data: [], total: 0 }` for a new workflow.
+8. **Task emitTrigger**: Create a task via `POST /api/crm/tasks`. A workflow subscribed to `task.created` should fire.
+9. **Appointment emitTrigger**: Create an appointment via `POST /api/business/appointments`. A workflow subscribed to `appointment.booked` should fire.
+
+---
+
+### Milestone 2: New Nodes Complete (Steps 11–17)
+
+Tests to run:
+1. **Node catalog**: `GET /api/workflows/nodes/catalog` — response includes `crm.update_deal`, `crm.add_tag`, `crm.remove_tag`, `crm.create_note`, `notification.send_internal`, `workflow.run_workflow`.
+2. **crm.update_deal**: Build a workflow with this node. Configure `dealId` with a real deal ID. Run test → deal is updated in DB.
+3. **notification.send_internal**: Run a workflow with this node → a row appears in `notifications` table → the notification bell in the UI shows it.
+4. **workflow.run_workflow**: Workflow A triggers Workflow B. Publish both. Trigger A. Verify B also has a `WorkflowRun` in the DB.
+
+---
+
+### Milestone 3: Frontend UX Complete (Steps 18–22)
+
+Tests to run:
+1. **Variable picker**: Open a workflow. Drag a `Send Email` node. Open its config. Click `{{}}` next to the To field. A dropdown appears with variable groups. Click a variable. The expression is inserted into the field.
+2. **Per-node test**: Click "Test Step" on the email node. Spinner appears. Either the email is sent (if configured) or an error is shown with the specific error message.
+3. **Run log panel**: Click "History" in the toolbar. The RunLogPanel slides in showing run history. Click a run. Canvas nodes update with green/red badges. Click a node badge in the panel — its output JSON is shown.
+4. **Keyboard shortcuts**: Ctrl+S saves (toast or "Saved!"). Ctrl+Z undoes a node addition. Ctrl+Y redoes it. Delete removes selected node. Escape closes config panel.
+5. **Right-click menu**: Right-click a canvas node. Menu shows Duplicate/Delete/Disable. Click Duplicate — a copy appears offset by 50px.
+
+---
+
+### Milestone 4: Templates Complete (Steps 23–26)
+
+Tests to run:
+1. **Template count**: `SELECT COUNT(*) FROM workflow_templates` returns 8.
+2. **Template list API**: `GET /api/workflows/templates` returns 8 templates without `definitionJson`.
+3. **Template install**: `POST /api/workflows/templates/tpl_welcome_email/install` creates a new workflow. The response has `id`, `name = 'New Contact Welcome Email'`, `status = 'draft'`. A `native_workflow_definitions` row exists for the new workflow ID.
+4. **Templates tab UI**: Open /workflows → click Templates tab → 8 template cards shown grouped by category → click "Use Template" on one → builder opens with nodes/edges pre-populated.
+5. **Installed workflow runs**: Publish the installed template workflow. Create a contact. A workflow run is created.
+
+---
+
+## SECTION 17: KNOWN RISKS & FALLBACKS
+
+**Risk 1: Prisma model access with (db as any) casts**
+Likelihood: Low (schema has all models; Prisma client should be generated correctly)
+Impact: Silent runtime failures when creating/deleting trigger subscriptions
+Mitigation: Run `npx prisma generate` before starting the server. Check that `db.workflowSchedule`, `db.workflowWebhook`, `db.crmTriggerSubscription` are accessible without type casts. Remove all `(db as any)` casts in the routes file as part of Step 4.
+Fallback: If Prisma client is stale, re-run `npx prisma generate` and restart.
+
+**Risk 2: Bull queue not connecting to Redis**
+Likelihood: Medium (local dev often has no Redis)
+Impact: All workflow execution falls back to synchronous in-process mode, which blocks the HTTP response
+Mitigation: The existing in-process fallback in `queue.service.ts` handles this case correctly. Document that production deployments MUST set `REDIS_URL`.
+Fallback: For local dev, the in-process mode is sufficient. The workflow will execute synchronously and the response will return after execution completes.
+
+**Risk 3: Webhook path collisions on nanoid generation**
+Likelihood: Extremely low (16 chars = 2^80 possibilities)
+Impact: `POST /api/workflows/:id/definition` would return a 500 error
+Mitigation: The `WorkflowWebhook.path` column has `@unique` constraint — a collision will throw a database unique constraint error caught by the try/catch.
+Fallback: User can click Save again to generate a new nanoid. Consider retrying up to 3 times with a new nanoid in the handler.
+
+**Risk 4: WorkflowBuilder canvas node data shape mismatch**
+Likelihood: Medium — the `normalizeNodes()` function in engine.service.ts already handles multiple data layouts (`n.config`, `n.data?.config`, `n.data?.node?.config`)
+Impact: Node config not resolved correctly → node executes with empty config → fails or produces unexpected output
+Mitigation: The `handleSave()` function in WorkflowBuilder.tsx serializes nodes as `{ id, type, data: { config: n.data.node.config }, position }`. This matches the `n.data?.config` path in `normalizeNodes()`. Test with an actual save → execute cycle.
+Fallback: If config is missing, the node will execute with an empty config object and likely throw a "required field" validation error visible in the run log.
+
+**Risk 5: Circular import between queue.service and engine.service**
+Likelihood: Low (lazy import in trigger-emitter already uses `await import('./workflow-engine/queue.service.js')`)
+Impact: Server fails to start
+Mitigation: The existing codebase already uses lazy dynamic imports to break the cycle. The new `workflow-run-workflow.ts` node also uses `await import('../queue.service.js')`. This pattern is established and safe.
+Fallback: If circular dependency errors appear, convert all engine-to-queue imports to lazy dynamic imports.
+
+**Risk 6: WorkflowTemplate table not in Prisma client (if migration not applied)**
+Likelihood: Low (the migration file `20260514000000_add_native_workflow_engine/migration.sql` should have created it)
+Impact: Template routes throw errors; seed script fails
+Mitigation: Run `npx prisma db push` to ensure schema is current. Verify `workflow_templates` table exists.
+Fallback: Run `npx prisma migrate deploy` or apply the migration SQL manually.
+
+**Risk 7: NativeConfigPanel re-render loop**
+Likelihood: Low-Medium — the current `useEffect` that resets `localNode` on prop `node` change could cause issues if `onUpdate` is called frequently
+Impact: Infinite render loop or stale config display
+Mitigation: The existing code sets `setLocalNode(node)` only when the `node` prop changes (not on every render). Ensure `onUpdate` in WorkflowBuilder is not called during render. The current `handleNativeNodeUpdate` only fires on explicit "Apply Changes" click.
+Fallback: If render loops occur, wrap `handleNativeNodeUpdate` in `useCallback` and memoize the NativeConfigPanel with `React.memo`.
+
+---
+
+*End of Implementation Blueprint — Stone AIO Workflow Automation Engine*

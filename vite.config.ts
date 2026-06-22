@@ -60,9 +60,6 @@ export default { useSyncExternalStoreWithSelector };
       ],
     },
     optimizeDeps: {
-      // Pre-declare ALL dependencies so Vite never discovers new ones mid-session.
-      // Mid-session re-optimization changes the React chunk hash → two React instances
-      // → dispatcher is null → useState crashes. Every imported npm package must be here.
       holdUntilCrawlEnd: true,
       include: [
         'react',
@@ -88,7 +85,7 @@ export default { useSyncExternalStoreWithSelector };
         'react-resizable',
         '@google/genai'
       ],
-      exclude: ['@clerk/clerk-react', '@templatical/editor', '@templatical/renderer'],
+      exclude: ['@templatical/editor', '@templatical/renderer'],
     },
     html: {
       // Disable automatic CSP nonce — Turnstile needs to run inline scripts

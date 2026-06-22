@@ -88,13 +88,15 @@ export class WorkflowEngine {
       await this.executeNodeRecursive(triggerNode, [{ json: triggerData as Record<string, unknown> }], context, nodes, graph);
       
       // 10. On completion update run
+      const stepCount = Object.keys(context.runData).length;
       await db.workflowRun.update({
         where: { id: run.id },
         data: {
           status: 'SUCCEEDED',
           runData: JSON.stringify(context.runData),
           finishedAt: new Date(),
-          durationMs: Date.now() - run.startedAt.getTime()
+          durationMs: Date.now() - run.startedAt.getTime(),
+          stepCount,
         }
       });
       
@@ -134,12 +136,16 @@ export class WorkflowEngine {
    */
   private normalizeNodes(rawNodes: any[]): NativeNode[] {
     return (rawNodes || []).map((n: any) => {
+      // The canvas stores the implementation type in data.node.type (e.g. 'communication.send_email')
+      // while n.type is the React Flow component type ('nativeStep' / 'triggerStep').
+      // Always prefer the implementation type.
+      const implType: string = n.data?.node?.type ?? n.data?.nodeImplType ?? n.type;
       const config = (n.config ?? n.data?.config ?? n.data?.node?.config) || {};
-      const label = n.label ?? n.data?.label ?? n.data?.node?.label ?? n.type;
+      const label = n.label ?? n.data?.label ?? n.data?.node?.label ?? implType;
 
       const native: NativeNode = {
         id: n.id,
-        type: n.type,
+        type: implType,
         label,
         position: n.position || { x: 0, y: 0 },
         config,

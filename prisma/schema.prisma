@@ -54,6 +54,12 @@ model Workspace {
   crmTriggerSubscriptions CrmTriggerSubscription[]
   channelConnections      ChannelConnection[]
 
+  // Ad Manager relations
+  adAccounts            AdAccount[]
+  adCampaigns           AdCampaign[]
+  adLeads               AdLead[]
+  adWorkspaceSettings   AdWorkspaceSettings?
+
   @@map("workspaces")
 }
 
@@ -182,6 +188,9 @@ model Contact {
   relationshipsAsTarget ContactRelation[]    @relation("target_contact")
   sequences             SequenceEnrollment[]
   quotes                Quote[]
+  // Ad attribution — source field holds 'GOOGLE_ADS' | 'FACEBOOK_ADS' when applicable
+  adLeadId              String?              @unique @map("ad_lead_id")
+  adLead                AdLead?              @relation("ContactAdLead", fields: [adLeadId], references: [id], onDelete: SetNull)
 
   @@map("contacts")
 }
@@ -988,3 +997,203 @@ model CrmTriggerSubscription {
   @@index([workspaceId, entityType, eventType, active])
   @@map("crm_trigger_subscriptions")
 }
+
+// ── Ad Manager ────────────────────────────────────────────────────────────────
+
+enum AdPlatform {
+  GOOGLE
+  FACEBOOK
+}
+
+enum AdAccountStatus {
+  ACTIVE
+  NEEDS_ATTENTION
+  DISCONNECTED
+}
+
+enum AdCampaignStatus {
+  ACTIVE
+  PAUSED
+  DRAFT
+  ENDED
+  REJECTED
+}
+
+enum AdType {
+  GOOGLE_SEARCH
+  GOOGLE_DISPLAY
+  FACEBOOK_FEED
+  FACEBOOK_LEAD
+}
+
+enum BudgetType {
+  DAILY
+  LIFETIME
+}
+
+enum LeadSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+/// One ad account per platform per workspace.
+/// accessToken and refreshToken are AES-256-GCM encrypted (encryptString).
+model AdAccount {
+  id                   String          @id @default(uuid())
+  workspaceId          String          @map("workspace_id")
+  platform             AdPlatform
+  externalAccountId    String          @map("external_account_id")
+  accountName          String          @map("account_name")
+  accessToken          String          @map("access_token")
+  refreshToken         String          @default("") @map("refresh_token")
+  tokenExpiresAt       DateTime?       @map("token_expires_at")
+  tokenLastRefreshedAt DateTime?       @map("token_last_refreshed_at")
+  status               AdAccountStatus @default(ACTIVE)
+  connectedAt          DateTime        @default(now()) @map("connected_at")
+  connectedByUserId    String          @map("connected_by_user_id")
+  lastSyncAt           DateTime?       @map("last_sync_at")
+  lastPollAt           DateTime?       @map("last_poll_at")
+  disconnectedAt       DateTime?       @map("disconnected_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  workspace  Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns  AdCampaign[]
+
+  @@unique([workspaceId, platform])
+  @@index([workspaceId])
+  @@index([status])
+  @@map("ad_accounts")
+}
+
+/// An ad campaign on Google or Facebook.
+/// targeting: { locations, keywords?, ageMin?, ageMax?, genders?, interests? }
+/// creative:  { headlines, descriptions, imageUrls, callToAction, finalUrl?, leadFormFields?, facebookPageId?, primaryText? }
+model AdCampaign {
+  id                  String           @id @default(uuid())
+  workspaceId         String           @map("workspace_id")
+  adAccountId         String           @map("ad_account_id")
+  platform            AdPlatform
+  adType              AdType           @map("ad_type")
+
+  platformCampaignId  String?          @map("platform_campaign_id")
+  platformAdSetId     String?          @map("platform_ad_set_id")
+  platformAdGroupId   String?          @map("platform_ad_group_id")
+  platformAdId        String?          @map("platform_ad_id")
+
+  name                String
+  objective           String
+  status              AdCampaignStatus @default(DRAFT)
+  rejectionReason     String?          @map("rejection_reason")
+
+  budgetType          BudgetType       @map("budget_type")
+  budgetAmountCents   Int              @map("budget_amount_cents")
+
+  scheduleType        String           @map("schedule_type")
+  startDate           DateTime?        @map("start_date")
+  endDate             DateTime?        @map("end_date")
+
+  bidStrategy         String?          @map("bid_strategy")
+  targetCpaCents      Int?             @map("target_cpa_cents")
+
+  targetingJson       String           @default("{}") @map("targeting_json")
+  creativeJson        String           @default("{}") @map("creative_json")
+
+  cachedSpend30dCents Int              @default(0) @map("cached_spend_30d_cents")
+  cachedLeads30d      Int              @default(0) @map("cached_leads_30d")
+  cachedCtr30d        Float            @default(0) @map("cached_ctr_30d")
+  metricsCachedAt     DateTime?        @map("metrics_cached_at")
+
+  createdByUserId     String           @map("created_by_user_id")
+  lastEditedByUserId  String           @map("last_edited_by_user_id")
+  launchedAt          DateTime?        @map("launched_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  adAccount  AdAccount          @relation(fields: [adAccountId], references: [id])
+  metrics    AdMetricSnapshot[]
+  leads      AdLead[]
+
+  @@index([workspaceId])
+  @@index([adAccountId])
+  @@index([status])
+  @@index([platform])
+  @@index([workspaceId, status])
+  @@map("ad_campaigns")
+}
+
+/// Daily metric snapshot per campaign. date is stored as DateTime (SQLite compatible).
+model AdMetricSnapshot {
+  id               String     @id @default(uuid())
+  campaignId       String     @map("campaign_id")
+  date             DateTime
+  spendCents       Int        @default(0) @map("spend_cents")
+  impressions      Int        @default(0)
+  clicks           Int        @default(0)
+  leads            Int        @default(0)
+  ctr              Float      @default(0)
+  costPerLeadCents Int?       @map("cost_per_lead_cents")
+  syncedAt         DateTime   @default(now()) @map("synced_at")
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([campaignId])
+  @@index([date])
+  @@map("ad_metric_snapshots")
+}
+
+/// A lead captured from an ad platform.
+/// rawData stores the raw platform payload as JSON string.
+model AdLead {
+  id             String         @id @default(uuid())
+  workspaceId    String         @map("workspace_id")
+  campaignId     String         @map("campaign_id")
+  platform       AdPlatform
+  platformLeadId String         @map("platform_lead_id")
+  facebookFormId String?        @map("facebook_form_id")
+
+  leadName       String?        @map("lead_name")
+  leadEmail      String?        @map("lead_email")
+  leadPhone      String?        @map("lead_phone")
+  rawDataJson    String         @default("{}") @map("raw_data_json")
+
+  syncStatus     LeadSyncStatus @default(PENDING) @map("sync_status")
+  syncError      String?        @map("sync_error")
+  syncAttempts   Int            @default(0) @map("sync_attempts")
+  syncedAt       DateTime?      @map("synced_at")
+
+  capturedAt     DateTime       @map("captured_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id])
+  // Reverse side of Contact.adLead (1-to-1, Contact owns the FK)
+  contact    Contact?   @relation("ContactAdLead")
+
+  @@unique([platform, platformLeadId])
+  @@index([workspaceId])
+  @@index([campaignId])
+  @@index([syncStatus])
+  @@index([capturedAt])
+  @@map("ad_leads")
+}
+
+/// Workspace-level ad settings. Created on first access if missing.
+model AdWorkspaceSettings {
+  id                        String    @id @default(uuid())
+  workspaceId               String    @unique @map("workspace_id")
+  defaultDailyBudgetCents   Int?      @map("default_daily_budget_cents")
+  leadNotificationsEnabled  Boolean   @default(true) @map("lead_notifications_enabled")
+  leadNotificationMode      String    @default("IN_APP") @map("lead_notification_mode")
+  aiAssistedCreativeDefault Boolean   @default(true) @map("ai_assisted_creative_default")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("ad_workspace_settings")
+}
+

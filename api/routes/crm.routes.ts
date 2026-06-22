@@ -245,13 +245,20 @@ router.get('/tasks', async (req, res) => {
 router.post('/tasks', async (req, res) => {
   try {
     const v = TaskSchema.parse(req.body);
-    res.json(await crm.createTask(req.workspaceId, v as any));
+    const task = await crm.createTask(req.workspaceId, v as any);
+    emitTrigger(req.workspaceId, 'task.created', task as Record<string, unknown>).catch(console.error);
+    res.json(task);
   } catch (e) { dbErr(res, e); }
 });
 
 router.put('/tasks/:id', async (req, res) => {
-  try { res.json(await crm.updateTask(req.params.id, req.workspaceId, req.body)); }
-  catch (e) { dbErr(res, e); }
+  try {
+    const task = await crm.updateTask(req.params.id, req.workspaceId, req.body);
+    if (req.body.status === 'completed') {
+      emitTrigger(req.workspaceId, 'task.completed', task as Record<string, unknown>).catch(console.error);
+    }
+    res.json(task);
+  } catch (e) { dbErr(res, e); }
 });
 
 router.delete('/tasks/:id', async (req, res) => {

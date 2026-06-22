@@ -22,9 +22,14 @@ export default function AppShell() {
   const location = useLocation();
 
   useEffect(() => {
-    const onOpenCmd = () => setCommandPaletteOpen(true);
+    const onOpenCmd   = () => setCommandPaletteOpen(true);
+    const onOpenNotif = () => setNotificationPanelOpen(true);
     document.addEventListener('open-command-palette', onOpenCmd);
-    return () => document.removeEventListener('open-command-palette', onOpenCmd);
+    document.addEventListener('open-notifications', onOpenNotif);
+    return () => {
+      document.removeEventListener('open-command-palette', onOpenCmd);
+      document.removeEventListener('open-notifications', onOpenNotif);
+    };
   }, []);
 
   const content = (
@@ -72,10 +77,19 @@ export default function AppShell() {
             className="flex-1 flex flex-col overflow-hidden pt-[52px] md:pt-0"
             style={{ background: 'var(--bg)' }}
           >
-            <TopBar 
-              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-              onOpenNotifications={() => setNotificationPanelOpen(true)}
-            />
+            {!location.pathname.startsWith('/crm') &&
+             !location.pathname.startsWith('/conversations') &&
+             !location.pathname.startsWith('/marketing') &&
+             !location.pathname.startsWith('/business') &&
+             !location.pathname.startsWith('/automations') &&
+             !location.pathname.startsWith('/admin') &&
+             !location.pathname.startsWith('/ads') &&
+             !location.pathname.startsWith('/dashboard') && (
+              <TopBar 
+                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                onOpenNotifications={() => setNotificationPanelOpen(true)}
+              />
+            )}
             <Suspense fallback={<ContentFallback />}>
               <div key={location.pathname.split('/').slice(0, 2).join('/')} className="flex flex-col h-full w-full" style={{ animation: 'appShellFadeIn 0.18s cubic-bezier(0.16,1,0.3,1) both' }}>
                 <Outlet />

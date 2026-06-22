@@ -71,7 +71,7 @@ export const communicationSendSms: NodeImplementation = {
 
     // Find the Twilio channel connection
     const twilioConn = await db.channelConnection.findFirst({
-      where: { workspaceId: context.workspaceId, type: 'twilio', status: 'connected' },
+      where: { workspaceId: context.workspaceId, provider: 'twilio', isActive: true },
     }).catch(() => null);
 
     if (!twilioConn || !twilioConn.credentialsJson) {
@@ -80,9 +80,11 @@ export const communicationSendSms: NodeImplementation = {
 
     // Decrypt credentials
     const creds = decryptJson<{
-      twilioAccountSid: string;
-      twilioAuthToken: string;
-      twilioPhoneNumber: string;
+      twilioAccountSid?: string;
+      accountSid?: string;
+      twilioAuthToken?: string;
+      authToken?: string;
+      twilioPhoneNumber?: string;
     }>(twilioConn.credentialsJson as string);
 
     const twilio = (await import('twilio')).default;
@@ -90,7 +92,7 @@ export const communicationSendSms: NodeImplementation = {
 
     const message = await client.messages.create({
       body,
-      from: creds.twilioPhoneNumber,
+      from: twilioConn.twilioPhoneNumber ?? creds.twilioPhoneNumber,
       to,
     });
 

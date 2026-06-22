@@ -1,175 +1,78 @@
 // Mirrors backend AP types but shaped for frontend consumption
 
 export type WorkflowStatus = 'draft' | 'published' | 'paused';
-export type RunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PAUSED' | 'STOPPED' | 'INTERNAL_ERROR';
-export type TriggerType = 'webhook' | 'schedule' | 'app_event' | 'manual';
+export type RunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PAUSED' | 'STOPPED';
+export type TriggerType = 'webhook' | 'schedule' | 'crm_event' | 'manual';
+export type EngineType = 'native';
 
+/** Matches the `workflows` Prisma model exactly. */
 export interface Workflow {
   id: string;
   workspaceId: string;
-  apFlowId: string;
-  apProjectId: string;
-  apVersionId: string | null;
   name: string;
   description: string | null;
   status: WorkflowStatus;
   triggerType: TriggerType | null;
-  triggerPieceName: string | null;
-  webhookUrl: string | null;
   folderName: string | null;
-  tags: string[];   // parsed from JSON string
-  lastRunAt: string | null;
+  tags: string;              // JSON string array stored in DB, parse with JSON.parse() at use site
+  isFavorite: boolean;
+  folderId: string | null;
+  lastRunAt: string | null;  // ISO-8601
   lastRunStatus: RunStatus | null;
-  createdAt: string;
-  updatedAt: string;
-  // Populated by GET /api/workflows/:id
-  apFlow?: APFlow;
+  engineType: EngineType;
+  definitionJson: string;    // JSON, usually "{}" — not the canvas def (that's NativeWorkflowDefinition)
+  variablesJson: string;     // JSON object of workflow-level variables
+  settingsJson: string;      // JSON: NativeWorkflowSettings
+  executionCount: number;
+  successCount: number;
+  failureCount: number;
+  createdAt: string;         // ISO-8601
+  updatedAt: string;         // ISO-8601
 }
 
-export interface APFlow {
+/** A single execution record. Matches the `workflow_runs` Prisma model. */
+export interface NativeWorkflowRun {
   id: string;
-  projectId: string;
-  name: string;
-  status: 'ENABLED' | 'DISABLED' | 'DRAFT';
-  version: APFlowVersion;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface APFlowVersion {
-  id: string;
-  displayName: string;
-  flowId: string;
-  trigger: APStep;
-  valid: boolean;
-  state: 'DRAFT' | 'LOCKED';
-}
-
-export type APStepType = 'TRIGGER' | 'PIECE' | 'CODE' | 'LOOP_ON_ITEMS' | 'BRANCH';
-
-export interface APStep {
-  name: string;
-  type: APStepType;
-  valid: boolean;
-  displayName: string;
-  nextActionName?: string;
-  onSuccessActionName?: string;  // BRANCH only
-  onFailureActionName?: string;  // BRANCH only
-  firstLoopActionName?: string;  // LOOP_ON_ITEMS only
-  settings: APStepSettings;
-}
-
-export interface APStepSettings {
-  packageType?: 'REGISTRY' | 'ARCHIVE';
-  pieceName?: string;
-  pieceType?: 'OFFICIAL' | 'COMMUNITY' | 'CUSTOM';
-  pieceVersion?: string;
-  actionName?: string;
-  triggerName?: string;
-  input: Record<string, unknown>;
-  inputUiInfo?: {
-    currentSelectedData?: unknown;
-    customizedInputs?: Record<string, boolean>;
-  };
-  // BRANCH
-  conditions?: Array<Array<{
-    firstValue: string;
-    secondValue: string;
-    operator: BranchOperator;
-    caseSensitive?: boolean;
-  }>>;
-  // LOOP
-  items?: string;
-  // CODE
-  sourceCode?: { code: string; packageJson: string };
-}
-
-export type BranchOperator =
-  | 'TEXT_CONTAINS' | 'TEXT_DOES_NOT_CONTAIN'
-  | 'TEXT_EXACTLY_MATCHES' | 'TEXT_DOES_NOT_EXACTLY_MATCH'
-  | 'TEXT_STARTS_WITH' | 'TEXT_ENDS_WITH'
-  | 'NUMBER_IS_GREATER_THAN' | 'NUMBER_IS_LESS_THAN'
-  | 'NUMBER_IS_EQUAL_TO' | 'BOOLEAN_IS_TRUE' | 'BOOLEAN_IS_FALSE'
-  | 'EXISTS' | 'DOES_NOT_EXIST';
-
-export interface WorkflowRun {
-  id: string;
-  flowId: string;
-  projectId: string;
+  workspaceId: string;
+  workflowId: string;
   status: RunStatus;
-  startTime: string;
-  finishTime?: string;
-  duration?: number;  // milliseconds
-  steps: Record<string, RunStep>;
+  durationMs: number | null;
+  stepCount: number;
+  triggerData: string | null;  // JSON string
+  errorMessage: string | null;
+  startedAt: string;           // ISO-8601
+  finishedAt: string | null;   // ISO-8601
+  engineType: string;
+  runData: string;             // JSON string: Record<nodeId, WorkflowItem[]>
+  waitingNodeId: string | null;
+  resumeAt: string | null;
 }
 
-export interface RunStep {
-  name: string;
-  status: 'SUCCEEDED' | 'FAILED' | 'RUNNING' | 'SKIPPED';
-  duration?: number;
-  input?: unknown;
-  output?: unknown;
-  errorMessage?: string;
+/** Run detail with runData parsed from JSON. */
+export interface NativeWorkflowRunDetail extends Omit<NativeWorkflowRun, 'runData' | 'triggerData'> {
+  runData: Record<string, WorkflowItem[]> | null;
+  triggerData: Record<string, unknown> | null;
 }
 
-export interface APPiece {
-  name: string;
-  displayName: string;
-  description: string;
-  logoUrl: string;
-  version: string;
-  categories: string[];
-  actions: APPieceAction[];
-  triggers: APPieceTrigger[];
-}
-
-export interface APPieceAction {
-  name: string;
-  displayName: string;
-  description: string;
-  props: Record<string, APPieceProp>;
-  requireAuth: boolean;
-}
-
-export interface APPieceTrigger extends APPieceAction {
-  type: 'POLLING' | 'WEBHOOK' | 'APP_WEBHOOK' | 'EMPTY';
-}
-
-export type APPropType =
-  | 'SHORT_TEXT' | 'LONG_TEXT' | 'NUMBER' | 'CHECKBOX'
-  | 'DROPDOWN' | 'STATIC_DROPDOWN' | 'MULTI_SELECT_DROPDOWN'
-  | 'ARRAY' | 'OBJECT' | 'JSON' | 'FILE' | 'DATE_TIME'
-  | 'MARKDOWN' | 'CUSTOM_AUTH' | 'OAUTH2' | 'SECRET_TEXT'
-  | 'BASIC_AUTH' | 'DYNAMIC';
-
-export interface APPieceProp {
-  type: APPropType;
-  displayName: string;
-  description?: string;
-  required: boolean;
-  defaultValue?: unknown;
-  options?: { label: string; value: string }[];
-}
-
-export interface APConnection {
+/** Template record from the `workflow_templates` table. */
+export interface WorkflowTemplate {
   id: string;
   name: string;
-  pieceName: string;
-  projectId: string;
-  status: 'ACTIVE' | 'EXPIRED' | 'ERROR';
-  created: string;
-  updated: string;
+  description: string | null;
+  category: string;
+  tags: string;              // JSON string array
+  thumbnailUrl: string | null;
+  usageCount: number;
+  isSystem: boolean;
+  workspaceId: string | null;
+  createdAt: string;
+  // definitionJson intentionally excluded from list API response
 }
 
-// ── Canvas types for @xyflow/react ────────────────────────────────────────────
-export type WorkflowNodeData = Record<string, unknown> & {
-  stepName: string;           // AP step name (unique ID)
-  step: APStep;               // Full AP step object
-  pieceMetadata?: APPiece;    // Loaded piece definition
-  isSelected?: boolean;
-  hasError?: boolean;
-  runStatus?: 'SUCCEEDED' | 'FAILED' | 'SKIPPED' | 'RUNNING';
-};
+/** Template with definition included (only for install flow). */
+export interface WorkflowTemplateWithDefinition extends WorkflowTemplate {
+  definitionJson: string;    // JSON: { nodes: any[], edges: any[] }
+}
 
 // ── Native Workflow Engine Types ──────────────────────────────────────────────
 
@@ -284,19 +187,7 @@ export interface WorkflowCredential {
   updatedAt: string;
 }
 
-export interface WorkflowTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  category: string;
-  tags: string[];
-  definitionJson: NativeWorkflowDefinition;
-  thumbnailUrl?: string;
-  usageCount: number;
-  isSystem: boolean;
-  workspaceId?: string;
-  createdAt: string;
-}
+
 
 // ── Native canvas node data (used by @xyflow/react for native nodes) ──────────
 export type NativeNodeData = Record<string, unknown> & {

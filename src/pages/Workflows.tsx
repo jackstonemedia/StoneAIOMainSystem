@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useWorkflows, useDeleteWorkflow, useCreateWorkflow } from '../hooks/useWorkflows';
 import { useToast } from '../components/ui/Toast';
+import { WorkflowTemplateGallery } from '../components/WorkflowTemplateGallery';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   published: { label: 'Active', color: 'text-green-500 bg-green-500/10 border-green-500/20', icon: CheckCircle2 },
@@ -20,6 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 export default function Workflows() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'my-workflows' | 'templates'>('my-workflows');
   const [search, setSearch] = useState('');
   const { data: workflows = [], isLoading } = useWorkflows();
   const deleteWorkflow = useDeleteWorkflow();
@@ -69,11 +71,41 @@ export default function Workflows() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="px-6 lg:px-8 border-b border-border bg-surface shrink-0">
+        <div className="flex gap-6 -mb-px">
+          <button
+            onClick={() => setActiveTab('my-workflows')}
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'my-workflows'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-muted hover:text-text-main hover:border-border'
+            }`}
+          >
+            My Workflows
+          </button>
+          <button
+            onClick={() => setActiveTab('templates')}
+            className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'templates'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-muted hover:text-text-main hover:border-border'
+            }`}
+          >
+            Templates
+          </button>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto space-y-6">
           
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface/40 backdrop-blur-sm p-2 rounded-xl border border-border/50">
+          {activeTab === 'templates' ? (
+            <WorkflowTemplateGallery />
+          ) : (
+            <>
+              {/* Controls */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-surface/40 backdrop-blur-sm p-2 rounded-xl border border-border/50">
             <div className="relative w-full sm:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
               <input
@@ -191,6 +223,8 @@ export default function Workflows() {
               </tbody>
             </table>
           </div>
+            </>
+          )}
 
         </div>
       </div>

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npx concurrently \"npm run dev:ui\" \"npm run dev:server\"",
-    "dev:ui": "vite",
+    "dev:ui": "vite --force",
     "dev:server": "tsx watch server.ts",
     "build": "vite build",
     "start": "tsx server.ts",
@@ -18,6 +18,7 @@
     "@clerk/clerk-react": "^5.61.4",
     "@clerk/express": "^2.1.9",
     "@google/genai": "^1.46.0",
+    "@google/generative-ai": "^0.24.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@prisma/client": "^6.4.1",
     "@tailwindcss/vite": "^4.1.14",

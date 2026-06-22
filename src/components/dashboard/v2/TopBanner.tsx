@@ -1,7 +1,8 @@
-import { ChevronDown, LayoutGrid } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, LayoutGrid, Search, Bell, Command } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { DateRange } from '../../../types/dashboard';
+import { db, StorageKey } from '../../../lib/storage';
 
 const DASHBOARD_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -30,6 +31,19 @@ interface TopBannerProps {
 
 export function TopBanner({ activeTab, setActiveTab, dateRange, onDateRangeChange }: TopBannerProps) {
   const [rangeOpen, setRangeOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const notifs = await db.get<any>(StorageKey.NOTIFICATIONS);
+        setUnreadCount(notifs.filter((n: any) => !n.isRead).length);
+      } catch (_) {}
+    };
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
@@ -53,6 +67,36 @@ export function TopBanner({ activeTab, setActiveTab, dateRange, onDateRangeChang
             );
           })}
         </nav>
+
+        {/* Right: Search + Bell */}
+        <div className="flex items-center gap-3 pb-3">
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
+            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
+            style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
+            <Search className="w-4 h-4" />
+            <span className="text-[13px]">Search</span>
+            <div
+              className="flex items-center gap-1 ml-3 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
+              style={{ background: 'var(--surface-hover)' }}
+            >
+              <Command className="w-3 h-3" />
+              <span>K</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
+            className="relative p-2 rounded-lg transition-colors hover:bg-surface-hover"
+            style={{ color: 'var(--text-main)' }}
+          >
+            <Bell className="w-[18px] h-[18px]" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-surface" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Toolbar — mirrors Contacts secondary bar */}

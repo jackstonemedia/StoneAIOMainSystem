@@ -14,7 +14,7 @@ import { sendGmailMessage } from './channels/gmail.service.js';
 const redisUrl = process.env.REDIS_URL;
 
 const campaignQueue = redisUrl
-  ? new Queue('campaign-emails', redisUrl)
+  ? new Queue('campaign-emails', redisUrl, { redis: redisUrl.startsWith('rediss://') ? { tls: { rejectUnauthorized: false } } : {} })
   : new Queue('campaign-emails', { // Inline mode without Redis
       redis: null as any, // Bull needs this cast
       limiter: { max: 10, duration: 1000 } // Max 10 emails per second

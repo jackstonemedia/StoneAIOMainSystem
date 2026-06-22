@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
-import type { Workflow, WorkflowRun, APPiece, APConnection, APStep } from '../types/automation';
+import type { Workflow, NativeWorkflowRun, APPiece, APConnection, APStep } from '../types/automation';
 
 // ── Query Keys ────────────────────────────────────────────────────────────────
 export const workflowKeys = {
@@ -81,6 +81,16 @@ export function useDeleteWorkflow() {
   });
 }
 
+export function useDuplicateWorkflow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.post<Workflow>(`/workflows/${id}/duplicate`);
+      return res.data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: workflowKeys.lists() }),
+  });
+}
 
 
 // ── Runs ──────────────────────────────────────────────────────────────────────
@@ -88,7 +98,7 @@ export function useWorkflowRuns(workflowId: string) {
   return useQuery({
     queryKey: workflowKeys.runs(workflowId),
     queryFn: async () => {
-      const res = await apiClient.get<{ data: WorkflowRun[] }>(`/workflows/${workflowId}/runs`);
+      const res = await apiClient.get<{ data: NativeWorkflowRun[] }>(`/workflows/${workflowId}/runs`);
       return res.data.data;
     },
     enabled: !!workflowId,
@@ -185,5 +195,29 @@ export function useNativeWorkflowRunDetail(runId: string) {
       return res.data;
     },
     enabled: !!runId,
+  });
+}
+
+// ── Templates ─────────────────────────────────────────────────────────────────
+export function useWorkflowTemplates() {
+  return useQuery({
+    queryKey: ['workflow-templates'],
+    queryFn: async () => {
+      const res = await apiClient.get<any[]>('/workflows/templates');
+      return res.data;
+    },
+  });
+}
+
+export function useInstallTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, name }: { templateId: string; name?: string }) => {
+      const res = await apiClient.post(`/workflows/templates/${templateId}/install`, { name });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.lists() });
+    },
   });
 }
