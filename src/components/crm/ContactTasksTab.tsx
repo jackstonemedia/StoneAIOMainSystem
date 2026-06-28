@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, CheckCircle2, Circle, Clock, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../ui/Toast';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Props { contactId: string; }
 
@@ -20,11 +21,11 @@ export default function ContactTasksTab({ contactId }: Props) {
 
   const { data: tasks = [], isLoading } = useQuery<any[]>({
     queryKey: ['tasks', contactId],
-    queryFn: () => fetch(`/api/crm/tasks?contactId=${contactId}`).then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch(`/api/crm/tasks?contactId=${contactId}`).then(r => r.ok ? r.json() : []),
   });
 
   const createTask = useMutation({
-    mutationFn: (data: any) => fetch('/api/crm/tasks', {
+    mutationFn: (data: any) => apiFetch('/api/crm/tasks', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, contactId }),
     }).then(r => r.json()),
@@ -32,14 +33,14 @@ export default function ContactTasksTab({ contactId }: Props) {
   });
 
   const updateTask = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => fetch(`/api/crm/tasks/${id}`, {
+    mutationFn: ({ id, data }: { id: string; data: any }) => apiFetch(`/api/crm/tasks/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
     }).then(r => r.json()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks', contactId] }),
   });
 
   const deleteTask = useMutation({
-    mutationFn: (id: string) => fetch(`/api/crm/tasks/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    mutationFn: (id: string) => apiFetch(`/api/crm/tasks/${id}`, { method: 'DELETE' }).then(r => r.json()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks', contactId] }); toast('success', 'Task deleted'); },
   });
 

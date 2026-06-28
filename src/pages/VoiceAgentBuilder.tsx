@@ -9,6 +9,7 @@ import VoicePickerModal from '../components/voice/VoicePickerModal';
 import VoiceSettingsPanel from '../components/voice/VoiceSettingsPanel';
 import { VoiceBuilderProvider, useVoiceBuilder } from '../context/VoiceBuilderContext';
 import { useToast } from '../components/ui/Toast';
+import { apiFetch } from '../lib/apiClient';
 
 const SETTINGS_TABS = [
   { id: 'voice', label: 'Voice & Speech', icon: Volume2, color: 'text-teal' },
@@ -31,7 +32,7 @@ function VoiceAgentBuilderInner() {
   // Load existing agent config when editing
   useEffect(() => {
     if (!agentId) return;
-    fetch(`/api/agents/${agentId}`)
+    apiFetch(`/api/agents/${agentId}`)
       .then(r => r.ok ? r.json() : null)
       .then((agent: any) => {
         if (!agent) return;
@@ -80,7 +81,7 @@ function VoiceAgentBuilderInner() {
     if (ctx.isTestCallActive) { ctx.retellClientRef.current?.stopCall(); return; }
     ctx.setIsProvisioning(true);
     try {
-      const res = await fetch('/api/voice-agents/web-call', {
+      const res = await apiFetch('/api/voice-agents/web-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -5,9 +5,7 @@ import { useAdDashboardMetrics, useAdChartData } from '../../hooks/useAdMetrics'
 import { useAdAccounts } from '../../hooks/useAdAccounts';
 import { useAdCampaigns } from '../../hooks/useAdCampaigns';
 import { formatCurrency } from '../../lib/utils';
-import { MOCK_DASHBOARD_METRICS, MOCK_CHART_DATA, MOCK_CAMPAIGNS } from '../../lib/adsMockData';
 
-const USE_MOCK = false;
 
 // ─── Date range presets ───────────────────────────────────────────────────────
 
@@ -209,13 +207,13 @@ export default function AdsDashboard() {
   const { data: rawCampaigns = [] } = useAdCampaigns();
   const { data: accounts = [] }     = useAdAccounts();
 
-  const metrics   = USE_MOCK && !rawMetrics  ? MOCK_DASHBOARD_METRICS : rawMetrics;
-  const chartData = USE_MOCK && !rawChart?.length ? MOCK_CHART_DATA : rawChart ?? [];
-  const campaigns = USE_MOCK && rawCampaigns.length === 0 ? MOCK_CAMPAIGNS : rawCampaigns as any[];
+  const metrics   = rawMetrics;
+  const chartData = rawChart ?? [];
+  const campaigns = rawCampaigns as any[];
 
   const activeCampaigns = campaigns.filter((c: any) => c.status === 'ACTIVE');
-  const googleSpend     = MOCK_CAMPAIGNS.filter((c: any) => c.platform === 'GOOGLE').reduce((s, c) => s + c.cachedSpend30dCents, 0);
-  const fbSpend         = MOCK_CAMPAIGNS.filter((c: any) => c.platform === 'FACEBOOK').reduce((s, c) => s + c.cachedSpend30dCents, 0);
+  const googleSpend     = campaigns.filter((c: any) => c.platform === 'GOOGLE').reduce((s: number, c: any) => s + (c.cachedSpend30dCents || 0), 0);
+  const fbSpend         = campaigns.filter((c: any) => c.platform === 'FACEBOOK').reduce((s: number, c: any) => s + (c.cachedSpend30dCents || 0), 0);
 
   const lastSyncAt = accounts
     .filter(a => a.lastSyncAt)
@@ -310,38 +308,38 @@ export default function AdsDashboard() {
           value={metrics?.totalSpendCents ? formatCurrency(metrics.totalSpendCents / 100) : '$0.00'}
           delta={metrics?.spendDeltaPct}
           icon={DollarSign}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
         <KPICard
           label="Total Leads"
           value={String(metrics?.totalLeads ?? 0)}
           delta={metrics?.leadsDeltaPct}
           icon={Users}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
         <KPICard
           label="Cost per Lead"
           value={metrics?.costPerLeadCents ? formatCurrency(metrics.costPerLeadCents / 100) : '—'}
           icon={MousePointerClick}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
         <KPICard
           label="Active Campaigns"
           value={String(metrics?.activeCampaigns ?? 0)}
           icon={Activity}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
         <KPICard
           label="Impressions"
           value={totalImpressions >= 1000 ? `${(totalImpressions / 1000).toFixed(1)}K` : String(totalImpressions)}
           icon={Eye}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
         <KPICard
           label="Avg. CTR"
           value={`${(avgCtr * 100).toFixed(2)}%`}
           icon={TrendingUp}
-          isLoading={isMetricsLoading && !USE_MOCK}
+          isLoading={isMetricsLoading}
         />
       </div>
 
@@ -376,13 +374,13 @@ export default function AdsDashboard() {
           </div>
 
           <div className="p-5 flex-1">
-            {isChartLoading && !USE_MOCK ? (
+            {isChartLoading ? (
               <div className="h-[200px] flex items-center justify-center">
                 <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
             ) : (
               <AreaChart
-                data={chartData}
+                data={chartData as any}
                 keys={chartSeries.keys}
                 colors={chartSeries.colors}
                 height={200}

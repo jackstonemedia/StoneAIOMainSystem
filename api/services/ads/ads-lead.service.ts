@@ -238,8 +238,7 @@ async function emitAdLeadEvent(
   platform: string,
 ) {
   try {
-    triggerEmitter.emit('crm:event', {
-      workspaceId,
+    emitTrigger(workspaceId, 'contact.created', {
       entityType: 'contact',
       eventType: 'ad_lead_captured',
       entityId: contactId,

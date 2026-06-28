@@ -111,35 +111,6 @@ async function main() {
   ]);
   console.log(`✅ Activities: ${activities.length}`);
 
-  // ── Campaigns ──────────────────────────────────────────
-  const campaigns = await Promise.all([
-    db.campaign.upsert({ where: { id: 'cm_1' }, update: {}, create: { id: 'cm_1', workspaceId: WORKSPACE_ID, name: 'Black Friday VIP Early Access',   type: 'email', status: 'sent',      audienceJson: JSON.stringify({count:14500}), metricsJson: JSON.stringify({openRate:42.5,clickRate:18.2,opens:6113,clicks:2639}) } }),
-    db.campaign.upsert({ where: { id: 'cm_2' }, update: {}, create: { id: 'cm_2', workspaceId: WORKSPACE_ID, name: 'Abandoned Cart Recovery Series', type: 'email', status: 'sending',   audienceJson: JSON.stringify({count:320}),   metricsJson: JSON.stringify({openRate:0,clickRate:0}) } }),
-    db.campaign.upsert({ where: { id: 'cm_3' }, update: {}, create: { id: 'cm_3', workspaceId: WORKSPACE_ID, name: 'Flash Sale SMS Blast',            type: 'sms',   status: 'scheduled', audienceJson: JSON.stringify({count:5800}),  metricsJson: JSON.stringify({openRate:0,clickRate:0}) } }),
-    db.campaign.upsert({ where: { id: 'cm_4' }, update: {}, create: { id: 'cm_4', workspaceId: WORKSPACE_ID, name: 'Q4 Product Update Newsletter',    type: 'email', status: 'draft',     audienceJson: JSON.stringify({count:22000}), metricsJson: JSON.stringify({openRate:0,clickRate:0}) } }),
-  ]);
-  console.log(`✅ Campaigns: ${campaigns.length}`);
-
-  // ── Forms ──────────────────────────────────────────────
-  const forms = await Promise.all([
-    db.form.upsert({ where: { id: 'fm_1' }, update: {}, create: { id: 'fm_1', workspaceId: WORKSPACE_ID, name: 'Contact Us',              schema: JSON.stringify([{id:'f1',type:'text',label:'Full Name',required:true},{id:'f2',type:'email',label:'Email',required:true},{id:'f4',type:'textarea',label:'Message',required:false}]), visits: 1240 } }),
-    db.form.upsert({ where: { id: 'fm_2' }, update: {}, create: { id: 'fm_2', workspaceId: WORKSPACE_ID, name: 'Lead Magnet Download',    schema: JSON.stringify([{id:'f1',type:'text',label:'Full Name',required:true},{id:'f2',type:'email',label:'Email',required:true}]), visits: 3820 } }),
-    db.form.upsert({ where: { id: 'fm_3' }, update: {}, create: { id: 'fm_3', workspaceId: WORKSPACE_ID, name: 'Event RSVP — Q4 Summit', schema: JSON.stringify([{id:'f1',type:'text',label:'Full Name',required:true},{id:'f2',type:'email',label:'Email',required:true},{id:'f3',type:'phone',label:'Phone',required:false}]), visits: 890 } }),
-  ]);
-  console.log(`✅ Forms: ${forms.length}`);
-
-  // ── Reviews ────────────────────────────────────────────
-  const reviews = await Promise.all([
-    db.review.upsert({ where: { id: 'rv_1' }, update: {}, create: { id: 'rv_1', workspaceId: WORKSPACE_ID, author: 'Sarah Mitchell',  rating: 5, source: 'google',   text: 'Absolutely outstanding platform. The automation features have saved our team 20hrs/week.', replied: false } }),
-    db.review.upsert({ where: { id: 'rv_2' }, update: {}, create: { id: 'rv_2', workspaceId: WORKSPACE_ID, author: 'James OBrien',    rating: 4, source: 'google',   text: 'Very impressed with the CRM features. The pipeline view is intuitive and the reporting is solid.', replied: true, replyText: 'Thank you James! We appreciate the feedback.' } }),
-    db.review.upsert({ where: { id: 'rv_3' }, update: {}, create: { id: 'rv_3', workspaceId: WORKSPACE_ID, author: 'Priya Sharma',    rating: 5, source: 'facebook', text: 'Made the switch from GoHighLevel and never looked back. The AI assistant alone is worth the price.', replied: false } }),
-    db.review.upsert({ where: { id: 'rv_4' }, update: {}, create: { id: 'rv_4', workspaceId: WORKSPACE_ID, author: 'Marcus Webb',     rating: 2, source: 'yelp',     text: 'Had some connectivity issues during onboarding. Support was helpful but took 2 days to resolve.', replied: true, replyText: 'We apologize for the inconvenience, Marcus. We have since improved our onboarding process.' } }),
-    db.review.upsert({ where: { id: 'rv_5' }, update: {}, create: { id: 'rv_5', workspaceId: WORKSPACE_ID, author: 'Lisa Tanaka',     rating: 5, source: 'google',   text: 'The campaign builder is incredible. Open rates jumped from 18% to 38% after switching.', replied: false } }),
-    db.review.upsert({ where: { id: 'rv_6' }, update: {}, create: { id: 'rv_6', workspaceId: WORKSPACE_ID, author: 'Derek Johnson',   rating: 4, source: 'google',   text: 'Solid enterprise tool. We use it for our entire sales workflow. Integration with Twilio works flawlessly.', replied: true, replyText: 'Thanks Derek! We are always working to improve our integrations.' } }),
-    db.review.upsert({ where: { id: 'rv_7' }, update: {}, create: { id: 'rv_7', workspaceId: WORKSPACE_ID, author: 'Amanda Foster',   rating: 1, source: 'yelp',     text: 'Initial setup was confusing and documentation is lacking. Hope they improve the onboarding experience.', replied: false } }),
-    db.review.upsert({ where: { id: 'rv_8' }, update: {}, create: { id: 'rv_8', workspaceId: WORKSPACE_ID, author: 'Chris Reynolds',  rating: 5, source: 'facebook', text: 'Best investment we made this year. The AI deal scoring alone increased our close rate by 22%.', replied: false } }),
-  ]);
-  console.log(`✅ Reviews: ${reviews.length}`);
 
   // ── Appointments ───────────────────────────────────────
   const weekStart = new Date();

@@ -21,31 +21,7 @@ export async function getStoredToken(): Promise<string | null> {
   try { return await _getToken(); } catch { return null; }
 }
 
-// ── Global fetch override for /api paths ───────────────────────────────────────
-const originalFetch = window.fetch;
-window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-  if (url.startsWith('/api') && _getToken) {
-    try {
-      const token = await _getToken();
-      if (token) {
-        init = init || {};
-        const headers = new Headers(init.headers);
-        headers.set('Authorization', `Bearer ${token}`);
-        
-        // Preserve Content-Type if it was a plain object
-        if (!(init.headers instanceof Headers) && init.headers) {
-           Object.entries(init.headers).forEach(([k, v]) => headers.set(k, v as string));
-        }
 
-        init.headers = headers;
-      }
-    } catch {
-      // Proceed without token if it fails
-    }
-  }
-  return originalFetch(input, init);
-};
 
 /**
  * Authenticated fetch() drop-in — attaches the Clerk JWT just like apiClient does.

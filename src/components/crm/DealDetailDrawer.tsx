@@ -1,6 +1,7 @@
 import { X, Calendar, Activity, CheckCircle2, MoreHorizontal, User, Building2, Tag, Edit2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '../../lib/apiClient';
 
 interface DealDetailDrawerProps {
   dealId: string | null;
@@ -13,7 +14,7 @@ export default function DealDetailDrawer({ dealId, isOpen, onClose }: DealDetail
     queryKey: ['deal', dealId],
     queryFn: async () => {
       if (!dealId) return null;
-      const res = await fetch(`/api/crm/deals/${dealId}`);
+      const res = await apiFetch(`/api/crm/deals/${dealId}`);
       if (!res.ok) throw new Error('Failed to fetch deal');
       return res.json();
     },

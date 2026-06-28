@@ -52,7 +52,7 @@ export default function AppShell() {
               />
               <span
                 className="font-bold text-[14.5px] tracking-tight"
-                style={{ color: 'var(--text-main)' }}
+                style={{ color: 'var(--sidebar-text-main, var(--text-main))' }}
               >
                 Stone AIO
               </span>
@@ -60,7 +60,7 @@ export default function AppShell() {
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-1.5 rounded-lg transition-colors"
-              style={{ color: 'var(--text-muted)' }}
+              style={{ color: 'var(--sidebar-text-muted, var(--text-muted))' }}
             >
               {mobileMenuOpen
                 ? <X className="w-5 h-5" />
@@ -100,7 +100,6 @@ export default function AppShell() {
 
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
-        <AIAssistant />
       </ThemeProvider>
   );
 

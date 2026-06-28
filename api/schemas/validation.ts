@@ -5,16 +5,16 @@
 import { z } from 'zod';
 
 export const ContactSchema = z.object({
-  firstName: z.string().min(1),
+  firstName: z.string().min(1, "First name is required"),
   lastName: z.string().optional().nullable(),
   middleName: z.string().optional().nullable(),
   suffix: z.string().optional().nullable(),
-  avatarUrl: z.string().optional().nullable(),
+  avatarUrl: z.string().url().optional().nullable(),
   email: z.union([z.string().email(), z.literal('')]).optional().nullable(),
   emailsJson: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   phonesJson: z.string().optional().nullable(),
-  companyId: z.string().optional().nullable(),
+  companyId: z.string().uuid().optional().nullable(),
   businessName: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
   tagsJson: z.string().optional().nullable(),
@@ -25,8 +25,8 @@ export const ContactSchema = z.object({
 });
 
 export const CompanySchema = z.object({
-  name: z.string().min(1),
-  logoUrl: z.string().optional().nullable(),
+  name: z.string().min(1, "Company name is required"),
+  logoUrl: z.string().url().optional().nullable(),
   customFieldsJson: z.string().optional().nullable(),
   domain: z.string().optional().nullable(),
   industry: z.string().optional().nullable(),
@@ -37,28 +37,28 @@ export const CompanySchema = z.object({
 });
 
 export const DealSchema = z.object({
-  title: z.string().min(1),
-  amount: z.number().optional().nullable(),
-  priority: z.enum(['low', 'medium', 'high']).optional().nullable(),
-  probability: z.number().min(0).max(100).optional().nullable(),
-  closeDate: z.string().optional().nullable(),
-  pipelineStageId: z.string().min(1),
-  companyId: z.string().optional().nullable(),
-  contactId: z.string().optional().nullable(),
+  title: z.string().min(1, "Deal title is required"),
+  amount: z.number().min(0).default(0),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  probability: z.number().min(0).max(100).default(50),
+  closeDate: z.string().datetime().optional().nullable(),
+  pipelineStageId: z.string().min(1, "Pipeline stage is required"),
+  companyId: z.string().uuid().optional().nullable(),
+  contactId: z.string().uuid().optional().nullable(),
   description: z.string().optional().nullable(),
   customFieldsJson: z.string().optional().nullable(),
 });
 
 export const TaskSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().min(1, "Task title is required"),
   description: z.string().optional().nullable(),
-  dueDate: z.union([z.string(), z.literal('')]).optional().nullable(),
-  assigneeId: z.string().optional().nullable(),
-  contactId: z.string().optional().nullable(),
-  companyId: z.string().optional().nullable(),
-  dealId: z.string().optional().nullable(),
-  status: z.enum(['pending', 'completed']).optional().nullable(),
-  priority: z.enum(['low', 'medium', 'high']).optional().nullable(),
+  dueDate: z.union([z.string().datetime(), z.literal('')]).optional().nullable(),
+  assigneeId: z.string().uuid().optional().nullable(),
+  contactId: z.string().uuid().optional().nullable(),
+  companyId: z.string().uuid().optional().nullable(),
+  dealId: z.string().uuid().optional().nullable(),
+  status: z.enum(['pending', 'completed']).default('pending'),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
   type: z.string().optional().nullable(),
 });
 

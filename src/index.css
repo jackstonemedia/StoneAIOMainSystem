@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -62,9 +63,11 @@
     
     /* Sidebar remains Navy Blue */
     --sidebar-bg:           #0F1A2B;
-    --sidebar-border:       #1C2E4A;
+    --sidebar-border:       #0F1A2B;
     --sidebar-active:       rgba(82, 103, 125, 0.18);
     --sidebar-active-text:  #D1CFC9;
+    --sidebar-text-main:    #FFFFFF;
+    --sidebar-text-muted:   rgba(255, 255, 255, 0.7);
 
     --shadow-luxury:      0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.25);
     --shadow-interactive: 0 4px 16px rgba(82,103,125,0.3), 0 2px 6px rgba(0,0,0,0.3);
@@ -119,212 +122,59 @@
     --glass-border:       rgba(200, 192, 176, 0.70);
   }
 
-  /* ── Midnight Copper — Warm espresso-black canvas, refined bronze accent ── */
-  .theme-midnight-copper {
-    /* Canvas: deep warm near-black */
-    --bg:               #100D08;
+  /* ── Default Theme — Premium Minimalist White ── */
+  .theme-default {
+    /* Clean, comfortable, neutral light grey canvas - no harsh blue tints, just pure reading comfort */
+    --bg:               #F3F4F6; 
 
-    /* Surfaces: clearly lighter than canvas — strong separation */
-    --surface:          #1E1810;
-    --surface-hover:    #28200F;
+    /* Pure white surfaces for crisp, high-end contrast against the canvas */
+    --surface:          #FFFFFF; 
+    --surface-hover:    #F9FAFB; 
 
-    --border:           #4A3C22;
-    --border-subtle:    rgba(184, 135, 60, 0.18);
+    /* Soft, neutral borders */
+    --border:           #E5E7EB; 
+    --border-subtle:    rgba(229, 231, 235, 0.6);
+    
+    /* Highly legible dark gray text for everyday reading comfort */
+    --text-main:        #1F2937; 
+    --text-muted:       #6B7280; 
+    
+    /* Muted, sophisticated steel-blue for primary actions. Distinct but not overwhelmingly "blue". */
+    --primary:          #4A6583; 
+    --primary-hover:    #3B536D; 
+    --primary-light:    rgba(74, 101, 131, 0.1);
 
-    --text-main:        #F5EDD8; /* Bright warm linen — high contrast */
-    --text-muted:       #B0A08A; /* Warm mid-tone — clearly readable */
+    /* Clean, vibrant CRM accent colors */
+    --accent-green:       #10B981;
+    --accent-amber:       #F59E0B;
+    --accent-purple:      #8B5CF6;
+    --accent-light-purple:#A78BFA;
+    --accent-teal:        #14B8A6;
+    --accent-red:         #EF4444;
+    --accent-blue:        #3B82F6;
+    --accent-orange:      #F97316;
 
-    /* Primary: copper/bronze */
-    --primary:          #C4913F;
-    --primary-hover:    #D9A85A;
-    --primary-light:    rgba(196, 145, 63, 0.16);
+    --glow-color:           rgba(30, 41, 59, 0.08);
+    --glow-color-strong:    rgba(30, 41, 59, 0.16);
+    
+    /* Muted, sophisticated Navy (Slate 700) for the sidebar and banner */
+    --sidebar-bg:           #0F1A2B; 
+    /* Remove the visible border by making it match the background, creating a seamless L-shape */
+    --sidebar-border:       #0F1A2B; 
+    --sidebar-active:       rgba(255, 255, 255, 0.1);
+    --sidebar-active-text:  #FFFFFF;
+    /* All text pure white to match the Stone AIO logo text perfectly */
+    --sidebar-text-main:    #FFFFFF;
+    --sidebar-text-muted:   #FFFFFF;
 
-    /* CRM accents */
-    --accent-green:     #22C55E;
-    --accent-amber:     #F59E0B;
-    --accent-purple:    #A78BFA;
-    --accent-light-purple: #C4B5FD;
-    --accent-teal:      #2DD4BF;
-    --accent-red:       #F87171;
-    --accent-blue:      #60A5FA;
-    --accent-orange:    #FB923C;
-
-    --glow-color:       rgba(196, 145, 63, 0.20);
-    --glow-color-strong: rgba(196, 145, 63, 0.42);
-
-    /* Sidebar: same as surface */
-    --sidebar-bg:           #1E1810;
-    --sidebar-border:       #362B18;
-    --sidebar-active:       rgba(196, 145, 63, 0.14);
-    --sidebar-active-text:  #F0E8D6;
-
-    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.65), 0 4px 12px rgba(0,0,0,0.55), 0 16px 40px rgba(0,0,0,0.40);
-    --shadow-interactive: 0 4px 16px rgba(196,145,63,0.25), 0 2px 6px rgba(0,0,0,0.45);
-    --shadow-card:        0 1px 2px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.40);
-    --card-gradient:      linear-gradient(145deg, rgba(30,24,16,0.97) 0%, rgba(16,13,8,0.94) 100%);
-
-    --glass-bg:           rgba(16, 13, 8, 0.70);
-    --glass-border:       rgba(184, 135, 60, 0.32);
-  }
-
-  /* ── Deep Tide — Sunken elevation: Dracula Orchid canvas, Black Is Back recessed panels ── */
-  .theme-deep-tide {
-    /* Dracula Orchid #2B3739 — the ambient canvas, mid-dark teal */
-    --bg:               #2B3739;
-
-    /* Black Is Back #0F1618 — panels, sidebar, cards sink BELOW the canvas */
-    --surface:          #131D1F;
-    /* Slightly lighter than surface for hover — still below canvas */
-    --surface-hover:    #1C2A2C;
-
-    /* Urbanite #4C5856 — borders emerge from the dark sunken panels */
-    --border:           #3A4D50;
-    /* Heritage Park at low opacity — hairline separators */
-    --border-subtle:    rgba(105, 116, 109, 0.22);
-
-    /* Thin Cloud #D3DEDA — text, high contrast on both canvas and panels */
-    --text-main:        #D3DEDA;
-    /* Bidwell Blue #ABB9B6 — muted labels, secondary text */
-    --text-muted:       #ABB9B6;
-
-    /* Bidwell Blue #ABB9B6 — primary accent, brighter than panel surfaces */
-    --primary:          #ABB9B6;
-    --primary-hover:    #BEC9C7;
-    --primary-light:    rgba(171, 185, 182, 0.14);
-
-    /* CRM semantics — teal-cool bias */
-    --accent-green:     #34D399;
-    --accent-amber:     #FBBF24;
-    --accent-purple:    #A78BFA;
-    --accent-light-purple: #C4B5FD;
-    --accent-teal:      #2DD4BF;
-    --accent-red:       #FB7185;
-    --accent-blue:      #60A5FA;
-    --accent-orange:    #FB923C;
-
-    /* Thin Cloud shimmer — glow from the bright text color */
-    --glow-color:        rgba(211, 222, 218, 0.14);
-    --glow-color-strong: rgba(211, 222, 218, 0.28);
-
-    /* Sidebar sinks with panels — same Black Is Back depth */
-    --sidebar-bg:           #131D1F;
-    --sidebar-border:       #2B3C3F;
-    --sidebar-active:       rgba(171, 185, 182, 0.14);
-    --sidebar-active-text:  #D3DEDA;
-
-    /* Inset shadows — panels appear pressed into canvas, not lifted */
-    --shadow-luxury:      inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 20px rgba(0,0,0,0.55), 0 16px 48px rgba(0,0,0,0.40);
-    --shadow-interactive: 0 4px 16px rgba(171,185,182,0.18), 0 2px 6px rgba(0,0,0,0.40);
-    --shadow-card:        inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 12px rgba(0,0,0,0.50);
-    --card-gradient:      linear-gradient(160deg, rgba(28,42,44,0.98) 0%, rgba(15,22,24,0.96) 100%);
-
-    /* Canvas-tinted glass — blur reveals the Dracula Orchid beneath */
-    --glass-bg:           rgba(43, 55, 57, 0.72);
-    --glass-border:       rgba(76, 88, 86, 0.45);
-  }
-
-  /* ── Ivory — Off White · Ivory · Nude · Obsidian. Editorial, four-color maximum restraint ── */
-  .theme-ivory {
-    /* Off White #FDFCF8 — the open content canvas */
-    --bg:               #FDFCF8;
-
-    /* Ivory #F3F0E9 — sidebar, top banners, panels — visibly warmer than canvas */
-    --surface:          #F3F0E9;
-    /* Between Ivory and Nude — interactive hover state */
-    --surface-hover:    #EAE5DB;
-
-    /* Nude #E3DBCC — borders, full perimeter, clearly visible */
-    --border:           #E3DBCC;
-    /* Nude at low opacity — hairline separators */
-    --border-subtle:    rgba(227, 219, 204, 0.70);
-
-    /* Warm dark brown — softer than pure Obsidian, still high contrast */
-    --text-main:        #2E2923;
-    /* Same hue at 50% — gentle muted labels */
-    --text-muted:       rgba(46, 41, 35, 0.52);
-
-    /* Warm dark brown for action/primary */
-    --primary:          #2E2923;
-    --primary-hover:    #453E36;
-    --primary-light:    rgba(46, 41, 35, 0.08);
-
-    /* CRM accents — warm-toned where possible to stay in temperature */
-    --accent-green:     #15803D;
-    --accent-amber:     #B45309;
-    --accent-purple:    #6D28D9;
-    --accent-light-purple: #7C3AED;
-    --accent-teal:      #0D9488;
-    --accent-red:       #DC2626;
-    --accent-blue:      #1D4ED8;
-    --accent-orange:    #C2410C;
-
-    /* Nude-tinted glow — barely perceptible warmth on focus */
-    --glow-color:        rgba(227, 219, 204, 0.80);
-    --glow-color-strong: rgba(16, 16, 16, 0.12);
-
-    /* Sidebar uses Ivory — darker than canvas, anchors the layout */
-    --sidebar-bg:           #F3F0E9;
-    --sidebar-border:       #E3DBCC;
-    --sidebar-active:       rgba(16, 16, 16, 0.07);
-    --sidebar-active-text:  #101010;
-
-    --shadow-luxury:      0 1px 3px rgba(16,16,16,0.08), 0 4px 12px rgba(16,16,16,0.06), 0 16px 40px rgba(16,16,16,0.04);
-    --shadow-interactive: 0 4px 16px rgba(16,16,16,0.12), 0 2px 6px rgba(16,16,16,0.07);
-    --shadow-card:        0 1px 2px rgba(16,16,16,0.07), 0 4px 16px rgba(16,16,16,0.05);
-    --card-gradient:      #F3F0E9;
-
-    /* Off White semi-transparent — glass reveals canvas warmth */
-    --glass-bg:           rgba(253, 252, 248, 0.85);
-    /* Nude semi-transparent — glass border */
-    --glass-border:       rgba(227, 219, 204, 0.85);
-  }
-
-  /* ── Sterling — Cool blue-grey canvas, white elevated surfaces, deep slate primary ── */
-  .theme-sterling {
-    /* Canvas: noticeably cool grey — strong contrast with white surfaces */
-    --bg:               #D4D9E5;
-
-    /* Surfaces are pure white — maximum pop above the canvas */
-    --surface:          #FFFFFF;
-    --surface-hover:    #EDF0F8;
-
-    --border:           #A8B0C4;
-    --border-subtle:    rgba(44, 62, 107, 0.15);
-
-    --text-main:        #0D1117; /* Near-black — maximum legibility */
-    --text-muted:       #4A5270; /* Darker muted — clearly readable */
-
-    /* Primary: deep slate-blue — authoritative, not corporate */
-    --primary:          #1E2D55;
-    --primary-hover:    #2C3E6B;
-    --primary-light:    rgba(30, 45, 85, 0.12);
-
-    /* CRM accents — full vibrancy on white surfaces */
-    --accent-green:     #15803D;
-    --accent-amber:     #B45309;
-    --accent-purple:    #6D28D9;
-    --accent-light-purple: #7C3AED;
-    --accent-teal:      #0D6B63;
-    --accent-red:       #B91C1C;
-    --accent-blue:      #1D4ED8;
-    --accent-orange:    #C2410C;
-
-    --glow-color:       rgba(30, 45, 85, 0.15);
-    --glow-color-strong: rgba(30, 45, 85, 0.28);
-
-    /* Sidebar: white — elevated from the grey canvas */
-    --sidebar-bg:           #FFFFFF;
-    --sidebar-border:       #A8B0C4;
-    --sidebar-active:       rgba(30, 45, 85, 0.10);
-    --sidebar-active-text:  #0D1117;
-
-    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.10), 0 16px 40px rgba(0,0,0,0.06);
-    --shadow-interactive: 0 4px 16px rgba(30,45,85,0.18), 0 2px 6px rgba(0,0,0,0.10);
-    --shadow-card:        0 1px 2px rgba(0,0,0,0.10), 0 4px 16px rgba(0,0,0,0.07);
+    /* Buttery soft, premium layered shadows */
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03), 0 16px 40px rgba(0,0,0,0.04);
+    --shadow-interactive: 0 4px 16px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.04);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04);
     --card-gradient:      #FFFFFF;
-
-    --glass-bg:           rgba(255, 255, 255, 0.80);
-    --glass-border:       rgba(168, 176, 196, 0.80);
+    
+    --glass-bg:           rgba(255, 255, 255, 0.85);
+    --glass-border:       rgba(226, 232, 240, 0.80);
   }
 
   * {
@@ -612,18 +462,18 @@
     gap: 6px;
     height: 32px;
     padding: 0 14px;
-    background: var(--surface);
-    color: var(--text-main);
+    background: var(--btn-bg, var(--surface));
+    color: var(--btn-text, var(--text-main));
     border-radius: 8px;
     font-size: 13px;
     font-weight: 500;
-    border: 1px solid var(--border);
+    border: 1px solid var(--btn-border, var(--border));
     cursor: pointer;
     transition: background 0.2s, border-color 0.2s, transform 0.15s;
     letter-spacing: -0.01em;
   }
   .btn-secondary:hover {
-    background: var(--surface-hover);
+    background: var(--btn-hover, var(--surface-hover));
     border-color: var(--primary);
     transform: translateY(-1px);
   }
@@ -905,4 +755,10 @@
     100% { transform: scale(1); opacity: 1; }
   }
   .animate-badge-pop { animation: badge-pop 0.25s ease-out forwards; }
+}
+
+@layer utilities {
+  .sidebar-text-main { color: var(--sidebar-text-main, var(--text-main)); }
+  .sidebar-text-muted { color: var(--sidebar-text-muted, var(--text-muted)); }
+  .hover\:sidebar-text-main:hover { color: var(--sidebar-text-main, var(--text-main)); }
 }

@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Search, Plus, Bell, User, Command } from 'lucide-react';
-import { db, StorageKey } from '../../lib/storage';
+import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 
 interface TopBarProps {
   onOpenCommandPalette: () => void;
@@ -10,23 +9,7 @@ interface TopBarProps {
 
 export default function TopBar({ onOpenCommandPalette, onOpenNotifications }: TopBarProps) {
   const location = useLocation();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    // Poll unread notifications using the storage db
-    const fetchNotifications = async () => {
-      try {
-        const notifs = await db.get<any>(StorageKey.NOTIFICATIONS);
-        const unread = notifs.filter(n => !n.isRead).length;
-        setUnreadCount(unread);
-      } catch (e) {
-        // ignore
-      }
-    };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { count: unreadCount } = useUnreadNotificationsCount();
 
   // Compute a simple page title and breadcrumbs
   const pathParts = location.pathname.split('/').filter(Boolean);

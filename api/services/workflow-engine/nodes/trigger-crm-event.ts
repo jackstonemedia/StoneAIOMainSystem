@@ -26,10 +26,32 @@ export const triggerCrmEvent: NodeImplementation = {
       { label: 'Appointment Booked', value: 'appointment.booked' },
       { label: 'Review Received', value: 'review.received' },
     ]},
+    { key: 'pipelineId', label: 'Pipeline ID', type: 'text', advanced: true,
+      placeholder: 'Leave empty to match all pipelines',
+      description: 'Only trigger for events in this specific pipeline.' },
+    { key: 'stageId', label: 'Stage ID', type: 'text', advanced: true,
+      placeholder: 'Leave empty to match all stages',
+      description: 'Only trigger for events involving this specific stage.' },
+    { key: 'tagName', label: 'Tag Name', type: 'text', advanced: true,
+      placeholder: 'Leave empty to match all tags',
+      description: 'Only trigger when this specific tag is involved.' },
   ] as NodeConfigField[],
   async execute(_config: Record<string, unknown>, _items: WorkflowItem[], context: ExecutionContext): Promise<NodeExecuteResult> {
+    // The trigger emitter sends triggerData structured as:
+    //   { event: 'contact.created', entityType: 'contact', eventType: 'created', data: { ...payload } }
+    // We preserve this structure so downstream expressions like $trigger.data.email resolve correctly.
     const triggerData = context.triggerData as Record<string, unknown> || {};
-    const output = [{ json: { ...triggerData, eventType: triggerData.eventType || 'unknown', occurredAt: new Date().toISOString() } }];
+
+    const output: WorkflowItem[] = [{
+      json: {
+        event: triggerData.event ?? triggerData.eventType ?? 'unknown',
+        entityType: triggerData.entityType ?? '',
+        eventType: triggerData.eventType ?? '',
+        data: triggerData.data ?? triggerData,
+        occurredAt: new Date().toISOString(),
+      },
+    }];
+
     return { output };
   },
 };

@@ -99,7 +99,7 @@ export const crmCreateTask: NodeImplementation = {
         description: config.description,
         status: config.status,
         priority: config.priority,
-      };
+      } as any;
 
       const task = await createTask(workspaceId, taskData);
 
@@ -108,14 +108,6 @@ export const crmCreateTask: NodeImplementation = {
           {
             json: {
               taskId: task.id,
-              title: task.title,
-              contactId: task.contactId,
-              companyId: task.companyId,
-              dealId: task.dealId,
-              dueDate: task.dueDate,
-              description: task.description,
-              status: task.status,
-              priority: task.priority,
               ...task,
             },
           },

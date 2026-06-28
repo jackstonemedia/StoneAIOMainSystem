@@ -15,8 +15,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 type ViewMode = 'kanban' | 'list' | 'forecast';
 
-interface Stage { id: string; name: string; color: string; probability?: number; }
-interface Pipeline { id: string; name: string; stages: Stage[]; }
+interface Stage { id: string; name: string; color: string; probability?: number; order: number; }
+interface Pipeline { id: string; name: string; isDefault?: boolean; updatedAt?: string; stages: Stage[]; }
 
 export default function Opportunities() {
   const qc = useQueryClient();
@@ -33,7 +33,7 @@ export default function Opportunities() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'won' | 'lost'>('all');
 
-  const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<Pipeline[]>({
+  const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<any[]>({
     queryKey: ['pipelines'],
     queryFn: () => apiClient.get('/crm/pipelines').then(r => r.data),
   });
@@ -66,12 +66,13 @@ export default function Opportunities() {
   const pipeline = pipelines.find(p => p.id === activePipelineId) ?? pipelines[0];
   // Auto-select first pipeline when loaded
   if (pipelines.length > 0 && !activePipelineId) setActivePipelineId(pipelines[0].id);
-  const stages: Stage[] = (pipeline?.stages ?? []).map((s: any) => ({
+  const stages: Stage[] = (pipeline?.stages ?? []).map((s: any, i: number) => ({
     id: s.id,
     name: s.name,
     color: s.color ?? '#52677D',
     probability: s.probability,
     rottingDays: 14,
+    order: i,
   }));
 
   // Normalize deals for Kanban

@@ -6,7 +6,7 @@
 
 import crypto from 'crypto';
 
-const FB_API_VERSION = 'v19.0';
+const FB_API_VERSION = 'v22.0';
 const FB_BASE_URL = `https://graph.facebook.com/${FB_API_VERSION}`;
 const FB_AUTH_URL = 'https://www.facebook.com/dialog/oauth';
 const FB_TOKEN_URL = `${FB_BASE_URL}/oauth/access_token`;
@@ -170,6 +170,57 @@ export async function listFacebookAdAccounts(accessToken: string): Promise<Faceb
   return data.data ?? [];
 }
 
+export interface FacebookPage {
+  id: string;
+  name: string;
+  access_token: string;
+  category: string;
+}
+
+export async function listFacebookPages(userAccessToken: string): Promise<FacebookPage[]> {
+  const data = await fbFetch<{ data: FacebookPage[] }>(
+    `/me/accounts?fields=id,name,access_token,category&access_token=${userAccessToken}`
+  );
+  return data.data ?? [];
+}
+
+export async function subscribePageToLeadgenWebhook(
+  pageId: string,
+  pageAccessToken: string,
+): Promise<void> {
+  await fbFetch(`/${pageId}/subscribed_apps`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscribed_fields: ['leadgen'],
+      access_token: pageAccessToken,
+    }),
+  });
+  console.log(`[FacebookAds] Subscribed page ${pageId} to leadgen webhook`);
+}
+
+export async function subscribeAppToWebhook(): Promise<void> {
+  const { appId, appSecret, webhookVerifyToken, redirectUri } = getFbConfig();
+  assertFbConfigured();
+  const appAccessToken = `${appId}|${appSecret}`;
+  const callbackUrl = process.env.FACEBOOK_ADS_REDIRECT_URI?.replace(
+    '/api/ads/oauth/facebook/callback',
+    '/api/hooks/facebook-leads'
+  );
+  await fbFetch(`/${appId}/subscriptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      object: 'page',
+      callback_url: callbackUrl,
+      fields: ['leadgen'],
+      verify_token: webhookVerifyToken,
+      access_token: appAccessToken,
+    }),
+  });
+  console.log('[FacebookAds] App subscribed to leadgen webhook');
+}
+
 // ─── Location name → Meta geo targeting ─────────────────────────────────────
 
 const COUNTRY_CODES: Record<string, string> = {
@@ -260,6 +311,7 @@ export async function createFacebookCampaign(
   accessToken: string,
   adAccountId: string,
   payload: FacebookCampaignCreatePayload,
+  pageAccessToken?: string,
 ): Promise<FacebookCampaignResult> {
   assertFbConfigured();
 
@@ -373,7 +425,7 @@ export async function createFacebookCampaign(
         questions: formFields,
         privacy_policy: { url: payload.finalUrl || 'https://stoneaio.com/privacy' },
         follow_up_action_url: payload.finalUrl || 'https://stoneaio.com',
-        access_token: accessToken,
+        access_token: pageAccessToken || accessToken,
       }),
     });
     leadFormId = form.id;
@@ -408,14 +460,14 @@ export async function createFacebookCampaign(
     };
   }
 
-  const creative = await fbFetch<{ id: string }>(`/${adAccountId}/adcreatives`, {
+  const creative = await fbFetch<{ id: string }>(`/${actAccountId}/adcreatives`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(creativeBody),
   });
 
   // 6. Create Ad
-  const ad = await fbFetch<{ id: string }>(`/${adAccountId}/ads`, {
+  const ad = await fbFetch<{ id: string }>(`/${actAccountId}/ads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

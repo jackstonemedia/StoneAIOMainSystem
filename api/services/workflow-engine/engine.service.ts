@@ -254,14 +254,27 @@ export class WorkflowEngine {
 
     while (true) {
       try {
-        // 4. Resolve expressions in config
-        let resolvedConfig = node.config || {};
+        // 4. Merge configSchema defaults into node config.
+        //    When a node is added to the canvas, config starts as {}.
+        //    Fields with defaults (e.g. to: '{{$trigger.data.email}}')
+        //    need to be present for expression resolution and execution.
+        const configWithDefaults: Record<string, unknown> = {};
+        if (Array.isArray(nodeImpl.configSchema)) {
+          for (const field of nodeImpl.configSchema) {
+            if (field.default !== undefined && field.default !== null && field.default !== '') {
+              configWithDefaults[field.key] = field.default;
+            }
+          }
+        }
+        // User-set values override defaults
+        const mergedConfig = { ...configWithDefaults, ...(node.config || {}) };
+
+        // 5. Resolve expressions in config
+        let resolvedConfig: Record<string, unknown>;
         if (inputItems.length > 0) {
-          // If we have items, we resolve against the first item for node-level config
-          // For nodes that process items individually (like HTTP request), they will resolve per-item inside their execute method
-          resolvedConfig = expressionService.resolveConfig(node.config, context, inputItems[0]);
+          resolvedConfig = expressionService.resolveConfig(mergedConfig, context, inputItems[0]);
         } else {
-          resolvedConfig = expressionService.resolveConfig(node.config, context);
+          resolvedConfig = expressionService.resolveConfig(mergedConfig, context);
         }
 
         // 5. Execute
@@ -317,12 +330,32 @@ export class WorkflowEngine {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) throw new Error('Node not found');
 
+    const dummyData = {
+      email: 'test@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      phone: '+15551234567',
+      company: 'Test Company',
+      name: 'Test Name',
+      id: 'test-123',
+      status: 'lead',
+      url: 'https://example.com'
+    };
+
     const context: ExecutionContext = {
       workspaceId,
       workflowId,
       runId: 'test-run',
-      triggerData: {},
-      runData: {},
+      triggerData: dummyData,
+      runData: new Proxy({}, {
+        get: (target, prop) => {
+          if (prop === 'toJSON') return () => target;
+          if (typeof prop === 'string' && !(prop in target)) {
+            return [{ json: dummyData }];
+          }
+          return Reflect.get(target, prop);
+        }
+      }),
       mode: 'test',
       userId
     };

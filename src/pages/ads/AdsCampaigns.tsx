@@ -4,10 +4,7 @@ import { AlertTriangle, List, Filter, ChevronDown, Search, Download, Plus, Setti
 import { useAdCampaigns, usePauseCampaign, useResumeCampaign, useDuplicateCampaign, useDeleteCampaign, useBulkCampaignAction } from '../../hooks/useAdCampaigns';
 import { useAdAccounts } from '../../hooks/useAdAccounts';
 import CampaignTable from '../../components/ads/CampaignTable';
-import { MOCK_CAMPAIGNS } from '../../lib/adsMockData';
 
-// Toggle this to use mock data when backend isn't returning real campaigns
-const USE_MOCK = false;
 
 export default function AdsCampaigns() {
   const navigate  = useNavigate();
@@ -25,7 +22,7 @@ export default function AdsCampaigns() {
   const { mutate: remove }    = useDeleteCampaign();
   const { mutate: bulk }      = useBulkCampaignAction();
 
-  const campaigns = USE_MOCK && rawCampaigns.length === 0 ? MOCK_CAMPAIGNS : rawCampaigns as any[];
+  const campaigns = rawCampaigns as any[];
 
   const googleConnected = accounts.some(a => a.platform === 'GOOGLE' && a.status === 'ACTIVE');
   const fbConnected     = accounts.some(a => a.platform === 'FACEBOOK' && a.status === 'ACTIVE');
@@ -138,7 +135,7 @@ export default function AdsCampaigns() {
       {/* ── Content Rendering ──────────────────────────────────────────── */}
       <CampaignTable
           campaigns={campaigns}
-          isLoading={isLoading && !USE_MOCK}
+          isLoading={isLoading}
           searchQuery={searchQuery}
           statusFilter={statusFilter}
           platformFilter={platformFilter}

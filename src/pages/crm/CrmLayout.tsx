@@ -1,110 +1,77 @@
-import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Settings, Search, Bell, Command } from 'lucide-react';
-import { db, StorageKey } from '../../lib/storage';
-
-const workspaceNav = [
-  { to: 'contacts',    label: 'Contacts' },
-  { to: 'pipeline',    label: 'Opportunities' },
-  { to: 'companies',   label: 'Companies' },
-  { to: 'tasks',       label: 'Tasks' },
-  { to: 'smart-lists', label: 'Smart Lists' },
-];
+import React from 'react';
+import { Settings, Search, Bell, Command, Sparkles, X } from 'lucide-react';
+import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
+import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import NotificationPanel from '../../components/ui/NotificationPanel';
 
 export default function CrmLayout() {
+  const [isAIOpen, setIsAIOpen] = React.useState(false);
+  const [isNotifOpen, setIsNotifOpen] = React.useState(false);
   const location = useLocation();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const notifs = await db.get<any>(StorageKey.NOTIFICATIONS);
-        setUnreadCount(notifs.filter((n: any) => !n.isRead).length);
-      } catch (_) {}
-    };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { count: unreadCount } = useUnreadNotificationsCount();
 
   return (
     <div className="flex flex-col h-full w-full text-sm font-sans relative z-0 bg-bg">
       {/* CRM Nav Bar */}
-      <div className="w-full flex items-center justify-between px-8 pt-6 pb-0 shrink-0 bg-surface border-b border-border z-10 sticky top-0 shadow-sm">
-        {/* Left: workspace tabs + settings */}
-        <div className="flex items-center">
-          <nav className="flex items-center gap-6">
-            {workspaceNav.map((link) => {
-              const isActive =
-                location.pathname.endsWith(`/crm/${link.to}`) ||
-                location.pathname.includes(`/crm/${link.to}/`);
-              return (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  className={`pb-3 text-[14px] font-medium transition-all duration-150 relative whitespace-nowrap ${
-                    isActive ? 'text-text-main' : 'text-text-muted hover:text-text-main'
-                  }`}
-                >
-                  {link.label}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-                  )}
-                </NavLink>
-              );
-            })}
-          </nav>
-
-          <div className="h-5 w-[1px] bg-border mx-6 relative bottom-1.5" />
-
-          <NavLink
-            to="settings"
-            className="pb-3 text-text-muted hover:text-text-main transition-colors relative"
+      <div 
+        className="w-full flex items-center justify-between pr-8 pl-0 pt-3 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm"
+        style={{ 
+          background: 'var(--sidebar-bg)', /* Pulls from theme */
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': '#1A2C47',
+          '--btn-hover': '#233857',
+          '--btn-text': '#F8FAFC',
+          '--btn-border': 'transparent'
+        } as React.CSSProperties}
+      >
+        {/* Left: AI Assistant Button */}
+        <div className="flex items-center gap-5 pl-0 pb-3">
+          <button 
+            onClick={() => setIsAIOpen(true)} 
+            className="px-3 py-1.5 rounded-lg font-medium text-[13px] transition-colors shadow-sm"
+            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
           >
-            <Settings className="w-[18px] h-[18px]" strokeWidth={2} />
-            {location.pathname.includes('/crm/settings') && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />
-            )}
-          </NavLink>
-        </div>
-
-        {/* Right: Search + Bell */}
-        <div className="flex items-center gap-3 pb-3">
-          {/* Search / Command Palette trigger */}
-          <button
-            onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
-            style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-          >
-            <Search className="w-4 h-4" />
-            <span className="text-[13px]">Search</span>
-            <div
-              className="flex items-center gap-1 ml-3 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
-              style={{ background: 'var(--surface-hover)' }}
-            >
-              <Command className="w-3 h-3" />
-              <span>K</span>
-            </div>
+            AI Assistant
           </button>
+          
+          <div className="h-5 w-[1px] bg-border" />
 
-          {/* Bell / Notifications */}
           <button
-            onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
-            className="relative p-2 rounded-lg transition-colors hover:bg-surface-hover"
-            style={{ color: 'var(--text-main)' }}
+            onClick={() => setIsNotifOpen(true)}
+            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--text-main)] transition-colors relative"
           >
-            <Bell className="w-[18px] h-[18px]" />
+            <Bell className="w-[18px] h-[18px]" strokeWidth={2} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-surface" />
+              <span
+                className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[var(--sidebar-bg)]"
+                style={{ background: 'var(--primary)', color: '#ffffff' }}
+              >{unreadCount}</span>
             )}
           </button>
         </div>
+
+        {/* Portal Target for Page-Specific Header Actions */}
+        <div id="crm-header-actions" className="flex items-center gap-3 pb-3 min-h-[44px]"></div>
       </div>
 
       {/* Page Content */}
       <div className="flex-1 overflow-auto flex flex-col relative w-full bg-bg">
         <Outlet />
       </div>
+
+      {/* Movable AI Assistant */}
+      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
+      
+      {/* Notifications Panel */}
+      <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
     </div>
   );
 }

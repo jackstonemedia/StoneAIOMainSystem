@@ -8,8 +8,11 @@ import {
   MoreVertical, Clock, Zap, Smartphone,
   Facebook, Instagram, Linkedin, Video,
   Trash2, Edit2, ChevronDown, ChevronUp, AlertTriangle,
+  ListFilter, AlignEndVertical, AppWindow, Mic, Share2,
+  Building2, Briefcase,
 } from 'lucide-react';
 import { useToast } from '../../../components/ui/Toast';
+import { Button } from '../../../components/ui/button';
 import type { Conversation as ApiConversation, ConversationChannel, EmailMessageMeta } from '../../../types/conversation';
 import { parseEmailMeta } from '../../../types/conversation';
 import {
@@ -138,7 +141,7 @@ function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }
       {isLong && (
         <button
           onClick={() => setExpanded(e => !e)}
-          className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-primary hover:opacity-70 transition-opacity"
+          className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-slate-700 hover:opacity-70 transition-opacity"
         >
           {expanded
             ? <><ChevronUp className="w-3.5 h-3.5" /> Show less</>
@@ -176,11 +179,11 @@ function EmailMessageCard({
       {/* Email card */}
       <div className={`w-full max-w-[92%] rounded-[10px] border overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.15)] ${
         fromUs
-          ? 'bg-primary/5 border-primary/25'
+          ? 'bg-slate-700/5 border-slate-700/25'
           : 'bg-surface border-border'
       }`}>
         {/* Email header bar */}
-        <div className={`flex items-center justify-between px-4 py-2.5 border-b ${fromUs ? 'border-primary/20 bg-primary/10' : 'border-border/60 bg-bg/60'}`}>
+        <div className={`flex items-center justify-between px-4 py-2.5 border-b ${fromUs ? 'border-slate-700/20 bg-slate-700/10' : 'border-border/60 bg-bg/60'}`}>
           <div className="flex items-center gap-2.5 min-w-0">
             {!fromUs && (
               <div
@@ -206,7 +209,7 @@ function EmailMessageCard({
       </div>
       {/* Status row */}
       <div className={`flex items-center gap-1.5 px-1 mt-1 text-[10px] font-bold uppercase tracking-wider ${fromUs ? 'text-text-muted/70' : 'text-text-muted/50'}`}>
-        {fromUs && (msg as any).status === 'read'      && <CheckCheck className="w-3.5 h-3.5 text-primary drop-shadow-sm ml-0.5" />}
+        {fromUs && (msg as any).status === 'read'      && <CheckCheck className="w-3.5 h-3.5 text-slate-700 drop-shadow-sm ml-0.5" />}
         {fromUs && (msg as any).status === 'delivered' && <CheckCheck className="w-3.5 h-3.5 text-text-main ml-0.5" />}
         {fromUs && (msg as any).status === 'sent'      && <Check className="w-3.5 h-3.5 ml-0.5" />}
         <span>{fromUs ? 'Sent' : 'Received'} · {dateStr}</span>
@@ -295,7 +298,7 @@ function EditSubjectDialog({
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') onSave(value); if (e.key === 'Escape') onCancel(); }}
-          className="w-full px-3 py-2.5 rounded-[8px] border border-border/50 bg-bg text-[13px] text-text-main focus:outline-none focus:border-primary/50 transition-colors"
+          className="w-full px-3 py-2.5 rounded-[8px] border border-border/50 bg-bg text-[13px] text-text-main focus:outline-none focus:border-slate-700/50 transition-colors"
           placeholder="Email subject…"
         />
         <div className="flex gap-2 mt-4">
@@ -305,7 +308,7 @@ function EditSubjectDialog({
           <button
             onClick={() => onSave(value)}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-[8px] text-[12px] font-bold bg-primary text-bg hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="flex-1 py-2.5 rounded-[8px] text-[12px] font-bold bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-50 transition-opacity"
           >
             {loading ? 'Saving…' : 'Save'}
           </button>
@@ -378,7 +381,7 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
               </button>
             ))}
             <button onClick={() => channelConnectionsApi.connectGmail()}
-              className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-primary text-bg shadow-sm hover:opacity-90 transition-all">
+              className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-slate-700 text-white shadow-sm hover:bg-slate-600 transition-all">
               + Connect
             </button>
           </div>
@@ -406,7 +409,7 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
               </button>
             ))}
             <button onClick={() => channelConnectionsApi.connectOutlook()}
-              className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-primary text-bg shadow-sm hover:opacity-90 transition-all">
+              className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-slate-700 text-white shadow-sm hover:bg-slate-600 transition-all">
               + Connect
             </button>
           </div>
@@ -437,7 +440,7 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
                 </button>
               ))}
               <button onClick={() => setShowSmsForm(f => !f)}
-                className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-primary text-bg shadow-sm hover:opacity-90 transition-all">
+                className="px-3 py-1.5 rounded-[6px] text-[11px] font-bold bg-slate-700 text-white shadow-sm hover:bg-slate-600 transition-all">
                 + Connect
               </button>
             </div>
@@ -456,13 +459,13 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
                         value={smsForm[field]}
                         onChange={e => setSmsForm(prev => ({ ...prev, [field]: e.target.value }))}
                         placeholder={field === 'phoneNumber' ? '+1234567890' : ''}
-                        className="w-full px-3 py-2 rounded-[6px] border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-primary/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-[6px] border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-slate-700/50 transition-colors"
                       />
                     </div>
                   ))}
                   {smsError && <p className="text-[11px] text-accent-red font-medium">{smsError}</p>}
                   <button onClick={handleConnectSms} disabled={smsConnecting}
-                    className="w-full py-2 rounded-[8px] text-[12px] font-bold bg-primary text-bg hover:opacity-90 disabled:opacity-50 transition-all">
+                    className="w-full py-2 rounded-[8px] text-[12px] font-bold bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-50 transition-all">
                     {smsConnecting ? 'Connecting…' : 'Connect Twilio'}
                   </button>
                 </div>
@@ -483,7 +486,7 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
               <div className="flex items-center gap-1.5">
                 <code className="text-[10px] text-text-muted font-mono bg-surface px-1.5 py-0.5 rounded-[4px] max-w-[200px] truncate">{appUrl}{path}</code>
                 <button onClick={() => { navigator.clipboard.writeText(`${appUrl}${path}`); showToast('success', 'Copied!'); }}
-                  className="text-[10px] font-bold text-primary hover:opacity-70 transition-opacity">Copy</button>
+                  className="text-[10px] font-bold text-slate-700 hover:opacity-70 transition-opacity">Copy</button>
               </div>
             </div>
           ))}
@@ -493,12 +496,12 @@ function SettingsPanel({ showToast }: { showToast: (t: 'success' | 'error' | 'in
   );
 }
 
-// ─── Conversation Thread ──────────────────────────────────────
+// ─── Conversation Thread (Middle Panel) ──────────────────────────
 
 function ConversationThread({
   selected, onClose, setSelectedId, showToast,
 }: {
-  selected: ApiConversation;
+  selected: any;
   onClose: () => void;
   setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
   showToast: (t: 'success' | 'error' | 'info' | 'warning', msg: string) => void;
@@ -538,7 +541,6 @@ function ConversationThread({
 
   useEffect(() => {
     if (selected.unreadCount > 0) markReadMutation.mutate(selected.id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected.id]);
 
   useEffect(() => {
@@ -554,7 +556,6 @@ function ConversationThread({
       }).catch(() => {});
     }, 150);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailToSearch, emailToFocused]);
 
   const handleSend = () => {
@@ -616,72 +617,46 @@ function ConversationThread({
           />
         )}
       </AnimatePresence>
-
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
-        {/* ── Thread Header — matches Contacts slide-over header ── */}
-        <div className="px-6 py-5 flex items-center justify-between border-b border-border bg-surface-hover/50 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative shrink-0">
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm"
-                style={{ backgroundColor: cColor }}
-              >
-                {cInitials}
-              </div>
-              {selected.status === 'open' && (
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent-green border-[2px] border-surface" />
-              )}
+      {/* Chat area — drops to canvas level for depth contrast */}
+      <div className="flex-1 flex flex-col min-w-0 bg-bg h-full overflow-hidden">
+        {/* Thread Header */}
+        <div className="px-6 py-3.5 flex items-center justify-between border-b border-border/50 bg-surface-hover/40 shrink-0">
+          <div className="flex items-center gap-4 min-w-0">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-bg shadow-sm shrink-0"
+              style={{ backgroundColor: cColor }}
+            >
+              {cInitials}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-[16px] font-bold text-text-main leading-tight truncate">{contactDisplayName(selected.contact)}</p>
+                <AlertTriangle className="w-3.5 h-3.5 text-accent-amber shrink-0" />
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-muted mt-0.5">
                 {React.createElement(CH_ICON[selected.channel as Channel] ?? MessageSquare, { className: 'w-3 h-3 shrink-0', style: { color: CH_COLOR[selected.channel as Channel] ?? '#7dd3fc' } })}
-                <span className="text-[11px] font-medium text-text-muted">{CH_LABEL[selected.channel as Channel] ?? selected.channel}</span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                  selected.status === 'open' ? 'bg-accent-green/10 text-accent-green' : 'bg-bg text-text-muted border border-border'
-                }`}>
-                  {selected.status}
-                </span>
+                <span className="truncate">{CH_LABEL[selected.channel as Channel] ?? selected.channel}</span>
+                <button onClick={onClose} className="text-slate-700 hover:underline cursor-pointer ml-1">Close details</button>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {isEmail && (
-              <button onClick={() => setShowEditSubject(true)} title="Edit subject"
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border bg-surface rounded-[8px] text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="flex items-center gap-2 shrink-0 ml-4">
+            <button className="p-2 text-text-muted hover:text-text-main hover:bg-surface rounded-xl transition-colors">
+               <Mic className="w-4 h-4" />
+            </button>
+            <button className="p-2 text-text-muted hover:text-text-main hover:bg-surface rounded-xl transition-colors">
+               <Share2 className="w-4 h-4" />
+            </button>
             <button onClick={handleClose}
-              className={`px-3 py-1.5 rounded-[8px] text-[13px] font-semibold border transition-colors shadow-sm ${
-                selected.status === 'open'
-                  ? 'border-border bg-surface text-text-main hover:bg-surface-hover'
-                  : 'border-accent-green/30 bg-accent-green/10 text-accent-green hover:bg-accent-green/20'
-              }`}>
-              {selected.status === 'open' ? 'Close' : 'Reopen'}
-            </button>
-            <button onClick={() => setShowDeleteDialog(true)} title="Delete"
-              className="flex items-center justify-center p-1.5 border border-border bg-surface rounded-[8px] text-text-muted hover:text-accent-red hover:border-red-500/30 hover:bg-red-500/5 transition-colors shadow-sm">
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <button onClick={() => showToast('info', 'Options opened')}
-              className="flex items-center justify-center p-1.5 border border-border bg-surface rounded-[8px] text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shadow-sm">
-              <MoreVertical className="w-4 h-4" />
-            </button>
-            <div className="w-[1px] h-5 bg-border mx-1" />
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors">
-              <X className="w-4 h-4" />
+              className="px-4 py-2 ml-2 rounded-[8px] text-[13px] font-bold border border-border/50 transition-colors flex items-center gap-2 shadow-sm bg-surface text-text-main hover:bg-surface-hover hover:border-border">
+              {selected.status === 'open' ? 'Resolve' : 'Reopen'} <ChevronDown className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* ── Messages ── */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 styled-scrollbar">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 styled-scrollbar">
           {msgs.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-surface border border-border/50 shadow-sm">
@@ -694,9 +669,7 @@ function ConversationThread({
             </div>
           ) : msgs.map((msg: any) => {
             if (isEmail) {
-              return (
-                <EmailMessageCard key={msg.id} msg={msg} contactColor={cColor} contactInitialsStr={cInitials} />
-              );
+              return <EmailMessageCard key={msg.id} msg={msg} contactColor={cColor} contactInitialsStr={cInitials} />;
             }
             const fromUs = msg.direction === 'outbound';
             return (
@@ -712,14 +685,14 @@ function ConversationThread({
                 <div className={`max-w-[68%] flex flex-col gap-1 ${fromUs ? 'items-end' : 'items-start'}`}>
                   <div className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed shadow-sm font-medium ${
                     fromUs
-                      ? 'bg-primary text-bg rounded-br-sm'
+                      ? 'bg-slate-700 text-bg rounded-br-sm'
                       : 'bg-surface border border-border/60 text-text-main rounded-bl-sm'
                   }`}>
                     {msg.body}
                   </div>
                   <div className={`flex items-center gap-1 px-1 text-[10px] font-medium ${fromUs ? 'text-text-muted/60' : 'text-text-muted/40'}`}>
                     <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    {fromUs && msg.status === 'read'      && <CheckCheck className="w-3 h-3 text-primary" />}
+                    {fromUs && msg.status === 'read'      && <CheckCheck className="w-3 h-3 text-slate-700" />}
                     {fromUs && msg.status === 'delivered' && <CheckCheck className="w-3 h-3" />}
                     {fromUs && msg.status === 'sent'      && <Check className="w-3 h-3" />}
                   </div>
@@ -730,84 +703,26 @@ function ConversationThread({
           <div ref={bottomRef} />
         </div>
 
-        {/* ── Composer ── */}
-        <div className="shrink-0 border-t border-border/50 bg-surface/40 backdrop-blur-sm">
-          {/* Channel tabs */}
-          <div className="flex items-center border-b border-border/40 overflow-x-auto">
-            {(['sms', 'email', 'whatsapp', 'chat', 'note'] as const).map(mode => {
-              const isActive = replyChannel === mode;
-              const Icon = mode === 'note' ? Lock : CH_ICON[mode as Channel];
-              return (
-                <button key={mode} onClick={() => setReplyChannel(mode)}
-                  className={`flex items-center gap-1.5 py-2.5 px-4 text-[10px] font-bold transition-all relative whitespace-nowrap shrink-0 outline-none uppercase tracking-wider ${
-                    isActive ? 'text-primary' : 'text-text-muted hover:text-text-main'
-                  }`}
-                >
-                  {Icon && <Icon className="w-3 h-3" style={isActive ? { color: mode !== 'note' ? CH_COLOR[mode as Channel] : 'var(--primary)' } : {}} />}
-                  {mode === 'note' ? 'Note' : CH_LABEL[mode as Channel]}
-                  {isActive && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />}
-                </button>
-              );
-            })}
+        {/* Composer */}
+        <div className="shrink-0 border border-border/50 bg-surface/80 backdrop-blur-md m-5 rounded-[12px] shadow-sm">
+          {/* Tabs inside composer */}
+          <div className="flex items-center px-4 pt-3 pb-2 gap-3">
+             <button onClick={() => setReplyChannel(selected.channel)} className={`text-[12px] font-bold transition-colors ${replyChannel !== 'note' ? 'text-slate-700' : 'text-text-muted hover:text-text-main'}`}>
+               Reply
+             </button>
+             <button onClick={() => setReplyChannel('note')} className={`text-[12px] font-bold transition-colors ${replyChannel === 'note' ? 'text-text-main' : 'text-text-muted hover:text-text-main'}`}>
+               Private Note
+             </button>
           </div>
-
-          {/* Email fields */}
-          {replyChannel === 'email' && (
-            <>
-              <div className="relative px-4 py-2 border-b border-border/40 flex items-center gap-2 bg-bg/20">
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest shrink-0 w-14">To:</span>
-                <input
-                  value={emailTo}
-                  onChange={e => { setEmailTo(e.target.value); setEmailToSearch(e.target.value); }}
-                  onFocus={() => setEmailToFocused(true)}
-                  onBlur={() => setTimeout(() => setEmailToFocused(false), 200)}
-                  placeholder="recipient@email.com"
-                  className="flex-1 bg-transparent text-[12px] text-text-main focus:outline-none font-medium placeholder:text-text-muted/40"
-                />
-                {emailToFocused && emailToContacts.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-border/50 overflow-hidden shadow-luxury z-20 max-h-48 overflow-y-auto bg-surface/90 backdrop-blur-xl">
-                    {emailToContacts.map((c: any) => (
-                      <button key={c.id}
-                        onClick={() => { setEmailTo(c.email ?? ''); setEmailToSearch(''); setEmailToFocused(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover transition-colors text-left">
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-bg shrink-0"
-                          style={{ backgroundColor: c.color ?? '#7dd3fc' }}>
-                          {((c.firstName?.[0] ?? '') + (c.lastName?.[0] ?? '')).toUpperCase() || '?'}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-bold text-text-main truncate">{`${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'Unknown'}</p>
-                          <p className="text-[10px] text-text-muted truncate">{c.email ?? ''}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="px-4 py-2 border-b border-border/40 flex items-center gap-2 bg-bg/20">
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest shrink-0 w-14">Subject:</span>
-                <input
-                  value={replySubject}
-                  onChange={e => setReplySubject(e.target.value)}
-                  placeholder={selected.subject ? `Re: ${selected.subject}` : 'Email subject...'}
-                  className="flex-1 bg-transparent text-[12px] text-text-main focus:outline-none font-medium placeholder:text-text-muted/40"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Body */}
-          <div className="px-4 pt-3 pb-1">
+          
+          <div className="px-4 pt-1 pb-1">
             <textarea
               value={reply}
               onChange={e => setReply(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && replyChannel !== 'email') { e.preventDefault(); handleSend(); } }}
-              placeholder={
-                replyChannel === 'note'  ? 'Internal note — invisible to the contact...'
-                : replyChannel === 'email' ? 'Compose your email...'
-                : `Write a ${CH_LABEL[replyChannel as Channel] ?? replyChannel} reply...`
-              }
+              placeholder={replyChannel === 'note' ? 'Write a private note...' : 'Shift + enter for new line. Start with "/" to select a Canned Response.'}
               rows={replyChannel === 'email' ? 4 : 2}
-              className={`w-full bg-transparent text-[13px] resize-none focus:outline-none leading-relaxed font-medium placeholder:text-text-muted/40 transition-colors ${
+              className={`w-full bg-transparent text-[13px] resize-none focus:outline-none leading-relaxed font-medium placeholder:text-text-muted/50 transition-colors ${
                 replyChannel === 'note' ? 'text-accent-amber' : 'text-text-main'
               }`}
               style={{ maxHeight: '200px' }}
@@ -815,37 +730,105 @@ function ConversationThread({
             />
           </div>
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-1 px-3 pb-3 pt-1">
-            <button onClick={() => showToast('info', 'File browser opened')}
-              className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
+          <div className="flex items-center gap-1 px-3 pb-3 pt-1 border-t border-border/40 mt-2">
+            <button className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
               <Paperclip className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => showToast('success', 'Snippet inserted')}
-              className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
+            <button className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
               <Zap className="w-3.5 h-3.5" />
             </button>
-            <button onClick={() => showToast('info', 'Schedule modal opened')}
-              className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
+            <button className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-all">
               <Clock className="w-3.5 h-3.5" />
             </button>
             <div className="flex-1" />
-            {reply && (
-              <button onClick={() => setReply('')}
-                className="px-3 py-1.5 text-[11px] font-semibold text-text-muted hover:text-text-main transition-colors">
-                Clear
-              </button>
-            )}
             <button onClick={handleSend}
               disabled={!reply.trim() || sendMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold text-bg bg-primary hover:opacity-90 disabled:opacity-40 transition-all shadow-sm">
-              <Send className="w-3.5 h-3.5" />
-              {replyChannel === 'note' ? 'Save Note' : sendMutation.isPending ? 'Sending...' : 'Send'}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold text-bg bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-40 transition-all shadow-sm">
+              {replyChannel === 'note' ? 'Save Note' : sendMutation.isPending ? 'Sending...' : 'Send (↵)'}
             </button>
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Contact Details (Right Panel) ───────────────────────────
+
+function ConversationDetails({ selected }: { selected: any }) {
+  const cInitials = contactInitials(selected.contact);
+  const cColor    = selected.contact?.color ?? '#7dd3fc';
+
+  return (
+    <div className="w-[300px] h-full flex flex-col border-l border-border/50 bg-surface shrink-0 z-10">
+      {/* Tabs */}
+      <div className="flex items-center border-b border-border/50 p-1.5 gap-1 shrink-0 mt-1 mx-2">
+        <button className="flex-1 py-1.5 rounded-[6px] text-[12px] font-bold bg-surface/80 border border-border/50 text-text-main shadow-sm">Contact</button>
+        <button className="flex-1 py-1.5 rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:bg-surface-hover/50 transition-colors">Copilot</button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-6 styled-scrollbar">
+        {/* Avatar & Title */}
+        <div className="flex flex-col mb-4">
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-bold text-bg shadow-sm mb-3"
+            style={{ backgroundColor: cColor }}
+          >
+            {cInitials}
+          </div>
+          <h3 className="text-[16px] font-bold text-text-main flex items-center gap-1.5">
+            {contactDisplayName(selected.contact)}
+            <AlertTriangle className="w-3.5 h-3.5 text-text-muted" />
+          </h3>
+          <p className="text-[13px] text-text-muted mt-0.5">Founder, Drift Burner</p>
+        </div>
+
+        {/* Contact Info List */}
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center gap-3 text-[12px] text-text-main">
+            <Mail className="w-4 h-4 text-text-muted shrink-0" />
+            <span className="truncate">{selected.contact?.email ?? 'Unknown'}</span>
+            <AppWindow className="w-3 h-3 ml-auto opacity-40 text-text-muted" />
+          </div>
+          <div className="flex items-center gap-3 text-[12px] text-text-main">
+            <Phone className="w-4 h-4 text-text-muted shrink-0" />
+            <span className="truncate">{selected.contact?.phone ?? '+14155552398'}</span>
+            <AppWindow className="w-3 h-3 ml-auto opacity-40 text-text-muted" />
+          </div>
+          <div className="flex items-center gap-3 text-[12px] text-text-main">
+            <Building2 className="w-4 h-4 text-text-muted shrink-0" />
+            <span className="truncate">Drift Burner</span>
+          </div>
+          <div className="flex items-center gap-3 text-[12px] text-text-main">
+            <Briefcase className="w-4 h-4 text-text-muted shrink-0" />
+            <span className="truncate flex items-center gap-1">San Francisco, United States 🇺🇸</span>
+          </div>
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/50">
+            <Facebook className="w-4 h-4 text-text-muted hover:text-text-main cursor-pointer" />
+            <Instagram className="w-4 h-4 text-text-muted hover:text-text-main cursor-pointer" />
+            <Linkedin className="w-4 h-4 text-text-muted hover:text-text-main cursor-pointer" />
+          </div>
+        </div>
+
+        {/* Quick Actions Row */}
+        <div className="flex items-center gap-2 mb-6">
+          <button className="flex-1 py-1.5 rounded-lg border border-border bg-surface-hover text-text-muted flex items-center justify-center hover:text-text-main transition-colors"><MessageSquare className="w-4 h-4" /></button>
+          <button className="flex-1 py-1.5 rounded-lg border border-border bg-surface-hover text-text-muted flex items-center justify-center hover:text-text-main transition-colors"><Edit2 className="w-4 h-4" /></button>
+          <button className="flex-1 py-1.5 rounded-lg border border-border bg-surface-hover text-text-muted flex items-center justify-center hover:text-text-main transition-colors"><AppWindow className="w-4 h-4" /></button>
+          <button className="flex-1 py-1.5 rounded-lg border border-accent-red/20 bg-accent-red/5 text-accent-red flex items-center justify-center hover:bg-accent-red/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
+        </div>
+
+        {/* Accordions */}
+        <div className="space-y-1.5">
+          {['Conversation Actions', 'Conversation participants', 'Macros', 'Contact Attributes', 'Conversation Information', 'Previous Conversations'].map(title => (
+            <div key={title} className="flex items-center justify-between px-3 py-3 rounded-[8px] bg-bg border border-border cursor-pointer hover:bg-surface-hover transition-colors">
+              <span className="text-[12px] font-bold text-text-main">{title}</span>
+              <Plus className="w-3.5 h-3.5 text-text-muted" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -858,7 +841,7 @@ export default function ConversationsTab() {
 
   const [selectedId, setSelectedId]   = useState<string | null>(null);
   const [search, setSearch]           = useState('');
-  const [filter, setFilter]           = useState<FilterMode>('all');
+  const [filter, setFilter]           = useState<'Mine' | 'Unassigned' | 'All'>('Mine');
   const [showNewModal, setShowNewModal]           = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
@@ -869,7 +852,7 @@ export default function ConversationsTab() {
   const [ncSearch, setNcSearch]     = useState('');
   const [ncAllContacts, setNcAllContacts] = useState<any[]>([]);
   const [ncFiltered, setNcFiltered]       = useState<any[]>([]);
-  const patchMutation  = usePatchConversation();
+  
   const createMutation = useCreateConversation();
 
   // Load contacts when modal opens
@@ -917,228 +900,150 @@ export default function ConversationsTab() {
     const q = search.toLowerCase();
     const matchSearch = !q || contactDisplayName(c.contact).toLowerCase().includes(q)
       || (c.subject ?? '').toLowerCase().includes(q);
-    const matchFilter = filter === 'all' ? true : filter === 'unread' ? c.unreadCount > 0 : !!c.starred;
-    return matchSearch && matchFilter;
+    return matchSearch; 
   });
 
-  const handleStar = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const convo = convos.find(c => c.id === id);
-    if (!convo) return;
-    patchMutation.mutate({ id, data: { starred: !convo.starred } });
-  };
-
   return (
-    <div className="flex flex-col h-full w-full relative bg-bg">
+    <div className="flex h-full w-full relative bg-bg p-4 overflow-hidden">
+      {/* Single unified app window */}
+      <div className="flex-1 w-full h-full rounded-xl border border-border/60 bg-surface overflow-hidden flex flex-col">
 
-      {/* ── Toolbar ── */}
-      <div className="px-8 flex items-center justify-between bg-surface h-[73px] border-b border-border shrink-0 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center gap-2">
-          {([
-            { id: 'all',     label: 'All' },
-            { id: 'unread',  label: 'Unread' },
-            { id: 'starred', label: 'Starred' },
-          ] as { id: FilterMode; label: string }[]).map(tab => (
-            <button key={tab.id} onClick={() => setFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-[8px] text-[13px] font-semibold transition-colors ${
-                filter === tab.id
-                  ? 'bg-surface-hover text-text-main border border-border shadow-sm'
-                  : 'text-text-muted hover:text-text-main hover:bg-surface-hover/50'
-              }`}>
-              {tab.label}
-              {tab.id === 'unread' && convos.filter(c => c.unreadCount > 0).length > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/15 text-primary">
-                  {convos.filter(c => c.unreadCount > 0).length}
-                </span>
-              )}
+        {/* ── Full-width banner spanning all panels ── */}
+        <div className="flex items-center justify-between px-5 py-3.5 shrink-0 border-b border-border/50 bg-surface-hover/40">
+          <div className="flex items-center gap-3">
+            <h1 className="text-[16px] font-bold text-text-main leading-none">Conversations</h1>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-surface text-text-muted border border-border/60">Open</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="p-1.5 rounded-md text-text-muted hover:text-text-main hover:bg-surface transition-colors"><ListFilter className="w-3.5 h-3.5" /></button>
+            <button className="p-1.5 rounded-md text-text-muted hover:text-text-main hover:bg-surface transition-colors"><AlignEndVertical className="w-3.5 h-3.5" /></button>
+            <div className="w-px h-4 bg-border/50 mx-1" />
+            <button onClick={() => setShowNewModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors shadow-sm bg-slate-700 text-white hover:bg-slate-600">
+              <Plus className="w-3.5 h-3.5" /> New
             </button>
-          ))}
-          <div className="w-[1px] h-4 bg-border mx-1" />
-          <button onClick={() => setShowSettingsModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-semibold text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors border border-transparent hover:border-border">
-            <Settings className="w-3.5 h-3.5" /> Channels
-          </button>
+            <button onClick={() => setShowSettingsModal(true)}
+              className="p-1.5 rounded-md text-text-muted hover:text-text-main hover:bg-surface transition-colors">
+              <Settings className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* ── Three-panel content row ── */}
+        <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Left List Panel ── */}
+        <div className="w-[300px] h-full flex flex-col shrink-0 border-r border-border/50 bg-surface z-10">
+        
+        {/* Search row */}
+        <div className="px-3 py-2 shrink-0 border-b border-border/40">
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..."
-              className="pl-9 pr-3 py-2 bg-surface-hover border border-border/60 rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary/40 placeholder:text-text-muted w-[220px] transition-colors" />
+              className="w-full pl-9 pr-3 py-1.5 bg-bg/80 border border-border/50 rounded-lg text-[12px] text-text-main focus:outline-none focus:border-slate-700/40 placeholder:text-text-muted/60 transition-colors" />
           </div>
-          <button onClick={() => setShowNewModal(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Compose
-          </button>
         </div>
-      </div>
 
-      {/* ── Content: list ↔ thread toggle ── */}
-      <AnimatePresence mode="wait" initial={false}>
-      {selected ? (
+         {/* Tabs */}
+        <div className="flex items-center border-b border-border/50 px-3 shrink-0">
+          {(['Mine', 'Unassigned', 'All'] as const).map(tab => (
+            <button key={tab} onClick={() => setFilter(tab)}
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-[12px] font-bold border-b-2 transition-colors ${
+                filter === tab ? 'border-slate-700 text-slate-700' : 'border-transparent text-text-muted hover:text-text-main'
+              }`}>
+              {tab}
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${filter === tab ? 'bg-slate-700/10 text-slate-700' : 'bg-surface-hover text-text-muted'}`}>
+                {tab === 'Mine' ? '11' : tab === 'Unassigned' ? '5' : '18'}
+              </span>
+            </button>
+          ))}
+        </div>
 
-        /* ── Frosted glass thread panel ── */
-        <motion.div
-          key="thread"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-          className="flex-1 overflow-hidden flex flex-col mx-8 my-6 rounded-2xl border border-border/50 ring-1 ring-white/5 shadow-luxury"
-          style={{ background: 'var(--surface)' }}
-        >
-          <ConversationThread
-            key={selected.id}
-            selected={selected}
-            onClose={() => setSelectedId(null)}
-            setSelectedId={setSelectedId}
-            showToast={showToast}
-          />
-        </motion.div>
-
-      ) : (
-
-        /* ── Conversation list + footer ── */
-        <motion.div
-          key="list"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          className="flex-1 flex flex-col overflow-hidden"
-        >
-
-        {/* Table */}
-        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[12px] bg-surface/30 border border-border/50 shadow-luxury">
-        <table className="w-full text-left">
-          <thead className="border-b border-border/50 bg-surface/80 sticky top-0 z-10">
-            <tr>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Contact</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Channel</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Subject / Preview</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider">Last Message</th>
-              <th className="px-4 py-3 text-[11px] font-semibold text-text-muted uppercase tracking-wider w-[72px] text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {convosLoading ? (
-              Array.from({ length: 7 }).map((_, i) => (
-                <tr key={i} className="border-b border-border/30">
-                  <td className="px-4 py-3"><div className="flex items-center gap-2.5"><div className="skeleton w-8 h-8 rounded-full shrink-0" /><div className="skeleton h-3 w-28 rounded" /></div></td>
-                  <td className="px-4 py-3"><div className="skeleton h-5 w-16 rounded-full" /></td>
-                  <td className="px-4 py-3"><div className="skeleton h-3 w-40 rounded" /></td>
-                  <td className="px-4 py-3"><div className="skeleton h-5 w-14 rounded-full" /></td>
-                  <td className="px-4 py-3"><div className="skeleton h-3 w-20 rounded" /></td>
-                  <td className="px-4 py-3" />
-                </tr>
-              ))
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <MessageSquare className="w-8 h-8 text-border" />
-                    <p className="text-[14px] font-semibold text-text-muted">
-                      {search ? 'No matches found' : connections.length === 0 ? 'No channels connected yet' : 'No conversations'}
-                    </p>
-                    {!search && connections.length === 0 && (
-                      <button onClick={() => setShowSettingsModal(true)} className="btn-primary mt-1">
-                        <Settings className="w-4 h-4" /> Connect Channel
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ) : filtered.map(convo => {
-              const ConvoIcon = CH_ICON[convo.channel as Channel] ?? MessageSquare;
-              const previewText = convo.channel === 'email' && convo.subject
-                ? convo.subject
-                : convo.messages?.[0]?.body ?? '—';
+        {/* List */}
+        <div className="flex-1 overflow-y-auto styled-scrollbar">
+          {convosLoading ? (
+            <div className="p-4 flex justify-center"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-700"></div></div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-text-muted text-[13px]">No conversations found.</div>
+          ) : (
+            filtered.map(convo => {
               const isUnread = convo.unreadCount > 0;
+              const isSelected = convo.id === selectedId;
+              const previewText = convo.channel === 'email' && convo.subject ? convo.subject : convo.messages?.[0]?.body ?? '—';
+              
               return (
-                <tr key={convo.id} onClick={() => setSelectedId(convo.id)}
-                  className={`border-b border-border/30 last:border-0 cursor-pointer table-row-hover transition-colors group ${isUnread ? 'bg-primary/[0.03]' : ''}`}
+                <div key={convo.id} onClick={() => setSelectedId(convo.id)}
+                  className={`px-3.5 py-2.5 border-b border-border/30 cursor-pointer transition-colors group relative ${
+                    isSelected ? 'bg-surface-hover' : 'hover:bg-surface-hover/60'
+                  }`}
                 >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shadow-sm shrink-0"
-                        style={{ backgroundColor: convo.contact?.color ?? '#7dd3fc' }}>
-                        {contactInitials(convo.contact)}
-                      </div>
-                      <div>
-                        <p className={`text-[13px] truncate max-w-[140px] ${isUnread ? 'font-bold text-text-main' : 'font-semibold text-text-main'}`}>
-                          {contactDisplayName(convo.contact)}
-                        </p>
-                        <p className="text-[11px] text-text-muted truncate max-w-[140px]">{convo.contact?.email ?? ''}</p>
-                      </div>
+                  {isSelected && <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-slate-700 rounded-r-full" />}
+                  
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {React.createElement(CH_ICON[convo.channel as Channel] ?? MessageSquare, { className: 'w-3 h-3 shrink-0 text-text-muted' })}
+                      <span className="text-[11px] font-bold text-text-muted truncate">PaperLayer {CH_LABEL[convo.channel as Channel] ?? convo.channel}</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border"
-                      style={{ backgroundColor: `${CH_COLOR[convo.channel as Channel] ?? '#7dd3fc'}18`, borderColor: `${CH_COLOR[convo.channel as Channel] ?? '#7dd3fc'}40`, color: CH_COLOR[convo.channel as Channel] ?? '#7dd3fc' }}>
-                      {React.createElement(ConvoIcon, { className: 'w-3 h-3' })}
-                      {CH_LABEL[convo.channel as Channel] ?? convo.channel}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 max-w-[240px]">
-                    <p className={`text-[13px] truncate ${isUnread ? 'font-semibold text-text-main' : 'text-text-muted'}`}>
-                      {previewText || '—'}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${
-                      convo.status === 'open'
-                        ? 'bg-accent-green/10 text-accent-green border border-accent-green/20'
-                        : 'bg-bg text-text-muted border border-border'
-                    }`}>
-                      {convo.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      {isUnread && (
-                        <span className="w-4 h-4 rounded-full bg-primary text-bg text-[9px] font-bold flex items-center justify-center shrink-0">
-                          {convo.unreadCount}
-                        </span>
-                      )}
-                      <span className="text-[12px] text-text-muted">{timeAgo(convo.lastMessageAt ?? convo.updatedAt)}</span>
-                      {convo.starred && <Star className="w-3 h-3 text-accent-amber fill-accent-amber ml-1" />}
+                    <div className="flex items-center gap-1 shrink-0">
+                       {isUnread && <span className="w-2 h-2 rounded-full bg-slate-700" />}
+                       <span className="text-[10px] font-bold text-text-muted">{timeAgo(convo.lastMessageAt ?? convo.updatedAt)}</span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={e => handleStar(convo.id, e)}
-                        className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent-amber transition-colors">
-                        <Star className={`w-3.5 h-3.5 ${convo.starred ? 'fill-accent-amber text-accent-amber' : ''}`} />
-                      </button>
+                  </div>
+
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shadow-sm shrink-0 mt-0.5" style={{ backgroundColor: convo.contact?.color ?? '#7dd3fc' }}>
+                      {contactInitials(convo.contact)}
                     </div>
-                  </td>
-                </tr>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-[12px] truncate ${isUnread || isSelected ? 'font-bold text-text-main' : 'font-semibold text-text-main'}`}>
+                        {contactDisplayName(convo.contact)}
+                      </p>
+                      <p className="text-[12px] text-text-muted truncate mt-0.5">{previewText}</p>
+                    </div>
+                  </div>
+                </div>
               );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Footer ── */}
-      <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 sticky bottom-0 z-10">
-        <div className="font-semibold text-text-muted flex items-center gap-3">
-          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary/60" />
-            {filtered.length} conversations
-          </span>
-          <span>{convos.filter(c => c.status === 'open').length} open</span>
-        </div>
-        <div className="flex items-center gap-1.5 font-semibold">
-          <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-          <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
-          <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
+            })
+          )}
         </div>
       </div>
+      {/* end left panel */}
 
-        </motion.div>
+      {/* ── Middle Chat Panel ── */}
+      {selected ? (
+        <ConversationThread
+           selected={selected}
+           onClose={() => setSelectedId(null)}
+           setSelectedId={setSelectedId}
+           showToast={showToast}
+        />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center bg-bg relative z-0 gap-3">
+          <div className="text-center mt-2">
+            <p className="text-[14px] font-semibold text-white mb-1">Select a conversation</p>
+            <p className="text-[12px] text-white/80">Pick one from the list on the left.</p>
+          </div>
+          <Button onClick={() => setShowNewModal(true)} variant="primary" size="sm" className="mt-1">
+            <Plus className="w-3.5 h-3.5" /> New conversation
+          </Button>
+        </div>
       )}
-      </AnimatePresence>
 
-      {/* ══ NEW CONVERSATION MODAL ══ */}
+      {/* ── Right Details Panel ── */}
+      {selected ? (
+        <ConversationDetails selected={selected} />
+      ) : (
+        <div className="w-[300px] h-full flex flex-col border-l border-border/50 bg-surface shrink-0 z-10 items-center justify-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-surface-hover border border-border/50 flex items-center justify-center">
+            <AppWindow className="w-4 h-4 text-text-muted/40" />
+          </div>
+          <p className="text-[12px] font-medium text-text-muted/60">No contact selected</p>
+        </div>
+      )}
+      </div> {/* end content row */}
+      </div> {/* end unified window */}
+
+      {/* MODALS */}
       <AnimatePresence>
         {showNewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -1165,7 +1070,7 @@ export default function ConversationsTab() {
                 <div>
                   <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest block mb-2">Contact</label>
                   {ncContact ? (
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-primary/30 bg-primary/5">
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-700/30 bg-slate-700/5">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-bg"
                         style={{ backgroundColor: ncContact.color ?? '#7dd3fc' }}>
                         {((ncContact.firstName?.[0] ?? '') + (ncContact.lastName?.[0] ?? '')).toUpperCase() || '?'}
@@ -1182,7 +1087,7 @@ export default function ConversationsTab() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
                       <input value={ncSearch} onChange={e => setNcSearch(e.target.value)} placeholder="Search CRM contacts..."
-                        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-primary/50 transition-colors placeholder:text-text-muted" />
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-slate-700/50 transition-colors placeholder:text-text-muted" />
                       {ncFiltered.length > 0 && (
                         <div className="absolute top-full left-0 right-0 mt-1 rounded-xl border border-border/50 overflow-hidden shadow-luxury z-20 max-h-48 overflow-y-auto bg-surface/90 backdrop-blur-xl">
                           {ncFiltered.map((c: any) => (
@@ -1211,7 +1116,7 @@ export default function ConversationsTab() {
                     {(['email', 'sms', 'whatsapp', 'chat'] as const).map(ch => (
                       <button key={ch} onClick={() => setNcChannel(ch)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
-                          ncChannel === ch ? 'bg-primary/10 border-primary/40 text-primary' : 'border-border/50 text-text-muted hover:border-border hover:text-text-main'
+                          ncChannel === ch ? 'bg-slate-700/10 border-slate-700/40 text-slate-700' : 'border-border/50 text-text-muted hover:border-border hover:text-text-main'
                         }`}>
                         {React.createElement(CH_ICON[ch] ?? MessageSquare, { className: 'w-3.5 h-3.5', style: { color: ncChannel === ch ? CH_COLOR[ch] : undefined } })}
                         {CH_LABEL[ch]}
@@ -1225,7 +1130,7 @@ export default function ConversationsTab() {
                   <div>
                     <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest block mb-2">Subject</label>
                     <input value={ncSubject} onChange={e => setNcSubject(e.target.value)} placeholder="Email subject..."
-                      className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-primary/50 transition-colors placeholder:text-text-muted" />
+                      className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-slate-700/50 transition-colors placeholder:text-text-muted" />
                   </div>
                 )}
 
@@ -1235,7 +1140,7 @@ export default function ConversationsTab() {
                     First Message <span className="normal-case text-text-muted/50 font-normal">(optional)</span>
                   </label>
                   <textarea value={ncFirstMsg} onChange={e => setNcFirstMsg(e.target.value)} placeholder="Write your opening message..." rows={3}
-                    className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-primary/50 transition-colors resize-none placeholder:text-text-muted" />
+                    className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-bg text-[12px] text-text-main focus:outline-none focus:border-slate-700/50 transition-colors resize-none placeholder:text-text-muted" />
                 </div>
               </div>
 
@@ -1245,7 +1150,7 @@ export default function ConversationsTab() {
                   Cancel
                 </button>
                 <button onClick={handleCreateConversation} disabled={!ncChannel || createMutation.isPending}
-                  className="flex-1 py-2.5 rounded-lg text-[12px] font-bold bg-primary text-bg hover:opacity-90 disabled:opacity-40 transition-all shadow-sm">
+                  className="flex-1 py-2.5 rounded-lg text-[12px] font-bold bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-40 transition-all shadow-sm">
                   {createMutation.isPending ? 'Creating...' : 'Start Conversation'}
                 </button>
               </div>
@@ -1254,7 +1159,6 @@ export default function ConversationsTab() {
         )}
       </AnimatePresence>
 
-      {/* ══ SETTINGS MODAL ══ */}
       <AnimatePresence>
         {showSettingsModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

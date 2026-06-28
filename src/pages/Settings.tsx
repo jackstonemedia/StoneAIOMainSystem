@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
+import { apiFetch } from '../lib/apiClient';
 
 const TABS = [
   { id: 'general',       label: 'General',       icon: Building2 },
@@ -132,43 +133,43 @@ export default function SettingsPage() {
 
   useQuery<any>({
     queryKey: ['settings', 'workspace'],
-    queryFn: () => fetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
+    queryFn: () => apiFetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
     onSuccess: (d: any) => { if (d?.name) setWsName(d.name); }
   } as any);
 
   const { data: savedKeys = [] } = useQuery<any[]>({
     queryKey: ['settings', 'api-keys'],
-    queryFn: () => fetch('/api/settings/api-keys').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/settings/api-keys').then(r => r.ok ? r.json() : []),
   });
 
   const { data: members = [] } = useQuery<any[]>({
     queryKey: ['settings', 'team'],
-    queryFn: () => fetch('/api/settings/team').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/settings/team').then(r => r.ok ? r.json() : []),
   });
 
   const saveWorkspace = useMutation({
-    mutationFn: () => fetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: wsName }) }).then(r => r.json()),
+    mutationFn: () => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: wsName }) }).then(r => r.json()),
     onSuccess: () => { toast('success', 'Settings saved!'); qc.invalidateQueries({ queryKey: ['settings'] }); },
     onError: () => toast('error', 'Failed to save settings'),
   });
 
   const saveKey = useMutation({
     mutationFn: ({ provider, key }: { provider: string; key: string }) =>
-      fetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+      apiFetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
     onSuccess: () => { toast('success', 'API key saved!'); qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] }); },
     onError: () => toast('error', 'Failed to save key'),
   });
 
   const inviteMember = useMutation({
     mutationFn: ({ email, role }: { email: string; role: string }) =>
-      fetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+      apiFetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
     onSuccess: () => { toast('success', 'Invitation sent!'); qc.invalidateQueries({ queryKey: ['settings', 'team'] }); setShowInviteModal(false); setInviteEmail(''); },
     onError: () => toast('error', 'Failed to send invitation'),
   });
 
   const changePassword = useMutation({
     mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
-      fetch('/api/settings/password', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+      apiFetch('/api/settings/password', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
     onSuccess: () => { toast('success', 'Password updated!'); setShowPasswordModal(false); setPwForm({ current: '', next: '', confirm: '' }); },
     onError: () => toast('error', 'Failed to update password'),
   });
@@ -445,14 +446,14 @@ export default function SettingsPage() {
                 <div className="text-[13px] font-semibold text-text-main">Two-Factor Authentication</div>
                 <div className="text-[11px] text-text-muted mt-0.5">2FA adds an extra layer of security</div>
               </div>
-              <button onClick={() => { fetch('/api/settings/2fa/setup').then(r=>r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
+              <button onClick={() => { apiFetch('/api/settings/2fa/setup').then(r=>r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>
                 <div className="text-[13px] font-semibold text-text-main">Active Sessions</div>
                 <div className="text-[11px] text-text-muted mt-0.5">Manage where you are logged in</div>
               </div>
-              <button onClick={() => { fetch('/api/settings/sessions').then(r=>r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
+              <button onClick={() => { apiFetch('/api/settings/sessions').then(r=>r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
             </div>
           </div>
         </div>
@@ -556,7 +557,7 @@ export default function SettingsPage() {
           <div className="flex gap-3 mt-6">
             <button onClick={() => setShowTwoFAModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
             <button
-              onClick={() => fetch('/api/settings/2fa/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code: twoFACode }) }).then(r=>r.json()).then(d => { if(d.success) { toast('success','2FA enabled!'); setShowTwoFAModal(false); } else toast('error','Invalid code'); })}
+              onClick={() => apiFetch('/api/settings/2fa/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code: twoFACode }) }).then(r=>r.json()).then(d => { if(d.success) { toast('success','2FA enabled!'); setShowTwoFAModal(false); } else toast('error','Invalid code'); })}
               disabled={twoFACode.length !== 6}
               className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
               Verify & Enable
@@ -585,7 +586,7 @@ export default function SettingsPage() {
                   <div className="text-[11px] text-text-muted">{s.location} · {s.ip}</div>
                 </div>
                 {!s.isCurrent && (
-                  <button onClick={() => fetch(`/api/settings/sessions/${s.id}`, {method:'DELETE'}).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success','Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
+                  <button onClick={() => apiFetch(`/api/settings/sessions/${s.id}`, {method:'DELETE'}).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success','Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}

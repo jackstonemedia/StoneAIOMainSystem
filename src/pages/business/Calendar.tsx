@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { SlidePanel } from '../../components/ui/SlidePanel';
 import { useToast } from '../../components/ui/Toast';
+import { apiFetch } from '../../lib/apiClient';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -70,7 +71,7 @@ export default function Calendar() {
 
   const { data: apts = [], isLoading } = useQuery<any[]>({
     queryKey: ['appointments'],
-    queryFn: () => fetch('/api/business/appointments').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/business/appointments').then(r => r.ok ? r.json() : []),
   });
 
   const saveMutation = useMutation({
@@ -90,7 +91,7 @@ export default function Calendar() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/business/appointments/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    mutationFn: (id: string) => apiFetch(`/api/business/appointments/${id}`, { method: 'DELETE' }).then(r => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
       toast('success', 'Appointment cancelled');

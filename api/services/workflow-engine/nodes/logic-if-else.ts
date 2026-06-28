@@ -100,8 +100,8 @@ export const logicIfElse: NodeImplementation = {
       if (operator === 'DOES_NOT_EXIST') return firstVal === undefined || firstVal === null || firstVal === '';
 
       // For BOOLEAN operators, coerce to boolean
-      if (operator === 'BOOLEAN_IS_TRUE') return firstVal === true || firstVal === 'true';
-      if (operator === 'BOOLEAN_IS_FALSE') return firstVal === false || firstVal === 'false';
+      if (operator === 'BOOLEAN_IS_TRUE') return (firstVal as any) === true || firstVal === 'true';
+      if (operator === 'BOOLEAN_IS_FALSE') return (firstVal as any) === false || firstVal === 'false';
 
       // For NUMBER operators, coerce to numbers
       if (operator.startsWith('NUMBER_')) {

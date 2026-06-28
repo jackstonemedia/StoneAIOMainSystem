@@ -19,14 +19,14 @@ export default function NotificationPanel({ isOpen, onClose }: { isOpen: boolean
 
   const markAllRead = async () => {
     for (const n of notifications.filter(x => !x.isRead)) {
-      await db.update(StorageKey.NOTIFICATIONS, n.id, { isRead: true });
+      await db.update(StorageKey.NOTIFICATIONS, n.id, { isRead: true } as any);
     }
     fetchNotifs();
   };
 
   const handleNotifClick = async (n: any) => {
     if (!n.isRead) {
-      await db.update(StorageKey.NOTIFICATIONS, n.id, { isRead: true });
+      await db.update(StorageKey.NOTIFICATIONS, n.id, { isRead: true } as any);
     }
     if (n.link) {
       navigate(n.link);

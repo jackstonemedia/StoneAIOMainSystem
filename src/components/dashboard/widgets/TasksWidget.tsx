@@ -4,6 +4,7 @@ import { Check, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Task } from '../../../types/crm';
 import { WidgetShell } from '../WidgetShell';
+import { apiFetch } from '../../../lib/apiClient';
 
 interface TasksWidgetProps {
   isEditing?: boolean;
@@ -43,7 +44,7 @@ export function TasksWidget({ isEditing, onRemove }: TasksWidgetProps) {
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['dashboard_tasks'],
     queryFn: async () => {
-      const res = await fetch('/api/crm/tasks');
+      const res = await apiFetch('/api/crm/tasks');
       if (!res.ok) return [];
       const body = await res.json();
       return Array.isArray(body) ? body : body.tasks ?? [];
@@ -52,7 +53,7 @@ export function TasksWidget({ isEditing, onRemove }: TasksWidgetProps) {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Task> }) => {
-      const res = await fetch(`/api/crm/tasks/${id}`, {
+      const res = await apiFetch(`/api/crm/tasks/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -73,7 +74,7 @@ export function TasksWidget({ isEditing, onRemove }: TasksWidgetProps) {
         priority: 'medium',
         dueDate: now.toISOString(),
       };
-      const res = await fetch('/api/crm/tasks', {
+      const res = await apiFetch('/api/crm/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

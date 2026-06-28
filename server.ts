@@ -31,9 +31,12 @@ import crmActionsRouter    from './api/routes/crm-actions.routes.js';
 import integrationsRouter  from './api/routes/integrations.routes.js';
 import { releasesRouter }  from './api/routes/releases.routes.js';
 import adsRouter           from './api/routes/ads.routes.js';
+import leadsRouter         from './api/routes/leads.routes.js';
+import { startLeadWorker } from './api/services/leads/lead-worker.service.js';
 import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webhooks/facebook-leads.webhook.js';
 import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
+import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -43,6 +46,7 @@ import { resolveWorkspace }  from './api/middleware/workspace.js';
 import channelsRouter from './api/routes/channels.routes.js';
 import { twilioSmsHandler } from './api/webhooks/twilio-sms.handler.js';
 import { outlookWebhookHandler } from './api/webhooks/outlook-messages.handler.js';
+import { metaWebhookVerify, metaWebhookPost } from './api/webhooks/meta.handler.js';
 import { initRealtime } from './api/services/channels/realtime.service.js';
 import cron from 'node-cron';
 
@@ -55,17 +59,33 @@ import { schedulerService } from './api/services/workflow-engine/scheduler.servi
 import { webhookRegistry, webhookHandler } from './api/services/workflow-engine/webhook-registry.js';
 import { queueService } from './api/services/workflow-engine/queue.service.js';
 import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
-import { initializeCampaignQueue } from './api/services/campaign-engine.js';
 
 async function startServer() {
   const app = express();
 
   // ── Security + perf middleware ────────────────────────────────────────────
-  app.use(helmet({ contentSecurityPolicy: false })); // CSP handled by Vite in dev
+  // CSP: disabled in dev (Vite handles it), re-enabled in production for XSS protection
+  app.use(helmet({
+    contentSecurityPolicy: env.NODE_ENV === 'production' ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://js.stripe.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://api.stripe.com"],
+        frameSrc: ["'self'", "https://*.clerk.accounts.dev", "https://js.stripe.com", "https://hooks.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https://img.clerk.com", "https://*.stripe.com"],
+        workerSrc: ["'self'", "blob:"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    } : false,
+  }));
   app.use(compression());
   app.use(express.json());
 
-  // ── Rate limiting — 300 req / 1 min per IP (generous for a platform API) ─
+  // ── Rate limiting ─────────────────────────────────────────────────────────
+  // General API: 300 req/min per IP
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 300,
@@ -73,6 +93,10 @@ async function startServer() {
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again in a minute.' },
   });
+  // AI endpoints: 20 req/min (expensive Gemini calls)
+  const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+  // Webhook receivers: higher limit (Stripe/Twilio burst)
+  const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
   app.use('/api', apiLimiter);
 
   // ── Health ───────────────────────────────────────────────────────────────
@@ -121,84 +145,17 @@ async function startServer() {
   // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
   // Meta never sends a Clerk JWT so that returned 401 on every inbound message.
   // Moved here, before resolveWorkspace, and resolves workspace from Integration table.
-  app.get('/api/hooks/meta', (req, res) => {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-    if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-      console.log('[Meta Webhook] Verified');
-      res.status(200).send(challenge);
-    } else {
-      res.sendStatus(403);
-    }
-  });
-
-  app.post('/api/hooks/meta', async (req, res) => {
-    res.status(200).send('EVENT_RECEIVED'); // Must respond quickly — Meta retries on timeout
-    const body = req.body;
-    if (body.object !== 'page' && body.object !== 'instagram') return;
-    try {
-      for (const entry of body.entry ?? []) {
-        // entry.id is the Facebook Page ID or Instagram account ID
-        const pageId = entry.id as string | undefined;
-        const webhookEvent = entry.messaging?.[0];
-        if (!webhookEvent?.message) continue;
-        const senderId: string = webhookEvent.sender.id;
-        const msgText: string = webhookEvent.message.text ?? '';
-        const provider = body.object === 'instagram' ? 'instagram' : 'facebook';
-        
-        // Resolve workspace by matching the specific page/account ID
-        const whereClause: any = { provider };
-        if (pageId) whereClause.accountId = pageId;
-        
-        const integration = await db.integration.findFirst({
-          where: whereClause,
-          select: { workspaceId: true },
-        });
-        if (!integration) continue;
-        const { workspaceId } = integration;
-        let convo = await db.conversation.findFirst({
-          where: { workspaceId, externalId: senderId, channel: provider as any },
-        });
-        if (!convo) {
-          convo = await db.conversation.create({
-            data: {
-              workspaceId,
-              channel: provider as any,
-              externalId: senderId,
-              status: 'open',
-              lastMessageAt: new Date(),
-              unreadCount: 1,
-            },
-          });
-        }
-        await db.conversationMessage.create({
-          data: {
-            conversationId: convo.id,
-            sender: senderId,
-            direction: 'inbound',
-            body: msgText,
-            channel: provider,
-          },
-        });
-        await db.conversation.update({
-          where: { id: convo.id },
-          data: { unreadCount: { increment: 1 }, lastMessageAt: new Date(), updatedAt: new Date() },
-        });
-      }
-    } catch (e) {
-      console.error('[Meta Webhook] Error:', e);
-    }
-  });
+  app.get('/api/hooks/meta', metaWebhookVerify);
+  app.post('/api/hooks/meta', metaWebhookPost);
 
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
 
-  // ── AI / Agent routes ─────────────────────────────────────────────────────
-  app.use('/api/workflow-ai',    workflowAiRouter);
-  app.use('/api/conversations',  chatRouter);
+  // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
+  app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
+  app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
-  app.use('/api/agents',         agentsRouter);
+  app.use('/api/agents',         aiLimiter, agentsRouter);
   app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/integrations',   integrationsRouter);
   app.use('/api/releases',       releasesRouter);
@@ -213,6 +170,7 @@ async function startServer() {
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);
   app.use('/api/ads',            adsRouter);
+  app.use('/api/leads',          leadsRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -257,12 +215,6 @@ async function startServer() {
       console.error('❌ Failed to initialize Native Workflow Engine:', e.message);
     }
 
-    // ── Campaign Queue ─────────────────────────────────────────────────────
-    try {
-      initializeCampaignQueue();
-    } catch (e: any) {
-      console.error('❌ Failed to initialize Campaign Queue:', e.message);
-    }
 
     // ── Ad Manager Jobs ───────────────────────────────────────────────────
     try {
@@ -270,6 +222,13 @@ async function startServer() {
       startGoogleLeadPollJob();
     } catch (e: any) {
       console.error('❌ Failed to initialize Ad Manager jobs:', e.message);
+    }
+
+    // ── Lead Studio Worker ────────────────────────────────────────────────
+    try {
+      startLeadWorker();
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Lead Studio worker:', e.message);
     }
 
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────
@@ -297,22 +256,33 @@ async function startServer() {
       console.log('✅ Outlook subscription renewal: active (12h interval)');
     }
 
-    // Background job for resuming paused native runs (Wait node)
-    setInterval(async () => {
+    // ── OAuth State Cleanup — every 15 minutes ──────────────────────────────
+    cron.schedule('*/15 * * * *', async () => {
       try {
-        const { engineService } = await import('./api/services/workflow-engine/engine.service.js');
-        const pausedRuns = await db.workflowRun.findMany({
-          where: { status: 'PAUSED', resumeAt: { lte: new Date() } }
+        await db.adsOAuthState.deleteMany({
+          where: { expiresAt: { lt: new Date() } }
         });
-        for (const run of pausedRuns) {
-          await engineService.resumeRun(run.id).catch((err: unknown) => 
-            console.error(`Failed to resume run ${run.id}:`, err)
-          );
+      } catch (err) { console.error('[OAuth State Cleanup]', err); }
+    });
+    console.log('✅ OAuth state cleanup: active (15-min interval)');
+
+    // ── Facebook Token Refresh — Daily at 8 AM ──────────────────────────────
+    cron.schedule('0 8 * * *', async () => {
+      try {
+        const { maybeRefreshFacebookToken } = await import('./api/services/ads/ads-account.service.js');
+        const activeAccounts = await db.adAccount.findMany({
+          where: { platform: 'FACEBOOK', status: 'ACTIVE' },
+          select: { workspaceId: true }
+        });
+        for (const acc of activeAccounts) {
+          await maybeRefreshFacebookToken(acc.workspaceId);
         }
-      } catch (err) {
-        console.error('Error in pause resume background job', err);
-      }
-    }, 60 * 1000); // Check every minute
+      } catch (err) { console.error('[Facebook Token Refresh]', err); }
+    });
+    console.log('✅ Facebook token refresh: active (Daily 8 AM)');
+
+    // Background job for resuming paused native runs (Wait node)
+    startResumePausedRunsJob();
 
 
   });

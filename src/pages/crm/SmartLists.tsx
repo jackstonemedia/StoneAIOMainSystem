@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FilterCondition, ViewMode } from '../../store/useSmartListStore';
+import { apiFetch } from '../../lib/apiClient';
 
 const FIELDS    = ['name', 'email', 'phone', 'businessName', 'tags', 'created'];
 const OPERATORS = ['contains', 'equals', 'is not empty', 'starts with'];
@@ -28,13 +29,13 @@ export default function SmartLists() {
 
   const { data: lists = [], isLoading } = useQuery<any[]>({
     queryKey: ['smartlists'],
-    queryFn: () => fetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
   });
 
 
   const createList = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch('/api/crm/smart-lists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch('/api/crm/smart-lists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -43,7 +44,7 @@ export default function SmartLists() {
 
   const updateList = useMutation({
     mutationFn: async (data: { id: string; payload: any }) => {
-      const r = await fetch(`/api/crm/smart-lists/${data.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data.payload) });
+      const r = await apiFetch(`/api/crm/smart-lists/${data.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data.payload) });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -52,7 +53,7 @@ export default function SmartLists() {
 
   const deleteList = useMutation({
     mutationFn: async (id: string) => {
-      const r = await fetch(`/api/crm/smart-lists/${id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/crm/smart-lists/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error();
       return r.json();
     },

@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../components/ui/Toast';
+import { HeaderPortal } from '../../components/layout/HeaderPortal';
+import { NewContactSlideOver } from './components/NewContactSlideOver';
 
 interface Contact {
   id: string;
@@ -55,7 +57,7 @@ export default function Contacts() {
   });
 
   const createContact = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; email: string; phone: string; businessName: string; title: string; status: string; about: string; source: string; color: string }) => {
+    mutationFn: async (data: { firstName: string; lastName: string; email: string; phone: string; businessName: string; title: string; status: string; about: string; source: string; color: string; tags: string[]; notes: string }) => {
       const r = await fetch('/api/crm/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,7 +137,7 @@ export default function Contacts() {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [advancedContactOptionsOpen, setAdvancedContactOptionsOpen] = useState(false);
 
-  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [] as string[] });
+  const [newContact, setNewContact] = useState<any>({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [], notes: '' });
   const [newContactTagInput, setNewContactTagInput] = useState('');
   const [bulkTagInput, setBulkTagInput] = useState('');
 
@@ -310,18 +312,24 @@ export default function Contacts() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full relative bg-bg">
+    <div className="flex flex-col h-full w-full relative overflow-hidden z-0">
+
+      
+      {/* Full-tab frosted glass overlay */}
+      <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10"></div>
+
       {/* Header section removed */}
 
       {/* Unified Toolbar OR Bulk Actions Context Bar */}
-      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
-        <AnimatePresence mode="wait" initial={false}>
-          {selected.size > 0 ? (
-            <motion.div 
-              key="bulk-toolbar"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="flex items-center justify-between w-full"
-            >
+      {/* Unified Toolbar OR Bulk Actions Context Bar */}
+      <AnimatePresence mode="wait" initial={false}>
+        {selected.size > 0 && (
+          <motion.div 
+            key="bulk-toolbar"
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 73 }} exit={{ opacity: 0, height: 0 }}
+            className="px-8 flex items-center justify-between border-b border-border bg-surface-hover/50 relative shadow-sm w-full overflow-hidden"
+          >
+            <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-[6px]">
                   <CheckSquare className="w-4 h-4 text-primary" />
@@ -348,119 +356,52 @@ export default function Contacts() {
                   <X className="w-4 h-4" /> Delete
                 </button>
               </div>
-            </motion.div>
-          ) : (
-            <motion.div 
-              key="standard-toolbar"
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              className="flex items-center justify-between w-full"
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <HeaderPortal>
+        <div className="flex items-center gap-3">
+          <div className="relative shadow-sm rounded-full flex items-center mr-2">
+            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
+            <input 
+              type="text" 
+              placeholder="Search Contacts" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+            />
+          </div>
+          
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
+          <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
+            <Download className="w-4 h-4" /> Import
+          </button>
+          
+          <div className="relative flex items-center gap-1">
+            <button 
+              onClick={() => setPanelOpen('new_contact')} 
+              className="btn-secondary"
             >
-              <div className="flex items-center gap-2">
-                {/* All tab */}
-                <div 
-                  onClick={() => setActiveListId('all')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
-                    activeListId === 'all' ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
-                  }`}
-                >
-                  <ListIcon className="w-3.5 h-3.5 text-primary" />
-                  <span>All</span>
-                </div>
+              <Plus className="w-4 h-4" /> Add Contact
+            </button>
+          </div>
 
-                {smartLists.map((list: any) => (
-                  <div 
-                    key={list.id}
-                    onClick={() => setActiveListId(list.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer border transition-colors text-[13px] font-medium ${
-                      activeListId === list.id ? 'text-text-main bg-surface-hover border-border' : 'text-text-muted bg-surface border-border/60 hover:text-text-main hover:bg-surface-hover hover:border-border'
-                    }`}
-                  >
-                    <span>{list.name}</span>
-                  </div>
-                ))}
+          <div className="w-[1px] h-5 bg-border mx-1"></div>
 
-                <div className="w-[1px] h-5 bg-border mx-2"></div>
-                <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-                  <Filter className="w-4 h-4" /> Advanced filters
-                </button>
-                <div className="relative">
-                  <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
-                    <ChevronDown className="w-4 h-4" /> Sort
-                  </button>
-                  <AnimatePresence>
-                    {sortDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                        <motion.div 
-                          initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                          className="absolute left-0 mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                        >
-                          {[
-                            { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
-                            { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
-                            { label: 'Newest First', field: 'createdAt', dir: 'desc' },
-                            { label: 'Oldest First', field: 'createdAt', dir: 'asc' }
-                          ].map((opt, i) => (
-                            <button 
-                              key={i} 
-                              onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
-                              className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                          {sortConfig && (
-                            <div className="border-t border-border mt-1 pt-1">
-                              <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors">Clear Sort</button>
-                            </div>
-                          )}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative shadow-sm rounded-full flex items-center mr-2">
-                  <Search className="w-4 h-4 absolute left-3 text-text-muted" />
-                  <input 
-                    type="text" 
-                    placeholder="Search Contacts" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
-                  />
-                </div>
-                
-                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-                <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
-                  <Download className="w-4 h-4" /> Import
-                </button>
-                
-                <div className="relative flex items-center gap-1">
-                  <button 
-                    onClick={() => setPanelOpen('new_contact')} 
-                    className="btn-primary"
-                  >
-                    <Plus className="w-4 h-4" /> Add Contact
-                  </button>
-                </div>
-
-                <div className="w-[1px] h-5 bg-border mx-1"></div>
-
-                <div className="relative flex items-center gap-2">
-                  <button onClick={() => setPanelOpen('manage')} className="btn-secondary">
-                    <Settings className="w-4 h-4" /> Manage fields
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          <div className="relative flex items-center gap-2">
+            <button 
+              onClick={() => setPanelOpen('manage')} 
+              className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--sidebar-text-muted)] hover:text-white transition-colors ml-1"
+            >
+              <Settings className="w-4 h-4" /> Manage fields
+            </button>
+          </div>
+        </div>
+      </HeaderPortal>
 
       {/* Content Rendering */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 relative">
+      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>
@@ -506,7 +447,7 @@ export default function Contacts() {
           </thead>
           <tbody>
             {processedContacts.map((c) => (
-              <tr key={c.id} className={`border-b border-border/50 transition-colors ${selected.has(c.id) ? 'bg-primary/5' : 'hover:bg-surface-hover/50'}`}>
+              <tr key={c.id} className={`border-b border-border/50 transition-colors ${selected.has(c.id) ? 'bg-primary/10' : 'bg-black/5 hover:bg-black/10'}`}>
                 <td className="p-3 text-center">
                   <button onClick={() => toggleSelect(c.id)} className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center transition-colors hover:border-primary text-primary">
                     {selected.has(c.id) ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
@@ -564,30 +505,84 @@ export default function Contacts() {
       </div>
 
       {/* Footer Paginator */}
-      <div className="px-8 py-4 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0">
-        <div className="font-semibold text-text-muted flex items-center gap-3">
-          Page 1 of 1
-          <div className="w-[1px] h-4 bg-border"></div>
-          <span className="px-2.5 py-0.5 rounded-lg text-[13px] font-medium bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+      <div 
+        className="pr-8 pl-0 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
+        style={{ 
+          background: 'var(--sidebar-bg)', 
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': '#1A2C47',
+          '--btn-hover': '#233857',
+          '--btn-text': '#F8FAFC',
+          '--btn-border': 'transparent'
+        } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
+            <Filter className="w-4 h-4" /> Advanced filters
+          </button>
+          <div className="relative">
+            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
+              <ChevronDown className="w-4 h-4" /> Sort
+            </button>
+            <AnimatePresence>
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
+                    className="absolute left-0 bottom-full mb-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {[
+                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
+                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
+                      { label: 'Newest First', field: 'createdAt', dir: 'desc' },
+                      { label: 'Oldest First', field: 'createdAt', dir: 'asc' }
+                    ].map((opt, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
+                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {sortConfig && (
+                      <div className="border-t border-border mt-1 pt-1">
+                        <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors">Clear Sort</button>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-5">
+          <span className="text-[13px] font-medium text-text-muted mr-2">
             {processedContacts.length} {activeListId === 'all' ? 'Contacts' : 'Members'}
           </span>
-        </div>
-        <div className="flex items-center gap-5">
           <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
             20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
           </div>
-          <div className="flex items-center gap-1.5 font-semibold">
-            <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-            <button className="px-3.5 py-1.5 rounded-lg shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
-            <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
+          <div className="flex items-center gap-3 font-semibold">
+            <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Prev</button>
+            <button className="px-3.5 py-1 rounded-[6px] shadow-sm text-bg font-bold text-[12px]" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Next</button>
           </div>
         </div>
       </div>
 
       {/* Slide-over Panels */}
       <AnimatePresence>
-        {panelOpen && (
+        {panelOpen && panelOpen !== 'new_contact' && (
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -600,183 +595,13 @@ export default function Contacts() {
             >
               <div className="px-6 py-5 flex items-center justify-between border-b border-border bg-surface-hover/50">
                 <h2 className="text-[16px] font-bold text-text-main">
-                  {panelOpen === 'filter' ? 'Advanced Filters' : panelOpen === 'manage' ? 'Manage Columns' : panelOpen === 'new_contact' ? 'Add Contact' : panelOpen === 'duplicates' ? 'Merge Duplicates' : panelOpen === 'bulk_tags' ? 'Add Tags to Selected' : 'Create Smart List'}
+                  {panelOpen === 'filter' ? 'Advanced Filters' : panelOpen === 'manage' ? 'Manage Columns' : panelOpen === 'duplicates' ? 'Merge Duplicates' : panelOpen === 'bulk_tags' ? 'Add Tags to Selected' : 'Create Smart List'}
                 </h2>
                 <button onClick={() => setPanelOpen(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="p-6 flex-1 overflow-auto bg-surface">
-                {panelOpen === 'new_contact' && (
-                  <div className="space-y-5">
-
-                    {/* ── Avatar + Color Picker ── */}
-                    <div className="flex flex-col items-center gap-3 pb-5 border-b border-border/50">
-                      <div
-                        className="w-[60px] h-[60px] rounded-full flex items-center justify-center text-[22px] font-bold text-bg shadow-md ring-[3px] ring-border/30 transition-all"
-                        style={{ backgroundColor: newContact.color }}
-                      >
-                        {(newContact.firstName[0] || newContact.email[0] || '?').toUpperCase()}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2">Profile Color</p>
-                        <div className="flex gap-2 justify-center flex-wrap">
-                          {['#7dd3fc','#fca5a5','#bef264','#fcd34d','#c4b5fd','#f472b6','#34d399','#fb923c','#94a3b8'].map(c => (
-                            <button key={c} onClick={() => setNewContact({...newContact, color: c})}
-                              className={`w-5 h-5 rounded-full border-2 transition-all ${newContact.color === c ? 'border-text-main scale-125 shadow-sm' : 'border-transparent hover:scale-110'}`}
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Identity ── */}
-                    <div className="space-y-2.5">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Identity</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">First Name <span className="text-red-400">*</span></label>
-                          <input type="text" placeholder="John" value={newContact.firstName} onChange={e => setNewContact({...newContact, firstName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Last Name</label>
-                          <input type="text" placeholder="Doe" value={newContact.lastName} onChange={e => setNewContact({...newContact, lastName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="h-px bg-border/40" />
-
-                    {/* ── Contact Methods ── */}
-                    <div className="space-y-2.5">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Contact Methods</p>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Email</label>
-                        <input type="email" placeholder="john@example.com" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Phone</label>
-                        <input type="tel" placeholder="+1 555-0000" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                      </div>
-                    </div>
-
-                    <div className="h-px bg-border/40" />
-
-                    {/* ── Professional ── */}
-                    <div className="space-y-2.5">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Professional</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Job Title</label>
-                          <input type="text" placeholder="CEO" value={newContact.title} onChange={e => setNewContact({...newContact, title: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Company</label>
-                          <input type="text" placeholder="Acme Inc." value={newContact.businessName} onChange={e => setNewContact({...newContact, businessName: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="h-px bg-border/40" />
-
-                    {/* ── Classification ── */}
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Classification</p>
-
-                      {/* Status pills */}
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</label>
-                        <div className="flex gap-2 flex-wrap">
-                          {[
-                            { val: 'Lead',    color: 'text-primary',        bg: 'bg-primary/10',      border: 'border-primary/30' },
-                            { val: 'Active',  color: 'text-emerald-400',    bg: 'bg-emerald-400/10',  border: 'border-emerald-400/30' },
-                            { val: 'Churned', color: 'text-text-muted',     bg: 'bg-surface-hover',   border: 'border-border' },
-                            { val: 'Partner', color: 'text-violet-400',     bg: 'bg-violet-400/10',   border: 'border-violet-400/30' },
-                          ].map(s => (
-                            <button key={s.val} onClick={() => setNewContact({...newContact, status: s.val})}
-                              className={`px-3 py-1 rounded-full text-[11px] font-bold border transition-all ${
-                                newContact.status === s.val
-                                  ? `${s.bg} ${s.border} ${s.color}`
-                                  : 'bg-surface border-border text-text-muted hover:bg-surface-hover'
-                              }`}
-                            >
-                              {s.val}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Source select */}
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Source</label>
-                        <select value={newContact.source} onChange={e => setNewContact({...newContact, source: e.target.value})} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors">
-                          <option value="">— None —</option>
-                          {['LinkedIn','Referral','Website','Google','Cold Outreach','Conference','Email Campaign','Social Media','Partner','Other'].map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="h-px bg-border/40" />
-
-                    {/* ── Tags ── */}
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Tags</p>
-                      {newContact.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {newContact.tags.map((tag, i) => (
-                            <span key={i} className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold">
-                              {tag}
-                              <button onClick={() => setNewContact({...newContact, tags: newContact.tags.filter((_, j) => j !== i)})} className="ml-0.5 text-primary/60 hover:text-primary transition-colors"><X className="w-2.5 h-2.5" /></button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <input
-                        type="text"
-                        placeholder="Type tag and press Enter or comma..."
-                        value={newContactTagInput}
-                        onChange={e => setNewContactTagInput(e.target.value)}
-                        onKeyDown={e => {
-                          if ((e.key === 'Enter' || e.key === ',') && newContactTagInput.trim()) {
-                            e.preventDefault();
-                            const tag = newContactTagInput.trim().replace(/,/g, '');
-                            if (tag && !newContact.tags.includes(tag)) setNewContact({...newContact, tags: [...newContact.tags, tag]});
-                            setNewContactTagInput('');
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50"
-                      />
-                      {newContact.tags.length === 0 && (
-                        <div className="flex gap-1.5 flex-wrap pt-1">
-                          {['VIP','Prospect','Hot Lead','Follow-up'].map(t => (
-                            <button key={t} onClick={() => setNewContact({...newContact, tags: [...newContact.tags, t]})}
-                              className="px-2.5 py-1 rounded-full bg-surface border border-border text-text-muted text-[11px] font-medium hover:bg-surface-hover hover:text-text-main transition-colors">
-                              + {t}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="h-px bg-border/40" />
-
-                    {/* ── Notes ── */}
-                    <div className="space-y-1.5">
-                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Notes</p>
-                      <textarea
-                        placeholder="Additional context about this contact..."
-                        value={newContact.about}
-                        onChange={e => setNewContact({...newContact, about: e.target.value})}
-                        rows={3}
-                        className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-text-muted/50"
-                      />
-                    </div>
-
-                  </div>
-                )}
                 {panelOpen === 'duplicates' && (
                   <div className="space-y-6">
                     <div className="p-4 rounded-[8px] bg-surface-hover/50 border border-border">
@@ -985,7 +810,6 @@ export default function Contacts() {
               <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-hover/50 shrink-0">
                 <button onClick={() => { setPanelOpen(null); setContactError(null); }} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover transition-colors">Cancel</button>
                 <button 
-                  disabled={createContact.isPending}
                   onClick={async () => {
                   if (panelOpen === 'bulk_tags' && selected.size > 0 && bulkTagInput.trim()) {
                     setContactError(null);
@@ -995,43 +819,58 @@ export default function Contacts() {
                     } catch {
                       setContactError('Failed to add tags.');
                     }
-                  } else if (panelOpen === 'new_contact' && (newContact.firstName || newContact.email)) {
-                    setContactError(null);
-                    try {
-                      await createContact.mutateAsync({
-                        firstName: newContact.firstName || (newContact.email ? newContact.email.split('@')[0] : 'Unknown'),
-                        lastName: newContact.lastName,
-                        email: newContact.email || '',
-                        phone: newContact.phone,
-                        businessName: newContact.businessName,
-                        title: newContact.title,
-                        status: newContact.status,
-                        about: newContact.about,
-                        source: newContact.source,
-                        color: newContact.color,
-                        tagsJson: newContact.tags.length ? JSON.stringify(newContact.tags) : undefined,
-                      });
-                      setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [] });
-                      setNewContactTagInput('');
-                      setPanelOpen(null);
-                    } catch {
-                      setContactError('Something went wrong. Please try again.');
-                    }
-                  } else if (panelOpen === 'new_contact') {
-                    setContactError('Please enter at least a first name or email.');
                   } else {
                     setPanelOpen(null);
                   }
                   }}
                   className="btn-primary disabled:opacity-40"
                 >
-                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'new_contact' ? (createContact.isPending ? 'Adding...' : 'Add Contact') : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : 'Save'}
+                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : 'Save'}
                 </button>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      <NewContactSlideOver 
+        isOpen={panelOpen === 'new_contact'}
+        onClose={() => { setPanelOpen(null); setContactError(null); }}
+        newContact={newContact}
+        setNewContact={setNewContact}
+        newContactTagInput={newContactTagInput}
+        setNewContactTagInput={setNewContactTagInput}
+        isPending={createContact.isPending}
+        error={contactError}
+        onSubmit={async () => {
+          if (!(newContact.firstName || newContact.email)) {
+            setContactError('Please enter at least a first name or email.');
+            return;
+          }
+          setContactError(null);
+          try {
+            await createContact.mutateAsync({
+              firstName: newContact.firstName || (newContact.email ? newContact.email.split('@')[0] : 'Unknown'),
+              lastName: newContact.lastName,
+              email: newContact.email || '',
+              phone: newContact.phone,
+              businessName: newContact.businessName,
+              title: newContact.title,
+              status: newContact.status,
+              about: newContact.about,
+              source: newContact.source,
+              color: newContact.color,
+              tags: newContact.tags,
+              notes: newContact.notes,
+            });
+            setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [], notes: '' });
+            setNewContactTagInput('');
+            setPanelOpen(null);
+          } catch {
+            setContactError('Something went wrong. Please try again.');
+          }
+        }}
+      />
 
       {/* ── Delete Confirmation Dialog (P0) ── */}
       {deleteConfirmOpen && (

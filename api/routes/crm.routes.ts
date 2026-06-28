@@ -11,6 +11,7 @@ import {
   TaskSchema,
   BulkActionSchema,
 } from '../schemas/validation.js';
+import { validate } from '../middleware/validate.js';
 import * as crm from '../services/crm.service.js';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 
@@ -37,13 +38,12 @@ router.get('/contacts', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
-router.post('/contacts', async (req, res) => {
+router.post('/contacts', validate({ body: ContactSchema }), async (req, res, next) => {
   try {
-    const v = ContactSchema.parse(req.body);
-    const contact = await crm.createContact(req.workspaceId, v);
+    const contact = await crm.createContact(req.workspaceId, req.body);
     emitTrigger(req.workspaceId, 'contact.created', contact as Record<string, unknown>).catch(console.error);
     res.json(contact);
-  } catch (e) { dbErr(res, e); }
+  } catch (e) { next(e); }
 });
 
 router.get('/contacts/:id', async (req, res) => {
@@ -107,11 +107,10 @@ router.get('/companies', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
-router.post('/companies', async (req, res) => {
+router.post('/companies', validate({ body: CompanySchema }), async (req, res, next) => {
   try {
-    const v = CompanySchema.parse(req.body);
-    res.json(await crm.createCompany(req.workspaceId, v));
-  } catch (e) { dbErr(res, e); }
+    res.json(await crm.createCompany(req.workspaceId, req.body));
+  } catch (e) { next(e); }
 });
 
 router.get('/companies/:id', async (req, res) => {
@@ -139,13 +138,12 @@ router.get('/deals', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
-router.post('/deals', async (req, res) => {
+router.post('/deals', validate({ body: DealSchema }), async (req, res, next) => {
   try {
-    const v = DealSchema.parse(req.body);
-    const deal = await crm.createDeal(req.workspaceId, req.userId!, v as any);
+    const deal = await crm.createDeal(req.workspaceId, req.userId!, req.body as any);
     emitTrigger(req.workspaceId, 'deal.created', deal as Record<string, unknown>).catch(console.error);
     res.json(deal);
-  } catch (e) { dbErr(res, e); }
+  } catch (e) { next(e); }
 });
 
 router.get('/deals/:id', async (req, res) => {
@@ -242,13 +240,12 @@ router.get('/tasks', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
-router.post('/tasks', async (req, res) => {
+router.post('/tasks', validate({ body: TaskSchema }), async (req, res, next) => {
   try {
-    const v = TaskSchema.parse(req.body);
-    const task = await crm.createTask(req.workspaceId, v as any);
+    const task = await crm.createTask(req.workspaceId, req.body as any);
     emitTrigger(req.workspaceId, 'task.created', task as Record<string, unknown>).catch(console.error);
     res.json(task);
-  } catch (e) { dbErr(res, e); }
+  } catch (e) { next(e); }
 });
 
 router.put('/tasks/:id', async (req, res) => {
@@ -370,27 +367,6 @@ router.get('/import/template', (_req, res) => {
 router.post('/import', async (req, res) => {
   try {
     res.json(await crm.importContacts(req.workspaceId, req.body.contacts ?? []));
-  } catch (e) { dbErr(res, e); }
-});
-
-// ── Sequences ─────────────────────────────────────────────────────────────────
-router.get('/sequences', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.sequence.findMany({
-      where: { workspaceId: req.workspaceId },
-      orderBy: { createdAt: 'desc' },
-    }));
-  } catch (e) { dbErr(res, e); }
-});
-
-router.put('/sequences/enrollments/:id', async (req, res) => {
-  try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.sequenceEnrollment.update({
-      where: { id: req.params.id },
-      data: { status: req.body.status },
-    }));
   } catch (e) { dbErr(res, e); }
 });
 

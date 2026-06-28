@@ -48,3 +48,7 @@ test-native-engine.ts
 tmp_migrate.cjs
 build_out.txt
 build_output.txt
+
+# Secrets
+_key.txt
+*.key.txt

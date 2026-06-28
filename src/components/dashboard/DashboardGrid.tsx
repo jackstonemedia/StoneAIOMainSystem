@@ -28,7 +28,7 @@ export function DashboardGrid({
   onLayoutChange,
   onRemoveWidget,
 }: DashboardGridProps) {
-  const layouts = { lg: layout.gridLayout as Layout[] };
+  const layouts = { lg: layout.gridLayout as any };
 
   if (!layout.widgets.length) {
     return (
@@ -51,7 +51,7 @@ export function DashboardGrid({
         isDraggable={isEditing}
         isResizable={isEditing}
         draggableHandle=".widget-drag-handle"
-        onLayoutChange={(currentLayout: Layout[]) => {
+        onLayoutChange={(currentLayout: any) => {
           onLayoutChange(currentLayout);
         }}
         compactType="vertical"

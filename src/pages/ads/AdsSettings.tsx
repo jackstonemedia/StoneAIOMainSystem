@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Bell, BellOff, Wand2 } from 'lucide-react';
-import { useAdAccounts, useInitAdOAuth, useDisconnectAdAccount } from '../../hooks/useAdAccounts';
+import { useAdAccounts, useInitAdOAuth, useDisconnectAdAccount, useCompleteAdOAuth } from '../../hooks/useAdAccounts';
 import { useAdSettings, useUpdateAdSettings } from '../../hooks/useAdSettings';
 import AdAccountCard from '../../components/ads/AdAccountCard';
 
@@ -27,10 +27,29 @@ export default function AdsSettings() {
   }, [settings]);
 
   // Handle OAuth query params
+  const { mutate: completeOAuth, isPending: isCompletingOAuth } = useCompleteAdOAuth();
+  const [oauthPicker, setOauthPicker] = useState<{ platform: string; accounts: any[]; tokens: any; pages?: any[] } | null>(null);
+
   useEffect(() => {
     const error = searchParams.get('oauth_error');
     if (error) {
       alert(`OAuth Error: ${error}`);
+      setSearchParams({});
+    }
+    const step = searchParams.get('oauth_step');
+    if (step === 'pick_account') {
+      const platform = searchParams.get('platform');
+      const accountsStr = searchParams.get('accounts');
+      const tokensStr = searchParams.get('tokens');
+      const pagesStr = searchParams.get('pages');
+      if (platform && accountsStr && tokensStr) {
+        setOauthPicker({
+          platform,
+          accounts: JSON.parse(accountsStr),
+          tokens: JSON.parse(tokensStr),
+          pages: pagesStr ? JSON.parse(pagesStr) : undefined,
+        });
+      }
       setSearchParams({});
     }
   }, [searchParams, setSearchParams]);
@@ -163,6 +182,51 @@ export default function AdsSettings() {
           </div>
         </div>
       </div>
+
+      {oauthPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-surface border border-border rounded-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-bold text-text-main">Select {oauthPicker.platform === 'google' ? 'Google' : 'Facebook'} Ad Account</h3>
+            <p className="text-sm text-text-muted">Choose the ad account you want to connect to StoneAIO.</p>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {oauthPicker.accounts.map(acc => (
+                <button
+                  key={acc.id}
+                  onClick={() => {
+                    completeOAuth({
+                      platform: oauthPicker.platform as 'google' | 'facebook',
+                      tokens: oauthPicker.tokens,
+                      accountId: acc.id,
+                      accountName: acc.name,
+                      pages: oauthPicker.pages,
+                    }, {
+                      onSuccess: () => setOauthPicker(null)
+                    });
+                  }}
+                  disabled={isCompletingOAuth}
+                  className="w-full text-left p-3 rounded-lg border border-border hover:bg-border/50 transition-colors flex flex-col"
+                >
+                  <span className="font-medium text-text-main">{acc.name}</span>
+                  <span className="text-xs text-text-muted">ID: {acc.id}</span>
+                </button>
+              ))}
+              {oauthPicker.accounts.length === 0 && (
+                <div className="p-4 text-center text-sm text-text-muted border border-dashed border-border rounded-lg">
+                  No ad accounts found.
+                </div>
+              )}
+            </div>
+            <div className="pt-4 flex justify-end">
+              <button
+                onClick={() => setOauthPicker(null)}
+                className="px-4 py-2 text-sm text-text-muted hover:text-text-main transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

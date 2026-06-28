@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { logger } from '../utils/logger.js';
 
 /** Typed application error with HTTP status code */
 export class AppError extends Error {
@@ -22,6 +23,7 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   if (err instanceof AppError) {
+    logger.warn(`AppError: ${err.message}`, { path: req.path, method: req.method, code: err.code });
     res.status(err.statusCode).json({
       error: err.message,
       code: err.code,
@@ -29,7 +31,8 @@ export function errorHandler(
     return;
   }
 
-  console.error(`[UnhandledError] ${req.method} ${req.path}`, err);
+  logger.error(`[UnhandledError] ${req.method} ${req.path}`, { error: err, stack: err.stack, method: req.method, path: req.path });
+  
   const details = process.env.NODE_ENV === 'production' ? undefined : (err.stack || err.message || String(err));
   res.status(500).json({ error: 'Internal server error', ...(details && { details }) });
 }

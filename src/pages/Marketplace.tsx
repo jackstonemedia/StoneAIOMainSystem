@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Filter, Star, Download, Bot, Zap, Clock, Loader2 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { apiFetch } from '../lib/apiClient';
 
 const CATEGORIES = ['All', 'Customer Support', 'Sales & CRM', 'Marketing', 'Engineering'];
 
@@ -34,7 +35,7 @@ export default function Marketplace() {
     }
     setDeployingId(agent.id);
     try {
-      const res = await fetch('/api/agents', {
+      const res = await apiFetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

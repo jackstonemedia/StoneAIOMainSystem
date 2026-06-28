@@ -3,6 +3,7 @@ import { TrendingUp, Plus, ArrowRight, RefreshCw, DollarSign, Calendar, User } f
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useToast } from '../ui/Toast';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Props { contactId: string; workspaceId?: string; }
 
@@ -20,19 +21,19 @@ export default function ContactDealsTab({ contactId }: Props) {
 
   const { data: allDeals = [], isLoading } = useQuery<any[]>({
     queryKey: ['deals'],
-    queryFn: () => fetch('/api/crm/deals').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/deals').then(r => r.ok ? r.json() : []),
   });
 
   const { data: pipelines = [] } = useQuery<any[]>({
     queryKey: ['pipelines'],
-    queryFn: () => fetch('/api/crm/pipelines').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/pipelines').then(r => r.ok ? r.json() : []),
   });
 
   const contactDeals = allDeals.filter((d: any) => d.contactId === contactId);
   const firstStageId = pipelines[0]?.stages?.[0]?.id;
 
   const createDeal = useMutation({
-    mutationFn: (data: any) => fetch('/api/crm/deals', {
+    mutationFn: (data: any) => apiFetch('/api/crm/deals', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...data, contactId, pipelineStageId: firstStageId }),
     }).then(r => r.json()),

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ConfirmDelete } from '../../components/ui/ConfirmDelete';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Company {
   id: string;
@@ -22,12 +23,12 @@ export default function Companies() {
   const qc = useQueryClient();
   const { data: companies = [], isLoading } = useQuery<Company[]>({
     queryKey: ['companies'],
-    queryFn: () => fetch('/api/crm/companies').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/companies').then(r => r.ok ? r.json() : []),
   });
 
   const createCompany = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch('/api/crm/companies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch('/api/crm/companies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -36,7 +37,7 @@ export default function Companies() {
 
   const deleteCompanyMutation = useMutation({
     mutationFn: async (id: string) => {
-      const r = await fetch(`/api/crm/companies/${id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/crm/companies/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error();
       return r.json();
     },

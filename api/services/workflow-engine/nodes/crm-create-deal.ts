@@ -88,20 +88,13 @@ export const crmCreateDeal: NodeImplementation = {
         description: config.description,
       };
 
-      const deal = await createDeal(workspaceId, userId, dealData);
+      const deal = await createDeal(workspaceId, userId, dealData as any);
 
       return {
         output: [
           {
             json: {
               dealId: deal.id,
-              title: deal.title,
-              contactId: deal.contactId,
-              amount: deal.amount,
-              stageId: deal.stageId,
-              probability: deal.probability,
-              closeDate: deal.closeDate,
-              description: deal.description,
               ...deal,
             },
           },

@@ -48,6 +48,7 @@ export const communicationSendEmail: NodeImplementation = {
       key: 'fromName',
       label: 'From Name (optional)',
       type: 'text',
+      advanced: true,
       placeholder: 'e.g. Your Business Name',
       description: 'Display name that appears in the "From" field.',
     },
@@ -62,6 +63,7 @@ export const communicationSendEmail: NodeImplementation = {
       key: 'html',
       label: 'Body is HTML',
       type: 'boolean',
+      advanced: true,
       default: true,
     },
   ] as NodeConfigField[],
@@ -114,9 +116,11 @@ export const communicationSendEmail: NodeImplementation = {
           ],
         };
       } catch (gmailErr: any) {
-        console.warn(
-          `[SendEmail] Gmail send failed for workspace ${context.workspaceId}:`,
-          gmailErr?.message ?? String(gmailErr)
+        // Gmail is connected but sending failed — surface the real error
+        // instead of silently falling through to Resend.
+        throw new Error(
+          `Gmail send failed: ${gmailErr?.message ?? String(gmailErr)}. ` +
+          `Check that your Gmail connection is active and has send permissions (Settings → Channels).`
         );
       }
     }

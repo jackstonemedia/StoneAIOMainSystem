@@ -27,11 +27,12 @@ async function completeOAuth(
   tokens: unknown,
   accountId: string,
   accountName: string,
+  pages?: unknown,
 ): Promise<void> {
   const res = await fetch(`${API}/oauth/${platform}/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tokens, accountId, accountName }),
+    body: JSON.stringify({ tokens, accountId, accountName, pages }),
   });
   if (!res.ok) throw new Error('Failed to complete OAuth');
 }
@@ -64,8 +65,8 @@ export function useInitAdOAuth() {
 export function useCompleteAdOAuth() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { platform: 'google' | 'facebook'; tokens: unknown; accountId: string; accountName: string }) =>
-      completeOAuth(vars.platform, vars.tokens, vars.accountId, vars.accountName),
+    mutationFn: (vars: { platform: 'google' | 'facebook'; tokens: unknown; accountId: string; accountName: string; pages?: unknown }) =>
+      completeOAuth(vars.platform, vars.tokens, vars.accountId, vars.accountName, vars.pages),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ads.accounts() }),
   });
 }

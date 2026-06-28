@@ -10,44 +10,56 @@ import {
 } from './google-ads.service.js';
 import {
   buildFacebookAuthUrl, exchangeFacebookCode, getLongLivedFacebookToken, listFacebookAdAccounts,
+  listFacebookPages, subscribePageToLeadgenWebhook, subscribeAppToWebhook
 } from './facebook-ads.service.js';
-import type { AdPlatform } from '../../schemas/ads.schemas.js';
+type AdPlatform = 'GOOGLE' | 'FACEBOOK';
 
 const STATE_PREFIX_GOOGLE = 'google_ads:';
 const STATE_PREFIX_FACEBOOK = 'fb_ads:';
 
-// In-memory state store for OAuth (production would use Redis/DB)
-const oauthStateStore = new Map<string, { workspaceId: string; userId: string; expiresAt: number }>();
-
 // ─── OAuth Initiation ─────────────────────────────────────────────────────────
 
-export function initGoogleOAuth(workspaceId: string, userId: string): string {
+export async function initGoogleOAuth(workspaceId: string, userId: string): Promise<string> {
   const state = STATE_PREFIX_GOOGLE + crypto.randomUUID();
-  oauthStateStore.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60 * 1000 });
+  await db.adsOAuthState.create({
+    data: {
+      state,
+      workspaceId,
+      userId,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    },
+  });
   return buildGoogleAuthUrl(state);
 }
 
-export function initFacebookOAuth(workspaceId: string, userId: string): string {
+export async function initFacebookOAuth(workspaceId: string, userId: string): Promise<string> {
   const state = STATE_PREFIX_FACEBOOK + crypto.randomUUID();
-  oauthStateStore.set(state, { workspaceId, userId, expiresAt: Date.now() + 10 * 60 * 1000 });
+  await db.adsOAuthState.create({
+    data: {
+      state,
+      workspaceId,
+      userId,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    },
+  });
   return buildFacebookAuthUrl(state);
 }
 
-function consumeState(state: string): { workspaceId: string; userId: string } {
-  const data = oauthStateStore.get(state);
-  if (!data) throw new Error('Invalid or expired OAuth state');
-  if (Date.now() > data.expiresAt) {
-    oauthStateStore.delete(state);
+async function consumeState(state: string): Promise<{ workspaceId: string; userId: string }> {
+  const record = await db.adsOAuthState.findUnique({ where: { state } });
+  if (!record) throw new Error('Invalid or expired OAuth state');
+  if (record.expiresAt < new Date()) {
+    await db.adsOAuthState.delete({ where: { state } }).catch(() => {});
     throw new Error('OAuth state expired');
   }
-  oauthStateStore.delete(state);
-  return data;
+  await db.adsOAuthState.delete({ where: { state } });
+  return { workspaceId: record.workspaceId, userId: record.userId };
 }
 
 // ─── Google OAuth Callback ────────────────────────────────────────────────────
 
 export async function handleGoogleCallback(code: string, state: string) {
-  const { workspaceId, userId } = consumeState(state);
+  const { workspaceId, userId } = await consumeState(state);
 
   // Check concurrent connect guard
   const existing = await db.adAccount.findUnique({ where: { workspaceId_platform: { workspaceId, platform: 'GOOGLE' } } });
@@ -102,7 +114,7 @@ export async function completeGoogleConnect(
 // ─── Facebook OAuth Callback ──────────────────────────────────────────────────
 
 export async function handleFacebookCallback(code: string, state: string) {
-  const { workspaceId, userId } = consumeState(state);
+  const { workspaceId, userId } = await consumeState(state);
 
   const existing = await db.adAccount.findUnique({ where: { workspaceId_platform: { workspaceId, platform: 'FACEBOOK' } } });
   if (existing && existing.status !== 'DISCONNECTED') {
@@ -112,7 +124,8 @@ export async function handleFacebookCallback(code: string, state: string) {
   const shortTokens = await exchangeFacebookCode(code);
   const tokens = await getLongLivedFacebookToken(shortTokens.access_token);
   const accounts = await listFacebookAdAccounts(tokens.access_token);
-  return { type: 'account_picker' as const, accounts, tokens, workspaceId, userId };
+  const pages = await listFacebookPages(tokens.access_token);
+  return { type: 'account_picker' as const, accounts, pages, tokens, workspaceId, userId };
 }
 
 export async function completeFacebookConnect(
@@ -121,9 +134,34 @@ export async function completeFacebookConnect(
   tokens: Awaited<ReturnType<typeof getLongLivedFacebookToken>>,
   accountId: string,
   accountName: string,
+  pages: Awaited<ReturnType<typeof listFacebookPages>> = [],
 ) {
   const encAccessToken = encryptString(tokens.access_token);
   const expiresAt = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
+
+  // Encrypt page tokens and prepare for JSON storage
+  const encryptedPages = pages.map(p => ({
+    id: p.id,
+    name: p.name,
+    accessToken: encryptString(p.access_token),
+    category: p.category,
+  }));
+
+  // Subscribe pages to webhook
+  for (const page of pages) {
+    try {
+      await subscribePageToLeadgenWebhook(page.id, page.access_token);
+    } catch (e) {
+      console.error(`[AdsAccountService] Failed to subscribe page ${page.id}:`, e);
+    }
+  }
+  
+  // Also ensure app is subscribed to the page object
+  try {
+    await subscribeAppToWebhook();
+  } catch (e) {
+    console.error(`[AdsAccountService] Failed to subscribe app to webhook:`, e);
+  }
 
   await db.adAccount.upsert({
     where: { workspaceId_platform: { workspaceId, platform: 'FACEBOOK' } },
@@ -133,6 +171,7 @@ export async function completeFacebookConnect(
       externalAccountId: accountId,
       accountName,
       accessToken: encAccessToken,
+      facebookPages: JSON.stringify(encryptedPages),
       refreshToken: '',
       tokenExpiresAt: expiresAt,
       tokenLastRefreshedAt: new Date(),
@@ -143,6 +182,7 @@ export async function completeFacebookConnect(
       externalAccountId: accountId,
       accountName,
       accessToken: encAccessToken,
+      facebookPages: JSON.stringify(encryptedPages),
       tokenExpiresAt: expiresAt,
       tokenLastRefreshedAt: new Date(),
       status: 'ACTIVE',
@@ -155,9 +195,29 @@ export async function completeFacebookConnect(
 // ─── Disconnect ───────────────────────────────────────────────────────────────
 
 export async function disconnectAdAccount(workspaceId: string, platform: 'GOOGLE' | 'FACEBOOK') {
+  if (platform === 'FACEBOOK') {
+    const account = await db.adAccount.findUnique({ where: { workspaceId_platform: { workspaceId, platform } } });
+    if (account && account.facebookPages) {
+      try {
+        const pages = JSON.parse(account.facebookPages) as Array<{id: string, accessToken: string}>;
+        for (const p of pages) {
+          const pt = decryptString(p.accessToken);
+          // Unsubscribe page
+          await fetch(`https://graph.facebook.com/v22.0/${p.id}/subscribed_apps`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ access_token: pt }),
+          }).catch(console.error);
+        }
+      } catch (e) {
+        console.error('[AdsAccountService] Failed to unsubscribe pages on disconnect:', e);
+      }
+    }
+  }
+
   await db.adAccount.updateMany({
     where: { workspaceId, platform },
-    data: { status: 'DISCONNECTED', accessToken: '', refreshToken: '', disconnectedAt: new Date() },
+    data: { status: 'DISCONNECTED', accessToken: '', refreshToken: '', facebookPages: '[]', disconnectedAt: new Date() },
   });
 }
 
@@ -213,4 +273,48 @@ export async function maybeRefreshGoogleToken(workspaceId: string): Promise<stri
     await db.adAccount.update({ where: { id: account.id }, data: { status: 'NEEDS_ATTENTION' } });
     return null;
   }
+}
+
+// ─── Token Refresh (Facebook) ─────────────────────────────────────────────
+
+export async function maybeRefreshFacebookToken(workspaceId: string): Promise<string | null> {
+  const result = await getDecryptedTokens(workspaceId, 'FACEBOOK');
+  if (!result) return null;
+  const { account, accessToken } = result;
+
+  // Refresh if less than 7 days remaining
+  const shouldRefresh = account.tokenExpiresAt && account.tokenExpiresAt.getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+  if (!shouldRefresh) return accessToken;
+
+  try {
+    const newTokens = await getLongLivedFacebookToken(accessToken);
+    const enc = encryptString(newTokens.access_token);
+    const expiresAt = newTokens.expires_in ? new Date(Date.now() + newTokens.expires_in * 1000) : null;
+    await db.adAccount.update({
+      where: { id: account.id },
+      data: { accessToken: enc, tokenExpiresAt: expiresAt, tokenLastRefreshedAt: new Date() },
+    });
+    return newTokens.access_token;
+  } catch (e) {
+    console.error('[AdAccountService] Facebook Token refresh failed:', e);
+    await db.adAccount.update({ where: { id: account.id }, data: { status: 'NEEDS_ATTENTION' } });
+    return null;
+  }
+}
+
+// ─── Retrieve Page Token ──────────────────────────────────────────────────
+
+export async function getFacebookPageAccessToken(workspaceId: string, pageId: string): Promise<string | null> {
+  const account = await db.adAccount.findUnique({
+    where: { workspaceId_platform: { workspaceId, platform: 'FACEBOOK' } },
+  });
+  if (!account || !account.facebookPages) return null;
+  try {
+    const pages = JSON.parse(account.facebookPages) as Array<{id: string, accessToken: string}>;
+    const page = pages.find(p => p.id === pageId);
+    if (page) return decryptString(page.accessToken);
+  } catch (e) {
+    console.error('[AdsAccountService] Failed to parse facebookPages:', e);
+  }
+  return null;
 }

@@ -57,14 +57,14 @@ export default function AdAccountCard({ account, onDisconnect, isDisconnecting }
         <div className="flex items-center justify-between">
           <span className="text-text-muted">Last Sync</span>
           <span className="text-text-main text-xs">
-            {account.isSyncing ? (
+            {(account as any).isSyncing ? (
               <span className="flex items-center gap-1.5 text-primary">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 Syncing metrics...
               </span>
-            ) : account.lastSyncedAt ? (
+            ) : (account as any).lastSyncedAt ? (
               <span>
-                {new Date(account.lastSyncedAt).toLocaleString()}
+                {new Date((account as any).lastSyncedAt).toLocaleString()}
               </span>
             ) : (
               'Never'

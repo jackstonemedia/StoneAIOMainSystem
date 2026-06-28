@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard, Bell,
@@ -7,7 +8,8 @@ import {
   Users, Calendar, Star, MessageSquare,
   Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
-  AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone
+  AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone,
+  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -45,26 +47,96 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     {
       label: 'Workspace',
       items: [
-        { name: 'Dashboard',    path: '/dashboard',          icon: LayoutDashboard },
-        { name: 'CRM',          path: '/crm/contacts',       icon: Users },
-        { name: 'Conversations',path: '/conversations',      icon: MessageSquare },
-        { name: 'Campaigns',    path: '/business/campaigns', icon: Mail },
-        { name: 'Ad Manager',   path: '/ads/overview',       icon: Megaphone },
+        { 
+          name: 'Dashboard',    
+          path: '/dashboard?tab=overview',          
+          icon: LayoutDashboard,
+          subItems: [
+            { name: 'Overview', path: '/dashboard?tab=overview' },
+            { name: 'Revenue', path: '/dashboard?tab=revenue' },
+            { name: 'Activity', path: '/dashboard?tab=activity' },
+            { name: 'Calendar', path: '/dashboard?tab=calendar' },
+          ]
+        },
+        { 
+          name: 'CRM',          
+          path: '/crm/contacts',       
+          icon: Users,
+          subItems: [
+            { name: 'Contacts', path: '/crm/contacts' },
+            { name: 'Opportunities', path: '/crm/pipeline' },
+            { name: 'Companies', path: '/crm/companies' },
+            { name: 'Tasks', path: '/crm/tasks' },
+            { name: 'Documents', path: '/crm/documents' },
+            { name: 'Smart Lists', path: '/crm/smart-lists' }
+          ]
+        },
+        { 
+          name: 'Conversations',
+          path: '/conversations/chat',      
+          icon: MessageSquare,
+          subItems: [
+            { name: 'Conversations', path: '/conversations/chat' },
+            { name: 'Manual Actions', path: '/conversations/manual-actions' },
+            { name: 'Snippets', path: '/conversations/snippets' },
+            { name: 'Trigger Links', path: '/conversations/trigger-links' }
+          ]
+        },
+        { 
+          name: 'Ad Manager',   
+          path: '/ads/overview',       
+          icon: Megaphone,
+          subItems: [
+            { name: 'Overview', path: '/ads/overview' },
+            { name: 'Campaigns', path: '/ads/campaigns' },
+            { name: 'Reports', path: '/ads/reports' }
+          ]
+        },
         { name: 'Calendar',     path: '/business/calendar',  icon: Calendar },
-        { name: 'Reputation',   path: '/business/reputation',icon: Star },
-        { name: 'Sites & Forms',path: '/marketing/sites',    icon: AppWindow },
+        { name: 'Lead Studio',  path: '/leads',              icon: Target },
       ]
     },
     {
       label: 'Automation',
       items: [
-        { name: 'Workflows',    path: '/workflows',          icon: Zap },
+        { 
+          name: 'Workflows',    
+          path: '/automations',          
+          icon: Zap,
+          subItems: [
+            { name: 'Workflows', path: '/automations' },
+            { name: 'Runs', path: '/automations/runs' },
+            { name: 'Connections', path: '/automations/connections' },
+            { name: 'Tables', path: '/automations/tables' },
+            { name: 'Releases', path: '/automations/releases' },
+            { name: 'Settings', path: '/automations/settings' }
+          ]
+        },
         { name: 'Voice Agents', path: '/voice-agents',       icon: Mic },
       ]
-    }
+    },
   ];
 
-  const NavItem = ({ item }: { item: { name: string; path: string; icon: any } }) => {
+  const NavItem = ({ item }: { item: { name: string; path: string; icon: any; subItems?: any[] } }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const itemRef = useRef<HTMLAnchorElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+        if (
+          itemRef.current && !itemRef.current.contains(e.target as Node) &&
+          menuRef.current && !menuRef.current.contains(e.target as Node)
+        ) {
+          setIsOpen(false);
+        }
+      };
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
+
     const isActive = (() => {
       const [itemPath, itemQuery] = item.path.split('?');
       if (itemQuery) {
@@ -84,13 +156,26 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     if (collapsed) {
       return (
         <NavLink
+          ref={itemRef}
           to={item.path}
-          onClick={() => setMobileOpen?.(false)}
+          onClick={(e) => {
+            if (item.subItems) {
+              if (isActive) {
+                e.preventDefault();
+                setIsOpen(!isOpen);
+              } else {
+                setIsOpen(false);
+                setMobileOpen?.(false);
+              }
+            } else {
+              setMobileOpen?.(false);
+            }
+          }}
           title={item.name}
-          className={`flex items-center justify-center w-8 h-8 mx-auto my-0.5 rounded-lg transition-all duration-150 ${
-            isActive
+          className={`flex items-center justify-center w-8 h-8 mx-auto mb-[10px] rounded-lg transition-all duration-150 ${
+            isActive || isOpen
               ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)]'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)]'
+              : 'text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] hover:bg-[var(--sidebar-active)]'
           }`}
         >
           <item.icon className="w-4 h-4" strokeWidth={isActive ? 2 : 1.75} />
@@ -99,21 +184,71 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     }
 
     return (
-      <NavLink
-        to={item.path}
-        onClick={() => setMobileOpen?.(false)}
-        className={`group relative flex items-center gap-2.5 px-2.5 py-[7px] mx-2 my-px rounded-lg text-[13px] transition-all duration-150 ${
-          isActive
-            ? 'bg-[var(--sidebar-active)] text-[var(--text-main)] font-semibold'
-            : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-hover)] font-medium'
-        }`}
-      >
-        {isActive && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-primary" />
+      <>
+        <NavLink
+          ref={itemRef}
+          to={item.path}
+          onClick={(e) => {
+            if (item.subItems) {
+              if (isActive) {
+                e.preventDefault();
+                setIsOpen(!isOpen);
+              } else {
+                setIsOpen(false);
+                setMobileOpen?.(false);
+              }
+            } else {
+              setMobileOpen?.(false);
+            }
+          }}
+          className={`group relative flex items-center justify-between px-2.5 py-[7px] mx-2 mb-[10px] rounded-lg text-[13px] transition-all duration-150 ${
+            isActive || isOpen
+              ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-text-main)] font-semibold'
+              : 'text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] hover:bg-[var(--sidebar-active)] font-medium'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <item.icon className="w-4 h-4 shrink-0" strokeWidth={isActive || isOpen ? 2 : 1.75} />
+            <span className="truncate">{item.name}</span>
+          </div>
+          {item.subItems && isActive && (
+            <ChevronDown className={`w-3.5 h-3.5 opacity-50 shrink-0 transition-transform ${isOpen ? 'rotate-0' : '-rotate-90'}`} />
+          )}
+        </NavLink>
+
+        {isOpen && item.subItems && createPortal(
+          <div 
+            ref={menuRef}
+            className="fixed z-[9999] w-[220px] py-2 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-in fade-in slide-in-from-left-2 duration-200"
+            style={{
+              top: Math.max(16, Math.min(itemRef.current?.getBoundingClientRect().top || 0, window.innerHeight - 500)),
+              left: (itemRef.current?.getBoundingClientRect().right || 0) + 16,
+              background: 'var(--sidebar-bg)',
+              border: '1px solid var(--sidebar-border)'
+            }}
+          >
+            <div className="px-4 pb-2 mb-2 border-b border-white/5">
+              <h3 className="text-[13px] font-bold text-[var(--sidebar-text-main)]">{item.name}</h3>
+            </div>
+            <div className="flex flex-col max-h-[calc(100vh-80px)] overflow-y-auto">
+              {item.subItems.map((sub: any) => (
+                <NavLink 
+                  key={sub.path} 
+                  to={sub.path}
+                  onClick={() => setIsOpen(false)}
+                  className={({ isActive }) => `
+                    flex items-center px-4 py-2 mx-2 mb-[6px] rounded-lg text-[13px] transition-colors
+                    ${isActive ? 'text-[var(--sidebar-text-main)] font-semibold bg-[var(--sidebar-active)]' : 'text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] hover:bg-[var(--sidebar-active)]'}
+                  `}
+                >
+                  {sub.name}
+                </NavLink>
+              ))}
+            </div>
+          </div>,
+          document.body
         )}
-        <item.icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2 : 1.75} />
-        <span className="truncate">{item.name}</span>
-      </NavLink>
+      </>
     );
   };
 
@@ -132,7 +267,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         className={`flex flex-col h-full shrink-0 transition-all duration-300 z-50
           fixed md:relative top-0 bottom-0 left-0
           border-r
-          ${collapsed ? 'w-[60px]' : 'w-[232px]'}
+          ${collapsed ? 'w-[60px]' : 'w-[200px]'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
         style={{
@@ -150,24 +285,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           {!collapsed && (
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold leading-tight truncate" style={{ color: 'var(--text-main)' }}>Stone AIO</p>
+                <p className="text-[14px] font-bold tracking-tight leading-tight truncate" style={{ color: 'var(--sidebar-text-main)' }}>Stone AIO</p>
               </div>
-              <span
-                className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none"
-                style={{
-                  background: 'rgba(82,103,125,0.18)',
-                  color: 'var(--text-muted)',
-                  border: '1px solid rgba(82,103,125,0.3)',
-                }}
-              >
-                Pro Trial
-              </span>
             </div>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)] shrink-0"
-            style={{ color: 'var(--text-muted)' }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--sidebar-active)] shrink-0"
+            style={{ color: 'var(--sidebar-text-muted)' }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed
@@ -180,48 +305,13 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
         {/* ── Scrollable Nav Body ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col">
-
-          {/* Notifications */}
-          <div className={`pt-2 pb-1 shrink-0 ${collapsed ? 'px-0' : 'px-2'}`}>
-            {collapsed ? (
-              <button
-                className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors hover:bg-[var(--surface-hover)]"
-                style={{ color: 'var(--text-muted)' }}
-                title="Notifications"
-              >
-                <div className="relative">
-                  <Bell className="w-4 h-4" strokeWidth={1.75} />
-                  <span
-                    className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full text-[8px] font-black flex items-center justify-center"
-                    style={{ background: 'var(--primary)', color: 'var(--bg)' }}
-                  >5</span>
-                </div>
-              </button>
-            ) : (
-              <button
-                className="w-full flex items-center gap-2.5 px-2.5 py-[7px] my-px rounded-lg text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                <div className="relative shrink-0">
-                  <Bell className="w-4 h-4" strokeWidth={1.75} />
-                </div>
-                <span className="flex-1 text-left">Notifications</span>
-                <span
-                  className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                  style={{ background: 'var(--primary)', color: 'var(--bg)' }}
-                >5</span>
-              </button>
-            )}
-          </div>
-          <div className="mx-3 mb-1" style={{ height: '1px', background: 'var(--sidebar-border)' }} />
-
           {/* ── Navigation groups ── */}
-          <div className="flex-1 pb-2">
+          <div className="flex-1 pb-2 pt-1">
             {navGroups.map((group, idx) => (
               <div key={group.label}>
                 {!collapsed && (
-                  <div className="px-4 pt-4 pb-1 shrink-0">
-                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', opacity: 0.45 }}>
+                  <div className={`px-4 pb-1 shrink-0 ${idx === 0 ? 'pt-0' : 'pt-4'}`}>
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.45 }}>
                       {group.label}
                     </span>
                   </div>
@@ -238,61 +328,20 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         {/* ── Bottom Footer ── */}
         <div className="shrink-0 flex flex-col" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
 
-          {/* Upgrade nudge — collapsed icon only */}
+          {/* Settings / Spacer */}
           {collapsed ? (
             <div className="py-2 flex flex-col items-center gap-1">
               <button
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
-                style={{ color: 'var(--text-muted)' }}
-                title="Upgrade to Pro"
-              >
-                <Zap className="w-4 h-4" strokeWidth={1.75} />
-              </button>
-              <button
                 onClick={() => navigate('/settings')}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--surface-hover)]"
-                style={{ color: 'var(--text-muted)' }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--sidebar-active)]"
+                style={{ color: 'var(--sidebar-text-muted)' }}
                 title="Settings"
               >
                 <Settings className="w-4 h-4" strokeWidth={1.75} />
               </button>
             </div>
           ) : (
-            <div
-              className="mx-3 my-3 rounded-lg overflow-hidden shrink-0"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-            >
-              <div
-                className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-[var(--surface-hover)]"
-                onClick={() => setUpgradeExpanded(!upgradeExpanded)}
-              >
-                <div
-                  className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
-                  style={{ background: 'var(--surface-hover)', border: '1px solid var(--border)' }}
-                >
-                  <Zap className="w-3 h-3" style={{ color: 'var(--text-muted)' }} strokeWidth={2} />
-                </div>
-                <div className="leading-tight flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold" style={{ color: 'var(--text-main)' }}>Pro Trial</div>
-                  <div className="text-[10px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>Upgrade for full access</div>
-                </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${upgradeExpanded ? 'rotate-0' : '-rotate-90'}`}
-                  strokeWidth={1.5}
-                  style={{ color: 'var(--text-muted)' }}
-                />
-              </div>
-              {upgradeExpanded && (
-                <div className="px-3 pb-3 pt-0">
-                  <button
-                    className="w-full flex justify-center items-center gap-1.5 py-1.5 rounded-[6px] text-[12px] font-semibold transition-all active:scale-95"
-                    style={{ background: 'var(--primary)', color: 'var(--bg)' }}
-                  >
-                    <Zap className="w-3 h-3" /> Upgrade to Pro
-                  </button>
-                </div>
-              )}
-            </div>
+            <div className="pt-3" />
           )}
 
           {/* ── Profile ── */}
@@ -307,27 +356,27 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                 }}
               >
                 <div className="px-3 py-2 mb-1" style={{ borderBottom: '1px solid var(--border)' }}>
-                  <p className="text-[12px] font-semibold" style={{ color: 'var(--text-main)' }}>{fullName}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{user?.emailAddresses?.[0]?.emailAddress ?? ''}</p>
+                  <p className="text-[12px] font-semibold" style={{ color: 'var(--sidebar-text-main)' }}>{fullName}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.7 }}>{user?.emailAddresses?.[0]?.emailAddress ?? ''}</p>
                 </div>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/crm/smart-lists'); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                  style={{ color: 'var(--text-muted)' }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--sidebar-active)]"
+                  style={{ color: 'var(--sidebar-text-muted)' }}
                 >
                   <List className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Smart Lists
                 </button>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                  style={{ color: 'var(--text-muted)' }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--sidebar-active)]"
+                  style={{ color: 'var(--sidebar-text-muted)' }}
                 >
                   <Settings className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Settings
                 </button>
                 <button
                   onClick={() => setProfileMenuOpen(false)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--surface-hover)]"
-                  style={{ color: 'var(--text-muted)' }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--sidebar-active)]"
+                  style={{ color: 'var(--sidebar-text-muted)' }}
                 >
                   <HelpCircle className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Help & Support
                 </button>
@@ -338,7 +387,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                     queryClient.clear();
                     await signOut({ redirectUrl: window.location.origin.replace(':4000', ':5173') + '/login' });
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-red-400 hover:text-red-300 transition-colors hover:bg-[var(--surface-hover)]"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-red-400 hover:text-red-300 transition-colors hover:bg-[var(--sidebar-active)]"
                 >
                   <LogOut className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Sign out
                 </button>
@@ -350,12 +399,12 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
               className={`flex items-center gap-2.5 cursor-pointer rounded-xl transition-all shrink-0 ${
                 collapsed
                   ? 'justify-center py-1 w-10 mx-auto'
-                  : 'px-2.5 py-2 hover:bg-[var(--surface-hover)]'
+                  : 'px-2.5 py-2 hover:bg-[var(--sidebar-active)]'
               }`}
             >
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 select-none overflow-hidden shadow-sm"
-                style={{ background: 'var(--primary)', color: 'var(--bg)' }}
+                style={{ background: 'var(--primary)', color: '#ffffff' }}
               >
                 {user?.imageUrl
                   ? <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" />
@@ -364,10 +413,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
               {!collapsed && (
                 <>
                   <div className="flex flex-col justify-center leading-tight min-w-0 flex-1">
-                    <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--text-main)' }}>{fullName}</span>
-                    <span className="text-[10px] truncate" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Enterprise CRM</span>
+                    <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--sidebar-text-main)' }}>{fullName}</span>
+                    <span className="text-[10px] truncate" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.6 }}>Enterprise CRM</span>
                   </div>
-                  <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+                  <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--sidebar-text-muted)' }} />
                 </>
               )}
             </div>

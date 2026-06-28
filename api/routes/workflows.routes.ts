@@ -577,20 +577,20 @@ router.post('/:id/definition', async (req, res) => {
       if (type === 'trigger.schedule') {
         const cron = config.cronExpression || '* * * * *';
         await db.workflowSchedule.create({
-          data: { workspaceId, workflowId, nodeId: node.id, cronExpr: cron, timezone: 'UTC', active: false },
+          data: { workspaceId, workflowId, nodeId: node.id, cronExpr: cron, timezone: 'UTC', active: false } as any,
         });
       } else if (type === 'trigger.webhook') {
         const method = config.method || 'POST';
         const path = existingWebhookMap.get(node.id) || `/hooks/${nanoid(16)}`;
         await db.workflowWebhook.create({
-          data: { workspaceId, workflowId, nodeId: node.id, method, path, active: false },
+          data: { workspaceId, workflowId, nodeId: node.id, method, path, active: false } as any,
         });
       } else if (type === 'trigger.crm_event') {
         const eventStr = config.eventType || 'contact.created';
         const [entityType, eventType] = eventStr.split('.');
         const filters = config.filters || {};
         await db.crmTriggerSubscription.create({
-          data: { workspaceId, workflowId, nodeId: node.id, entityType, eventType, active: false, filtersJson: JSON.stringify(filters) },
+          data: { workspaceId, workflowId, nodeId: node.id, entityType, eventType, active: false, filtersJson: JSON.stringify(filters) } as any,
         });
       }
     }
@@ -636,14 +636,14 @@ router.post('/:id/publish-native', async (req, res) => {
     // 3. Activate and schedule WorkflowSchedule records
     const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
     for (const schedule of schedules) {
-      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: true } });
-      schedulerService.scheduleWorkflow({ ...schedule, active: true });
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: true } as any });
+      schedulerService.scheduleWorkflow({ ...schedule, active: true } as any);
     }
 
     // 4. Activate WorkflowWebhook records and reload registry
     const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
     for (const hook of webhooks) {
-      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: true } });
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: true } as any });
     }
     if (webhooks.length > 0) {
       const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
@@ -653,7 +653,7 @@ router.post('/:id/publish-native', async (req, res) => {
     // 5. Activate CRM subscriptions
     await db.crmTriggerSubscription.updateMany({
       where: { workflowId },
-      data: { active: true },
+      data: { active: true } as any,
     });
 
     res.json({ success: true, status: 'published' });
@@ -682,14 +682,14 @@ router.post('/:id/pause-native', async (req, res) => {
     // 3. Deactivate and unschedule WorkflowSchedule records
     const schedules = await db.workflowSchedule.findMany({ where: { workflowId } });
     for (const schedule of schedules) {
-      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: false } });
+      await db.workflowSchedule.update({ where: { id: schedule.id }, data: { active: false } as any });
       schedulerService.unscheduleWorkflow(schedule.id);
     }
 
     // 4. Deactivate WorkflowWebhook records and reload registry
     const webhooks = await db.workflowWebhook.findMany({ where: { workflowId } });
     for (const hook of webhooks) {
-      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: false } });
+      await db.workflowWebhook.update({ where: { id: hook.id }, data: { active: false } as any });
     }
     if (webhooks.length > 0) {
       const { webhookRegistry } = await import('../services/workflow-engine/webhook-registry.js');
@@ -699,7 +699,7 @@ router.post('/:id/pause-native', async (req, res) => {
     // 5. Deactivate CRM subscriptions
     await db.crmTriggerSubscription.updateMany({
       where: { workflowId },
-      data: { active: false },
+      data: { active: false } as any,
     });
 
     res.json({ success: true, status: 'paused' });

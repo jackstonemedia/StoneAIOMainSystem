@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Plus, Filter, ChevronDown, Search, Settings, Edit2, Trash2, Check, Clock, X, Phone, Mail, Video, Users, CheckSquare, FileText, Zap, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../lib/apiClient';
+import { NotionEditor } from '../../components/editor/NotionEditor';
+
 
 interface Task {
   id: string;
@@ -27,7 +30,7 @@ export default function CrmTasks() {
   useEffect(() => {
     if (!taskContactFocused) { setTaskContacts([]); return; }
     const t = setTimeout(() => {
-      fetch('/api/crm/contacts').then(r => r.ok ? r.json() : {}).then((res: any) => {
+      apiFetch('/api/crm/contacts').then(r => r.ok ? r.json() : {}).then((res: any) => {
         const all: any[] = Array.isArray(res) ? res : (res?.contacts ?? []);
         const q = taskContactSearch.toLowerCase();
         setTaskContacts(!q ? all.slice(0, 6) : all.filter((c: any) => `${c.firstName ?? ''} ${c.lastName ?? ''} ${c.email ?? ''}`.toLowerCase().includes(q)).slice(0, 6));
@@ -38,14 +41,14 @@ export default function CrmTasks() {
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
-    queryFn: () => fetch('/api/crm/tasks').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/tasks').then(r => r.ok ? r.json() : []),
   });
 
 
 
   const createTask = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch('/api/crm/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch('/api/crm/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -54,7 +57,7 @@ export default function CrmTasks() {
 
   const updateTask = useMutation({
     mutationFn: async ({ id, data }: { id: string, data: any }) => {
-      const r = await fetch(`/api/crm/tasks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch(`/api/crm/tasks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -63,7 +66,7 @@ export default function CrmTasks() {
 
   const deleteTask = useMutation({
     mutationFn: async (id: string) => {
-      const r = await fetch(`/api/crm/tasks/${id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/crm/tasks/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error();
       return r.json();
     },
@@ -301,7 +304,12 @@ export default function CrmTasks() {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Description</label>
-                      <textarea placeholder="Additional context or instructions..." value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} rows={2} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-colors resize-none placeholder:text-text-muted/50" />
+                      <NotionEditor 
+                        content={newTask.description} 
+                        onChange={(html) => setNewTask({...newTask, description: html})} 
+                        placeholder="Type '/' for commands..." 
+                        minHeight="min-h-[100px]" 
+                      />
                     </div>
                   </div>
 

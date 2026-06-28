@@ -222,7 +222,22 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   const [contacts, total] = await Promise.all([
     db.contact.findMany({
       where,
-      include: { company: true },
+      select: {
+        id: true,
+        workspaceId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        status: true,
+        leadScore: true,
+        source: true,
+        color: true,
+        tagsJson: true,
+        createdAt: true,
+        updatedAt: true,
+        company: { select: { id: true, name: true } }
+      },
       orderBy: { createdAt: 'desc' },
       skip,
       take: parsedLimit,

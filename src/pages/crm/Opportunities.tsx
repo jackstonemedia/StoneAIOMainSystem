@@ -18,6 +18,7 @@ import {
   Zap, PlayCircle
 } from 'lucide-react';
 import KanbanBoard from '../../components/crm/KanbanBoard';
+import { apiFetch } from '../../lib/apiClient';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ function getDarkTextColor(hex: string) {
   return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, 22%)`;
 }
 
-async function apiFetch<T>(url: string): Promise<T> {
+async function queryFetch<T>(url: string): Promise<T> {
   const r = await fetch(url); if (!r.ok) throw new Error('Failed'); return r.json();
 }
 
@@ -110,7 +111,7 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
 
   const mut = useMutation({
     mutationFn: async (data: any) => {
-      const r = await fetch('/api/crm/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch('/api/crm/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!r.ok) throw new Error('Failed');
       return r.json();
     },
@@ -130,7 +131,7 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
     if (!finalContactId && (contactSearch || form.email || form.phone)) {
       setIsCreatingContact(true);
       try {
-        const contactReq = await fetch('/api/crm/contacts', {
+        const contactReq = await apiFetch('/api/crm/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -326,12 +327,12 @@ function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | nu
     setNameError(''); setSaving(true);
     try {
       if (pipeline) {
-        await fetch(`/api/crm/pipelines/${pipeline.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+        await apiFetch(`/api/crm/pipelines/${pipeline.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
         for (const s of stages.filter(s => !s.isNew)) {
-          await fetch(`/api/crm/pipelines/${pipeline.id}/stages/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: s.name, order: s.order }) });
+          await apiFetch(`/api/crm/pipelines/${pipeline.id}/stages/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: s.name, order: s.order }) });
         }
       } else {
-        const r = await fetch('/api/crm/pipelines', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, stages: stages.map((s, i) => ({ name: s.name, color: s.color, order: i, probability: s.probability })) }) });
+        const r = await apiFetch('/api/crm/pipelines', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, stages: stages.map((s, i) => ({ name: s.name, color: s.color, order: i, probability: s.probability })) }) });
         if (!r.ok) throw new Error('Failed');
       }
       qc.invalidateQueries({ queryKey: ['pipelines'] });
@@ -440,6 +441,7 @@ const DealCard: React.FC<{ deal: Deal; index: number; onDelete: () => void; onEd
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
+          style={provided.draggableProps.style as React.CSSProperties}
           onClick={onEdit}
           className={`p-3 mb-2.5 bg-surface border border-border rounded-[8px] shadow-sm hover:shadow-md cursor-pointer hover:border-primary/40 transition-all group ${
             snapshot.isDragging
@@ -492,7 +494,7 @@ function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipel
     if (!form.title.trim()) { setError('Title is required'); return; }
     setSaving(true);
     try {
-      const r = await fetch(`/api/crm/deals/${deal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: form.title, amount: parseFloat(form.amount) || 0, pipelineStageId: form.pipelineStageId, source: form.source, status: form.status }) });
+      const r = await apiFetch(`/api/crm/deals/${deal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: form.title, amount: parseFloat(form.amount) || 0, pipelineStageId: form.pipelineStageId, source: form.source, status: form.status }) });
       if (!r.ok) throw new Error('Failed');
       qc.invalidateQueries({ queryKey: ['deals'] });
       onSave();
@@ -564,7 +566,7 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
 
   const del = async (id: string) => {
     if (!confirm('Delete this pipeline? Deals will lose their stage assignment.')) return;
-    await fetch(`/api/crm/pipelines/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/crm/pipelines/${id}`, { method: 'DELETE' });
     qc.invalidateQueries({ queryKey: ['pipelines'] });
   };
 
@@ -873,9 +875,9 @@ export default function Opportunities() {
     '#81D4FA', '#B3E5FC', '#4DD0E1', '#90CAF9', '#CFD8DC', '#B0BEC5'
   ];
 
-  const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<Pipeline[]>({ queryKey: ['pipelines'], queryFn: () => apiFetch('/api/crm/pipelines') });
-  const { data: rawDeals = [], isLoading: loadingDeals } = useQuery<Deal[]>({ queryKey: ['deals'], queryFn: () => apiFetch('/api/crm/deals') });
-  const { data: contacts = [] } = useQuery<Contact[]>({ queryKey: ['contacts'], queryFn: () => apiFetch('/api/crm/contacts').then((res: any) => res.contacts || []) });
+  const { data: pipelines = [], isLoading: loadingPipelines } = useQuery<Pipeline[]>({ queryKey: ['pipelines'], queryFn: () => queryFetch('/api/crm/pipelines') });
+  const { data: rawDeals = [], isLoading: loadingDeals } = useQuery<Deal[]>({ queryKey: ['deals'], queryFn: () => queryFetch('/api/crm/deals') });
+  const { data: contacts = [] } = useQuery<Contact[]>({ queryKey: ['contacts'], queryFn: () => queryFetch('/api/crm/contacts').then((res: any) => res.contacts || []) });
 
   const allStages = pipelines.flatMap(p => p.stages || []);
   const stageMap = new Map(allStages.map(s => [s.id, { ...s, pipeline: pipelines.find(p => p.stages?.some(ps => ps.id === s.id)) }]));
@@ -888,7 +890,7 @@ export default function Opportunities() {
   });
 
   const deleteDeal = useMutation({
-    mutationFn: async (id: string) => { const r = await fetch(`/api/crm/deals/${id}`, { method: 'DELETE' }); if (!r.ok) throw new Error('Failed'); return r.json(); },
+    mutationFn: async (id: string) => { const r = await apiFetch(`/api/crm/deals/${id}`, { method: 'DELETE' }); if (!r.ok) throw new Error('Failed'); return r.json(); },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
   });
 
@@ -926,7 +928,7 @@ export default function Opportunities() {
 
   const moveDealToStage = useCallback(async (dealId: string, stageId: string) => {
     try {
-      await fetch(`/api/crm/deals/${dealId}`, {
+      await apiFetch(`/api/crm/deals/${dealId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pipelineStageId: stageId }),
@@ -1037,7 +1039,7 @@ export default function Opportunities() {
             onDealMove={(dealId, stageName) => {
               const stage = allStages.find(s => s.name === stageName);
               if (stage) {
-                fetch(`/api/crm/deals/${dealId}`, {
+                apiFetch(`/api/crm/deals/${dealId}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ pipelineStageId: stage.id })
@@ -1155,9 +1157,9 @@ export default function Opportunities() {
                                       {...drag.draggableProps}
                                       style={{ 
                                         ...drag.draggableProps.style, 
-                                        display: dragSnapshot.isDragging ? 'table' : '',
-                                        tableLayout: dragSnapshot.isDragging ? 'fixed' : '',
-                                        width: dragSnapshot.isDragging ? '1144px' : '',
+                                        display: dragSnapshot.isDragging ? 'table' : undefined,
+                                        tableLayout: dragSnapshot.isDragging ? 'fixed' : undefined,
+                                        width: dragSnapshot.isDragging ? '1144px' : undefined,
                                         background: dragSnapshot.isDragging ? 'var(--surface)' : '',
                                         zIndex: dragSnapshot.isDragging ? 9999 : 'auto'
                                       }}

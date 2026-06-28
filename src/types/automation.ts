@@ -1,9 +1,9 @@
-// Mirrors backend AP types but shaped for frontend consumption
+// Shared workflow/automation type definitions — used by frontend components and the builder UI.
 
 export type WorkflowStatus = 'draft' | 'published' | 'paused';
 export type RunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'PAUSED' | 'STOPPED';
 export type TriggerType = 'webhook' | 'schedule' | 'crm_event' | 'manual';
-export type EngineType = 'native';
+
 
 /** Matches the `workflows` Prisma model exactly. */
 export interface Workflow {
@@ -85,7 +85,7 @@ export type NativeNodeCategory =
   | 'ai'
   | 'integration';
 
-export type EngineType = 'native' | 'activepieces';
+export type EngineType = 'native';
 
 export interface NativeNode {
   id: string;           // unique UUID on the canvas
@@ -176,6 +176,7 @@ export interface NodeConfigField {
   rows?: number;                // For textarea
   language?: string;            // For code: 'javascript' | 'json'
   collection?: NodeConfigField[]; // For type='collection' (nested fields)
+  advanced?: boolean;             // Hide under "Advanced Settings"
 }
 
 export interface WorkflowCredential {

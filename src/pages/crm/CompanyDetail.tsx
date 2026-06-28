@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Globe, MapPin, Users, CircleDollarSign, Edit2, MoreHorizontal, Mail, Save, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Company {
   id: string;
@@ -42,9 +43,9 @@ export default function CompanyDetail() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/crm/companies/${id}`).then(res => res.json()),
-      fetch('/api/crm/contacts').then(res => res.json().then((data: any) => data.contacts || [])),
-      fetch('/api/crm/deals').then(res => res.json())
+      apiFetch(`/api/crm/companies/${id}`).then(res => res.json()),
+      apiFetch('/api/crm/contacts').then(res => res.json().then((data: any) => data.contacts || [])),
+      apiFetch('/api/crm/deals').then(res => res.json())
     ])
       .then(([companyData, contactsData, dealsData]) => {
         if (companyData.error) {
@@ -67,7 +68,7 @@ export default function CompanyDetail() {
   const handleSave = () => {
     if (!editForm) return;
 
-    fetch(`/api/crm/companies/${id}`, {
+    apiFetch(`/api/crm/companies/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(editForm)

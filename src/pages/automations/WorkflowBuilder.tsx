@@ -102,7 +102,7 @@ export default function WorkflowBuilder() {
         id: 'trigger_1',
         type: 'triggerStep',
         position: { x: 400, y: 150 },
-        data: { node: { id: 'trigger_1', type: 'trigger.manual', label: 'Manual Trigger', config: {} } }
+        data: { node: { id: 'trigger_1', type: 'trigger.crm_event', label: 'CRM Event', config: {} } }
       }];
     }
 
@@ -377,15 +377,8 @@ export default function WorkflowBuilder() {
       type: n.type,
       position: n.position,
       data: {
-        node: {
-          id: n.id,
-          type: n.data.node?.type ?? n.type,
-          label: n.data.node?.label ?? n.data.node?.type ?? 'Node',
-          config: n.data.node?.config ?? {},
-          continueOnFail: n.data.node?.continueOnFail,
-          disabled: n.data.node?.disabled,
-        },
-        nodeImplType: n.data.nodeImpl?.type ?? n.data.node?.type,
+        ...n.data,
+        nodeImplType: n.data.nodeImplType ?? n.data.nodeImpl?.type ?? n.data.node?.type ?? n.type,
       }
     }));
     await saveNativeDef.mutateAsync({ nodes: payloadNodes, edges });

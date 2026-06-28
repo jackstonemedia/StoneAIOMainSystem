@@ -17,47 +17,6 @@ const STANDARD_VARS = [
   { label: 'Now (ISO)', path: '$now' },
 ];
 
-function InlineVarDropdown({
-  query,
-  onSelect,
-  onClose,
-}: {
-  query: string;
-  onSelect: (path: string) => void;
-  onClose: () => void;
-}) {
-  const lower = query.toLowerCase();
-  const matches = STANDARD_VARS.filter(v => 
-    !lower || v.label.toLowerCase().includes(lower) || v.path.toLowerCase().includes(lower)
-  );
-
-  if (matches.length === 0) return null;
-
-  return (
-    <div className="absolute left-0 top-full mt-1 z-[200] w-full min-w-[200px] bg-surface border border-border rounded-xl shadow-2xl overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 bg-bg/60">
-        <Braces className="w-3 h-3 text-accent" />
-        <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Insert Variable</span>
-      </div>
-      <div className="max-h-52 overflow-y-auto">
-        {matches.map((m, i) => (
-          <button
-            key={`${m.path}-${i}`}
-            onMouseDown={(e) => { e.preventDefault(); onSelect(m.path); onClose(); }}
-            className="w-full flex items-center justify-between px-3 py-2 hover:bg-bg transition-colors text-left group"
-          >
-            <span className="text-xs font-medium text-text-main group-hover:text-primary transition-colors">{m.label}</span>
-            <span className="text-[10px] font-mono text-text-muted">{`{{${m.path}}}`}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Smart Variable Input ─────────────────────────────────────────────────────
-// Wraps an input or textarea, monitors for {{ and shows autocomplete
-
 function VarInput({
   fieldKey,
   value,
@@ -80,25 +39,19 @@ function VarInput({
   type?: string;
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
-  const [varQuery, setVarQuery] = useState('');
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const v = e.target.value;
-    onChange(v);
-
-    // Detect {{ trigger
-    const cursor = e.target.selectionStart ?? v.length;
-    const before = v.slice(0, cursor);
-    const match = before.match(/\{\{([^}]*)$/);
-    if (match) {
-      setVarQuery(match[1]);
-      setShowDropdown(true);
-    } else {
-      setShowDropdown(false);
-    }
-  };
+  // Close dropdown if clicked outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    if (showDropdown) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDropdown]);
 
   const insertVar = useCallback((path: string) => {
     const el = inputRef.current;
@@ -106,41 +59,32 @@ function VarInput({
     const cursor = el.selectionStart ?? value.length;
     const before = value.slice(0, cursor);
     const after = value.slice(cursor);
-    // Replace the partial {{ ... with the full expression
-    const replaced = before.replace(/\{\{[^}]*$/, `{{${path}}}`);
-    const next = replaced + after;
+    const next = before + `{{${path}}}` + after;
+    
     onChange(next);
     setShowDropdown(false);
-    
-    // Save to parent when variable inserted
     onSave();
 
-    // Restore focus + cursor after the inserted variable
     requestAnimationFrame(() => {
       el.focus();
-      const pos = replaced.length;
+      const pos = before.length + `{{${path}}}`.length;
       el.setSelectionRange(pos, pos);
     });
   }, [value, onChange, onSave]);
 
-  const handleBlur = () => {
-    onSave();
-    setTimeout(() => setShowDropdown(false), 150);
-  };
-
   const baseClass = className ?? (multiline
-    ? 'w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px] resize-y'
-    : 'w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary font-mono');
+    ? 'w-full pl-3 pr-10 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px] resize-y transition-colors'
+    : 'w-full pl-3 pr-10 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary font-mono transition-colors');
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative group">
       {multiline ? (
         <textarea
           ref={inputRef as React.RefObject<HTMLTextAreaElement>}
           value={value}
-          onChange={handleChange}
+          onChange={(e) => onChange(e.target.value)}
           onFocus={() => onFocus(fieldKey, inputRef.current!)}
-          onBlur={handleBlur}
+          onBlur={onSave}
           placeholder={placeholder}
           className={baseClass}
         />
@@ -149,20 +93,47 @@ function VarInput({
           ref={inputRef as React.RefObject<HTMLInputElement>}
           type={type}
           value={value}
-          onChange={handleChange}
+          onChange={(e) => onChange(e.target.value)}
           onFocus={() => onFocus(fieldKey, inputRef.current!)}
-          onBlur={handleBlur}
+          onBlur={onSave}
           placeholder={placeholder}
           className={baseClass}
         />
       )}
 
+      <button
+        type="button"
+        onClick={() => setShowDropdown(!showDropdown)}
+        className={`absolute right-2 top-2 p-1.5 rounded transition-colors ${
+          showDropdown 
+            ? 'bg-primary text-white' 
+            : 'text-text-muted hover:bg-surface hover:text-text-main'
+        }`}
+        title="Insert Variable"
+      >
+        <Braces className="w-3.5 h-3.5" />
+      </button>
+
       {showDropdown && (
-        <InlineVarDropdown
-          query={varQuery}
-          onSelect={insertVar}
-          onClose={() => setShowDropdown(false)}
-        />
+        <div className="absolute right-0 top-full mt-1 z-[200] w-64 bg-surface border border-border rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-3 py-2 border-b border-border flex items-center gap-2 bg-bg/50">
+            <Braces className="w-3.5 h-3.5 text-accent" />
+            <span className="text-[11px] font-semibold text-text-main uppercase tracking-wider">Insert Variable</span>
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1">
+            {STANDARD_VARS.map((m, i) => (
+              <button
+                key={`${m.path}-${i}`}
+                type="button"
+                onClick={() => insertVar(m.path)}
+                className="w-full flex flex-col items-start px-3 py-2 hover:bg-bg rounded-lg transition-colors text-left group/btn"
+              >
+                <span className="text-xs font-medium text-text-main group-hover/btn:text-primary">{m.label}</span>
+                <span className="text-[10px] font-mono text-text-muted truncate w-full">{`{{${m.path}}}`}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -280,6 +251,101 @@ export function NativeConfigPanel({
     ? (nodeImpl.configSchema as any[])
     : [];
 
+  const basicFields = configFields.filter((f: any) => !f.advanced);
+  const advancedFields = configFields.filter((f: any) => f.advanced);
+
+  const renderField = (field: any) => {
+    const key = field.key as string;
+    const label = field.label || key;
+    const fieldType = field.type as string;
+    const value = (localNode.config && localNode.config[key] !== undefined)
+      ? localNode.config[key]
+      : field.default ?? '';
+
+    // Select dropdown
+    if (fieldType === 'select' && Array.isArray(field.options)) {
+      return (
+        <div key={key} className="space-y-1.5">
+          <label className="text-xs font-medium text-text-main">{label}</label>
+          <select
+            value={value}
+            onChange={(e) => handleInstantChange(key, e.target.value)}
+            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary"
+          >
+            <option value="">Select option...</option>
+            {field.options.map((opt: any) => (
+              <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
+        </div>
+      );
+    }
+
+    // Boolean toggle
+    if (fieldType === 'boolean') {
+      return (
+        <div key={key} className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={key}
+            checked={!!value}
+            onChange={(e) => handleInstantChange(key, e.target.checked)}
+            className="rounded border-border text-primary focus:ring-primary bg-bg"
+          />
+          <label htmlFor={key} className="text-xs font-medium text-text-main">{label}</label>
+        </div>
+      );
+    }
+
+    const isTextArea = fieldType === 'textarea' || fieldType === 'code' || fieldType === 'json';
+    const supportsVariables = fieldType === 'text' || fieldType === 'textarea' || fieldType === 'expression';
+
+    return (
+      <div key={key} className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-xs font-medium text-text-main">{label}</label>
+          {supportsVariables && (
+            <span className="text-[10px] text-text-muted font-mono opacity-60">
+              type {'{{'}
+            </span>
+          )}
+        </div>
+
+        {supportsVariables ? (
+          <VarInput
+            fieldKey={key}
+            value={String(value ?? '')}
+            onChange={(v) => handleChange(key, v)}
+            onSave={handleSave}
+            onFocus={(k, el) => handleFieldFocus(k, el, label)}
+            placeholder={field.placeholder || (field.default ? `Default: ${field.default}` : `Type or use {{ to insert variables`)}
+            multiline={isTextArea}
+          />
+        ) : isTextArea ? (
+          <textarea
+            value={String(value ?? '')}
+            onChange={(e) => handleChange(key, e.target.value)}
+            onBlur={handleSave}
+            placeholder={field.placeholder}
+            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px] resize-y"
+          />
+        ) : (
+          <input
+            type={fieldType === 'number' ? 'number' : 'text'}
+            value={String(value ?? '')}
+            onChange={(e) => handleChange(key, fieldType === 'number' ? Number(e.target.value) : e.target.value)}
+            onBlur={handleSave}
+            placeholder={field.placeholder}
+            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary"
+          />
+        )}
+
+        {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
+      </div>
+    );
+  };
+
   return (
     <div className="w-80 border-l border-border bg-surface flex flex-col h-full z-10 shrink-0 overflow-hidden">
       {/* Header */}
@@ -347,97 +413,21 @@ export function NativeConfigPanel({
             {configFields.length === 0 ? (
               <p className="text-xs text-text-muted">No configuration required for this node.</p>
             ) : (
-              configFields.map((field: any) => {
-                const key = field.key as string;
-                const label = field.label || key;
-                const fieldType = field.type as string;
-                const value = (localNode.config && localNode.config[key] !== undefined)
-                  ? localNode.config[key]
-                  : field.default ?? '';
-
-                // Select dropdown
-                if (fieldType === 'select' && Array.isArray(field.options)) {
-                  return (
-                    <div key={key} className="space-y-1.5">
-                      <label className="text-xs font-medium text-text-main">{label}</label>
-                      <select
-                        value={value}
-                        onChange={(e) => handleInstantChange(key, e.target.value)}
-                        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary"
-                      >
-                        <option value="">Select option...</option>
-                        {field.options.map((opt: any) => (
-                          <option key={String(opt.value)} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
+              <>
+                {basicFields.map(renderField)}
+                
+                {advancedFields.length > 0 && (
+                  <details className="group border border-border rounded-lg bg-surface/50 overflow-hidden mt-4">
+                    <summary className="text-xs font-semibold text-text-main uppercase tracking-wider p-3 cursor-pointer select-none hover:bg-bg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary flex items-center justify-between">
+                      Advanced Settings
+                      <span className="text-text-muted group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div className="p-4 pt-2 border-t border-border space-y-4">
+                      {advancedFields.map(renderField)}
                     </div>
-                  );
-                }
-
-                // Boolean toggle
-                if (fieldType === 'boolean') {
-                  return (
-                    <div key={key} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id={key}
-                        checked={!!value}
-                        onChange={(e) => handleInstantChange(key, e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary bg-bg"
-                      />
-                      <label htmlFor={key} className="text-xs font-medium text-text-main">{label}</label>
-                    </div>
-                  );
-                }
-
-                const isTextArea = fieldType === 'textarea' || fieldType === 'code' || fieldType === 'json';
-                const supportsVariables = fieldType === 'text' || fieldType === 'textarea' || fieldType === 'expression';
-
-                return (
-                  <div key={key} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-medium text-text-main">{label}</label>
-                      {supportsVariables && (
-                        <span className="text-[10px] text-text-muted font-mono opacity-60">
-                          type {'{{'}
-                        </span>
-                      )}
-                    </div>
-
-                    {supportsVariables ? (
-                      <VarInput
-                        fieldKey={key}
-                        value={String(value ?? '')}
-                        onChange={(v) => handleChange(key, v)}
-                        onSave={handleSave}
-                        onFocus={(k, el) => handleFieldFocus(k, el, label)}
-                        placeholder={field.placeholder || (field.default ? `Default: ${field.default}` : `Type or use {{ to insert variables`)}
-                        multiline={isTextArea}
-                      />
-                    ) : isTextArea ? (
-                      <textarea
-                        value={String(value ?? '')}
-                        onChange={(e) => handleChange(key, e.target.value)}
-                        onBlur={handleSave}
-                        placeholder={field.placeholder}
-                        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text-main focus:outline-none focus:border-primary font-mono min-h-[80px] resize-y"
-                      />
-                    ) : (
-                      <input
-                        type={fieldType === 'number' ? 'number' : 'text'}
-                        value={String(value ?? '')}
-                        onChange={(e) => handleChange(key, fieldType === 'number' ? Number(e.target.value) : e.target.value)}
-                        onBlur={handleSave}
-                        placeholder={field.placeholder}
-                        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text-main focus:outline-none focus:border-primary"
-                      />
-                    )}
-
-                    {field.description && <p className="text-[10px] text-text-muted">{field.description}</p>}
-                  </div>
-                );
-              })
+                  </details>
+                )}
+              </>
             )}
           </div>
 
@@ -472,34 +462,7 @@ export function NativeConfigPanel({
             </label>
           </div>
           
-          {/* Variables Reference Panel */}
-          <div className="space-y-3 pt-4 border-t border-border">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                <Braces className="w-3.5 h-3.5" />
-                Variables
-              </h4>
-              {focusedFieldLabel && (
-                <span className="text-[10px] text-text-muted">
-                  Inserting into <span className="text-accent font-mono">{focusedFieldLabel}</span>
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-text-muted leading-relaxed">
-              Click a variable to insert it into the active text field.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {STANDARD_VARS.map((v) => (
-                <button
-                  key={v.path}
-                  onClick={() => insertIntoFocused(`{{${v.path}}}`)}
-                  className="px-2 py-1 bg-surface border border-border rounded text-[11px] font-mono text-text-main hover:border-accent hover:text-accent transition-colors active:scale-95"
-                >
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
 
         {/* History / Last Run Log */}

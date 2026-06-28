@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, CreditCard, Send, CheckCircle2 } from 'lucide-react';
+import { apiFetch } from '../../lib/apiClient';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ export function InvoiceModal({ isOpen, onClose, dealId, amount }: InvoiceModalPr
     setLoading(true);
     try {
       // Phase 3 Stripe Intent API Call
-      const res = await fetch('/api/stripe/create-payment-intent', {
+      const res = await apiFetch('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, dealId })

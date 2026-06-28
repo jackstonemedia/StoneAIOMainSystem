@@ -35,7 +35,6 @@ export type StoneAIOEvent =
  * emitTrigger — fire-and-forget internal event publisher.
  *
  * Fires events to the native workflow engine.
- * (Activepieces integration removed — ap-workspace-sync.service no longer exists)
  *
  * This function NEVER throws — a trigger failure must never
  * block or fail the originating request.

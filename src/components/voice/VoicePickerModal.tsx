@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Search, Play, ChevronRight, ChevronLeft, Check, Plus } from 'lucide-react';
+import { apiFetch } from '../../lib/apiClient';
 
 interface VoiceEntry {
   voice_id: string;
@@ -46,7 +47,7 @@ export default function VoicePickerModal({ isOpen, onClose, selectedVoiceId, onS
   const fetchVoices = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/voice-agents/voices');
+      const res = await apiFetch('/api/voice-agents/voices');
       if (res.ok) {
         const data = await res.json();
         setVoices(data);

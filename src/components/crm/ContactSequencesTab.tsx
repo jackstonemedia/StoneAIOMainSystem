@@ -1,6 +1,7 @@
 import { Play, Pause, XCircle, Mail, Phone, Clock, CheckCircle2, RefreshCw, Zap } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../ui/Toast';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Props { contactId: string; workspaceId?: string; }
 
@@ -26,10 +27,10 @@ export default function ContactSequencesTab({ contactId }: Props) {
     queryKey: ['sequence-enrollments-by-contact', contactId],
     queryFn: async () => {
       // Fetch all sequences, then their enrollments
-      const sequences = await fetch('/api/business/sequences').then(r => r.ok ? r.json() : []);
+      const sequences = await apiFetch('/api/business/sequences').then(r => r.ok ? r.json() : []);
       const allEnrollments: any[] = [];
       for (const seq of sequences) {
-        const enrolls = await fetch(`/api/business/sequences/${seq.id}/enrollments`)
+        const enrolls = await apiFetch(`/api/business/sequences/${seq.id}/enrollments`)
           .then(r => r.ok ? r.json() : []);
         const filtered = enrolls
           .filter((e: any) => e.contactId === contactId)
@@ -47,12 +48,12 @@ export default function ContactSequencesTab({ contactId }: Props) {
 
   const { data: sequences = [] } = useQuery<any[]>({
     queryKey: ['sequences'],
-    queryFn: () => fetch('/api/business/sequences').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/business/sequences').then(r => r.ok ? r.json() : []),
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ enrollmentId, status }: { enrollmentId: string; status: string }) => {
-      const res = await fetch(`/api/business/sequences/enrollments/${enrollmentId}/status`, {
+      const res = await apiFetch(`/api/business/sequences/enrollments/${enrollmentId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -68,7 +69,7 @@ export default function ContactSequencesTab({ contactId }: Props) {
 
   const enrollContact = useMutation({
     mutationFn: async (sequenceId: string) => {
-      const res = await fetch(`/api/business/sequences/${sequenceId}/enroll`, {
+      const res = await apiFetch(`/api/business/sequences/${sequenceId}/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactId }),

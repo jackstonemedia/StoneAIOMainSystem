@@ -55,7 +55,7 @@ function handleError(res: Response, err: unknown) {
 // GET /api/ads/oauth/google/init
 router.get('/oauth/google/init', async (req: Request, res: Response) => {
   try {
-    const url = initGoogleOAuth(req.workspaceId!, req.userId!);
+    const url = await initGoogleOAuth(req.workspaceId!, req.userId!);
     res.json({ url });
   } catch (err) { handleError(res, err); }
 });
@@ -101,7 +101,7 @@ router.post('/oauth/google/complete', async (req: Request, res: Response) => {
 // GET /api/ads/oauth/facebook/init
 router.get('/oauth/facebook/init', async (req: Request, res: Response) => {
   try {
-    const url = initFacebookOAuth(req.workspaceId!, req.userId!);
+    const url = await initFacebookOAuth(req.workspaceId!, req.userId!);
     res.json({ url });
   } catch (err) { handleError(res, err); }
 });
@@ -123,8 +123,9 @@ router.get('/oauth/facebook/callback', async (req: Request, res: Response) => {
 
     const encoded = encodeURIComponent(JSON.stringify(result.accounts));
     const tokEncoded = encodeURIComponent(JSON.stringify(result.tokens));
+    const pagesEncoded = encodeURIComponent(JSON.stringify(result.pages));
     return res.redirect(
-      `${frontendBase}/ads/settings?oauth_step=pick_account&platform=facebook&accounts=${encoded}&tokens=${tokEncoded}`
+      `${frontendBase}/ads/settings?oauth_step=pick_account&platform=facebook&accounts=${encoded}&tokens=${tokEncoded}&pages=${pagesEncoded}`
     );
   } catch (err) {
     const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -135,8 +136,8 @@ router.get('/oauth/facebook/callback', async (req: Request, res: Response) => {
 // POST /api/ads/oauth/facebook/complete
 router.post('/oauth/facebook/complete', async (req: Request, res: Response) => {
   try {
-    const { tokens, accountId, accountName } = req.body;
-    await completeFacebookConnect(req.workspaceId!, req.userId!, tokens, accountId, accountName);
+    const { tokens, accountId, accountName, pages } = req.body;
+    await completeFacebookConnect(req.workspaceId!, req.userId!, tokens, accountId, accountName, pages);
     res.json({ success: true });
   } catch (err) { handleError(res, err); }
 });
@@ -183,7 +184,7 @@ router.post('/campaigns', async (req: Request, res: Response) => {
   try {
     const parsed = CreateCampaignSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
-    const { platform, isDraft, ...rest } = parsed.data;
+    const { platform, isDraft, ...rest } = parsed.data as any;
     // platform is derived from adType
     const plat = parsed.data.adType.startsWith('GOOGLE') ? 'GOOGLE' : 'FACEBOOK';
     const campaign = await createCampaignDraft(req.workspaceId!, req.userId!, plat, parsed.data);

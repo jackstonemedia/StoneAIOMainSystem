@@ -5,7 +5,7 @@ import { X, Plus, GripVertical, Trash2, Edit2, MoreVertical, Target, ChevronLeft
 import { apiClient } from '../../lib/apiClient';
 
 interface Stage { id: string; name: string; color: string; order: number; probability: number; }
-interface Pipeline { id: string; name: string; isDefault: boolean; stages: Stage[]; updatedAt?: string; }
+interface Pipeline { id: string; name: string; isDefault?: boolean; stages: Stage[]; updatedAt?: string; }
 
 export function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | null; onClose: () => void; onSave: () => void }) {
   const PASTEL_COLORS = [

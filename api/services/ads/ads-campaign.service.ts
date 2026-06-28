@@ -4,7 +4,12 @@
  */
 
 import { db } from '../../../infrastructure/database/client.js';
-import { getDecryptedTokens, maybeRefreshGoogleToken } from './ads-account.service.js';
+import {
+  getDecryptedTokens,
+  maybeRefreshGoogleToken,
+  maybeRefreshFacebookToken,
+  getFacebookPageAccessToken,
+} from './ads-account.service.js';
 import {
   createGoogleCampaign, pauseGoogleCampaign, resumeGoogleCampaign, deleteGoogleCampaign,
   GoogleAdsError,
@@ -165,6 +170,10 @@ export async function launchCampaign(
       ];
       const leadFormFields = creative.leadFormFields?.length ? creative.leadFormFields : (isLead ? defaultLeadFields : undefined);
 
+      // Attempt to retrieve page access token for leadgen forms
+      let pageAccessToken = await getFacebookPageAccessToken(workspaceId, fbPageId);
+      if (!pageAccessToken) pageAccessToken = undefined as any;
+
       const result = await createFacebookCampaign(
         tokens.accessToken,
         campaign.adAccount.externalAccountId,
@@ -180,7 +189,21 @@ export async function launchCampaign(
           ageMin: targeting.ageMin,
           ageMax: targeting.ageMax,
           genders: targeting.genders?.map((g: string) => g === 'MALE' ? 1 : g === 'FEMALE' ? 2 : undefined).filter(Boolean),
-          interests: targeting.interests?.map((i: string) => ({ id: i, name: i })),
+          interests: targeting.interests?.map((i: string) => {
+            const FB_INTEREST_MAP: Record<string, string> = {
+              'Real Estate': '6002714886772',
+              'Home Services': '6003290076214',
+              'Fitness & Wellness': '6002839660079',
+              'Finance': '6003029947936',
+              'Healthcare': '6003183594834',
+              'Technology': '6003050125862',
+              'Food & Dining': '6002931448651',
+              'Travel': '6003082531093',
+              'Fashion': '6002998632616',
+              'Education': '6003130836528'
+            };
+            return { id: FB_INTEREST_MAP[i] || i, name: i };
+          }),
           pageId: fbPageId,
           headlines: creative.headlines ?? [],
           descriptions: creative.descriptions ?? [],
@@ -189,7 +212,8 @@ export async function launchCampaign(
           callToAction: creative.callToAction,
           finalUrl: creative.finalUrl,
           leadFormFields,
-        }
+        },
+        pageAccessToken ?? undefined
       );
 
       await db.adCampaign.update({
@@ -325,6 +349,23 @@ export async function listCampaigns(
       ...(filters?.platform && filters.platform !== 'ALL' ? { platform: filters.platform as any } : {}),
       ...(filters?.status && filters.status !== 'ALL' ? { status: filters.status as any } : {}),
       ...(filters?.search ? { name: { contains: filters.search } } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      platform: true,
+      status: true,
+      adType: true,
+      budgetType: true,
+      budgetAmountCents: true,
+      cachedSpend30dCents: true,
+      cachedLeads30d: true,
+      createdAt: true,
+      updatedAt: true,
+      platformCampaignId: true,
+      objective: true,
+      targetingJson: true,
+      creativeJson: true
     },
     orderBy: { cachedSpend30dCents: 'desc' },
   });

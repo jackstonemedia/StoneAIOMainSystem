@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Sparkles, X, Send, Bot, User } from 'lucide-react';
-import { streamText, SYSTEM_PROMPTS } from '../../lib/gemini';
+import { apiFetch } from '../../lib/apiClient';
+
+const SYSTEM_PROMPT =
+  "You are Stone AIO's AI assistant — an expert CRM strategist, sales coach, and marketing advisor. Be concise, actionable, and data-driven. When referencing data, be specific about numbers.";
 
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,28 +29,54 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
 
-    const context = `Current Route: ${location.pathname}\nUser Message: ${userMsg}`;
-    
-    // Create an empty assistant message to stream into
+    const prompt = `Current Route: ${location.pathname}\nUser Message: ${userMsg}`;
+
+    // Append empty assistant message to stream into
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      await streamText(
-        context,
-        (chunk) => {
-          setMessages(prev => {
-            const newMsgs = [...prev];
-            newMsgs[newMsgs.length - 1].content += chunk;
-            return newMsgs;
-          });
-        },
-        SYSTEM_PROMPTS.assistant
-      );
+      const res = await apiFetch('/api/workflow-ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, systemPrompt: SYSTEM_PROMPT }),
+      });
+
+      if (!res.ok || !res.body) throw new Error('AI request failed');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') break;
+          try {
+            const { text, error } = JSON.parse(payload);
+            if (error) throw new Error(error);
+            if (text) {
+              setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1].content += text;
+                return msgs;
+              });
+            }
+          } catch { /* skip malformed events */ }
+        }
+      }
     } catch (error: any) {
       setMessages(prev => {
-        const newMsgs = [...prev];
-        newMsgs[newMsgs.length - 1].content = `Error: ${error.message}`;
-        return newMsgs;
+        const msgs = [...prev];
+        msgs[msgs.length - 1].content = `Error: ${error.message}`;
+        return msgs;
       });
     } finally {
       setIsLoading(false);

@@ -78,10 +78,10 @@ export const integrationHttpRequest: NodeImplementation = {
       // If we have multiple input items and config wasn't resolved against this specific item,
       // resolve per-item. If items.length === 1, the engine already resolved it.
       if (items.length > 1) {
-        resolvedUrl = expressionService.resolveExpression(url, context, item);
+        resolvedUrl = expressionService.resolveExpression(url, context, item) as string;
 
         if (body) {
-          resolvedBody = expressionService.resolveExpression(body, context, item);
+          resolvedBody = expressionService.resolveExpression(body, context, item) as string;
         }
 
         // Resolve headers per item

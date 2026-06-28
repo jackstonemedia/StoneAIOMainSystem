@@ -28,6 +28,7 @@ import NodeInspector from '../components/builder/NodeInspector';
 import { NativeNodeLibrary } from '../components/builder/native/NativeNodeLibrary';
 import ExecutionLogsPanel from '../components/builder/ExecutionLogsPanel';
 import AgentConfigPanel from '../components/builder/AgentConfigPanel';
+import { apiFetch } from '../lib/apiClient';
 
 const nodeTypes = {
   voice: VoiceNode,
@@ -216,7 +217,7 @@ export default function AgentBuilder() {
         }
       } else {
         // Fallback for non-canvas save logic if needed
-        const res = await fetch(`/api/agents/${agentId}/workflow`, {
+        const res = await apiFetch(`/api/agents/${agentId}/workflow`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nodes, edges })
@@ -295,7 +296,7 @@ export default function AgentBuilder() {
         edges: edges.map(e => ({ source: e.source, target: e.target, sourceHandle: (e as any).sourceHandle }))
       } : undefined;
 
-      const res = await fetch('/api/workflow-ai/generate', {
+      const res = await apiFetch('/api/workflow-ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: userMsg, existingWorkflow })

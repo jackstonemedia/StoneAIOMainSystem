@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DollarSign, Mail, Users, Bot, Star, CheckSquare, Activity as ActivityIcon, Info } from 'lucide-react';
 import type { Activity } from '../../../types/crm';
 import { WidgetShell } from '../WidgetShell';
+import { apiFetch } from '../../../lib/apiClient';
 
 interface ActivityFeedWidgetProps {
   isEditing?: boolean;
@@ -63,7 +64,7 @@ export function ActivityFeedWidget({ isEditing, onRemove }: ActivityFeedWidgetPr
   } = useQuery<Activity[]>({
     queryKey: ['dashboard_activity'],
     queryFn: async () => {
-      const res = await fetch('/api/crm/activities');
+      const res = await apiFetch('/api/crm/activities');
       if (!res.ok) throw new Error('Failed to load activity');
       const body = await res.json();
       return Array.isArray(body) ? body : body.activities ?? [];

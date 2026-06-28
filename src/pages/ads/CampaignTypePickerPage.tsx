@@ -94,7 +94,7 @@ interface Objective {
   platform: 'GOOGLE' | 'META';
   name: string;
   description: string;
-  Icon: React.ComponentType<{ className?: string }>;
+  Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   subtypes: string[];
   recommended?: boolean;
 }

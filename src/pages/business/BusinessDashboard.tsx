@@ -7,6 +7,7 @@ import {
   MessageSquare, ChevronRight, Star, Bot
 } from 'lucide-react';
 import { MetricCard } from '../../components/ui/MetricCard';
+import { apiFetch } from '../../lib/apiClient';
 
 const SPARKLINES = {
   revenue:   [38,42,41,55,52,62,58,71,68,78,82,92],
@@ -55,7 +56,7 @@ export default function BusinessDashboard() {
 
   const { data: metrics, isLoading } = useQuery<any>({
     queryKey: ['business_metrics'],
-    queryFn: () => fetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
+    queryFn: () => apiFetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
   });
 
 

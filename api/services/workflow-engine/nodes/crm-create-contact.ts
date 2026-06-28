@@ -37,26 +37,31 @@ export const crmCreateContact: NodeImplementation = {
       key: 'firstName',
       label: 'First Name',
       type: 'text',
+      advanced: true,
     },
     {
       key: 'lastName',
       label: 'Last Name',
       type: 'text',
+      advanced: true,
     },
     {
       key: 'phone',
       label: 'Phone',
       type: 'text',
+      advanced: true,
     },
     {
       key: 'company',
       label: 'Company',
       type: 'text',
+      advanced: true,
     },
     {
       key: 'status',
       label: 'Status',
       type: 'select',
+      advanced: true,
       options: [
         { label: 'Lead', value: 'lead' },
         { label: 'New', value: 'new' },
@@ -70,6 +75,7 @@ export const crmCreateContact: NodeImplementation = {
       key: 'tags',
       label: 'Tags',
       type: 'text',
+      advanced: true,
     },
   ] as NodeConfigField[],
 

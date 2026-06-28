@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { DateRange } from '../types/dashboard';
 import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
@@ -16,7 +17,8 @@ import { PipelineActivity } from '../components/dashboard/v2/PipelineActivity';
 import { DashboardFadeIn } from '../components/dashboard/v2/DashboardPanel';
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
   const [dateRange, setDateRange] = useState<DateRange>('30d');
 
   const { metrics, isLoading: isMetricsLoading } = useDashboardMetrics(dateRange);
@@ -40,8 +42,6 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans">
       <TopBanner
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
       />

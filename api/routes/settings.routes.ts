@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../../infrastructure/database/client.js';
 import { encryptString } from '../services/channels/encryption.js';
+import { requireRole } from '../middleware/requireRole.js';
 
 const router = Router();
 
@@ -28,7 +29,7 @@ router.get('/api-keys', async (req, res) => {
   } catch (e) { res.json([]); }
 });
 
-router.put('/api-keys', async (req, res) => {
+router.put('/api-keys', requireRole('admin'), async (req, res) => {
   try {
     const { provider, key } = req.body;
     if (!provider || !key) return res.status(400).json({ error: 'provider and key required' });
@@ -61,7 +62,7 @@ router.get('/team', async (req, res) => {
   } catch (e) { res.json([{ userId: 'user_admin', role: 'admin' }]); }
 });
 
-router.post('/team/invite', async (req, res) => {
+router.post('/team/invite', requireRole('admin'), async (req, res) => {
   try {
     const { email, role = 'member' } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
@@ -74,7 +75,7 @@ router.post('/team/invite', async (req, res) => {
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-router.delete('/team/:userId', async (req, res) => {
+router.delete('/team/:userId', requireRole('admin'), async (req, res) => {
   try {
     await db.workspaceMember.delete({
       where: { workspaceId_userId: { workspaceId: req.workspaceId, userId: req.params.userId } },

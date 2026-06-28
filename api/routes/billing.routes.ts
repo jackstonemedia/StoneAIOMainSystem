@@ -12,40 +12,7 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' as any });
 }
 
-// Public form submission (no auth)
-router.post('/forms/:id/submit', async (req, res) => {
-  try {
-    const sub = await db.formSubmission.create({ data: { formId: req.params.id, data: JSON.stringify(req.body) } });
-    const form = await db.form.update({ where: { id: req.params.id }, data: { visits: { increment: 1 } } }).catch(() => null);
-    // Auto-create contact if email field present
-    const data = req.body as Record<string, string>;
-    const emailKey = Object.keys(data).find(k => k.toLowerCase().includes('email'));
-    let createdContact: any = null;
-    let nameVal = '';
-    if (emailKey && data[emailKey]) {
-      const firstKey = Object.keys(data).find(k => k.toLowerCase().includes('first') || k.toLowerCase() === 'name');
-      const lastKey = Object.keys(data).find(k => k.toLowerCase().includes('last'));
-      nameVal = firstKey ? data[firstKey] : '';
-      const parts = nameVal.split(' ');
-      createdContact = await db.contact.upsert({
-        where: { id: `form_${data[emailKey].replace(/[^a-z0-9]/gi, '_')}` },
-        create: { id: `form_${data[emailKey].replace(/[^a-z0-9]/gi, '_')}`, workspaceId: (req as any).workspaceId || 'default', firstName: parts[0]||nameVal||'Form', lastName: parts.slice(1).join(' ')||(lastKey ? data[lastKey!]||'Submission' : 'Submission'), email: data[emailKey], phone: data[Object.keys(data).find(k => k.toLowerCase().includes('phone'))||'']||null, source: 'form', status: 'new' },
-        update: { email: data[emailKey] },
-      }).catch(() => null);
-    }
 
-    emitTrigger((req as any).workspaceId || 'default', 'form.submitted', {
-      formId: req.params.id,
-      formName: form ? form.name : 'Unknown Form',
-      submittedAt: new Date().toISOString(),
-      fields: data,
-      contactId: createdContact?.id,
-      contactEmail: emailKey ? data[emailKey] : undefined,
-      contactName: nameVal || undefined,
-    }).catch(console.error);
-    res.json({ success: true, id: sub.id });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
-});
 
 // Stripe endpoints
 router.post('/stripe/create-payment-intent', async (req, res) => {

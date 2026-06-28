@@ -9,10 +9,8 @@ import { useAdCampaign, usePauseCampaign, useResumeCampaign, useDeleteCampaign, 
 import { useCampaignMetrics } from '../../hooks/useAdMetrics';
 import { useAdLeads } from '../../hooks/useAdLeads';
 import { formatCurrency } from '../../lib/utils';
-import { MOCK_CAMPAIGNS } from '../../lib/adsMockData';
 import type { AdCampaignStatus } from '../../types/ads';
 
-const USE_MOCK = false;
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -200,7 +198,7 @@ function LeadsTab({ campaignId }: { campaignId: string }) {
     { id: 'l7', leadName: 'Thomas Anderson', leadEmail: null, leadPhone: '+1 (561) 555-8821', syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 1.8 * 24 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
   ];
 
-  const displayLeads = USE_MOCK && leads.length === 0 ? MOCK_LEADS : leads;
+  const displayLeads = leads;
 
   function syncBadge(status: string) {
     if (status === 'SYNCED')  return <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600"><CheckCircle className="w-3.5 h-3.5" />Synced</span>;
@@ -489,11 +487,9 @@ export default function CampaignDetail() {
   const { mutate: remove }    = useDeleteCampaign();
   const { mutate: duplicate } = useDuplicateCampaign();
 
-  const campaign = USE_MOCK && !rawCampaign
-    ? MOCK_CAMPAIGNS.find(c => c.id === id) ?? MOCK_CAMPAIGNS[0]
-    : rawCampaign as any;
+  const campaign = rawCampaign as any;
 
-  if (isLoading && !USE_MOCK) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />

@@ -1,24 +1,35 @@
 /**
- * Ads Metrics Sync Background Job.
- * Runs every 30 minutes — syncs metrics for all active campaigns across all workspaces.
- * Called from server.ts on startup.
+ * Ads Metrics Sync Background Job (BullMQ).
+ * Processes queued jobs to sync metrics for active campaigns.
  */
 
-import cron from 'node-cron';
+import { Job } from 'bullmq';
 import { syncAllMetrics } from '../services/ads/ads-metrics.service.js';
+import { createWorker, adsMetricsQueue } from '../../infrastructure/queue/bullmq.js';
+import { logger } from '../utils/logger.js';
 
+/**
+ * The processor handles jobs added to the queue.
+ */
+export async function processAdsMetricsJob(job: Job) {
+  logger.info(`[AdsMetricsSync] Processing job ${job.id}`);
+  const start = Date.now();
+  await syncAllMetrics();
+  logger.info(`[AdsMetricsSync] Completed job ${job.id} in ${Date.now() - start}ms`);
+}
+
+/**
+ * Initializes the worker and schedules the recurring job.
+ * Called from server.ts on startup.
+ */
 export function startAdsMetricsSyncJob() {
-  // Run every 30 minutes
-  cron.schedule('*/30 * * * *', async () => {
-    console.log('[AdsMetricsSync] Starting scheduled metrics sync...');
-    const start = Date.now();
-    try {
-      await syncAllMetrics();
-      console.log(`[AdsMetricsSync] Completed in ${Date.now() - start}ms`);
-    } catch (err) {
-      console.error('[AdsMetricsSync] Failed:', err);
-    }
-  });
+  createWorker('ads-metrics', processAdsMetricsJob);
 
-  console.log('✅ Ad Manager: metrics sync job active (30-min interval)');
+  // Add the recurring job. Repeat every 30 minutes.
+  adsMetricsQueue.add('sync-all', {}, {
+    repeat: { pattern: '*/30 * * * *' },
+    jobId: 'recurring-ads-metrics-sync'
+  }).catch((err: any) => logger.error('[AdsMetricsSync] Failed to schedule recurring job', { error: err }));
+
+  logger.info('✅ Ad Manager: metrics sync worker active (BullMQ)');
 }

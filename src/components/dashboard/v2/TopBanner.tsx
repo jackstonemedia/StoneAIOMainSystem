@@ -1,15 +1,8 @@
-import { ChevronDown, LayoutGrid, Search, Bell, Command } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Bell, ChevronDown, Plus, LayoutGrid } from 'lucide-react';
+import { useState } from 'react';
 import type { DateRange } from '../../../types/dashboard';
-import { db, StorageKey } from '../../../lib/storage';
-
-const DASHBOARD_TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'revenue', label: 'Revenue' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'calendar', label: 'Calendar' },
-] as const;
+import { useUnreadNotificationsCount } from '../../../hooks/useUnreadNotificationsCount';
+import CRMAIAssistant from '../../crm/CRMAIAssistant';
 
 const RANGE_OPTIONS: { id: DateRange; label: string }[] = [
   { id: '7d', label: 'Last 7 days' },
@@ -23,109 +16,77 @@ function rangeLabel(value: DateRange): string {
 }
 
 interface TopBannerProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
 }
 
-export function TopBanner({ activeTab, setActiveTab, dateRange, onDateRangeChange }: TopBannerProps) {
+export function TopBanner({ dateRange, onDateRangeChange }: TopBannerProps) {
   const [rangeOpen, setRangeOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const notifs = await db.get<any>(StorageKey.NOTIFICATIONS);
-        setUnreadCount(notifs.filter((n: any) => !n.isRead).length);
-      } catch (_) {}
-    };
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const [isAIOpen, setIsAIOpen] = useState(false);
+  const { count: unreadCount } = useUnreadNotificationsCount();
 
   return (
     <>
-      {/* Tab nav — mirrors CrmLayout */}
-      <div className="w-full flex items-center justify-between px-4 md:px-8 pt-6 pb-0 shrink-0 bg-surface border-b border-border z-10 sticky top-0 shadow-sm">
-        <nav className="flex items-center gap-6 overflow-x-auto scrollbar-none">
-          {DASHBOARD_TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`pb-3 text-[14px] font-medium transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] relative whitespace-nowrap shrink-0 ${
-                  isActive ? 'text-text-main' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {tab.label}
-                {isActive && <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-primary" />}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Right: Search + Bell */}
-        <div className="flex items-center gap-3 pb-3">
-          <button
-            onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"
-            style={{ background: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+      <div 
+        className="w-full flex items-center justify-between pr-8 pl-0 pt-3 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm"
+        style={{ 
+          background: 'var(--sidebar-bg)',
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': '#1A2C47',
+          '--btn-hover': '#233857',
+          '--btn-text': '#F8FAFC',
+          '--btn-border': 'transparent'
+        } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-5 pl-0 pb-3">
+          <button 
+            onClick={() => setIsAIOpen(true)} 
+            className="px-3 py-1.5 rounded-lg font-medium text-[13px] transition-colors shadow-sm"
+            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
           >
-            <Search className="w-4 h-4" />
-            <span className="text-[13px]">Search</span>
-            <div
-              className="flex items-center gap-1 ml-3 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
-              style={{ background: 'var(--surface-hover)' }}
-            >
-              <Command className="w-3 h-3" />
-              <span>K</span>
-            </div>
+            AI Assistant
           </button>
+          
+          <div className="h-5 w-[1px] bg-border" />
 
           <button
             onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
-            className="relative p-2 rounded-lg transition-colors hover:bg-surface-hover"
-            style={{ color: 'var(--text-main)' }}
+            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--text-main)] transition-colors relative"
           >
-            <Bell className="w-[18px] h-[18px]" />
+            <Bell className="w-[18px] h-[18px]" strokeWidth={2} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-surface" />
+              <span
+                className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[var(--sidebar-bg)]"
+                style={{ background: 'var(--primary)', color: '#ffffff' }}
+              >{unreadCount}</span>
             )}
           </button>
         </div>
-      </div>
 
-      {/* Toolbar — mirrors Contacts secondary bar */}
-      <div className="px-4 md:px-8 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] min-h-[73px] py-3 md:py-0 md:h-[73px]">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-surface-hover text-[13px] font-medium text-text-main">
-            <LayoutGrid className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
-            <span className="truncate">Workspace pulse</span>
-          </div>
-          <div className="hidden sm:block w-[1px] h-5 bg-border" />
-          <p className="hidden sm:block text-[12px] text-text-muted truncate max-w-[280px]">
-            Revenue, pipeline, and contacts at a glance
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
+        {/* Right side: Date Range & Action Buttons */}
+        <div className="flex items-center gap-3 pb-3">
           <div className="relative">
             <button
               type="button"
               onClick={() => setRangeOpen((v) => !v)}
-              className="btn-secondary"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-[6px] border transition-colors shadow-sm font-medium text-[12px]"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-main)' }}
             >
               <span>{rangeLabel(dateRange)}</span>
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
             </button>
             {rangeOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setRangeOpen(false)} aria-hidden />
-                <div className="absolute right-0 mt-2 w-44 bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5">
+                <div className="absolute right-0 mt-2 w-44 border border-border shadow-luxury rounded-[8px] overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                     style={{ background: 'var(--bg)' }}>
                   {RANGE_OPTIONS.map((opt) => (
                     <button
                       key={opt.id as string}
@@ -134,10 +95,10 @@ export function TopBanner({ activeTab, setActiveTab, dateRange, onDateRangeChang
                         onDateRangeChange(opt.id);
                         setRangeOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-[13px] font-medium transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+                      className={`w-full text-left px-4 py-2 text-[13px] font-medium transition-colors duration-200 ${
                         dateRange === opt.id
                           ? 'text-text-main bg-primary/10'
-                          : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                          : 'text-text-muted hover:text-text-main hover:bg-[var(--surface-hover)]'
                       }`}
                     >
                       {opt.label}
@@ -147,12 +108,27 @@ export function TopBanner({ activeTab, setActiveTab, dateRange, onDateRangeChang
               </>
             )}
           </div>
-          <div className="w-[1px] h-5 bg-border hidden sm:block" />
-          <Link to="/crm/contacts" className="btn-primary">
-            View contacts
-          </Link>
+
+          <div className="h-5 w-[1px] bg-border mx-1" />
+
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border transition-colors shadow-sm font-medium text-[12px]"
+            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-main)' }}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 opacity-70" />
+            <span>Edit Layout</span>
+          </button>
+          
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors border"
+            style={{ background: 'var(--primary)', borderColor: 'transparent', color: '#ffffff' }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Widget</span>
+          </button>
         </div>
       </div>
+      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </>
   );
 }

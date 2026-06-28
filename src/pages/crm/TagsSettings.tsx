@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tag, Edit2, Trash2, Check, X, Plus } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
+import { apiFetch } from '../../lib/apiClient';
 
 export function TagsSettings() {
   const qc = useQueryClient();
@@ -9,12 +10,12 @@ export function TagsSettings() {
 
   const { data: tags = [], isLoading } = useQuery<any[]>({
     queryKey: ['crm_tags'],
-    queryFn: () => fetch('/api/crm/tags').then(r => r.json()),
+    queryFn: () => apiFetch('/api/crm/tags').then(r => r.json()),
   });
 
   const createTag = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch('/api/crm/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const res = await apiFetch('/api/crm/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!res.ok) throw new Error();
       return res.json();
     },
@@ -23,7 +24,7 @@ export function TagsSettings() {
 
   const renameTag = useMutation({
     mutationFn: async ({ id, name }: { id: string, name: string }) => {
-      const res = await fetch(`/api/crm/tags/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      const res = await apiFetch(`/api/crm/tags/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
       if (!res.ok) throw new Error();
       return res.json();
     },
@@ -36,7 +37,7 @@ export function TagsSettings() {
 
   const deleteTag = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/crm/tags/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/crm/tags/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       return res.json();
     },
@@ -49,7 +50,7 @@ export function TagsSettings() {
 
   const mergeTags = useMutation({
     mutationFn: async ({ sourceTagId, targetTagId }: { sourceTagId: string, targetTagId: string }) => {
-      const res = await fetch('/api/crm/tags/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceTagId, targetTagId }) });
+      const res = await apiFetch('/api/crm/tags/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceTagId, targetTagId }) });
       if (!res.ok) throw new Error();
       return res.json();
     },

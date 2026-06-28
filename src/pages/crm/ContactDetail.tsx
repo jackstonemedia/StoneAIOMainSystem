@@ -13,6 +13,9 @@ import ContactFilesTab from '../../components/crm/ContactFilesTab';
 import ContactDealsTab from '../../components/crm/ContactDealsTab';
 import { useToast } from '../../components/ui/Toast';
 import { getTagColor } from '../../lib/tagColors';
+import { apiFetch } from '../../lib/apiClient';
+import { NotionEditor } from '../../components/editor/NotionEditor';
+
 
 export default function ContactDetail() {
   const { id } = useParams();
@@ -32,18 +35,18 @@ export default function ContactDetail() {
 
   const { data: contacts = [] } = useQuery<any[]>({
     queryKey: ['contacts'],
-    queryFn: () => fetch('/api/crm/contacts').then(r => r.ok ? r.json().then(d => d.contacts || []) : [])
+    queryFn: () => apiFetch('/api/crm/contacts').then(r => r.ok ? r.json().then(d => d.contacts || []) : [])
   });
   const contact = contacts.find((c: any) => c.id === id);
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ['contact-events', id],
-    queryFn: () => fetch(`/api/crm/contacts/${id}/events`).then(r => r.ok ? r.json() : [])
+    queryFn: () => apiFetch(`/api/crm/contacts/${id}/events`).then(r => r.ok ? r.json() : [])
   });
 
   const addEvent = useMutation({
     mutationFn: async ({ type, content }: { type: string; content: string }) => {
-      const res = await fetch(`/api/crm/contacts/${id}/events`, {
+      const res = await apiFetch(`/api/crm/contacts/${id}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, title: type === 'note' ? 'Left a Note' : `Sent ${type.toUpperCase()}`, content })
@@ -66,7 +69,7 @@ export default function ContactDetail() {
 
   const updateContact = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch(`/api/crm/contacts/${id}`, {
+      const res = await apiFetch(`/api/crm/contacts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -453,12 +456,15 @@ export default function ContactDetail() {
                   )}
 
                   {/* Text Area */}
-                  <textarea 
-                    value={commsText}
-                    onChange={(e) => setCommsText(e.target.value)}
-                    className="w-full p-5 text-[14px] text-text-main placeholder:text-text-muted/40 resize-none outline-none bg-transparent min-h-[120px]"
-                    placeholder={commsTab === 'internal' ? "Start typing to log a note or mention someone using @..." : `Type your ${commsTab} message...`}
-                  />
+                  <div className="border-b border-border">
+                    <NotionEditor 
+                      content={commsText}
+                      onChange={(html) => setCommsText(html)}
+                      minHeight="min-h-[150px]"
+                      placeholder={commsTab === 'internal' ? "Start typing to log a note... type '/' for commands" : `Type your ${commsTab} message...`}
+                    />
+                  </div>
+
                   
                   {/* Toolbar & Send */}
                   <div className="p-3 border-t border-border bg-surface-hover/30 flex items-center justify-between">

@@ -80,7 +80,7 @@ export async function getDashboardMetrics(
   const priorStart = new Date(priorEnd.getTime() - periodLen);
   const priorSnapshots = await db.adMetricSnapshot.findMany({
     where: {
-      campaign: { workspaceId, ...(platformFilter !== 'ALL' ? { platform: platformFilter } : {}) },
+      campaign: { workspaceId, ...(platformFilter !== 'ALL' ? { platform: platformFilter as any } : {}) },
       date: { gte: priorStart, lte: priorEnd },
     },
   });

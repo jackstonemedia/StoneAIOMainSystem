@@ -13,7 +13,6 @@ import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
 
 // Layout (keep eager — needed immediately on every route)
 import AppShell from './components/layout/AppShell';
-
 // ── Eager imports (small, always needed) ──────────────────────────────────────
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -30,12 +29,6 @@ const AutomationsReleases = lazy(() => import('./pages/automations/AutomationsRe
 const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSettings'));
 const WorkflowBuilder = lazy(() => import('./pages/automations/WorkflowBuilder'));
 
-// Admin
-const PlatformAdminLayout = lazy(() => import('./pages/admin/PlatformAdminLayout'));
-import { 
-  AdminProjects, AdminUsers, AdminRoles, AdminAudit, AdminPieces, 
-  AdminAI, AdminInfra, AdminSecurity, AdminBranding, AdminSSO 
-} from './pages/admin/AdminPages';
 const VoiceAgentBuilder  = lazy(() => import('./pages/VoiceAgentBuilder')); // 40KB
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
@@ -45,15 +38,11 @@ const Marketplace        = lazy(() => import('./pages/Marketplace'));
 const BusinessLayout      = lazy(() => import('./pages/business/BusinessLayout'));
 const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboard'));
 const DashboardPage       = lazy(() => import('./pages/Dashboard'));
-const Campaigns           = lazy(() => import('./pages/business/Campaigns'));
-const Sites               = lazy(() => import('./pages/marketing/Sites'));
-const EmailCampaignsPage  = lazy(() => import('./pages/marketing/EmailCampaignsPage'));
-const CampaignBuilderPage = lazy(() => import('./pages/marketing/CampaignBuilderPage'));
-const CampaignAnalyticsPage = lazy(() => import('./pages/marketing/CampaignAnalyticsPage'));
+
 const Calendar            = lazy(() => import('./pages/business/Calendar'));
-const Forms               = lazy(() => import('./pages/business/Forms'));
+
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
-const Reputation          = lazy(() => import('./pages/business/Reputation'));
+
 const ConversationsLayout = lazy(() => import('./pages/business/conversations/ConversationsLayout'));
 const ConversationsTab    = lazy(() => import('./pages/business/conversations/ConversationsTab'));
 const ManualActionsTab    = lazy(() => import('./pages/business/conversations/ManualActionsTab'));
@@ -70,6 +59,7 @@ const CrmSettings   = lazy(() => import('./pages/crm/Settings'));
 const SmartLists    = lazy(() => import('./pages/crm/SmartLists'));
 const BulkActions   = lazy(() => import('./pages/crm/BulkActions'));
 const CrmTasks      = lazy(() => import('./pages/crm/CrmTasks'));
+const CrmDocuments  = lazy(() => import('./pages/crm/Documents'));
 const Opportunities = lazy(() => import('./pages/crm/Opportunities'));
 
 // Ad Manager
@@ -81,6 +71,9 @@ const AdsReports             = lazy(() => import('./pages/ads/AdsReports'));
 const CampaignTypePickerPage = lazy(() => import('./pages/ads/CampaignTypePickerPage'));
 const CampaignBuilder        = lazy(() => import('./pages/ads/CampaignBuilder'));
 const CampaignDetail         = lazy(() => import('./pages/ads/CampaignDetail'));
+
+// Lead Studio
+const LeadStudio             = lazy(() => import('./pages/leads/LeadStudio'));
 
 // ── App config ────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -107,9 +100,9 @@ function Protect({ children, withAuth }: { children: React.ReactNode; withAuth: 
   );
 }
 
+
 // ── Route tree ────────────────────────────────────────────────────────────────
 function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
-
   return (
     <ErrorBoundary>
       <Suspense fallback={null}>
@@ -131,33 +124,18 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             />
             <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
             <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-            <Route path="/workflows"          element={<ErrorBoundary><Protect withAuth={withAuth}><Workflows /></Protect></ErrorBoundary>} />
+            <Route path="/workflows"          element={<Navigate to="/automations" replace />} />
             <Route path="/automations/:id"      element={<ErrorBoundary><Protect withAuth={withAuth}><WorkflowBuilder /></Protect></ErrorBoundary>} />
 
             {/* Automations sub-pages (with sidebar layout) */}
             <Route path="/automations" element={<ErrorBoundary><Protect withAuth={withAuth}><AutomationsLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<Navigate to="/workflows" replace />} />
-              <Route path="runs" element={<Navigate to="/workflows" replace />} />
-              <Route path="connections" element={<Navigate to="/workflows" replace />} />
+              <Route index element={<ErrorBoundary><Workflows /></ErrorBoundary>} />
+              <Route path="runs" element={<Navigate to="/automations" replace />} />
+              <Route path="connections" element={<Navigate to="/automations" replace />} />
               <Route path="tables" element={<AutomationsTables />} />
               <Route path="tables/:tableId" element={<AutomationsTableDetail />} />
               <Route path="releases" element={<AutomationsReleases />} />
               <Route path="settings" element={<AutomationsSettings />} />
-            </Route>
-
-            {/* Platform Admin */}
-            <Route path="/admin" element={<ErrorBoundary><Protect withAuth={withAuth}><PlatformAdminLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<Navigate to="projects" replace />} />
-              <Route path="projects" element={<AdminProjects />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="roles" element={<AdminRoles />} />
-              <Route path="audit" element={<AdminAudit />} />
-              <Route path="pieces" element={<AdminPieces />} />
-              <Route path="ai" element={<AdminAI />} />
-              <Route path="infrastructure" element={<AdminInfra />} />
-              <Route path="security" element={<AdminSecurity />} />
-              <Route path="branding" element={<AdminBranding />} />
-              <Route path="sso" element={<AdminSSO />} />
             </Route>
 
             {/* Conversations (Business Hub) */}
@@ -169,23 +147,16 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="trigger-links"  element={<TriggerLinksTab />} />
             </Route>
 
-            {/* Marketing Hub */}
-            <Route path="/marketing" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
-              <Route path="sites"   element={<ErrorBoundary><Sites /></ErrorBoundary>} />
-              <Route path="email"   element={<ErrorBoundary><EmailCampaignsPage /></ErrorBoundary>} />
-            </Route>
 
-            {/* Campaign Analytics (inside shell) */}
-            <Route path="/marketing/email/:id/analytics" element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignAnalyticsPage /></Protect></ErrorBoundary>} />
 
             {/* Business Hub */}
             <Route path="/business" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<BusinessDashboard />} />
-              <Route path="campaigns"   element={<ErrorBoundary><Campaigns /></ErrorBoundary>} />
+
               <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
-              <Route path="forms"       element={<ErrorBoundary><Forms /></ErrorBoundary>} />
+
               <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-              <Route path="reputation"  element={<ErrorBoundary><Reputation /></ErrorBoundary>} />
+
             </Route>
 
             {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
@@ -196,6 +167,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="companies"       element={<ErrorBoundary><Companies /></ErrorBoundary>} />
               <Route path="companies/:id"   element={<ErrorBoundary><CompanyDetail /></ErrorBoundary>} />
               <Route path="tasks"           element={<ErrorBoundary><CrmTasks /></ErrorBoundary>} />
+              <Route path="documents"       element={<ErrorBoundary><CrmDocuments /></ErrorBoundary>} />
               <Route path="smart-lists"     element={<ErrorBoundary><SmartLists /></ErrorBoundary>} />
               <Route path="bulk-actions"    element={<ErrorBoundary><BulkActions /></ErrorBoundary>} />
               <Route path="pipeline"        element={<ErrorBoundary><Opportunities /></ErrorBoundary>} />
@@ -207,6 +179,9 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/billing"     element={<ErrorBoundary><Protect withAuth={withAuth}><Billing /></Protect></ErrorBoundary>} />
             <Route path="/settings"    element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
 
+            {/* Lead Studio */}
+            <Route path="/leads" element={<ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary>} />
+
             {/* Ad Manager */}
             <Route path="/ads" element={<ErrorBoundary><Protect withAuth={withAuth}><AdsLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="overview" replace />} />
@@ -217,10 +192,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="settings"   element={<ErrorBoundary><AdsSettings /></ErrorBoundary>} />
             </Route>
 
-          {/* ── Fullscreen Builder Routes (no sidebar / no topbar) ─────── */}
-          <Route path="/marketing/email/new"       element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilderPage /></Protect></ErrorBoundary>} />
-          <Route path="/marketing/email/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilderPage /></Protect></ErrorBoundary>} />
-        </Route>
+        </Route>  {/* AppShell */}
+
 
         {/* ── Fullscreen Ad Campaign Routes (no sidebar) ──────────────── */}
         <Route path="/ads/campaigns/new"     element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignTypePickerPage /></Protect></ErrorBoundary>} />

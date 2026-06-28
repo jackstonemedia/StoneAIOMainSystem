@@ -75,7 +75,10 @@ export default function ActivityTimeline({ activities, compact = false }: Activi
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-text-main truncate">{activity.title}</p>
                   {activity.description && !compact && (
-                    <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{activity.description}</p>
+                    <div 
+                      className="text-xs text-text-muted mt-1.5 prose prose-sm dark:prose-invert prose-p:my-0 prose-headings:my-1 line-clamp-3"
+                      dangerouslySetInnerHTML={{ __html: activity.description }}
+                    />
                   )}
                   {activity.relatedName && (
                     <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-primary/70 bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">

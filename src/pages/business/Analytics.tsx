@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
+import { apiFetch } from '../../lib/apiClient';
 import {
   Users, DollarSign, MessageSquare, Mail, FileText, Calendar,
   Star, TrendingUp, TrendingDown, ArrowUpRight, BarChart3,
@@ -107,7 +108,7 @@ export default function Analytics() {
 
   const { data: overview, isLoading, refetch } = useQuery<any>({
     queryKey: ['analytics', 'overview', range],
-    queryFn: () => fetch(`/api/analytics/overview?days=${range}`).then(r => r.ok ? r.json() : null),
+    queryFn: () => apiFetch(`/api/analytics/overview?days=${range}`).then(r => r.ok ? r.json() : null),
     staleTime: 60000,
   });
 
