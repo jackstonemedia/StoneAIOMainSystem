@@ -130,15 +130,15 @@ async function startServer() {
   // Uses urlencoded body parser (NOT global json parser).
   app.post('/api/hooks/twilio-sms', express.urlencoded({ extended: false }), twilioSmsHandler);
 
-  // External Form Capture webhook — Custom endpoint for lead capture forms
-  // Uses /api/capture/ prefix to avoid any conflict with the /api/hooks/* wildcard below.
-  app.options('/api/capture/forms/:workspaceId', (_req, res) => {
+  // External Form Capture webhook — mounted at /f/:workspaceId (outside /api/*)
+  // This path is intentionally outside the /api prefix so resolveWorkspace never runs.
+  app.options('/f/:workspaceId', (_req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.sendStatus(200);
   });
-  app.post('/api/capture/forms/:workspaceId', (req, res, next) => {
+  app.post('/f/:workspaceId', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     next();
   }, formCaptureWebhook);

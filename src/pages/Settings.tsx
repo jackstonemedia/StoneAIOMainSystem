@@ -378,9 +378,9 @@ export default function SettingsPage() {
             <div>
               <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Webhook URL</label>
               <div className="flex items-center gap-2">
-                <input readOnly value={`${window.location.origin}/api/capture/forms/${wsId}`}
+                <input readOnly value={`${window.location.origin}/f/${wsId}`}
                   className="flex-1 px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-main font-mono focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                <button onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/api/capture/forms/${wsId}`); toast('success', 'Copied URL!'); }}
+                <button onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/f/${wsId}`); toast('success', 'Copied URL!'); }}
                   className="w-9 h-9 flex items-center justify-center rounded-[6px] border border-border text-text-muted hover:text-primary hover:border-primary/40 transition-colors bg-bg shrink-0">
                   <Copy className="w-4 h-4" />
                 </button>
@@ -391,7 +391,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-hover/30">
                 <h4 className="text-[12px] font-bold text-text-main">Example JavaScript Payload</h4>
                 <button onClick={() => { 
-                  const code = `fetch('${window.location.origin}/api/capture/forms/${wsId}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    firstName: 'John',\n    lastName: 'Doe',\n    email: 'john@example.com',\n    phone: '555-0199'\n  })\n});`;
+                  const code = `fetch('${window.location.origin}/f/${wsId}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    firstName: 'John',\n    lastName: 'Doe',\n    email: 'john@example.com',\n    phone: '555-0199'\n  })\n});`;
                   navigator.clipboard?.writeText(code); 
                   toast('success', 'Copied code snippet!'); 
                 }}
@@ -401,7 +401,7 @@ export default function SettingsPage() {
               </div>
               <div className="p-4 overflow-x-auto">
                 <pre className="text-[12px] font-mono text-text-muted whitespace-pre">
-{`fetch('${window.location.origin}/api/capture/forms/${wsId}', {
+{`fetch('${window.location.origin}/f/${wsId}', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
