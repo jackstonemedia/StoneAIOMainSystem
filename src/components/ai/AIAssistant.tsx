@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sparkles, X, Send, Bot, User } from 'lucide-react';
+import { Sparkles, X, Send, Bot, User, Loader2 } from 'lucide-react';
 import { apiFetch } from '../../lib/apiClient';
+import { motion, AnimatePresence } from 'motion/react';
 
 const SYSTEM_PROMPT =
   "You are Stone AIO's AI assistant — an expert CRM strategist, sales coach, and marketing advisor. Be concise, actionable, and data-driven. When referencing data, be specific about numbers.";
@@ -18,7 +19,7 @@ export default function AIAssistant() {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,93 +92,154 @@ export default function AIAssistant() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform z-40 ${isOpen ? 'scale-0' : 'scale-100 hover:scale-105'}`}
-        style={{ background: 'var(--primary)', color: 'white' }}
-      >
-        <Sparkles className="w-6 h-6" />
-      </button>
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen(true)}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.12)] z-40 transition-shadow hover:shadow-[0_8px_30px_rgba(var(--primary),0.3)]"
+            style={{ background: 'var(--primary)', color: 'white' }}
+          >
+            <Sparkles className="w-6 h-6" />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
-      {isOpen && (
-        <div 
-          className="fixed bottom-6 right-6 w-full max-w-sm h-[600px] max-h-[80vh] rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--primary)' }}>
-            <div className="flex items-center gap-2 text-white">
-              <Sparkles className="w-5 h-5" />
-              <h3 className="font-semibold">Stone AI</h3>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4" style={{ color: 'var(--primary)' }}>
-                  <Bot className="w-6 h-6" />
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="fixed bottom-6 right-6 w-[380px] max-w-[calc(100vw-32px)] h-[650px] max-h-[calc(100vh-100px)] rounded-[24px] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col z-50 overflow-hidden backdrop-blur-xl"
+            style={{ background: 'color-mix(in srgb, var(--surface) 96%, transparent)', border: '1px solid var(--border)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b shrink-0 bg-transparent" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-[10px] flex items-center justify-center bg-primary/10 text-primary">
+                  <Bot className="w-5 h-5" />
                 </div>
-                <h4 className="font-medium mb-2" style={{ color: 'var(--text-main)' }}>How can I help you today?</h4>
-                <div className="flex flex-col gap-2 mt-4">
-                  {quickPrompts.map((p, i) => (
-                    <button 
-                      key={i}
-                      onClick={() => setInput(p)}
-                      className="text-xs text-left px-3 py-2 rounded-lg border transition-colors hover:bg-black/5"
-                      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                <div>
+                  <h3 className="font-semibold text-[15px] leading-none mb-1.5" style={{ color: 'var(--text-main)' }}>Stone AI</h3>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[11px] leading-none" style={{ color: 'var(--text-muted)' }}>Online & Ready</span>
+                  </div>
                 </div>
               </div>
-            ) : (
-              messages.map((m, i) => (
-                <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${m.role === 'user' ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
-                    {m.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth custom-scrollbar relative">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary shadow-sm">
+                    <Sparkles className="w-8 h-8" />
                   </div>
-                  <div 
-                    className={`px-4 py-2 rounded-2xl max-w-[80%] text-sm ${
-                      m.role === 'user' 
-                        ? 'bg-primary text-white rounded-tr-sm' 
-                        : 'rounded-tl-sm'
-                    }`}
-                    style={m.role === 'assistant' ? { background: 'var(--bg)', color: 'var(--text-main)', border: '1px solid var(--border)' } : {}}
-                  >
-                    {m.content}
+                  <h4 className="font-semibold text-lg mb-2" style={{ color: 'var(--text-main)' }}>How can I help you today?</h4>
+                  <p className="text-[13px] mb-8 max-w-[240px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    I can analyze your pipeline, draft emails, and manage your contacts.
+                  </p>
+                  <div className="w-full flex flex-col gap-2.5">
+                    {quickPrompts.map((p, i) => (
+                      <button 
+                        key={i}
+                        onClick={() => setInput(p)}
+                        className="text-xs text-left px-4 py-3.5 rounded-xl border transition-all hover:-translate-y-0.5 hover:shadow-sm"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-main)', background: 'var(--bg)' }}
+                      >
+                        {p}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              ) : (
+                <div className="space-y-6">
+                  {messages.map((m, i) => (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      key={i} 
+                      className={`flex gap-3 max-w-[100%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-sm ${m.role === 'user' ? 'bg-primary text-white' : 'bg-primary/10 text-primary border border-primary/20'}`}>
+                        {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                      </div>
+                      <div 
+                        className={`px-4 py-2.5 rounded-2xl text-[13.5px] leading-relaxed shadow-sm ${
+                          m.role === 'user' 
+                            ? 'bg-primary text-white rounded-tr-[4px]' 
+                            : 'rounded-tl-[4px]'
+                        }`}
+                        style={m.role === 'assistant' ? { background: 'var(--bg)', color: 'var(--text-main)', border: '1px solid var(--border)' } : {}}
+                      >
+                        {m.content || (
+                          <div className="flex items-center gap-1.5 h-5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                  {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 max-w-[100%]">
+                       <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 bg-primary/10 text-primary border border-primary/20 shadow-sm">
+                         <Bot className="w-3.5 h-3.5" />
+                       </div>
+                       <div className="px-4 py-3 rounded-2xl rounded-tl-[4px] shadow-sm flex items-center gap-2" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                          <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Thinking...</span>
+                       </div>
+                     </motion.div>
+                  )}
+                </div>
+              )}
+              <div ref={messagesEndRef} className="h-2" />
+            </div>
 
-          <div className="p-4 border-t" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                placeholder="Ask me anything..."
-                className="flex-1 h-10 px-3 rounded-lg text-sm outline-none border transition-colors focus:border-primary"
-                style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-main)' }}
-              />
-              <button 
-                type="submit" 
-                disabled={!input.trim() || isLoading}
-                className="w-10 h-10 rounded-lg flex items-center justify-center transition-opacity disabled:opacity-50"
-                style={{ background: 'var(--primary)', color: 'white' }}
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+            {/* Input Area */}
+            <div className="p-4 pt-2 bg-transparent shrink-0">
+              <form onSubmit={handleSubmit} className="relative flex items-center rounded-2xl border shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all p-1.5" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                <input
+                  type="text"
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  placeholder="Ask Stone AI..."
+                  className="flex-1 h-10 px-3 text-[13.5px] outline-none bg-transparent"
+                  style={{ color: 'var(--text-main)' }}
+                />
+                <button 
+                  type="submit" 
+                  disabled={!input.trim() || isLoading}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-primary hover:bg-primary/10 transition-all disabled:opacity-50 disabled:hover:bg-transparent shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+              <div className="text-center mt-2.5">
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Stone AI can make mistakes. Verify important info.
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

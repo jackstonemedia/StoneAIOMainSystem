@@ -1,0 +1,213 @@
+:root {
+  --primary: #4f46e5;
+  --bg: #ffffff;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --bubble-in: #f3f4f6;
+  --bubble-out: #4f46e5;
+  --text-out: #ffffff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hidden { display: none !important; }
+
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+/* Header */
+.header {
+  background: var(--primary);
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-shrink: 0;
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.header-info h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.header-info p {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.close-btn:hover { background: rgba(255,255,255,0.1); }
+.close-btn svg { width: 24px; height: 24px; fill: white; }
+
+/* Pre-chat Form */
+.pre-chat-form {
+  padding: 32px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.pre-chat-form h3 {
+  font-size: 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.input-group {
+  margin-bottom: 16px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-group input:focus { border-color: var(--primary); }
+
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Chat Messages */
+.messages-container {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message { display: flex; flex-direction: column; }
+.message.incoming { align-items: flex-start; }
+.message.outgoing { align-items: flex-end; }
+
+.bubble {
+  max-width: 85%;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.incoming .bubble {
+  background: var(--bubble-in);
+  color: var(--text);
+  border-radius: 16px 16px 16px 4px;
+}
+
+.outgoing .bubble {
+  background: var(--bubble-out);
+  color: var(--text-out);
+  border-radius: 16px 16px 4px 16px;
+}
+
+/* Composer */
+.composer {
+  padding: 16px;
+  background: white;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.composer textarea {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.composer textarea:focus { border-color: var(--primary); }
+
+#send-btn {
+  background: var(--primary);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+  margin-bottom: 2px;
+}
+
+#send-btn:disabled { opacity: 0.5; cursor: default; }
+#send-btn svg { width: 20px; height: 20px; fill: white; margin-left: 2px; }
+
+/* Loading */
+#loading-view {
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--bubble-in);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TrendingUp, Plus, ArrowRight, RefreshCw, DollarSign, Calendar, User } from 'lucide-react';
+import { TrendingUp, Plus, ArrowRight, RefreshCw, DollarSign, Calendar, User, CircleDollarSign } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useToast } from '../ui/Toast';
@@ -118,38 +118,39 @@ export default function ContactDealsTab({ contactId }: Props) {
             </div>
           ))}
         </div>
-      ) : contactDeals.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border rounded-[10px]">
-          <TrendingUp className="w-10 h-10 mx-auto mb-3 text-text-muted/30" />
-          <p className="text-[13px] font-semibold text-text-muted">No deals linked yet</p>
-          <p className="text-[12px] text-text-muted/60 mt-1">Create a deal to start tracking this contact's pipeline</p>
-        </div>
       ) : (
-        <div className="space-y-2">
-          {contactDeals.map((deal: any) => {
+        <div className="space-y-3">
+          {(contactDeals.length === 0 ? [
+            { id: 'dummy-1', title: 'Enterprise Plan Upgrade', amount: 12500, pipelineStage: { name: 'Needs Analysis' }, closeDate: new Date(Date.now() + 86400000 * 30).toISOString(), isDummy: true },
+            { id: 'dummy-2', title: 'Additional User Licenses', amount: 3200, pipelineStage: { name: 'Proposal Sent' }, closeDate: new Date(Date.now() + 86400000 * 15).toISOString(), isDummy: true }
+          ] : contactDeals).map((deal: any) => {
             const stageName = deal.pipelineStage?.name || 'Unknown';
             const isWon = stageName === 'Won';
             const isLost = stageName === 'Lost';
-            const colorClass = isWon ? STAGE_COLORS.won : isLost ? STAGE_COLORS.lost : STAGE_COLORS.default;
+            const colorClass = isWon ? 'text-emerald-500' : isLost ? 'text-red-500' : 'text-amber-500';
+            
             return (
-              <Link to={`/crm/pipeline`} key={deal.id}
-                className="flex items-center gap-4 p-4 bg-bg border border-border rounded-[8px] hover:border-primary/30 hover:shadow-sm transition-all group">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-[14px] font-bold text-text-main group-hover:text-primary transition-colors truncate">{deal.title}</span>
-                    <span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border ${colorClass}`}>{stageName}</span>
+              <div key={deal.id} className="relative">
+                {deal.isDummy && <div className="absolute -top-2 -right-2 bg-primary/10 text-primary text-[9px] font-bold px-2 py-0.5 rounded-full z-10 border border-primary/20">Example</div>}
+                <Link to={deal.isDummy ? '#' : `/crm/pipeline`}
+                  className="flex items-center justify-between p-4 bg-bg border border-border rounded-[10px] hover:border-primary/50 transition-colors group relative overflow-hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <CircleDollarSign className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-[14px] text-text-main group-hover:text-primary transition-colors">{deal.title}</div>
+                      <div className="text-[12px] text-text-muted mt-0.5">
+                        Close date: {deal.closeDate ? new Date(deal.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-[11px] text-text-muted">
-                    {deal.ownerId && <span className="flex items-center gap-1"><User className="w-3 h-3" /> Owner</span>}
-                    {deal.closeDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(deal.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>}
-                    {deal.probability != null && <span>{deal.probability}% probability</span>}
+                  <div className="text-right">
+                    <div className="font-bold text-[15px] text-text-main">${(deal.amount || 0).toLocaleString()}</div>
+                    <div className={`text-[12px] font-bold mt-0.5 ${colorClass}`}>{stageName}</div>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[16px] font-bold text-text-main">${(deal.amount || 0).toLocaleString()}</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-              </Link>
+                </Link>
+              </div>
             );
           })}
         </div>

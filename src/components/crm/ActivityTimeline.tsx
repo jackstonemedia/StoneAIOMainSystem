@@ -1,4 +1,4 @@
-import { Mail, Phone, CalendarDays, FileText, CircleDollarSign, MessageSquare } from 'lucide-react';
+import { Mail, Phone, CalendarDays, FileText, CircleDollarSign, MessageSquare, Sparkles } from 'lucide-react';
 
 export interface TimelineActivity {
   id: string;
@@ -21,19 +21,17 @@ const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   note:    { icon: FileText,        color: 'text-text-muted',  bg: 'bg-primary/100/15 border-primary/30' },
   deal:    { icon: CircleDollarSign,color: 'text-primary',    bg: 'bg-primary/15 border-primary/30' },
   sms:     { icon: MessageSquare,   color: 'text-rose-400',   bg: 'bg-rose-500/15 border-rose-500/30' },
+  contact_created: { icon: Sparkles, color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/30' },
+  deal_created: { icon: CircleDollarSign, color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30' },
+  internal_comment: { icon: FileText, color: 'text-amber-500', bg: 'bg-amber-500/20 border-amber-500/40' },
 };
 
-function relativeTime(ts: string): string {
+function formatDateTime(ts: string): string {
   try {
-    const diff = Date.now() - new Date(ts).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days}d ago`;
-    return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const d = new Date(ts);
+    const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${dateStr}, ${timeStr}`;
   } catch {
     return ts;
   }
@@ -51,10 +49,7 @@ export default function ActivityTimeline({ activities, compact = false }: Activi
   }
 
   return (
-    <div className="relative flex flex-col gap-0">
-      {/* Vertical line */}
-      <div className="absolute left-[19px] top-5 bottom-5 w-px bg-border/50" />
-
+    <div className="relative flex flex-col gap-4">
       {activities.map((activity, i) => {
         const config = typeConfig[activity.type] ?? typeConfig.note;
         const Icon = config.icon;
@@ -62,31 +57,32 @@ export default function ActivityTimeline({ activities, compact = false }: Activi
         return (
           <div
             key={activity.id}
-            className={`relative flex gap-4 group ${compact ? 'py-2' : 'py-3'} ${i !== activities.length - 1 ? '' : ''}`}
+            className={`border rounded-[8px] flex flex-col gap-3 relative shadow-sm ${compact ? 'p-3' : 'p-4'} ${activity.type === 'internal_comment' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-primary/5 border-primary/20'}`}
           >
-            {/* Icon */}
-            <div className={`shrink-0 w-10 h-10 rounded-full border flex items-center justify-center z-10 ${config.bg} transition-transform group-hover:scale-110`}>
-              <Icon className={`w-4 h-4 ${config.color}`} />
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0 bg-surface/50 rounded-xl border border-border/50 px-4 py-2.5 group-hover:border-border transition-colors">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text-main truncate">{activity.title}</p>
+            <div className="flex items-start justify-between">
+              <div className="text-[14px] text-text-main prose prose-invert prose-p:my-0 font-medium leading-snug pr-6 flex items-start gap-3">
+                <div className={`shrink-0 w-5 h-5 rounded flex items-center justify-center mt-0.5 ${config.bg}`}>
+                  <Icon className={`w-3 h-3 ${config.color}`} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-[13px]">{activity.title}</span>
                   {activity.description && !compact && (
-                    <div 
-                      className="text-xs text-text-muted mt-1.5 prose prose-sm dark:prose-invert prose-p:my-0 prose-headings:my-1 line-clamp-3"
-                      dangerouslySetInnerHTML={{ __html: activity.description }}
-                    />
+                    <div className="mt-1 text-[13px] text-text-muted opacity-80" dangerouslySetInnerHTML={{ __html: activity.description }} />
                   )}
                   {activity.relatedName && (
-                    <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-primary/70 bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
-                      {activity.relatedName}
-                    </span>
+                    <div className="mt-2">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-[4px]">
+                        {activity.relatedName}
+                      </span>
+                    </div>
                   )}
                 </div>
-                <span className="shrink-0 text-[10px] text-text-muted whitespace-nowrap pt-0.5">{relativeTime(activity.timestamp)}</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between mt-1">
+              <div className="flex items-center gap-1.5 text-[12px] font-medium text-text-muted">
+                {formatDateTime(activity.timestamp)}
               </div>
             </div>
           </div>

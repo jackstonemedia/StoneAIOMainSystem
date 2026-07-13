@@ -99,7 +99,12 @@ export default function ContactTasksTab({ contactId }: Props) {
             className="w-full bg-surface border border-border rounded-[6px] px-3 py-2 text-[12px] text-text-main focus:outline-none focus:border-primary resize-none min-h-[60px]" />
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-[12px] font-semibold text-text-muted hover:text-text-main transition-colors">Cancel</button>
-            <button onClick={() => createTask.mutate(form)} disabled={!form.title || createTask.isPending}
+            <button 
+              onClick={() => {
+                const submitData = { ...form, dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null };
+                createTask.mutate(submitData);
+              }} 
+              disabled={!form.title || createTask.isPending}
               className="px-4 py-1.5 bg-primary text-white rounded-[6px] text-[12px] font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5">
               {createTask.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null} Create Task
             </button>

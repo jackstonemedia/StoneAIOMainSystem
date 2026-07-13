@@ -78,7 +78,7 @@ export default function AppShell() {
             style={{ background: 'var(--bg)' }}
           >
             {!location.pathname.startsWith('/crm') &&
-             !location.pathname.startsWith('/conversations') &&
+             !location.pathname.startsWith('/inbox') &&
              !location.pathname.startsWith('/marketing') &&
              !location.pathname.startsWith('/business') &&
              !location.pathname.startsWith('/automations') &&

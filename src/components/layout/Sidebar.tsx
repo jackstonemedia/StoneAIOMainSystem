@@ -72,14 +72,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           ]
         },
         { 
-          name: 'Conversations',
-          path: '/conversations/chat',      
+          name: 'Inbox',
+          path: '/inbox/chat',      
           icon: MessageSquare,
           subItems: [
-            { name: 'Conversations', path: '/conversations/chat' },
-            { name: 'Manual Actions', path: '/conversations/manual-actions' },
-            { name: 'Snippets', path: '/conversations/snippets' },
-            { name: 'Trigger Links', path: '/conversations/trigger-links' }
+            { name: 'Inbox', path: '/inbox/chat' },
+            { name: 'Manual Actions', path: '/inbox/manual-actions' },
+            { name: 'Snippets', path: '/inbox/snippets' },
+            { name: 'Trigger Links', path: '/inbox/trigger-links' }
           ]
         },
         { 
@@ -93,7 +93,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           ]
         },
         { name: 'Calendar',     path: '/business/calendar',  icon: Calendar },
-        { name: 'Lead Studio',  path: '/leads',              icon: Target },
+        { name: 'Marketing',  path: '/leads',              icon: Megaphone },
       ]
     },
     {

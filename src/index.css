@@ -32,8 +32,8 @@
 
   /* ── Stone AIO Enterprise Inset (Navy Panels on Dusty Canvas) ── */
   :root, .theme-dark {
-    /* Main canvas background is now Slate 800 */
-    --bg:               #1e293b;
+    /* Main canvas background */
+    --bg:               #1B1D22;
     
     /* Banners, sidebars, and tables are Navy Blue */
     --surface:          #0F1A2B;
@@ -77,6 +77,58 @@
     /* Frosted glass variables */
     --glass-bg:           rgba(15, 26, 43, 0.60); /* Semi-transparent elegant Navy */
     --glass-border:       rgba(82, 103, 125, 0.35);
+  }
+
+  /* ── Chatwoot-style Inbox Dark theme ── */
+  .theme-inbox-dark {
+    --bg:               #1B1D22;
+    --surface:          #16191D;
+    --surface-hover:    #2C3036;
+    --border:           #2C3036;
+    --border-subtle:    rgba(166, 173, 180, 0.16);
+
+    --text-main:        #FFFFFF;
+    --text-muted:       #CBD5E1;
+    --primary:          #28364D;
+    --primary-hover:    #344760;
+    --primary-light:    rgba(40, 54, 77, 0.35);
+
+    /* Tailwind utility token overrides — makes bg-primary, text-primary etc. resolve correctly */
+    --color-primary:        #28364D;
+    --color-primary-hover:  #344760;
+
+    --accent-green:       #22C55E;
+    --accent-amber:       #F59E0B;
+    --accent-purple:      #8B5CF6;
+    --accent-light-purple:#A78BFA;
+    --accent-teal:        #14B8A6;
+    --accent-red:         #EF4444;
+    --accent-blue:        #4F7FAA;
+    --accent-orange:      #F97316;
+
+    --glow-color:           rgba(40, 54, 77, 0.18);
+    --glow-color-strong:    rgba(40, 54, 77, 0.34);
+
+    --sidebar-bg:           #16191D;
+    --sidebar-border:       transparent;
+    --sidebar-active:       #28364D;
+    --sidebar-active-text:  #4F7FAA;
+    --sidebar-text-main:    #FFFFFF;
+    --sidebar-text-muted:   #CBD5E1;
+
+    /* Make all secondary buttons match the sidebar active color by default in this theme */
+    --btn-bg:               var(--primary);
+    --btn-hover:            var(--primary-hover);
+    --btn-border:           transparent;
+    --btn-text:             #ffffff;
+
+    --shadow-luxury:      0 1px 3px rgba(0,0,0,0.45), 0 4px 12px rgba(0,0,0,0.35), 0 16px 40px rgba(0,0,0,0.28);
+    --shadow-interactive: 0 4px 16px rgba(40,54,77,0.30), 0 2px 6px rgba(0,0,0,0.32);
+    --shadow-card:        0 1px 2px rgba(0,0,0,0.42), 0 4px 16px rgba(0,0,0,0.28);
+    --card-gradient:      linear-gradient(145deg, rgba(27,29,34,0.98) 0%, rgba(22,25,29,0.96) 100%);
+
+    --glass-bg:           rgba(22, 25, 29, 0.72);
+    --glass-border:       rgba(44, 48, 54, 0.90);
   }
 
   /* ── Light Theme — Bright open canvas, darker warm panels for sidebar/banners ── */

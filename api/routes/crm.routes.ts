@@ -41,6 +41,20 @@ router.get('/contacts', async (req, res) => {
 router.post('/contacts', validate({ body: ContactSchema }), async (req, res, next) => {
   try {
     const contact = await crm.createContact(req.workspaceId, req.body);
+    
+    // Log contact creation event
+    try {
+      const { db } = await import('../../infrastructure/database/client.js');
+      await db.contactEvent.create({
+        data: {
+          contactId: contact.id,
+          type: 'contact_created',
+          title: 'Contact Created',
+          content: `Contact was added to the CRM via ${req.body.source || 'Manual Entry'}`,
+        }
+      });
+    } catch (err) { console.error('Failed to log contact creation event', err); }
+
     emitTrigger(req.workspaceId, 'contact.created', contact as Record<string, unknown>).catch(console.error);
     res.json(contact);
   } catch (e) { next(e); }
@@ -141,6 +155,22 @@ router.get('/deals', async (req, res) => {
 router.post('/deals', validate({ body: DealSchema }), async (req, res, next) => {
   try {
     const deal = await crm.createDeal(req.workspaceId, req.userId!, req.body as any);
+    
+    // Log opportunity creation event
+    if (deal.contactId) {
+      try {
+        const { db } = await import('../../infrastructure/database/client.js');
+        await db.contactEvent.create({
+          data: {
+            contactId: deal.contactId,
+            type: 'deal_created',
+            title: 'Opportunity Created',
+            content: `Deal "${deal.title}" was created for $${deal.amount || 0}`,
+          }
+        });
+      } catch (err) { console.error('Failed to log deal creation event', err); }
+    }
+
     emitTrigger(req.workspaceId, 'deal.created', deal as Record<string, unknown>).catch(console.error);
     res.json(deal);
   } catch (e) { next(e); }

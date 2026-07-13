@@ -5,19 +5,20 @@ import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
   Plug, Globe, Phone, Mail, Mic, Copy, Eye, EyeOff, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
-  QrCode, Monitor, Trash2
+  QrCode, Monitor, Trash2, Code
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../lib/apiClient';
 
 const TABS = [
-  { id: 'general',       label: 'General',       icon: Building2 },
-  { id: 'appearance',    label: 'Appearance',     icon: Palette },
-  { id: 'integrations',  label: 'Integrations',   icon: Plug },
-  { id: 'notifications', label: 'Notifications',  icon: Bell },
-  { id: 'team',          label: 'Team',           icon: Users },
-  { id: 'security',      label: 'Security',       icon: Shield },
+  { id: 'general', label: 'General', icon: Building2 },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'integrations', label: 'Integrations', icon: Plug },
+  { id: 'api', label: 'API & Webhooks', icon: Code },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'team', label: 'Team', icon: Users },
+  { id: 'security', label: 'Security', icon: Shield },
 ];
 
 const INTEGRATIONS = [
@@ -29,9 +30,9 @@ const INTEGRATIONS = [
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     fields: [
-      { key: 'twilio_sid',    label: 'Account SID',    placeholder: 'ACxxxxxxxxxxxxxxxxxx',        type: 'text' },
-      { key: 'twilio_token',  label: 'Auth Token',     placeholder: '••••••••••••••••••••••••••••', type: 'password' },
-      { key: 'twilio_from',   label: 'From Number',    placeholder: '+1 (555) 000-0000',           type: 'text' },
+      { key: 'twilio_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxx', type: 'text' },
+      { key: 'twilio_token', label: 'Auth Token', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
+      { key: 'twilio_from', label: 'From Number', placeholder: '+1 (555) 000-0000', type: 'text' },
     ],
   },
   {
@@ -64,21 +65,21 @@ const INTEGRATIONS = [
     color: 'text-amber-400',
     bg: 'bg-amber-400/10',
     fields: [
-      { key: 'google_client_id',     label: 'OAuth Client ID',     placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
-      { key: 'google_client_secret', label: 'OAuth Client Secret', placeholder: 'GOCSPX-xxxxxxxxxxxx',            type: 'password' },
+      { key: 'google_client_id', label: 'OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
+      { key: 'google_client_secret', label: 'OAuth Client Secret', placeholder: 'GOCSPX-xxxxxxxxxxxx', type: 'password' },
     ],
   },
 ];
 
 const NOTIF_PREFS = [
-  { key: 'new_contact',     label: 'New Contact Added',       desc: 'When a contact is created via form or import' },
-  { key: 'deal_won',        label: 'Deal Won',                desc: 'When a deal moves to Won stage' },
-  { key: 'task_overdue',    label: 'Task Overdue',            desc: '24h before a task is due with no completion' },
-  { key: 'campaign_sent',   label: 'Campaign Sent',           desc: 'When a campaign finishes sending' },
-  { key: 'review_received', label: 'New Review',              desc: 'When a new customer review is received' },
-  { key: 'apt_created',     label: 'Appointment Booked',      desc: 'When a new appointment is scheduled' },
-  { key: 'inbound_sms',     label: 'Inbound SMS',             desc: 'When a contact sends a message' },
-  { key: 'weekly_summary',  label: 'Weekly Summary',          desc: 'A weekly digest of key performance metrics' },
+  { key: 'new_contact', label: 'New Contact Added', desc: 'When a contact is created via form or import' },
+  { key: 'deal_won', label: 'Deal Won', desc: 'When a deal moves to Won stage' },
+  { key: 'task_overdue', label: 'Task Overdue', desc: '24h before a task is due with no completion' },
+  { key: 'campaign_sent', label: 'Campaign Sent', desc: 'When a campaign finishes sending' },
+  { key: 'review_received', label: 'New Review', desc: 'When a new customer review is received' },
+  { key: 'apt_created', label: 'Appointment Booked', desc: 'When a new appointment is scheduled' },
+  { key: 'inbound_sms', label: 'Inbound SMS', desc: 'When a contact sends a message' },
+  { key: 'weekly_summary', label: 'Weekly Summary', desc: 'A weekly digest of key performance metrics' },
 ];
 
 function fieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
@@ -109,6 +110,7 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState('general');
   const [wsName, setWsName] = useState('Stone AIO');
+  const [wsId, setWsId] = useState('ws_default_stone_aio');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
@@ -134,7 +136,10 @@ export default function SettingsPage() {
   useQuery<any>({
     queryKey: ['settings', 'workspace'],
     queryFn: () => apiFetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
-    onSuccess: (d: any) => { if (d?.name) setWsName(d.name); }
+    onSuccess: (d: any) => {
+      if (d?.name) setWsName(d.name);
+      if (d?.id) setWsId(d.id);
+    }
   } as any);
 
   const { data: savedKeys = [] } = useQuery<any[]>({
@@ -217,9 +222,9 @@ export default function SettingsPage() {
             <div>
               <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Workspace ID</label>
               <div className="flex items-center gap-2">
-                <input readOnly value="ws_default_stone_aio"
+                <input readOnly value={wsId}
                   className="flex-1 px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-muted font-mono" />
-                <button onClick={() => { navigator.clipboard?.writeText('ws_default_stone_aio'); toast('success', 'Copied!'); }}
+                <button onClick={() => { navigator.clipboard?.writeText(wsId); toast('success', 'Copied!'); }}
                   className="w-8 h-8 flex items-center justify-center rounded-[6px] border border-border text-text-muted hover:text-primary hover:border-primary/40 transition-colors">
                   <Copy className="w-3.5 h-3.5" />
                 </button>
@@ -353,6 +358,67 @@ export default function SettingsPage() {
       </div>
     ),
 
+    api: (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-[18px] font-bold text-text-main mb-0.5">API & Webhooks</h2>
+          <p className="text-[13px] text-text-muted">Connect external applications and lead capture forms to your CRM.</p>
+        </div>
+
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Lead Capture Form Webhook</h3>
+          </div>
+          <div className="p-6 space-y-4">
+            <p className="text-[13px] text-text-muted leading-relaxed">
+              Use this webhook URL in your external websites to automatically send new leads into Stone AIO.
+              The form should send a <code className="text-primary font-mono text-[11px] bg-primary/10 px-1 py-0.5 rounded">POST</code> request with a JSON payload containing <code className="text-primary font-mono text-[11px] bg-primary/10 px-1 py-0.5 rounded">firstName</code>, <code className="text-primary font-mono text-[11px] bg-primary/10 px-1 py-0.5 rounded">lastName</code>, <code className="text-primary font-mono text-[11px] bg-primary/10 px-1 py-0.5 rounded">email</code>, and <code className="text-primary font-mono text-[11px] bg-primary/10 px-1 py-0.5 rounded">phone</code>.
+            </p>
+
+            <div>
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Webhook URL (VITE_WEBHOOK_URL)</label>
+              <div className="flex items-center gap-2">
+                <input readOnly value={`${window.location.origin}/api/hooks/forms/${wsId}`}
+                  className="flex-1 px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[12px] text-text-main font-mono focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                <button onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/api/hooks/forms/${wsId}`); toast('success', 'Copied URL!'); }}
+                  className="w-9 h-9 flex items-center justify-center rounded-[6px] border border-border text-text-muted hover:text-primary hover:border-primary/40 transition-colors bg-bg shrink-0">
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-bg rounded-lg border border-border mt-6 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-hover/30">
+                <h4 className="text-[12px] font-bold text-text-main">Example JavaScript Payload</h4>
+                <button onClick={() => { 
+                  const code = `fetch('${window.location.origin}/api/hooks/forms/${wsId}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    firstName: 'John',\n    lastName: 'Doe',\n    email: 'john@example.com',\n    phone: '555-0199'\n  })\n});`;
+                  navigator.clipboard?.writeText(code); 
+                  toast('success', 'Copied code snippet!'); 
+                }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] border border-border bg-surface text-[11px] font-semibold text-text-muted hover:text-primary hover:border-primary/40 transition-colors">
+                  <Copy className="w-3 h-3" /> Copy Code
+                </button>
+              </div>
+              <div className="p-4 overflow-x-auto">
+                <pre className="text-[12px] font-mono text-text-muted whitespace-pre">
+{`fetch('${window.location.origin}/api/hooks/forms/${wsId}', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'john@example.com',
+    phone: '555-0199'
+  })
+});`}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+
     notifications: (
       <div className="space-y-6">
         <div>
@@ -446,14 +512,14 @@ export default function SettingsPage() {
                 <div className="text-[13px] font-semibold text-text-main">Two-Factor Authentication</div>
                 <div className="text-[11px] text-text-muted mt-0.5">2FA adds an extra layer of security</div>
               </div>
-              <button onClick={() => { apiFetch('/api/settings/2fa/setup').then(r=>r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
+              <button onClick={() => { apiFetch('/api/settings/2fa/setup').then(r => r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>
                 <div className="text-[13px] font-semibold text-text-main">Active Sessions</div>
                 <div className="text-[11px] text-text-muted mt-0.5">Manage where you are logged in</div>
               </div>
-              <button onClick={() => { apiFetch('/api/settings/sessions').then(r=>r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
+              <button onClick={() => { apiFetch('/api/settings/sessions').then(r => r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
             </div>
           </div>
         </div>
@@ -467,179 +533,178 @@ export default function SettingsPage() {
 
   return (
     <>
-    {/* Invite Member Modal */}
-    {showInviteModal && (
-      <div className={modalBase} onClick={() => setShowInviteModal(false)}>
-        <div className={card} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-[16px] font-bold text-text-main">Invite Team Member</h3>
-            <button onClick={() => setShowInviteModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Email Address</label>
-              <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
-                className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary" />
+      {/* Invite Member Modal */}
+      {showInviteModal && (
+        <div className={modalBase} onClick={() => setShowInviteModal(false)}>
+          <div className={card} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-bold text-text-main">Invite Team Member</h3>
+              <button onClick={() => setShowInviteModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
             </div>
-            <div>
-              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Role</label>
-              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary">
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-6">
-            <button onClick={() => setShowInviteModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
-            <button onClick={() => { if (inviteEmail) inviteMember.mutate({ email: inviteEmail, role: inviteRole }); }} disabled={!inviteEmail || inviteMember.isPending}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {inviteMember.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</> : 'Send Invite'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Change Password Modal */}
-    {showPasswordModal && (
-      <div className={modalBase} onClick={() => setShowPasswordModal(false)}>
-        <div className={card} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-[16px] font-bold text-text-main">Change Password</h3>
-            <button onClick={() => setShowPasswordModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
-          </div>
-          <div className="space-y-4">
-            {(['current','next','confirm'] as const).map(k => (
-              <div key={k}>
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
-                  {k === 'current' ? 'Current Password' : k === 'next' ? 'New Password' : 'Confirm New Password'}
-                </label>
-                <input type="password" value={pwForm[k]} onChange={e => setPwForm(p => ({ ...p, [k]: e.target.value }))}
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Email Address</label>
+                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
                   className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary" />
               </div>
-            ))}
-          </div>
-          <div className="flex gap-3 mt-6">
-            <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
-            <button
-              onClick={() => {
-                if (pwForm.next !== pwForm.confirm) { toast('error', 'Passwords do not match'); return; }
-                changePassword.mutate({ currentPassword: pwForm.current, newPassword: pwForm.next });
-              }}
-              disabled={!pwForm.current || !pwForm.next || changePassword.isPending}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-              {changePassword.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...</> : 'Update Password'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* 2FA Setup Modal */}
-    {showTwoFAModal && twoFASetup && (
-      <div className={modalBase} onClick={() => setShowTwoFAModal(false)}>
-        <div className={card} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-[16px] font-bold text-text-main">Enable Two-Factor Auth</h3>
-            <button onClick={() => setShowTwoFAModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
-          </div>
-          <p className="text-[12px] text-text-muted mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.).</p>
-          <div className="flex justify-center mb-4">
-            <img src={twoFASetup.qrCodeUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg border border-border" />
-          </div>
-          <p className="text-[11px] text-text-muted text-center mb-4">Manual key: <code className="font-mono text-primary">{twoFASetup.secret}</code></p>
-          <div>
-            <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Verification Code</label>
-            <input type="text" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g,''))}
-              placeholder="000000" className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] font-mono tracking-widest text-center focus:outline-none focus:border-primary" />
-          </div>
-          <div className="flex gap-3 mt-6">
-            <button onClick={() => setShowTwoFAModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
-            <button
-              onClick={() => apiFetch('/api/settings/2fa/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ code: twoFACode }) }).then(r=>r.json()).then(d => { if(d.success) { toast('success','2FA enabled!'); setShowTwoFAModal(false); } else toast('error','Invalid code'); })}
-              disabled={twoFACode.length !== 6}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
-              Verify & Enable
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* Active Sessions Modal */}
-    {showSessionsModal && (
-      <div className={modalBase} onClick={() => setShowSessionsModal(false)}>
-        <div className={card} onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="text-[16px] font-bold text-text-main">Active Sessions</h3>
-            <button onClick={() => setShowSessionsModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
-          </div>
-          <div className="space-y-3">
-            {sessions.map((s: any) => (
-              <div key={s.id} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-[8px]">
-                <Monitor className="w-4 h-4 text-text-muted shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-semibold text-text-main flex items-center gap-2">
-                    {s.device} {s.isCurrent && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full">Current</span>}
-                  </div>
-                  <div className="text-[11px] text-text-muted">{s.location} · {s.ip}</div>
-                </div>
-                {!s.isCurrent && (
-                  <button onClick={() => apiFetch(`/api/settings/sessions/${s.id}`, {method:'DELETE'}).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success','Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div>
+                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Role</label>
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary">
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="viewer">Viewer</option>
+                </select>
               </div>
-            ))}
-          </div>
-          <button onClick={() => setShowSessionsModal(false)} className="w-full mt-4 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Close</button>
-        </div>
-      </div>
-    )}
-
-    <div className="flex-1 flex overflow-hidden bg-bg">
-      {/* Left sidebar */}
-      <div className="w-[220px] shrink-0 border-r border-border bg-surface/30 flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-[15px] font-bold text-text-main">Settings</h2>
-          <p className="text-[11px] text-text-muted mt-0.5">Manage workspace preferences</p>
-        </div>
-        <nav className="p-3 space-y-0.5">
-          {TABS.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[13px] transition-all text-left ${
-                  activeTab === tab.id
-                    ? 'bg-primary/10 text-primary font-semibold border border-primary/20'
-                    : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
-                }`}>
-                <Icon className="w-4 h-4 shrink-0" />
-                {tab.label}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowInviteModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+              <button onClick={() => { if (inviteEmail) inviteMember.mutate({ email: inviteEmail, role: inviteRole }); }} disabled={!inviteEmail || inviteMember.isPending}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {inviteMember.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</> : 'Send Invite'}
               </button>
-            );
-          })}
-        </nav>
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-[680px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.18 }}
-            >
-              {tabContent[activeTab]}
-            </motion.div>
-          </AnimatePresence>
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div className={modalBase} onClick={() => setShowPasswordModal(false)}>
+          <div className={card} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-bold text-text-main">Change Password</h3>
+              <button onClick={() => setShowPasswordModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-4">
+              {(['current', 'next', 'confirm'] as const).map(k => (
+                <div key={k}>
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                    {k === 'current' ? 'Current Password' : k === 'next' ? 'New Password' : 'Confirm New Password'}
+                  </label>
+                  <input type="password" value={pwForm[k]} onChange={e => setPwForm(p => ({ ...p, [k]: e.target.value }))}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] focus:outline-none focus:border-primary" />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+              <button
+                onClick={() => {
+                  if (pwForm.next !== pwForm.confirm) { toast('error', 'Passwords do not match'); return; }
+                  changePassword.mutate({ currentPassword: pwForm.current, newPassword: pwForm.next });
+                }}
+                disabled={!pwForm.current || !pwForm.next || changePassword.isPending}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                {changePassword.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...</> : 'Update Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA Setup Modal */}
+      {showTwoFAModal && twoFASetup && (
+        <div className={modalBase} onClick={() => setShowTwoFAModal(false)}>
+          <div className={card} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-bold text-text-main">Enable Two-Factor Auth</h3>
+              <button onClick={() => setShowTwoFAModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[12px] text-text-muted mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.).</p>
+            <div className="flex justify-center mb-4">
+              <img src={twoFASetup.qrCodeUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg border border-border" />
+            </div>
+            <p className="text-[11px] text-text-muted text-center mb-4">Manual key: <code className="font-mono text-primary">{twoFASetup.secret}</code></p>
+            <div>
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Verification Code</label>
+              <input type="text" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000" className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] font-mono tracking-widest text-center focus:outline-none focus:border-primary" />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowTwoFAModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
+              <button
+                onClick={() => apiFetch('/api/settings/2fa/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: twoFACode }) }).then(r => r.json()).then(d => { if (d.success) { toast('success', '2FA enabled!'); setShowTwoFAModal(false); } else toast('error', 'Invalid code'); })}
+                disabled={twoFACode.length !== 6}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
+                Verify & Enable
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Sessions Modal */}
+      {showSessionsModal && (
+        <div className={modalBase} onClick={() => setShowSessionsModal(false)}>
+          <div className={card} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-bold text-text-main">Active Sessions</h3>
+              <button onClick={() => setShowSessionsModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              {sessions.map((s: any) => (
+                <div key={s.id} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-[8px]">
+                  <Monitor className="w-4 h-4 text-text-muted shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-text-main flex items-center gap-2">
+                      {s.device} {s.isCurrent && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full">Current</span>}
+                    </div>
+                    <div className="text-[11px] text-text-muted">{s.location} · {s.ip}</div>
+                  </div>
+                  {!s.isCurrent && (
+                    <button onClick={() => apiFetch(`/api/settings/sessions/${s.id}`, { method: 'DELETE' }).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success', 'Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowSessionsModal(false)} className="w-full mt-4 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Close</button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 flex overflow-hidden bg-bg">
+        {/* Left sidebar */}
+        <div className="w-[220px] shrink-0 border-r border-border bg-surface/30 flex flex-col overflow-y-auto">
+          <div className="p-4 border-b border-border">
+            <h2 className="text-[15px] font-bold text-text-main">Settings</h2>
+            <p className="text-[11px] text-text-muted mt-0.5">Manage workspace preferences</p>
+          </div>
+          <nav className="p-3 space-y-0.5">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[13px] transition-all text-left ${activeTab === tab.id
+                      ? 'bg-primary/10 text-primary font-semibold border border-primary/20'
+                      : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
+                    }`}>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-[680px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18 }}
+              >
+                {tabContent[activeTab]}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
-    </div>
     </>
   );
 }

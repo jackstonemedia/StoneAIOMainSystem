@@ -43,11 +43,11 @@ const Calendar            = lazy(() => import('./pages/business/Calendar'));
 
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
 
-const ConversationsLayout = lazy(() => import('./pages/business/conversations/ConversationsLayout'));
-const ConversationsTab    = lazy(() => import('./pages/business/conversations/ConversationsTab'));
-const ManualActionsTab    = lazy(() => import('./pages/business/conversations/ManualActionsTab'));
-const SnippetsTab         = lazy(() => import('./pages/business/conversations/SnippetsTab'));
-const TriggerLinksTab     = lazy(() => import('./pages/business/conversations/TriggerLinksTab'));
+const ConversationsLayout = lazy(() => import('./pages/business/inbox/ConversationsLayout'));
+const ConversationsTab    = lazy(() => import('./pages/business/inbox/ConversationsTab'));
+const ManualActionsTab    = lazy(() => import('./pages/business/inbox/ManualActionsTab'));
+const SnippetsTab         = lazy(() => import('./pages/business/inbox/SnippetsTab'));
+const TriggerLinksTab     = lazy(() => import('./pages/business/inbox/TriggerLinksTab'));
 
 // CRM — top-level at /crm (removed from /business nesting — see Task 3.6)
 const CrmLayout     = lazy(() => import('./pages/crm/CrmLayout'));
@@ -74,6 +74,18 @@ const CampaignDetail         = lazy(() => import('./pages/ads/CampaignDetail'));
 
 // Lead Studio
 const LeadStudio             = lazy(() => import('./pages/leads/LeadStudio'));
+
+// Inbox
+const InboxLayout            = lazy(() => import('./pages/inbox/InboxLayout'));
+const InboxView              = lazy(() => import('./pages/inbox/InboxView'));
+const InboxReports           = lazy(() => import('./pages/inbox/InboxReports'));
+const InboxContacts          = lazy(() => import('./pages/inbox/InboxContacts'));
+const InboxHelpCenter        = lazy(() => import('./pages/inbox/InboxHelpCenter'));
+const InboxSettings          = lazy(() => import('./pages/inbox/settings/InboxSettings'));
+const InboxChannels          = lazy(() => import('./pages/inbox/settings/InboxChannels'));
+const InboxTeams             = lazy(() => import('./pages/inbox/settings/InboxTeams'));
+const InboxLabels            = lazy(() => import('./pages/inbox/settings/InboxLabels'));
+const InboxCannedResponses   = lazy(() => import('./pages/inbox/settings/InboxCannedResponses'));
 
 // ── App config ────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -138,8 +150,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="settings" element={<AutomationsSettings />} />
             </Route>
 
-            {/* Conversations (Business Hub) */}
-            <Route path="/conversations" element={<ErrorBoundary><Protect withAuth={withAuth}><ConversationsLayout /></Protect></ErrorBoundary>}>
+            {/* Inbox (Business Hub) */}
+            <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><ConversationsLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="chat" replace />} />
               <Route path="chat"           element={<ConversationsTab />} />
               <Route path="manual-actions" element={<ManualActionsTab />} />
@@ -181,6 +193,21 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
             {/* Lead Studio */}
             <Route path="/leads" element={<ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary>} />
+
+            {/* Inbox */}
+            <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><InboxLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<InboxView />} />
+              <Route path="reports" element={<InboxReports />} />
+              <Route path="contacts" element={<InboxContacts />} />
+              <Route path="help-center" element={<InboxHelpCenter />} />
+              <Route path="settings" element={<InboxSettings />}>
+                <Route index element={<Navigate to="channels" replace />} />
+                <Route path="channels" element={<InboxChannels />} />
+                <Route path="teams" element={<InboxTeams />} />
+                <Route path="labels" element={<InboxLabels />} />
+                <Route path="canned-responses" element={<InboxCannedResponses />} />
+              </Route>
+            </Route>
 
             {/* Ad Manager */}
             <Route path="/ads" element={<ErrorBoundary><Protect withAuth={withAuth}><AdsLayout /></Protect></ErrorBoundary>}>

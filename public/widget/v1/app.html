@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Live Chat</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  
+  <!-- Pre-chat form (hidden by default) -->
+  <div id="pre-chat-view" class="view hidden">
+    <div class="header">
+      <div class="header-info">
+        <h1 id="header-title">Support Chat</h1>
+        <p>We typically reply in a few minutes.</p>
+      </div>
+      <button class="close-btn" aria-label="Close" onclick="closeWidget()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="pre-chat-form">
+      <h3>Please introduce yourself</h3>
+      <form id="start-chat-form">
+        <div class="input-group">
+          <label>Name</label>
+          <input type="text" id="pc-name" required placeholder="John Doe">
+        </div>
+        <div class="input-group">
+          <label>Email</label>
+          <input type="email" id="pc-email" required placeholder="john@example.com">
+        </div>
+        <button type="submit" class="btn-primary" id="start-btn">Start Chat</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Chat view -->
+  <div id="chat-view" class="view hidden">
+    <div class="header">
+      <div class="header-info">
+        <h1 id="chat-title">Support Chat</h1>
+        <div class="agent-avatars">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+      <button class="close-btn" aria-label="Close" onclick="closeWidget()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+
+    <div class="messages-container" id="messages-list">
+      <!-- Welcome message -->
+      <div class="message incoming">
+        <div class="bubble" id="welcome-msg">Hi! How can we help you today?</div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <textarea id="msg-input" placeholder="Type a message..." rows="1"></textarea>
+      <button id="send-btn" disabled>
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading view -->
+  <div id="loading-view" class="view">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    // Configuration
+    const urlParams = new URLSearchParams(window.location.search);
+    const TOKEN = urlParams.get('token');
+    const ORIGIN = urlParams.get('origin');
+    
+    // State
+    let conversationId = localStorage.getItem(`inbox_conv_${TOKEN}`);
+    let contactId = localStorage.getItem(`inbox_contact_${TOKEN}`);
+    let isConnected = false;
+    let eventSource = null;
+
+    // Elements
+    const preChatView = document.getElementById('pre-chat-view');
+    const chatView = document.getElementById('chat-view');
+    const loadingView = document.getElementById('loading-view');
+    const messagesList = document.getElementById('messages-list');
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
+    const startForm = document.getElementById('start-chat-form');
+
+    // Notify parent to close
+    function closeWidget() {
+      window.parent.postMessage({ type: 'widget:close' }, '*');
+    }
+
+    // Auto-resize textarea
+    msgInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = (this.scrollHeight) + 'px';
+      sendBtn.disabled = !this.value.trim();
+    });
+
+    // Enter to send
+    msgInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Send button click
+    sendBtn.addEventListener('click', sendMessage);
+
+    async function sendMessage() {
+      const content = msgInput.value.trim();
+      if (!content || !conversationId) return;
+
+      msgInput.value = '';
+      msgInput.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      // Optimistic render
+      appendMessage({ content, senderType: 'contact', createdAt: new Date().toISOString() });
+
+      try {
+        await fetch(`/api/widget/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${contactId}`
+          },
+          body: JSON.stringify({ content })
+        });
+      } catch (err) {
+        console.error('Failed to send message', err);
+        // show error toast
+      }
+    }
+
+    function appendMessage(msg) {
+      const isMe = msg.senderType === 'contact';
+      const div = document.createElement('div');
+      div.className = `message ${isMe ? 'outgoing' : 'incoming'}`;
+      div.innerHTML = `<div class="bubble">${msg.content.replace(/\\n/g, '<br>')}</div>`;
+      messagesList.appendChild(div);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    async function loadConversation() {
+      try {
+        const res = await fetch(`/api/widget/conversations/${conversationId}/messages`, {
+          headers: { 'Authorization': `Bearer ${contactId}` }
+        });
+        const data = await res.json();
+        
+        // Keep only welcome message, then append history
+        const welcome = messagesList.firstElementChild;
+        messagesList.innerHTML = '';
+        if (welcome) messagesList.appendChild(welcome);
+
+        data.messages.reverse().forEach(appendMessage);
+        
+        setupSSE();
+        showView(chatView);
+      } catch (err) {
+        console.error('Failed to load conversation', err);
+        showView(preChatView);
+      }
+    }
+
+    startForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('pc-name').value;
+      const email = document.getElementById('pc-email').value;
+      
+      const btn = document.getElementById('start-btn');
+      btn.textContent = 'Starting...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/widget/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelToken: TOKEN, contact: { name, email } })
+        });
+        const data = await res.json();
+        
+        conversationId = data.conversation.id;
+        contactId = data.contact.id;
+        
+        localStorage.setItem(`inbox_conv_${TOKEN}`, conversationId);
+        localStorage.setItem(`inbox_contact_${TOKEN}`, contactId);
+        
+        setupSSE();
+        showView(chatView);
+      } catch (err) {
+        console.error('Failed to start chat', err);
+        btn.textContent = 'Error - Try Again';
+        btn.disabled = false;
+      }
+    });
+
+    function setupSSE() {
+      if (eventSource) return;
+      eventSource = new EventSource(`/api/widget/sse?contactId=${contactId}&conversationId=${conversationId}`);
+      
+      eventSource.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'message.created' && data.payload.senderType === 'agent') {
+          appendMessage(data.payload);
+          // Notify parent frame if closed
+          window.parent.postMessage({ type: 'widget:unread', count: 1 }, '*');
+        }
+      };
+    }
+
+    function showView(viewEl) {
+      preChatView.classList.add('hidden');
+      chatView.classList.add('hidden');
+      loadingView.classList.add('hidden');
+      viewEl.classList.remove('hidden');
+      scrollToBottom();
+    }
+
+    // Init
+    window.addEventListener('message', (e) => {
+      if (e.data.type === 'widget:open') {
+        if (!isConnected) {
+          isConnected = true;
+          if (conversationId && contactId) {
+            loadConversation();
+          } else {
+            showView(preChatView);
+          }
+        }
+      }
+    });
+
+    // Notify ready
+    window.parent.postMessage({ type: 'widget:ready' }, '*');
+  </script>
+</body>
+</html>

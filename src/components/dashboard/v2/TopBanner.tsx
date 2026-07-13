@@ -39,9 +39,9 @@ export function TopBanner({ dateRange, onDateRangeChange }: TopBannerProps) {
           '--surface': 'rgba(255,255,255,0.1)',
           '--surface-hover': 'rgba(255,255,255,0.16)',
           '--bg': 'var(--sidebar-bg)',
-          '--btn-bg': '#1A2C47',
-          '--btn-hover': '#233857',
-          '--btn-text': '#F8FAFC',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
           '--btn-border': 'transparent'
         } as React.CSSProperties}
       >

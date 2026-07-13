@@ -1,0 +1,52 @@
+<h2>Confirm The Theme Template Scope</h2>
+<p class="subtitle">I found the existing platform themes in <code>ThemeContext.tsx</code> and the Chatwoot-style inbox palette in the inbox components. Which interpretation matches what you want?</p>
+
+<div class="cards">
+  <div class="card" data-choice="new-template" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:180px;background:#1B1D22;border-radius:10px;overflow:hidden;border:1px solid #2C3036;display:grid;grid-template-columns:58px 180px 1fr;">
+        <div style="background:#16191D;border-right:1px solid #2C3036;padding:14px 10px;display:flex;flex-direction:column;gap:14px;">
+          <div style="width:30px;height:30px;border-radius:10px;background:#28364D;margin:auto;"></div>
+          <div style="width:30px;height:30px;border-radius:10px;background:#2C3036;margin:auto;"></div>
+          <div style="width:30px;height:30px;border-radius:10px;background:#2C3036;margin:auto;"></div>
+        </div>
+        <div style="background:#1B1D22;border-right:1px solid #2C3036;padding:16px;">
+          <div style="height:16px;width:100px;background:#fff;border-radius:4px;margin-bottom:16px;"></div>
+          <div style="height:28px;background:#16191D;border:1px solid #2C3036;border-radius:7px;margin-bottom:14px;"></div>
+          <div style="height:24px;background:#2C3036;border-radius:7px;margin-bottom:8px;"></div>
+          <div style="height:24px;background:#28364D;border-radius:7px;margin-bottom:8px;"></div>
+          <div style="height:24px;background:#2C3036;border-radius:7px;"></div>
+        </div>
+        <div style="background:#1B1D22;padding:16px;">
+          <div style="height:38px;background:#16191D;border:1px solid #2C3036;border-radius:8px;margin-bottom:14px;"></div>
+          <div style="height:58px;background:#2C3036;border-radius:14px;width:55%;margin-bottom:16px;"></div>
+          <div style="height:58px;background:#1D4ED8;border-radius:14px;width:50%;margin-left:auto;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>New Selectable Template</h3>
+      <p>Add a new Settings theme option, e.g. "Inbox Dark", using the inbox palette across platform CSS variables. Current themes stay available.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="replace-dark" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="height:180px;background:#1e293b;border-radius:10px;overflow:hidden;border:1px solid #2E4568;display:grid;grid-template-columns:210px 1fr;">
+        <div style="background:#0F1A2B;border-right:1px solid #2E4568;padding:16px;">
+          <div style="height:18px;width:110px;background:#E8E3D8;border-radius:4px;margin-bottom:18px;"></div>
+          <div style="height:28px;background:rgba(82,103,125,.18);border-radius:7px;margin-bottom:8px;"></div>
+          <div style="height:28px;background:#132136;border-radius:7px;margin-bottom:8px;"></div>
+        </div>
+        <div style="padding:18px;">
+          <div style="height:40px;background:#0F1A2B;border:1px solid #2E4568;border-radius:8px;margin-bottom:16px;"></div>
+          <div style="height:72px;background:#0F1A2B;border:1px solid #2E4568;border-radius:12px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Replace Existing Dark Mode</h3>
+      <p>Change the current "Dark Mode" theme to match the inbox palette. Fewer choices, but it changes behavior for anyone using the old dark theme.</p>
+    </div>
+  </div>
+</div>

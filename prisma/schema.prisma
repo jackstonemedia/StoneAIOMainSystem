@@ -57,8 +57,251 @@ model Workspace {
   userLeadHistory UserLeadHistory[]
   dailyLeadQuotas DailyLeadQuota[]
 
+  // Inbox feature
+  inboxToken              String?              @unique @map("inbox_token")
+  inboxEnabled            Boolean              @default(false) @map("inbox_enabled")
+  inboxChannels           InboxChannel[]
+  inboxLabels             InboxLabel[]
+  inboxTeams              InboxTeam[]
+  cannedResponses         CannedResponse[]
+  inboxConversations      InboxConversation[]
+  inboxContacts           InboxContact[]
+  inboxAgentSignatures    InboxAgentSignature[]
+
+  // Help Center
+  helpCenterPortal        HelpCenterPortal?
+
+  // Contact Segments & Campaigns
+  contactSegments         ContactSegment[]
+  inboxCampaigns          InboxCampaign[]
+
   @@map("workspaces")
 }
+
+// ─── Inbox Models ────────────────────────────────────────────────────────────
+
+model InboxChannel {
+  id                  String    @id @default(uuid())
+  workspaceId         String    @map("workspace_id")
+  name                String
+  channelType         String    @map("channel_type")
+  avatarUrl           String?   @map("avatar_url")
+  welcomeMessage      String?   @map("welcome_message")
+  awayMessage         String?   @map("away_message")
+  widgetColor         String    @default("#7dd3fc") @map("widget_color")
+  isEnabled           Boolean   @default(true) @map("is_enabled")
+  channelConnectionId String?   @map("channel_connection_id")
+  embedToken          String?   @unique @map("embed_token")
+  settingsJson        String    @default("{}") @map("settings_json")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations       InboxConversation[]
+  agents              InboxChannelAgent[]
+  campaigns           InboxCampaign[]
+
+  @@index([workspaceId])
+  @@map("inbox_channels")
+}
+
+model InboxChannelAgent {
+  inboxChannelId     String       @map("inbox_channel_id")
+  userId             String       @map("user_id")
+  availabilityStatus String       @default("online") @map("availability_status")
+  inboxChannel       InboxChannel @relation(fields: [inboxChannelId], references: [id], onDelete: Cascade)
+
+  @@id([inboxChannelId, userId])
+  @@map("inbox_channel_agents")
+}
+
+model InboxLabel {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  title          String
+  description    String?
+  color          String    @default("#7dd3fc")
+  showOnSidebar  Boolean   @default(true) @map("show_on_sidebar")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversationLabels InboxConversationLabel[]
+
+  @@unique([workspaceId, title])
+  @@map("inbox_labels")
+}
+
+model InboxTeam {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  name          String
+  description   String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members       InboxTeamMember[]
+  conversations InboxConversation[]
+
+  @@unique([workspaceId, name])
+  @@map("inbox_teams")
+}
+
+model InboxTeamMember {
+  teamId    String    @map("team_id")
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  team      InboxTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("inbox_team_members")
+}
+
+model CannedResponse {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  content     String
+  type        String    @default("text")
+  folder      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("canned_responses")
+}
+
+model InboxContact {
+  id                   String    @id @default(uuid())
+  workspaceId          String    @map("workspace_id")
+  crmContactId         String?   @map("crm_contact_id")
+  name                 String?
+  email                String?
+  phone                String?
+  avatarUrl            String?   @map("avatar_url")
+  externalId           String?   @map("external_id")
+  additionalAttributes String?   @map("additional_attributes")
+  lastActivityAt       DateTime? @map("last_activity_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations        InboxConversation[]
+
+  @@index([workspaceId])
+  @@index([externalId])
+  @@map("inbox_contacts")
+}
+
+model InboxConversation {
+  id                   String    @id @default(uuid())
+  workspaceId          String    @map("workspace_id")
+  inboxChannelId       String    @map("inbox_channel_id")
+  inboxContactId       String?   @map("inbox_contact_id")
+  crmContactId         String?   @map("crm_contact_id")
+  displayId            Int       @map("display_id")
+  status               String    @default("open")
+  priority             String?
+  subject              String?
+  assignedUserId       String?   @map("assigned_user_id")
+  teamId               String?   @map("team_id")
+  snoozedUntil         DateTime? @map("snoozed_until")
+  firstReplyAt         DateTime? @map("first_reply_at")
+  resolvedAt           DateTime? @map("resolved_at")
+  waitingSince         DateTime? @map("waiting_since")
+  unreadCount          Int       @default(0) @map("unread_count")
+  lastActivityAt       DateTime? @map("last_activity_at")
+  additionalAttributes String?   @map("additional_attributes")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inboxChannel InboxChannel  @relation(fields: [inboxChannelId], references: [id], onDelete: Cascade)
+  inboxContact InboxContact? @relation(fields: [inboxContactId], references: [id], onDelete: SetNull)
+  team         InboxTeam?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  messages     InboxMessage[]
+  labels       InboxConversationLabel[]
+  participants InboxConversationParticipant[]
+
+  @@index([workspaceId])
+  @@index([inboxChannelId])
+  @@index([status])
+  @@index([assignedUserId])
+  @@map("inbox_conversations")
+}
+
+model InboxMessage {
+  id                String    @id @default(uuid())
+  conversationId    String    @map("conversation_id")
+  workspaceId       String    @map("workspace_id")
+  senderType        String    @map("sender_type")
+  senderId          String?   @map("sender_id")
+  contentType       String    @default("text") @map("content_type")
+  content           String
+  contentAttributes String?   @map("content_attributes")
+  private           Boolean   @default(false)
+  status            String    @default("sent")
+  externalId        String?   @map("external_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  conversation      InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  mentions          InboxMention[]
+
+  @@index([conversationId])
+  @@index([workspaceId])
+  @@map("inbox_messages")
+}
+
+model InboxConversationLabel {
+  conversationId String            @map("conversation_id")
+  labelId        String            @map("label_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  conversation   InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  label          InboxLabel        @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, labelId])
+  @@map("inbox_conversation_labels")
+}
+
+model InboxConversationParticipant {
+  conversationId String            @map("conversation_id")
+  userId         String            @map("user_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  conversation   InboxConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@map("inbox_conversation_participants")
+}
+
+model InboxMention {
+  id          String       @id @default(uuid())
+  messageId   String       @map("message_id")
+  mentionedId String       @map("mentioned_id")
+  read        Boolean      @default(false)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  message     InboxMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([mentionedId])
+  @@map("inbox_mentions")
+}
+
+model InboxAgentSignature {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  body        String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("inbox_agent_signatures")
+}
+
+model InboxDisplayIdSequence {
+  workspaceId String @id @map("workspace_id")
+  lastId      Int    @default(0) @map("last_id")
+
+  @@map("inbox_display_id_sequences")
+}
+
 
 model WorkspaceMember {
   workspaceId String    @map("workspace_id")
@@ -1107,4 +1350,99 @@ model DailyLeadQuota {
 
   @@id([workspaceId, userId, date])
   @@map("daily_lead_quotas")
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Help Center Models
+// ──────────────────────────────────────────────────────────────────
+
+model HelpCenterPortal {
+  id          String   @id @default(uuid())
+  workspaceId String   @unique @map("workspace_id")
+  name        String
+  domain      String?
+  color       String   @default("#4f46e5")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  categories HelpCenterCategory[]
+  articles   HelpCenterArticle[]
+
+  @@map("help_center_portals")
+}
+
+model HelpCenterCategory {
+  id          String   @id @default(uuid())
+  portalId    String   @map("portal_id")
+  name        String
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  portal   HelpCenterPortal    @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  articles HelpCenterArticle[]
+
+  @@index([portalId])
+  @@map("help_center_categories")
+}
+
+model HelpCenterArticle {
+  id          String   @id @default(uuid())
+  portalId    String   @map("portal_id")
+  categoryId  String   @map("category_id")
+  title       String
+  content     String
+  status      String   @default("draft") // draft | published
+  authorId    String   @map("author_id")
+  views       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  portal   HelpCenterPortal   @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  category HelpCenterCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([portalId])
+  @@index([categoryId])
+  @@map("help_center_articles")
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Segments & Campaigns Models
+// ──────────────────────────────────────────────────────────────────
+
+model ContactSegment {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  description String?
+  queryFilter String   @map("query_filter") // JSON string of filter rules
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("contact_segments")
+}
+
+model InboxCampaign {
+  id             String   @id @default(uuid())
+  workspaceId    String   @map("workspace_id")
+  inboxChannelId String   @map("inbox_channel_id")
+  title          String
+  message        String
+  segmentId      String   @map("segment_id")
+  status         String   @default("draft") // draft | active | completed
+  scheduledAt    DateTime? @map("scheduled_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   InboxChannel @relation(fields: [inboxChannelId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([inboxChannelId])
+  @@map("inbox_campaigns")
 }

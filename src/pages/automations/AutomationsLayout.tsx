@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Zap, Play, Link2, Table2, GitMerge, Settings, ShieldAlert, Search, Bell, Command, Sparkles } from 'lucide-react';
+import { Zap, Play, Link2, Table2, GitMerge, Settings, ShieldAlert, Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 
@@ -26,19 +26,19 @@ export default function AutomationsLayout() {
           '--surface': 'rgba(255,255,255,0.1)',
           '--surface-hover': 'rgba(255,255,255,0.16)',
           '--bg': 'var(--sidebar-bg)',
-          '--btn-bg': '#1A2C47',
-          '--btn-hover': '#233857',
-          '--btn-text': '#F8FAFC',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
           '--btn-border': 'transparent'
         } as React.CSSProperties}
       >
-        <div className="flex items-center gap-5 pl-0 pb-3">
+        <div className="flex items-center gap-5 pl-4 pb-3">
           <button 
             onClick={() => setIsAIOpen(true)} 
-            className="px-3 py-1.5 rounded-lg font-medium text-[13px] transition-colors shadow-sm"
-            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+            title="AI Assistant"
           >
-            AI Assistant
+            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
           </button>
           
           <div className="h-5 w-[1px] bg-border" />

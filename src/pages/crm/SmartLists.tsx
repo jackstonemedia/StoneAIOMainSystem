@@ -301,7 +301,7 @@ export default function SmartLists() {
           </div>
           <div className="flex items-center gap-1.5 font-semibold">
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Prev</button>
-            <button className="px-3.5 py-1.5 rounded-[4px] shadow-sm text-bg font-bold" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3.5 py-1.5 rounded-[4px] shadow-sm bg-primary text-white font-bold">1</button>
             <button className="px-3 py-1.5 transition-colors text-text-muted hover:text-text-main">Next</button>
           </div>
         </div>

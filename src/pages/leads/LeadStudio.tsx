@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Zap, Download, Trash2, Clock, CheckCircle, XCircle,
+  Search, Zap, Download, Trash2, Clock, CheckCircle, XCircle, Megaphone,
   RefreshCw, Phone, Mail, Globe, MapPin, ChevronDown, ChevronRight,
   TrendingUp, Users, Target, AlertCircle, Copy, ChevronUp,
   Filter, ArrowUpDown, Building2, Loader2
@@ -376,10 +376,10 @@ export default function LeadStudio() {
           <div className="flex items-center gap-2.5 mb-1">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                  style={{ background: 'var(--primary)', boxShadow: '0 0 16px rgba(var(--primary-rgb,59,130,246),0.35)' }}>
-              <Zap className="w-4 h-4 text-white" />
+              <Megaphone className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-[15px] font-bold" style={{ color: 'var(--text-main)' }}>Lead Studio</h1>
+              <h1 className="text-[15px] font-bold" style={{ color: 'var(--text-main)' }}>Marketing</h1>
               <p className="text-[11px] text-muted">AI-powered business lead scraper</p>
             </div>
           </div>
@@ -550,7 +550,7 @@ export default function LeadStudio() {
           <div className="flex-1 flex items-center justify-center flex-col gap-4">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <Zap className="w-7 h-7 text-muted opacity-40" />
+              <Megaphone className="w-7 h-7 text-muted opacity-40" />
             </div>
             <div className="text-center">
               <p className="text-[15px] font-semibold" style={{ color: 'var(--text-main)' }}>Select a job to view leads</p>

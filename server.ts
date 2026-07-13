@@ -42,9 +42,16 @@ import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import { errorHandler }      from './api/middleware/error.js';
 import { resolveWorkspace }  from './api/middleware/workspace.js';
 
+// ── Inbox ─────────────────────────────────────────────────────────────────────
+import inboxRouter from './api/routes/inbox.routes.js';
+import inboxWidgetRouter from './api/routes/inbox-widget.routes.js';
+import inboxCopilotRouter from './api/routes/inbox-copilot.routes.js';
+import inboxWebhooksRouter from './api/routes/inbox-webhooks.routes.js';
+
 // ── Channel routes + webhook handlers + realtime ─────────────────────────────
 import channelsRouter from './api/routes/channels.routes.js';
 import { twilioSmsHandler } from './api/webhooks/twilio-sms.handler.js';
+import { formCaptureWebhook } from './api/webhooks/forms.webhook.js';
 import { outlookWebhookHandler } from './api/webhooks/outlook-messages.handler.js';
 import { metaWebhookVerify, metaWebhookPost } from './api/webhooks/meta.handler.js';
 import { initRealtime } from './api/services/channels/realtime.service.js';
@@ -123,6 +130,18 @@ async function startServer() {
   // Uses urlencoded body parser (NOT global json parser).
   app.post('/api/hooks/twilio-sms', express.urlencoded({ extended: false }), twilioSmsHandler);
 
+  // External Form Capture webhook — Custom endpoint for lead capture forms
+  app.options('/api/hooks/forms/:workspaceId', (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.sendStatus(200);
+  });
+  app.post('/api/hooks/forms/:workspaceId', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    next();
+  }, formCaptureWebhook);
+
   // Outlook push notifications — MUST be before the wildcard app.all below.
   // POST = events, GET = Microsoft validation challenge.
   app.post('/api/hooks/outlook-messages', outlookWebhookHandler);
@@ -171,6 +190,10 @@ async function startServer() {
   app.use('/api/channels',       channelsRouter);
   app.use('/api/ads',            adsRouter);
   app.use('/api/leads',          leadsRouter);
+  app.use('/api/inbox',          resolveWorkspace, inboxRouter);
+  app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
+  app.use('/api/widget',         inboxWidgetRouter);
+  app.use('/api/webhooks/inbox', inboxWebhooksRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -188,6 +211,9 @@ async function startServer() {
   // ── Global error handler (must be last) ──────────────────────────────────
   app.use(errorHandler);
 
+  // ── Serve Public Folder (Widget JS) ───────────────────────────────────────
+  app.use(express.static(path.join(process.cwd(), 'public')));
+
   // ── Frontend Routing ──────────────────────────────────────────────────────
   if (env.NODE_ENV === 'production') {
     const distPath = path.join(process.cwd(), 'dist');
@@ -202,6 +228,28 @@ async function startServer() {
 
   app.listen(env.PORT, '0.0.0.0', async () => {
     console.log(`✅ Stone AIO server running on http://localhost:${env.PORT}`);
+
+    // ── Inbox Snooze Worker ──────────────────────────────────────────────────
+    cron.schedule('*/5 * * * *', async () => {
+      try {
+        const { publishInboxEvent } = await import('./api/services/channels/realtime.service.js');
+        const now = new Date();
+        const toWake = await db.inboxConversation.findMany({
+          where: { status: 'snoozed', snoozedUntil: { lte: now } },
+          select: { id: true, workspaceId: true }
+        });
+        if (toWake.length > 0) {
+          await db.inboxConversation.updateMany({
+            where: { id: { in: toWake.map(c => c.id) } },
+            data: { status: 'open', snoozedUntil: null },
+          });
+          for (const conv of toWake) {
+            await publishInboxEvent(conv.workspaceId, { type: 'conversation.updated', workspaceId: conv.workspaceId, conversationId: conv.id, payload: { status: 'open' } });
+          }
+        }
+      } catch (err) { console.error('[Inbox Snooze]', err); }
+    });
+    console.log('✅ Inbox snooze poller: active (5-min interval)');
 
     // ── Initialize Native Workflow Engine ──────────────────────────────────────
     try {

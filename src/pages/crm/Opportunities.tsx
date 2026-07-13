@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import KanbanBoard from '../../components/crm/KanbanBoard';
 import { apiFetch } from '../../lib/apiClient';
+import { HeaderPortal } from '../../components/layout/HeaderPortal';
+import { SlideOverPanel } from '../../components/ui/SlideOverPanel';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,7 +101,7 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
   const qc = useQueryClient();
   const [contactSearch, setContactSearch] = useState('');
   const [contactDropOpen, setContactDropOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', pipelineId: defaultPipelineId || pipelines[0]?.id || '', stageId: '', status: 'open', amount: '', source: '', contactId: '', phone: '', email: '' });
+  const [form, setForm] = useState({ title: '', pipelineId: defaultPipelineId || pipelines[0]?.id || '', stageId: '', status: 'open', amount: '', source: '', contactId: '', phone: '', email: '', closeDate: '', priority: 'medium', description: '' });
   const [error, setError] = useState('');
 
   const selectedPipeline = pipelines.find(p => p.id === form.pipelineId);
@@ -159,148 +161,165 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
       contactId: finalContactId,
       source: form.source || null,
       status: form.status,
-      priority: 'medium',
+      priority: form.priority,
+      closeDate: form.closeDate ? new Date(form.closeDate).toISOString() : undefined,
+      description: form.description || undefined,
       probability: stages.find(s => s.id === form.stageId)?.probability ?? 30
     });
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.97, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.18 }}
-        className="relative w-[680px] max-h-[90vh] rounded-2xl flex flex-col overflow-hidden z-10 border border-white/20 ring-1 ring-white/5 shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
-        style={{ background: 'rgba(15,26,43,0.62)', backdropFilter: 'blur(32px) saturate(200%) brightness(1.10)', WebkitBackdropFilter: 'blur(32px) saturate(200%) brightness(1.10)' }}
-      >
-        <div className="flex items-start justify-between px-6 py-5 border-b border-white/10 bg-white/[0.06]">
-          <div><h2 className="text-[16px] font-bold text-text-main">Add new opportunity</h2><p className="text-[12px] text-text-muted mt-0.5">Fill in the details and select a contact to get started.</p></div>
-          <button onClick={onClose} className="p-1.5 rounded-full text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex flex-1 overflow-hidden">
-          <div className="w-[148px] border-r border-white/10 bg-white/[0.03] p-4 shrink-0 pt-5">
-            <div className="text-[12px] font-bold text-primary border-l-2 border-primary pl-2.5 py-1 bg-primary/5 rounded-r-[4px]">Opportunity Details</div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-5">
-            {/* Contact section */}
-            <div>
-              <p className="text-[13px] font-bold text-text-main mb-3">Contact details</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="relative space-y-1.5">
-                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Primary Contact Name</label>
-                  <div className="relative">
-                    <input type="text" placeholder="Select Contact" value={contactSearch}
-                      onChange={e => { setContactSearch(e.target.value); setContactDropOpen(true); }}
-                      onFocus={() => setContactDropOpen(true)}
-                      className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-                    />
-                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-                  </div>
-                  <AnimatePresence>
-                    {contactDropOpen && filteredContacts.length > 0 && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setContactDropOpen(false)} />
-                        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                          className="absolute top-[calc(100%+2px)] left-0 right-0 bg-surface border border-border rounded-[8px] shadow-xl z-20 max-h-[180px] overflow-y-auto"
-                        >
-                          {filteredContacts.slice(0, 20).map(c => (
-                            <button key={c.id} onClick={() => { setContactSearch(c.name || `${c.firstName} ${c.lastName}`); setForm(f => ({ ...f, contactId: c.id, email: c.email || f.email, phone: c.phone || f.phone })); setContactDropOpen(false); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover text-left transition-colors"
-                            >
-                              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
-                                {(c.name || c.firstName || '?').charAt(0).toUpperCase()}
-                              </div>
-                              <div><div className="text-[12px] font-semibold text-text-main">{c.name || `${c.firstName} ${c.lastName}`}</div>{c.email && <div className="text-[11px] text-text-muted">{c.email}</div>}</div>
-                            </button>
-                          ))}
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Primary Email</label>
-                  <input type="email" placeholder="Enter Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-                  />
-                </div>
-                <div className="col-span-2 space-y-1.5">
-                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Primary Phone</label>
-                  <input type="tel" placeholder="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="h-px bg-border" />
-            {/* Opportunity section */}
-            <div>
-              <p className="text-[13px] font-bold text-text-main mb-3">Opportunity Details</p>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Opportunity Name <span className="text-red-400">*</span></label>
-                  <input type="text" placeholder="Enter opportunity name" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Pipeline</label>
-                    <select value={form.pipelineId} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); setForm(f => ({ ...f, pipelineId: e.target.value, stageId: p?.stages?.[0]?.id || '' })); }}
-                      className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
-                    >
-                      {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Stage</label>
-                    <select value={form.stageId} onChange={e => setForm(f => ({ ...f, stageId: e.target.value }))}
-                      className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
-                    >
-                      {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</label>
-                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                      className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
-                    >
-                      <option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option><option value="abandoned">Abandoned</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Opportunity Value</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[13px] font-semibold">$</span>
-                      <input type="number" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                        className="w-full pl-7 pr-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-                      />
-                    </div>
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Opportunity Source</label>
-                    <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}
-                      className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
-                    >
-                      <option value="">None</option>
-                      {['Referral', 'Email Campaign', 'Inbound', 'Outbound', 'Google', 'LinkedIn', 'Conference', 'Cold Call'].map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {error && <div className="flex items-center gap-2 px-3 py-2 bg-red-400/10 border border-red-400/20 rounded-[6px] text-[12px] text-red-400"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</div>}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30 shrink-0">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
-          <button onClick={submit} disabled={mut.isPending || isCreatingContact} className="btn-primary disabled:opacity-50">
+    <SlideOverPanel
+      isOpen={true}
+      onClose={onClose}
+      title="Add Opportunity"
+      width="w-[500px]"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border-0 hover:bg-surface-hover transition-colors">
+            Cancel
+          </button>
+          <button 
+            disabled={mut.isPending || isCreatingContact}
+            onClick={submit}
+            className="px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
             {mut.isPending || isCreatingContact ? 'Creating...' : 'Create'}
           </button>
+        </>
+      }
+    >
+      <div className="space-y-6 pb-8">
+        {error && <div className="flex items-center gap-2 px-3 py-2 bg-red-400/10 border border-red-400/20 rounded-[6px] text-[12px] text-red-400"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</div>}
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Opportunity Name <span className="text-red-400">*</span></label>
+            <input type="text" placeholder="Enter opportunity name" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Pipeline</label>
+              <select value={form.pipelineId} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); setForm(f => ({ ...f, pipelineId: e.target.value, stageId: p?.stages?.[0]?.id || '' })); }}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              >
+                {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Stage</label>
+              <select value={form.stageId} onChange={e => setForm(f => ({ ...f, stageId: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              >
+                {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Status</label>
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              >
+                <option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option><option value="abandoned">Abandoned</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Value</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[13px] font-semibold">$</span>
+                <input type="number" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full pl-7 pr-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Expected Close Date</label>
+              <input type="date" value={form.closeDate} onChange={e => setForm(f => ({ ...f, closeDate: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Priority</label>
+              <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Opportunity Notes</label>
+            <textarea placeholder="Add context, next steps, or specific requirements..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all min-h-[80px] resize-y"
+            />
+          </div>
         </div>
-      </motion.div>
-    </div>
+
+        <div className="h-px bg-border my-6" />
+
+        <div className="space-y-4">
+          <h3 className="text-[14px] font-bold text-text-main">Contact Details</h3>
+          
+          <div className="space-y-1.5 relative">
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Search Contact</label>
+            <div className="relative">
+              <input type="text" placeholder="Select Contact" value={contactSearch}
+                onChange={e => { setContactSearch(e.target.value); setContactDropOpen(true); }}
+                onFocus={() => setContactDropOpen(true)}
+                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              />
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+            </div>
+            <AnimatePresence>
+              {contactDropOpen && filteredContacts.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setContactDropOpen(false)} />
+                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="absolute top-[calc(100%+2px)] left-0 right-0 bg-surface border border-border rounded-[8px] shadow-xl z-20 max-h-[180px] overflow-y-auto"
+                  >
+                    {filteredContacts.slice(0, 20).map(c => (
+                      <button key={c.id} onClick={() => { setContactSearch(c.name || `${c.firstName} ${c.lastName}`); setForm(f => ({ ...f, contactId: c.id, email: c.email || f.email, phone: c.phone || f.phone })); setContactDropOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover text-left transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {(c.name || c.firstName || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div><div className="text-[12px] font-semibold text-text-main">{c.name || `${c.firstName} ${c.lastName}`}</div>{c.email && <div className="text-[11px] text-text-muted">{c.email}</div>}</div>
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Email</label>
+            <input type="email" placeholder="Enter Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Phone</label>
+            <input type="tel" placeholder="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            />
+          </div>
+        </div>
+      </div>
+    </SlideOverPanel>
   );
 }
 
@@ -309,6 +328,8 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
 function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | null; onClose: () => void; onSave: () => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState(pipeline?.name || '');
+  const [description, setDescription] = useState('');
+  const [staleDays, setStaleDays] = useState(30);
   const [stages, setStages] = useState<{ id: string; name: string; color: string; order: number; probability: number; isNew?: boolean }[]>(
     pipeline?.stages?.length
       ? [...pipeline.stages].sort((a, b) => a.order - b.order)
@@ -344,90 +365,113 @@ function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | nu
   const STAGE_COLORS = ['#64748b','#818cf8','#fbbf24','#a78bfa','#34d399','#ef4444','#f97316','#06b6d4','#8b5cf6','#ec4899'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.18 }}
-        className="relative w-[600px] max-h-[85vh] bg-surface border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden z-10"
-      >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-          <div>
-            <h2 className="text-[16px] font-bold text-text-main">{pipeline ? 'Edit Pipeline' : 'Create Pipeline'}</h2>
-            <p className="text-[12px] text-text-muted mt-0.5">Configure your pipeline stages and display settings.</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-full text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-text-muted">Pipeline name <span className="text-red-400">*</span></label>
-            <input type="text" placeholder="e.g. Standard Sales" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
-              className="w-full px-3 py-2.5 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary placeholder:text-text-muted"
-            />
-            {nameError && <p className="text-[11px] text-red-400">{nameError}</p>}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-[13px] font-bold text-text-main">Pipeline stages ({stages.length})</h3>
-                <p className="text-[11px] text-text-muted mt-0.5">Drag to reorder · Click color to change</p>
-              </div>
-              <button onClick={() => setStages(s => [...s, { id: `ns_${Date.now()}`, name: '', color: STAGE_COLORS[s.length % STAGE_COLORS.length], order: s.length, probability: 50, isNew: true }])}
-                className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:opacity-80 transition-opacity"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add stage
-              </button>
-            </div>
-
-            <div className="rounded-[8px] border border-border overflow-hidden">
-              <div className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center px-4 py-2.5 bg-surface-hover/60 border-b border-border gap-3">
-                <div className="w-4" />
-                <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider w-5">Color</div>
-                <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Stage Name</div>
-                <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider w-16 text-center">Win %</div>
-                <div className="w-6" />
-              </div>
-              {stages.map((stage, i) => (
-                <div key={stage.id} className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center px-4 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-surface-hover/20 transition-colors gap-3">
-                  <GripVertical className="w-4 h-4 text-text-muted cursor-grab" />
-                  <div className="relative w-5 h-5 rounded-full cursor-pointer shrink-0" style={{ backgroundColor: stage.color }}>
-                    <input type="color" value={stage.color} onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, color: e.target.value } : st))}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer rounded-full"
-                    />
-                  </div>
-                  <input type="text" value={stage.name} onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, name: e.target.value } : st))}
-                    placeholder="Stage name"
-                    className="bg-transparent border-none text-[13px] font-medium text-text-main focus:outline-none focus:bg-surface-hover rounded px-1 py-0.5 placeholder:text-text-muted/50"
-                  />
-                  <div className="flex items-center gap-1 w-16">
-                    <input type="number" min="0" max="100" value={stage.probability}
-                      onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, probability: parseInt(e.target.value) || 0 } : st))}
-                      className="w-10 bg-surface-hover border border-border rounded-[4px] text-[12px] text-text-main text-center focus:outline-none focus:border-primary px-1 py-0.5"
-                    />
-                    <span className="text-[11px] text-text-muted">%</span>
-                  </div>
-                  <button onClick={() => setStages(s => s.filter((_, idx) => idx !== i))}
-                    className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              {stages.length === 0 && (
-                <div className="px-4 py-8 text-center text-[12px] text-text-muted">No stages yet. Add one above.</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30 shrink-0">
-          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-muted border border-border hover:bg-surface-hover transition-colors">Cancel</button>
-          <button onClick={save} disabled={saving || !name.trim()} className="px-5 py-2 rounded-[6px] text-[13px] font-semibold text-white bg-primary hover:opacity-90 disabled:opacity-40 transition-opacity">
+    <SlideOverPanel
+      isOpen={true}
+      onClose={onClose}
+      title={pipeline ? 'Edit Pipeline' : 'Create Pipeline'}
+      width="w-[600px]"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border-0 hover:bg-surface-hover transition-colors">
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving || !name.trim()} className="px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity">
             {saving ? 'Saving...' : pipeline ? 'Save Changes' : 'Create Pipeline'}
           </button>
+        </>
+      }
+    >
+      <div className="space-y-6 pb-8">
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-semibold text-text-muted">Pipeline name <span className="text-red-400">*</span></label>
+          <input type="text" placeholder="e.g. Standard Sales" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
+            className="w-full px-3 py-2.5 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-text-muted"
+          />
+          {nameError && <p className="text-[11px] text-red-400">{nameError}</p>}
         </div>
-      </motion.div>
-    </div>
+        
+        <div className="space-y-1.5">
+          <label className="text-[12px] font-semibold text-text-muted">Pipeline Description</label>
+          <textarea placeholder="What is this pipeline used for?" value={description} onChange={e => setDescription(e.target.value)}
+            className="w-full px-3 py-2.5 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-text-muted min-h-[60px] resize-y"
+          />
+        </div>
+
+        <div className="h-px bg-border my-6" />
+
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-[13px] font-bold text-text-main">Pipeline stages ({stages.length})</h3>
+              <p className="text-[11px] text-text-muted mt-0.5">Drag to reorder · Click color to change</p>
+            </div>
+            <button onClick={() => setStages(s => [...s, { id: `ns_${Date.now()}`, name: '', color: STAGE_COLORS[s.length % STAGE_COLORS.length], order: s.length, probability: 50, isNew: true }])}
+              className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:opacity-80 transition-opacity"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add stage
+            </button>
+          </div>
+
+          <div className="rounded-[8px] border border-border overflow-hidden shadow-sm">
+            <div className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center px-4 py-2.5 bg-surface-hover/60 border-b border-border gap-3">
+              <div className="w-4" />
+              <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider w-5">Color</div>
+              <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Stage Name</div>
+              <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider w-16 text-center">Win %</div>
+              <div className="w-6" />
+            </div>
+            {stages.map((stage, i) => (
+              <div key={stage.id} className="grid grid-cols-[auto_auto_1fr_auto_auto] items-center px-4 py-2.5 border-b border-border/40 last:border-b-0 hover:bg-surface-hover/20 transition-colors gap-3">
+                <GripVertical className="w-4 h-4 text-text-muted cursor-grab" />
+                <div className="relative w-5 h-5 rounded-full cursor-pointer shrink-0" style={{ backgroundColor: stage.color }}>
+                  <input type="color" value={stage.color} onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, color: e.target.value } : st))}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer rounded-full"
+                  />
+                </div>
+                <input type="text" value={stage.name} onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, name: e.target.value } : st))}
+                  placeholder="Stage name"
+                  className="bg-transparent border-none text-[13px] font-medium text-text-main focus:outline-none focus:bg-surface-hover rounded px-1 py-0.5 placeholder:text-text-muted/50"
+                />
+                <div className="flex items-center gap-1 w-16">
+                  <input type="number" min="0" max="100" value={stage.probability}
+                    onChange={e => setStages(s => s.map((st, idx) => idx === i ? { ...st, probability: parseInt(e.target.value) || 0 } : st))}
+                    className="w-10 bg-surface-hover border border-border rounded-[4px] text-[12px] text-text-main text-center focus:outline-none focus:border-primary px-1 py-0.5"
+                  />
+                  <span className="text-[11px] text-text-muted">%</span>
+                </div>
+                <button onClick={() => setStages(s => s.filter((_, idx) => idx !== i))}
+                  className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {stages.length === 0 && (
+              <div className="px-4 py-8 text-center text-[12px] text-text-muted">No stages yet. Add one above.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="h-px bg-border my-6" />
+
+        <div className="space-y-4">
+          <h3 className="text-[13px] font-bold text-text-main">Pipeline Automations</h3>
+          
+          <div className="flex items-center justify-between p-4 border border-border bg-surface-hover/30 rounded-[8px]">
+            <div>
+              <div className="text-[13px] font-semibold text-text-main">Stale Deal Rotting</div>
+              <div className="text-[11px] text-text-muted mt-0.5">Automatically mark deals visually inactive after X days of no updates.</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="number" min="1" value={staleDays} onChange={e => setStaleDays(parseInt(e.target.value) || 30)}
+                className="w-14 bg-surface border-0 rounded-[6px] text-[13px] text-text-main text-center focus:outline-none focus:ring-1 focus:ring-primary/20 px-1 py-1 shadow-sm"
+              />
+              <span className="text-[12px] text-text-muted font-medium">days</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </SlideOverPanel>
   );
 }
 
@@ -866,6 +910,7 @@ export default function Opportunities() {
   // Inline editing state
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
+  const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
   const [addingGroup, setAddingGroup] = useState(false);
   
   const PASTEL_COLORS = [
@@ -954,45 +999,41 @@ export default function Opportunities() {
   const isLoading = loadingPipelines || loadingDeals;
   const AVATAR_COLORS = ['#4F8EF7', '#52C27E', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C', '#3498DB', '#E67E22'];
 
-  const groupedDeals = allStages.map(stage => {
-    const stageDeals = deals.filter(deal => {
-      const raw = rawDeals.find(d => d.id === deal.id) as any;
-      const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
-      return stageId === stage.id;
-    });
-    return { stage, deals: stageDeals };
-  });
-  
-  const unassignedDeals = deals.filter(deal => {
-    const raw = rawDeals.find(d => d.id === deal.id) as any;
-    const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
-    return !allStages.find(s => s.id === stageId);
-  });
-  
-  if (unassignedDeals.length > 0) {
-    groupedDeals.push({ stage: { id: 'unassigned', name: 'Unassigned', color: '#888888', order: 999, probability: 0 }, deals: unassignedDeals });
-  }
+  const groupedDeals = [
+    {
+      stage: { id: 'active', name: 'Active Deals', color: '#4F8EF7', order: 1, probability: 50 },
+      deals: deals.filter(deal => {
+        const raw = rawDeals.find(d => d.id === deal.id) as any;
+        const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
+        const stage = allStages.find(s => s.id === stageId);
+        return stage && !stage.name.toLowerCase().includes('won') && !stage.name.toLowerCase().includes('lost');
+      })
+    },
+    {
+      stage: { id: 'won', name: 'Closed Won', color: '#1ABC9C', order: 2, probability: 100 },
+      deals: deals.filter(deal => {
+        const raw = rawDeals.find(d => d.id === deal.id) as any;
+        const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
+        const stage = allStages.find(s => s.id === stageId);
+        return stage && stage.name.toLowerCase().includes('won');
+      })
+    }
+  ];
 
   return (
     <div className="flex flex-col h-full w-full bg-bg relative">
 
-      {/* ── Top Header ── */}
-      <div className="flex-none px-8 py-5 border-b border-border bg-surface flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <h1 className="text-[20px] font-bold text-text-main flex items-center">
-              Opportunities
-            </h1>
-            <span className="text-text-muted text-[13px] font-medium ml-1">
-              Manage your sales pipeline and track deal progress.
-            </span>
-          </div>
+      {/* Full-tab frosted glass overlay */}
+      <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10"></div>
+
+      <HeaderPortal>
+        <div className="flex items-center gap-3">
           {pipelines.length > 1 && (
-            <div className="relative group ml-4">
+            <div className="relative group mr-2">
               <select
                 value={selectedPipelineId}
                 onChange={e => setSelectedPipelineId(e.target.value)}
-                className="appearance-none bg-surface-hover/50 border border-border rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-text-main focus:outline-none focus:border-primary cursor-pointer hover:bg-surface-hover transition-colors"
+                className="appearance-none bg-surface-hover/50 border border-border rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-text-main focus:outline-none focus:border-primary cursor-pointer hover:bg-surface-hover transition-colors shadow-sm"
               >
                 <option value="all">All Pipelines</option>
                 {pipelines.map(p => (
@@ -1002,24 +1043,25 @@ export default function Opportunities() {
               <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none group-hover:text-text-main transition-colors" />
             </div>
           )}
+          <button onClick={() => setCreatePipelineOpen(true)} className="btn-secondary">
+            <Plus className="w-4 h-4" /> Create New Pipeline
+          </button>
+          <button onClick={() => setAddModalOpen(true)} className="btn-secondary">
+            <Plus className="w-4 h-4" /> Create Opportunity
+          </button>
+          
+          <div className="w-[1px] h-5 bg-border mx-1"></div>
+
+          <div className="flex items-center border border-border rounded-lg bg-surface-hover/30 p-1 shadow-sm">
+            <button onClick={() => setView('list')} className={`p-1.5 rounded-[6px] transition-all duration-200 ${view === 'list' ? 'bg-surface shadow-sm text-text-main border border-border/50' : 'text-text-muted hover:text-text-main'}`}>
+              <List className="w-4 h-4" />
+            </button>
+            <button onClick={() => setView('kanban')} className={`p-1.5 rounded-[6px] transition-all duration-200 ${view === 'kanban' ? 'bg-surface shadow-sm text-text-main border border-border/50' : 'text-text-muted hover:text-text-main'}`}>
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-           <button onClick={() => setPipelinesOpen(true)} className="btn-secondary">
-             Pipeline Settings
-           </button>
-           <button onClick={() => setAddModalOpen(true)} className="btn-primary">
-             <Plus className="w-4 h-4 mr-1" /> Create Opportunity
-           </button>
-           <div className="flex items-center border border-border rounded-lg bg-surface-hover/30 p-1 ml-2 shadow-sm">
-             <button onClick={() => setView('list')} className={`p-1.5 rounded-[6px] transition-all duration-200 ${view === 'list' ? 'bg-surface shadow-sm text-text-main border border-border/50' : 'text-text-muted hover:text-text-main'}`}>
-               <List className="w-4 h-4" />
-             </button>
-             <button onClick={() => setView('kanban')} className={`p-1.5 rounded-[6px] transition-all duration-200 ${view === 'kanban' ? 'bg-surface shadow-sm text-text-main border border-border/50' : 'text-text-muted hover:text-text-main'}`}>
-               <LayoutGrid className="w-4 h-4" />
-             </button>
-           </div>
-        </div>
-      </div>
+      </HeaderPortal>
 
       {/* ── Table — matches Contacts container + row style ── */}
       {isLoading ? (
@@ -1332,6 +1374,9 @@ export default function Opportunities() {
 
       {/* ── Modals ── */}
       <AnimatePresence>
+        {createPipelineOpen && (
+          <PipelineModal onClose={() => setCreatePipelineOpen(false)} onSave={() => setCreatePipelineOpen(false)} />
+        )}
         {addModalOpen && (
           <AddOpportunityModal pipelines={pipelines} contacts={contacts} defaultPipelineId={selectedPipelineId === 'all' ? (pipelines[0]?.id || '') : selectedPipelineId} onClose={() => setAddModalOpen(false)} onSave={() => setAddModalOpen(false)} />
         )}

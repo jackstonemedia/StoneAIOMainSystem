@@ -1,5 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu, FloatingMenu } from '@tiptap/react/menus';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -69,31 +69,25 @@ export function NotionEditor({ content, onChange, placeholder = "Press '/' for c
   return (
     <div className={wrapperClassName}>
       
-      {/* Floating Menu (Slash Commands) */}
-      {editor && <FloatingMenu editor={editor}>
-        <div className="flex bg-surface border border-border shadow-luxury rounded-[8px] overflow-hidden p-1 gap-0.5">
-          <button onClick={() => toggleHeading(1)} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Heading 1"><Heading1 className="w-4 h-4" /></button>
-          <button onClick={() => toggleHeading(2)} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Heading 2"><Heading2 className="w-4 h-4" /></button>
-          <div className="w-px bg-border my-1 mx-0.5"></div>
-          <button onClick={toggleBulletList} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Bullet List"><List className="w-4 h-4" /></button>
-          <button onClick={toggleOrderedList} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Numbered List"><ListOrdered className="w-4 h-4" /></button>
-          <button onClick={toggleTaskList} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Task List"><CheckSquare className="w-4 h-4" /></button>
-          <div className="w-px bg-border my-1 mx-0.5"></div>
-          <button onClick={toggleBlockquote} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Quote"><Quote className="w-4 h-4" /></button>
-          <button onClick={setHorizontalRule} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors" title="Divider"><Minus className="w-4 h-4" /></button>
-        </div>
-      </FloatingMenu>}
-
-      {/* Bubble Menu (Inline Formatting) */}
-      {editor && <BubbleMenu editor={editor}>
-        <div className="flex bg-surface border border-border shadow-interactive rounded-[8px] overflow-hidden p-1 gap-0.5">
+      {/* Static Formatting Toolbar */}
+      {editor && (
+        <div className="flex items-center flex-wrap bg-transparent border-b border-border/50 pb-2 mb-3 gap-1">
           <button onClick={() => editor.chain().focus().toggleBold().run()} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('bold') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Bold className="w-4 h-4" /></button>
           <button onClick={() => editor.chain().focus().toggleItalic().run()} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('italic') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Italic className="w-4 h-4" /></button>
           <button onClick={() => editor.chain().focus().toggleStrike().run()} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('strike') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Strikethrough className="w-4 h-4" /></button>
-          <div className="w-px bg-border my-1 mx-0.5"></div>
           <button onClick={() => editor.chain().focus().toggleCode().run()} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('code') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Code className="w-4 h-4" /></button>
+          <div className="w-px h-4 bg-border mx-1"></div>
+          <button onClick={() => toggleHeading(1)} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('heading', { level: 1 }) ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Heading1 className="w-4 h-4" /></button>
+          <button onClick={() => toggleHeading(2)} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('heading', { level: 2 }) ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Heading2 className="w-4 h-4" /></button>
+          <div className="w-px h-4 bg-border mx-1"></div>
+          <button onClick={toggleBulletList} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('bulletList') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><List className="w-4 h-4" /></button>
+          <button onClick={toggleOrderedList} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('orderedList') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><ListOrdered className="w-4 h-4" /></button>
+          <button onClick={toggleTaskList} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('taskList') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><CheckSquare className="w-4 h-4" /></button>
+          <div className="w-px h-4 bg-border mx-1"></div>
+          <button onClick={toggleBlockquote} className={`p-1.5 rounded-[6px] transition-colors ${editor.isActive('blockquote') ? 'bg-primary/20 text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'}`}><Quote className="w-4 h-4" /></button>
+          <button onClick={setHorizontalRule} className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-[6px] transition-colors"><Minus className="w-4 h-4" /></button>
         </div>
-      </BubbleMenu>}
+      )}
 
       <div className="cursor-text w-full h-full" onClick={() => editor.commands.focus()}>
         <EditorContent editor={editor} />

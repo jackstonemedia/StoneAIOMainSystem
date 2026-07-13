@@ -5,11 +5,13 @@ import {
   User, CheckSquare, X, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 import { NewContactSlideOver } from './components/NewContactSlideOver';
+import { apiFetch } from '../../lib/apiClient';
 
 interface Contact {
   id: string;
@@ -28,16 +30,20 @@ const ALL_COLUMNS = ['Contact name', 'Phone', 'Email', 'Business name', 'Created
 export default function Contacts() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [activeListId, setActiveListId] = useState<string>('all');
   const [filters, setFilters] = useState<{id: string; field: string; operator: string; value: string}[]>([]);
   const [filterMatchMode, setFilterMatchMode] = useState<'all' | 'any'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [smartListNameInput, setSmartListNameInput] = useState('');
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+  const [pendingEdits, setPendingEdits] = useState<Record<string, Partial<Contact>>>({});
+  const [contactError, setContactError] = useState<string | null>(null);
 
   const { data: smartLists = [] } = useQuery<any[]>({
     queryKey: ['smart-lists'],
-    queryFn: () => fetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
+    queryFn: () => apiFetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
   });
 
   const { data: apiContacts = [], isLoading } = useQuery<Contact[]>({
@@ -45,25 +51,30 @@ export default function Contacts() {
     placeholderData: (prev) => prev,
     queryFn: () => {
       if (activeListId !== 'all') {
-        return fetch(`/api/crm/smart-lists/${activeListId}/contacts`).then(r => r.ok ? r.json().then(d => d.contacts || d || []) : []);
+        return apiFetch(`/api/crm/smart-lists/${activeListId}/contacts`).then(r => r.ok ? r.json().then(d => d.contacts || d || []) : []);
       }
       const q = new URLSearchParams();
       if (searchQuery) q.append('search', searchQuery);
       if (filters.length > 0) {
         q.append('filtersJson', JSON.stringify({ matchMode: filterMatchMode, rules: filters }));
       }
-      return fetch(`/api/crm/contacts?${q.toString()}`).then(r => r.ok ? r.json().then(data => data.contacts || []) : []);
+      return apiFetch(`/api/crm/contacts?${q.toString()}`).then(r => r.ok ? r.json().then(data => data.contacts || []) : []);
     },
   });
 
   const createContact = useMutation({
-    mutationFn: async (data: { firstName: string; lastName: string; email: string; phone: string; businessName: string; title: string; status: string; about: string; source: string; color: string; tags: string[]; notes: string }) => {
-      const r = await fetch('/api/crm/contacts', {
+    mutationFn: async (data: any) => {
+      const r = await apiFetch('/api/crm/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      if (!r.ok) throw new Error('Failed');
+      if (!r.ok) {
+        const text = await r.text();
+        let msg = `HTTP ${r.status}`;
+        try { msg = JSON.parse(text).error || msg; } catch { msg = text || msg; }
+        throw new Error(msg);
+      }
       return r.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
@@ -71,7 +82,7 @@ export default function Contacts() {
 
   const deleteContact = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/crm/contacts/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/crm/contacts/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       return res.json();
     },
@@ -80,7 +91,7 @@ export default function Contacts() {
 
   const createSmartList = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch('/api/crm/smart-lists', {
+      const res = await apiFetch('/api/crm/smart-lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -97,7 +108,7 @@ export default function Contacts() {
 
   const bulkAction = useMutation({
     mutationFn: async ({ action, contactIds, payload }: { action: string; contactIds: string[]; payload?: any }) => {
-      const res = await fetch('/api/crm/contacts/bulk', {
+      const res = await apiFetch('/api/crm/contacts/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, contactIds, payload }),
@@ -113,6 +124,36 @@ export default function Contacts() {
     },
   });
 
+  const updateContact = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<Contact> }) => {
+      const res = await apiFetch(`/api/crm/contacts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('Failed to update contact');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+    },
+    onError: () => toast('error', 'Failed to save changes')
+  });
+
+  const handleSaveEdits = async () => {
+    for (const [id, data] of Object.entries(pendingEdits)) {
+      await updateContact.mutateAsync({ id, data });
+    }
+    setPendingEdits({});
+    setEditingCell(null);
+    toast('success', 'Changes saved successfully');
+  };
+
+  const handleCancelEdits = () => {
+    setPendingEdits({});
+    setEditingCell(null);
+  };
+
   const handleBulkDelete = () => setDeleteConfirmOpen(true);
 
   const handleConfirmDelete = () => {
@@ -121,10 +162,6 @@ export default function Contacts() {
     setSelected(new Set());
     setDeleteConfirmOpen(false);
   };
-
-  const [contactError, setContactError] = useState<string | null>(null);
-
-
   const [selected, setSelected] = useState<Set<string>>(new Set());
   
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(ALL_COLUMNS));
@@ -362,6 +399,23 @@ export default function Contacts() {
       </AnimatePresence>
       <HeaderPortal>
         <div className="flex items-center gap-3">
+          {Object.keys(pendingEdits).length > 0 && (
+            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 mr-2">
+              <button 
+                onClick={handleSaveEdits} 
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 border border-green-500/30 text-green-500 hover:bg-green-500/20 text-[12px] font-bold rounded-full transition-colors shadow-sm"
+              >
+                <Check className="w-3.5 h-3.5" strokeWidth={3} /> Save Changes
+              </button>
+              <button 
+                onClick={handleCancelEdits}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 text-[12px] font-bold rounded-full transition-colors shadow-sm"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={3} /> Cancel
+              </button>
+              <div className="w-[1px] h-5 bg-border ml-1"></div>
+            </div>
+          )}
           <div className="relative shadow-sm rounded-full flex items-center mr-2">
             <Search className="w-4 h-4 absolute left-3 text-text-muted" />
             <input 
@@ -447,38 +501,108 @@ export default function Contacts() {
           </thead>
           <tbody>
             {processedContacts.map((c) => (
-              <tr key={c.id} className={`border-b border-border/50 transition-colors ${selected.has(c.id) ? 'bg-primary/10' : 'bg-black/5 hover:bg-black/10'}`}>
+              <tr 
+                key={c.id} 
+                className={`border-b border-border/50 transition-colors cursor-pointer ${selected.has(c.id) ? 'bg-primary/10' : 'bg-black/5 hover:bg-black/10'}`}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (target.tagName !== 'INPUT' && target.tagName !== 'BUTTON' && !target.closest('button')) {
+                    navigate(`/crm/contacts/${c.id}`);
+                  }
+                }}
+              >
                 <td className="p-3 text-center">
-                  <button onClick={() => toggleSelect(c.id)} className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center transition-colors hover:border-primary text-primary">
+                  <button onClick={(e) => { e.stopPropagation(); toggleSelect(c.id); }} className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center transition-colors hover:border-primary text-primary">
                     {selected.has(c.id) ? <Check className="w-3 h-3" strokeWidth={3} /> : null}
                   </button>
                 </td>
                 {visibleCols.has('Contact name') && (
                   <td className="p-3">
-                    <Link to={`/crm/contacts/${c.id}`} className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm" style={{ backgroundColor: c.color }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm shrink-0" style={{ backgroundColor: c.color }}>
                         {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
                       </div>
-                      <span className="text-[13px] font-medium transition-colors hover:text-primary text-text-main truncate">{c.name || 'Unknown'}</span>
-                    </Link>
+                      <span className="text-[13px] font-medium transition-colors text-text-main truncate w-full hover:underline">{c.name ?? 'Unknown'}</span>
+                    </div>
                   </td>
                 )}
                 {visibleCols.has('Phone') && (
-                  <td className="p-3">
+                  <td className="p-3" onClick={(e) => { e.stopPropagation(); setEditingCell({ id: c.id, field: 'phone' }); }}>
                     <div className="flex items-center gap-2 text-[13px] font-medium text-text-main">
-                      {c.phone ? <><Phone className="w-3.5 h-3.5 text-text-muted" /> {c.phone}</> : null}
+                      <Phone className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      {editingCell?.id === c.id && editingCell.field === 'phone' ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          defaultValue={pendingEdits[c.id]?.phone ?? c.phone ?? ''}
+                          onBlur={(e) => {
+                            if (e.target.value !== (c.phone || '')) {
+                              setPendingEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], phone: e.target.value } }));
+                            }
+                            setEditingCell(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur();
+                            if (e.key === 'Escape') setEditingCell(null);
+                          }}
+                          className="flex-1 bg-transparent border-b border-primary outline-none focus:bg-primary/5 px-1 py-0.5 rounded text-text-main min-w-[100px]"
+                        />
+                      ) : (
+                        <span className="border-b border-transparent hover:border-border/50 transition-colors w-full cursor-text">{pendingEdits[c.id]?.phone ?? c.phone}</span>
+                      )}
                     </div>
                   </td>
                 )}
                 {visibleCols.has('Email') && (
-                  <td className="p-3">
+                  <td className="p-3" onClick={(e) => { e.stopPropagation(); setEditingCell({ id: c.id, field: 'email' }); }}>
                     <div className="flex items-center gap-2 text-[13px] font-medium text-text-main">
-                      {c.email ? <><Mail className="w-3.5 h-3.5 text-text-muted" /> <span className="truncate max-w-[150px]">{c.email}</span></> : null}
+                      <Mail className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                      {editingCell?.id === c.id && editingCell.field === 'email' ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          defaultValue={pendingEdits[c.id]?.email ?? c.email ?? ''}
+                          onBlur={(e) => {
+                            if (e.target.value !== (c.email || '')) {
+                              setPendingEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], email: e.target.value } }));
+                            }
+                            setEditingCell(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.currentTarget.blur();
+                            if (e.key === 'Escape') setEditingCell(null);
+                          }}
+                          className="flex-1 bg-transparent border-b border-primary outline-none focus:bg-primary/5 px-1 py-0.5 rounded text-text-main min-w-[150px]"
+                        />
+                      ) : (
+                        <span className="truncate max-w-[150px] border-b border-transparent hover:border-border/50 transition-colors w-full cursor-text">{pendingEdits[c.id]?.email ?? c.email}</span>
+                      )}
                     </div>
                   </td>
                 )}
                 {visibleCols.has('Business name') && (
-                  <td className="p-3 text-[13px] font-medium truncate max-w-[150px] text-text-main">{c.businessName}</td>
+                  <td className="p-3 text-[13px] font-medium text-text-main" onClick={(e) => { e.stopPropagation(); setEditingCell({ id: c.id, field: 'businessName' }); }}>
+                    {editingCell?.id === c.id && editingCell.field === 'businessName' ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={pendingEdits[c.id]?.businessName ?? c.businessName ?? ''}
+                        onBlur={(e) => {
+                          if (e.target.value !== (c.businessName || '')) {
+                            setPendingEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], businessName: e.target.value } }));
+                          }
+                          setEditingCell(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                          if (e.key === 'Escape') setEditingCell(null);
+                        }}
+                        className="w-full bg-transparent border-b border-primary outline-none focus:bg-primary/5 px-1 py-0.5 rounded text-text-main"
+                      />
+                    ) : (
+                      <span className="truncate max-w-[150px] inline-block border-b border-transparent hover:border-border/50 transition-colors cursor-text">{pendingEdits[c.id]?.businessName ?? c.businessName}</span>
+                    )}
+                  </td>
                 )}
                 {visibleCols.has('Created (EDT)') && (
                   <td className="p-3 text-[11px] font-medium whitespace-nowrap text-text-muted opacity-60">{new Date(c.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
@@ -517,9 +641,9 @@ export default function Contacts() {
           '--surface': 'rgba(255,255,255,0.1)',
           '--surface-hover': 'rgba(255,255,255,0.16)',
           '--bg': 'var(--sidebar-bg)',
-          '--btn-bg': '#1A2C47',
-          '--btn-hover': '#233857',
-          '--btn-text': '#F8FAFC',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
           '--btn-border': 'transparent'
         } as React.CSSProperties}
       >
@@ -574,7 +698,7 @@ export default function Contacts() {
           </div>
           <div className="flex items-center gap-3 font-semibold">
             <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Prev</button>
-            <button className="px-3.5 py-1 rounded-[6px] shadow-sm text-bg font-bold text-[12px]" style={{ backgroundColor: 'var(--primary)' }}>1</button>
+            <button className="px-3.5 py-1 rounded-[6px] shadow-sm bg-primary text-white font-bold text-[12px]">1</button>
             <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Next</button>
           </div>
         </div>
@@ -849,7 +973,7 @@ export default function Contacts() {
           }
           setContactError(null);
           try {
-            await createContact.mutateAsync({
+            const contactData = {
               firstName: newContact.firstName || (newContact.email ? newContact.email.split('@')[0] : 'Unknown'),
               lastName: newContact.lastName,
               email: newContact.email || '',
@@ -860,14 +984,28 @@ export default function Contacts() {
               about: newContact.about,
               source: newContact.source,
               color: newContact.color,
-              tags: newContact.tags,
-              notes: newContact.notes,
-            });
+              tagsJson: JSON.stringify(newContact.tags || []),
+            };
+            const created = await createContact.mutateAsync(contactData);
+            
+            if (newContact.notes?.trim()) {
+              await apiFetch('/api/crm/activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contactId: created.id,
+                  type: 'note',
+                  title: 'Initial Note',
+                  notes: newContact.notes
+                })
+              });
+            }
+
             setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [], notes: '' });
             setNewContactTagInput('');
             setPanelOpen(null);
-          } catch {
-            setContactError('Something went wrong. Please try again.');
+          } catch (err: any) {
+            setContactError(err.message || 'Something went wrong. Please try again.');
           }
         }}
       />

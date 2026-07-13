@@ -1,4 +1,7 @@
-// @ts-ignore
-export const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+const viteEnv = (import.meta as any).env ?? {};
 
-export const IS_DEV_AUTH_BYPASS = true; // Hardcoded bypass for local verification
+export const CLERK_PUBLISHABLE_KEY = viteEnv.VITE_CLERK_PUBLISHABLE_KEY || '';
+
+export const IS_DEV_AUTH_BYPASS =
+  viteEnv.VITE_DEV_AUTH_BYPASS === 'true' ||
+  (!CLERK_PUBLISHABLE_KEY && viteEnv.DEV);

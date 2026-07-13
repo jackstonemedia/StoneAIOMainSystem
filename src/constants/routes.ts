@@ -60,4 +60,16 @@ export const ROUTES = {
     PIPELINE: '/crm/pipeline',
     SETTINGS: '/crm/settings',
   },
+
+  INBOX: {
+    ROOT: '/inbox',
+    CONVERSATION: (id: string) => `/inbox/conversations/${id}`,
+    REPORTS: '/inbox/reports',
+    SETTINGS: {
+      CHANNELS: '/inbox/settings/channels',
+      TEAMS: '/inbox/settings/teams',
+      LABELS: '/inbox/settings/labels',
+      CANNED: '/inbox/settings/canned-responses',
+    },
+  },
 } as const;
