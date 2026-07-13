@@ -20,6 +20,11 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
       return next();
     }
 
+    // ── External form capture bypass — no JWT from public website forms ────────
+    if (req.path.match(/\/capture\/forms\/[^/]+/)) {
+      return next();
+    }
+
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
       if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);
