@@ -131,13 +131,14 @@ async function startServer() {
   app.post('/api/hooks/twilio-sms', express.urlencoded({ extended: false }), twilioSmsHandler);
 
   // External Form Capture webhook — Custom endpoint for lead capture forms
-  app.options('/api/hooks/forms/:workspaceId', (req, res) => {
+  // Uses /api/capture/ prefix to avoid any conflict with the /api/hooks/* wildcard below.
+  app.options('/api/capture/forms/:workspaceId', (_req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.sendStatus(200);
   });
-  app.post('/api/hooks/forms/:workspaceId', (req, res, next) => {
+  app.post('/api/capture/forms/:workspaceId', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     next();
   }, formCaptureWebhook);
@@ -158,11 +159,7 @@ async function startServer() {
 
   // Native workflow engine webhooks — wildcard MUST come last so specific
   // handlers above are not intercepted and killed with a 404.
-  // Guard: never handle /api/hooks/forms/* — that is the lead capture webhook.
-  app.all('/api/hooks/*', (req, res, next) => {
-    if (req.path.startsWith('/forms/')) return next();
-    return webhookHandler(req, res);
-  });
+  app.all('/api/hooks/*', webhookHandler);
 
   // Meta (Facebook/Instagram) webhook
   // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
