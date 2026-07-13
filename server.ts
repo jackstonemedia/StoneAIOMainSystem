@@ -158,7 +158,11 @@ async function startServer() {
 
   // Native workflow engine webhooks — wildcard MUST come last so specific
   // handlers above are not intercepted and killed with a 404.
-  app.all('/api/hooks/*', webhookHandler);
+  // Guard: never handle /api/hooks/forms/* — that is the lead capture webhook.
+  app.all('/api/hooks/*', (req, res, next) => {
+    if (req.path.startsWith('/forms/')) return next();
+    return webhookHandler(req, res);
+  });
 
   // Meta (Facebook/Instagram) webhook
   // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
