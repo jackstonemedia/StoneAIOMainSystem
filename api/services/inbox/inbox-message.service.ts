@@ -42,11 +42,61 @@ export async function createMessage(workspaceId: string, conversationId: string,
   }
 
   // Automatically update conversation lastActivityAt and status if pending
+  // AND dispatch outbound message if it's an email channel
   const convoUpdate: any = { lastActivityAt: new Date() };
   if (data.senderType === 'agent' && !data.private) {
-    const convo = await db.inboxConversation.findUnique({ where: { id: conversationId }, select: { status: true, firstReplyAt: true } });
-    if (convo?.status === 'pending') convoUpdate.status = 'open';
-    if (!convo?.firstReplyAt) convoUpdate.firstReplyAt = new Date();
+    const convo = await db.inboxConversation.findUnique({
+      where: { id: conversationId },
+      include: { inboxChannel: true, inboxContact: true }
+    });
+
+    if (convo) {
+      if (convo.status === 'pending') convoUpdate.status = 'open';
+      if (!convo.firstReplyAt) convoUpdate.firstReplyAt = new Date();
+
+      // Dispatch outbound email if channel is email/gmail
+      if (convo.inboxChannel && (convo.inboxChannel.channelType === 'email' || convo.inboxChannel.channelType === 'gmail')) {
+        const recipientEmail = convo.inboxContact?.email;
+        const subject = convo.subject || '(no subject)';
+        const body = data.content;
+        const htmlBody = data.contentType === 'html' ? data.content : undefined;
+
+        if (recipientEmail) {
+          try {
+            // Find the workspace's active Gmail channel connection
+            let gmailConn = await db.channelConnection.findFirst({
+              where: { workspaceId, provider: 'gmail', isActive: true },
+            });
+            if (!gmailConn) {
+              gmailConn = await db.channelConnection.findFirst({
+                where: { provider: 'gmail', isActive: true },
+              });
+            }
+
+            if (gmailConn) {
+              const { sendGmailMessage } = await import('../channels/gmail.service.js');
+              let attrs: any = {};
+              try { attrs = JSON.parse(convo.additionalAttributes || '{}'); } catch(e) {}
+
+              const sent = await sendGmailMessage(
+                gmailConn.id, recipientEmail, subject, body, attrs.threadId, htmlBody
+              );
+
+              if (sent && sent.threadId && !attrs.threadId) {
+                attrs.threadId = sent.threadId;
+                convoUpdate.additionalAttributes = JSON.stringify(attrs);
+              }
+            } else {
+              console.warn('[Inbox Dispatch] No active Gmail connection found.');
+              throw new Error('No active Gmail connection found. Please connect your Gmail account in Settings > Integrations.');
+            }
+          } catch (err: any) {
+            console.error('[Inbox Dispatch] Failed to send outbound email:', err.message);
+            throw err;
+          }
+        }
+      }
+    }
   }
 
   const updatedConvo = await db.inboxConversation.update({

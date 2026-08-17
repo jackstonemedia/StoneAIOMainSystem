@@ -9,7 +9,7 @@ import {
   Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
   AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone,
-  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target
+  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -56,6 +56,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Revenue', path: '/dashboard?tab=revenue' },
             { name: 'Activity', path: '/dashboard?tab=activity' },
             { name: 'Calendar', path: '/dashboard?tab=calendar' },
+            { name: 'AI Control Panel', path: '/dashboard?tab=ai' },
           ]
         },
         { 
@@ -93,7 +94,19 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           ]
         },
         { name: 'Calendar',     path: '/business/calendar',  icon: Calendar },
-        { name: 'Marketing',  path: '/leads',              icon: Megaphone },
+        { 
+          name: 'Email Marketing',
+          path: '/email-marketing/campaigns',
+          icon: MailOpen,
+          subItems: [
+            { name: 'Campaigns',   path: '/email-marketing/campaigns' },
+            { name: 'Automations', path: '/email-marketing/automations' },
+            { name: 'Audience',    path: '/email-marketing/audience' },
+            { name: 'Templates',   path: '/email-marketing/templates' },
+            { name: 'Analytics',   path: '/email-marketing/analytics' },
+          ]
+        },
+        { name: 'Lead Studio',  path: '/leads',              icon: Megaphone },
       ]
     },
     {
@@ -149,6 +162,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       if (itemPath === '/business') return location.pathname === itemPath;
       if (itemPath === '#') return false;
       if (itemPath.startsWith('/crm/')) return location.pathname.startsWith('/crm/');
+      if (itemPath.startsWith('/email-marketing')) return location.pathname.startsWith('/email-marketing');
       if (itemPath === '/ads/overview') return location.pathname.startsWith('/ads');
       return location.pathname.startsWith(itemPath);
     })();
@@ -403,8 +417,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
               }`}
             >
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 select-none overflow-hidden shadow-sm"
-                style={{ background: 'var(--primary)', color: '#ffffff' }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 select-none overflow-hidden shadow-sm bg-white text-zinc-950 border border-white/20"
               >
                 {user?.imageUrl
                   ? <img src={user.imageUrl} alt="Profile" className="w-full h-full object-cover" />

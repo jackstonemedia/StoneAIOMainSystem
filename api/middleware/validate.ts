@@ -20,11 +20,11 @@ export const validate = (schema: { body?: ZodTypeAny; query?: ZodTypeAny; params
       }
       next();
     } catch (error) {
-      if (error instanceof ZodError) {
-        // Format Zod errors into a readable string
-        const errorMessages = (error as any).errors.map((issue: any) => {
-          return `${issue.path.join('.')} is ${issue.message}`;
-        });
+      if (error instanceof ZodError || (error && typeof error === 'object' && ('issues' in error || 'errors' in error))) {
+        const issues = (error as any).issues || (error as any).errors || [];
+        const errorMessages = Array.isArray(issues) && issues.length > 0
+          ? issues.map((issue: any) => `${(issue.path || []).join('.')} is ${issue.message}`)
+          : [error instanceof Error ? error.message : 'Invalid request data'];
         
         const message = `Validation failed: ${errorMessages.join(', ')}`;
         return next(new AppError(400, message, 'VALIDATION_ERROR'));

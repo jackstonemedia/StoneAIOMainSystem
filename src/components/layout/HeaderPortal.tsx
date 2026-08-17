@@ -5,17 +5,24 @@ export function HeaderPortal({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    // Use a small timeout to ensure the layout has mounted the target div
-    // since the Outlet children render slightly before the parent layout in some React flows.
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
     const findTarget = () => {
+      if (cancelled) return;
       const el = document.getElementById('crm-header-actions');
       if (el) {
         setTarget(el);
       } else {
-        setTimeout(findTarget, 50);
+        timer = setTimeout(findTarget, 50);
       }
     };
     findTarget();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   if (!target) return null;

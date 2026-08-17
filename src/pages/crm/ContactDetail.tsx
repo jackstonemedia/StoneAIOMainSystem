@@ -3,7 +3,7 @@ import {
   ChevronLeft, Plus, Phone, 
   Clock, CheckCircle2, Edit2, Mail, 
   ChevronDown, Lock, Smile, FileText, Sparkles,
-  RefreshCw, Send, CheckSquare, Folder, X, Calendar, Search
+  RefreshCw, Send, CheckSquare, Folder, X, Calendar, Search, Tag
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -39,6 +39,11 @@ export default function ContactDetail() {
   
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [newTagText, setNewTagText] = useState('');
+
+  const { data: workspaceTags = [] } = useQuery<string[]>({
+    queryKey: ['workspace-tags'],
+    queryFn: () => apiFetch('/api/crm/tags').then(r => r.ok ? r.json() : []),
+  });
   
   const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
   const [showAdvancedMethods, setShowAdvancedMethods] = useState(false);
@@ -232,8 +237,11 @@ export default function ContactDetail() {
               <ChevronLeft className="w-3.5 h-3.5 mr-0.5" /> Back
             </Link>
             
-            <div className="flex items-center gap-2 text-right">
-              <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2.5 text-right">
+              <div className="w-8 h-8 rounded-full bg-white text-zinc-950 font-bold flex items-center justify-center text-[12px] shadow-sm shrink-0 border border-white/20">
+                {(contact.name || '').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex flex-col items-start text-left">
                 <h1 className="text-[13px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
                 <span className="text-[11px] font-medium text-text-muted">{contact.jobTitle ? `${contact.jobTitle} at ` : ''}{contact.businessName || 'No Company'}</span>
               </div>
@@ -290,6 +298,108 @@ export default function ContactDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Tags & Labels Customization */}
+            <div className="space-y-3 pt-5 border-t border-border/50 mt-6">
+              <div className="flex items-center justify-between text-white">
+                <span className="text-[13px] font-bold flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-violet-400" /> Tags &amp; Labels
+                </span>
+                {!isAddingTag && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingTag(true)}
+                    className="text-[11px] font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1 bg-violet-950/40 px-2 py-0.5 rounded border border-violet-800/40 transition-all"
+                  >
+                    <Plus className="w-3 h-3" /> Add Tag
+                  </button>
+                )}
+              </div>
+
+              {/* Active Tags */}
+              <div className="flex flex-wrap gap-1.5 min-h-[30px] items-center">
+                {(contact.tags || []).length === 0 && !isAddingTag && (
+                  <span className="text-[12px] text-text-muted/60 italic">No tags assigned</span>
+                )}
+
+                {(contact.tags || []).map((t: string) => (
+                  <span key={t} className="inline-flex items-center gap-1 text-[11px] font-semibold bg-violet-950/60 text-violet-200 border border-violet-700/50 px-2.5 py-0.5 rounded-full shadow-sm">
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(t)}
+                      className="hover:text-red-400 transition-colors ml-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {/* Add Tag Input & Selector */}
+              {isAddingTag && (
+                <div className="space-y-2 pt-1">
+                  <div className="relative flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTagText}
+                      onChange={e => setNewTagText(e.target.value)}
+                      onKeyDown={handleAddTag}
+                      placeholder="Type tag &amp; press Enter..."
+                      autoFocus
+                      className="flex-1 bg-surface border border-violet-500 rounded-[6px] text-[12px] font-medium text-text-main py-1.5 px-3 focus:outline-none placeholder:text-text-muted/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newTagText.trim()) {
+                          const currentTags = contact.tags || [];
+                          if (!currentTags.includes(newTagText.trim())) {
+                            updateContact.mutate({ tagsJson: JSON.stringify([...currentTags, newTagText.trim()]) });
+                          }
+                          setNewTagText('');
+                        }
+                        setIsAddingTag(false);
+                      }}
+                      className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded text-[11px] font-semibold transition-all"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setNewTagText(''); setIsAddingTag(false); }}
+                      className="p-1 text-text-muted hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Preset Quick Tags */}
+                  {workspaceTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      <span className="text-[10px] text-text-muted/70 w-full mb-0.5">Existing tags:</span>
+                      {workspaceTags
+                        .filter((t: string) => !(contact.tags || []).includes(t))
+                        .slice(0, 10)
+                        .map((t: string) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => {
+                              const currentTags = contact.tags || [];
+                              updateContact.mutate({ tagsJson: JSON.stringify([...currentTags, t]) });
+                              setIsAddingTag(false);
+                            }}
+                            className="text-[11px] bg-surface-hover hover:bg-violet-900/40 text-text-muted hover:text-violet-300 px-2 py-0.5 rounded border border-border transition-all"
+                          >
+                            + {t}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </form>
         </div>
@@ -531,7 +641,7 @@ export default function ContactDetail() {
                             />
                           </div>
                           <button 
-                            onClick={() => setNoteSort(s => s === 'desc' ? 'asc' : 'desc')}
+                            onClick={() => setNoteSort((s: 'desc' | 'asc') => s === 'desc' ? 'asc' : 'desc')}
                             className={`w-8 h-8 flex items-center justify-center border border-border/50 rounded-[6px] transition-colors ${noteSort === 'asc' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-surface text-text-muted hover:text-text-main'}`}>
                             <svg className={`w-4 h-4 transition-transform ${noteSort === 'asc' ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                           </button>

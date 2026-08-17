@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Cpu, Building2, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, Sparkles, Loader2 } from 'lucide-react';
 import { THEMES } from '../context/ThemeContext';
+import { apiFetch } from '../lib/apiClient';
 
 const BUSINESS_TYPES = [
   { id: 'agency', label: 'Agency', icon: '🎯', desc: 'Marketing, design, or consulting agency' },
@@ -19,6 +20,7 @@ export default function Onboarding() {
   const [businessType, setBusinessType] = useState('');
   const [selectedTheme, setSelectedTheme] = useState('dark');
   const [animating, setAnimating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const totalSteps = 3;
@@ -35,7 +37,21 @@ export default function Onboarding() {
     }, 280);
   };
 
-  const finish = () => {
+  const finish = async () => {
+    setIsSubmitting(true);
+    try {
+      if (businessName.trim()) {
+        await apiFetch('/api/settings/workspace', {
+          method: 'PUT',
+          body: JSON.stringify({ name: businessName.trim(), type: businessType }),
+        });
+      }
+    } catch (e) {
+      console.error('[Onboarding] Failed to save workspace settings:', e);
+    } finally {
+      setIsSubmitting(false);
+    }
+
     // Apply theme
     const root = document.documentElement;
     THEMES.forEach(t => root.classList.remove(`theme-${t.id}`));
@@ -226,10 +242,20 @@ export default function Onboarding() {
             <div className="text-center">
               <button
                 onClick={finish}
-                className="px-10 py-4 rounded-2xl font-black text-white bg-gradient-to-r from-primary to-teal hover:opacity-90 transition-all shadow-[0_10px_40px_rgba(67,97,238,0.4)] hover:shadow-[0_14px_50px_rgba(67,97,238,0.5)] inline-flex items-center gap-3 group text-base"
+                disabled={isSubmitting}
+                className="px-10 py-4 rounded-2xl font-black text-white bg-gradient-to-r from-primary to-teal hover:opacity-90 disabled:opacity-50 transition-all shadow-[0_10px_40px_rgba(67,97,238,0.4)] hover:shadow-[0_14px_50px_rgba(67,97,238,0.5)] inline-flex items-center gap-3 group text-base"
               >
-                Enter {businessName ? businessName : 'Stone AIO'}
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Setting up workspace...
+                  </>
+                ) : (
+                  <>
+                    Enter {businessName ? businessName : 'Stone AIO'}
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </button>
               <p className="text-xs text-text-muted mt-3">You're all set. Welcome aboard 🎉</p>
             </div>

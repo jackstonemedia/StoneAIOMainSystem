@@ -4,9 +4,10 @@ import {
   Search, Zap, Download, Trash2, Clock, CheckCircle, XCircle, Megaphone,
   RefreshCw, Phone, Mail, Globe, MapPin, ChevronDown, ChevronRight,
   TrendingUp, Users, Target, AlertCircle, Copy, ChevronUp,
-  Filter, ArrowUpDown, Building2, Loader2
+  Filter, ArrowUpDown, Building2, Loader2, UserPlus
 } from 'lucide-react';
-import { apiFetch } from '../../lib/apiClient';
+import { apiClient } from '../../lib/apiClient';
+import { ImportContactsModal } from '../crm/components/ImportContactsModal';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,15 +54,15 @@ interface Quota {
 
 const api = {
   generateLeads: (body: { niche: string; area: string; maxLeads: number }) =>
-    apiFetch('/api/leads/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r: any) => r.json()),
+    apiClient.post('/leads/generate', body).then(r => r.data),
   listJobs: () =>
-    apiFetch('/api/leads/jobs').then((r: any) => r.json()),
+    apiClient.get('/leads/jobs').then(r => r.data),
   getJob: (id: string) =>
-    apiFetch(`/api/leads/jobs/${id}`).then((r: any) => r.json()),
+    apiClient.get(`/leads/jobs/${id}`).then(r => r.data),
   deleteJob: (id: string) =>
-    apiFetch(`/api/leads/jobs/${id}`, { method: 'DELETE' }).then((r: any) => r.json()),
+    apiClient.delete(`/leads/jobs/${id}`).then(r => r.data),
   getQuota: () =>
-    apiFetch('/api/leads/quota').then((r: any) => r.json()),
+    apiClient.get('/leads/quota').then(r => r.data),
   exportCsv: (id: string) =>
     window.open(`/api/leads/export/${id}`, '_blank'),
 };
@@ -289,6 +290,7 @@ export default function LeadStudio() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [sortBy, setSortBy] = useState<'confidence' | 'name'>('confidence');
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const nicheRef = useRef<HTMLInputElement>(null);
 
   // Auto-poll active jobs
@@ -596,16 +598,26 @@ export default function LeadStudio() {
                   {sortBy === 'confidence' ? 'Confidence' : 'Name'}
                 </button>
 
-                {/* Export */}
+                {/* Export & Import */}
                 {selectedJob?.status === 'completed' && leads.length > 0 && (
-                  <button
-                    onClick={() => api.exportCsv(selectedJobId!)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all"
-                    style={{ background: 'var(--primary)', color: '#fff' }}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export CSV
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setImportModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all shadow-sm"
+                      style={{ background: 'var(--primary)', color: '#fff' }}
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Import to Contacts
+                    </button>
+                    <button
+                      onClick={() => api.exportCsv(selectedJobId!)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all hover:bg-surface-hover"
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-main)' }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export CSV
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -703,6 +715,29 @@ export default function LeadStudio() {
           </>
         )}
       </div>
+
+      {/* ── Import Contacts Modal with Tagging ── */}
+      <ImportContactsModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        initialJobTitle={selectedJob ? `${selectedJob.niche} in ${selectedJob.area}` : undefined}
+        defaultTags={['Lead Studio', selectedJob?.niche, selectedJob?.area].filter(Boolean) as string[]}
+        initialLeads={leads.map(l => ({
+          name: l.businessName,
+          businessName: l.businessName,
+          phone: l.phone,
+          email: l.email,
+          website: l.website,
+          address: l.address,
+          city: l.city,
+          state: l.state,
+          postalCode: l.postalCode,
+          category: l.category,
+          source: 'Lead Studio',
+          notes: `Scraped via Lead Studio (${selectedJob?.niche} in ${selectedJob?.area})`,
+          tags: [selectedJob?.niche, selectedJob?.area].filter(Boolean) as string[],
+        }))}
+      />
     </div>
   );
 }

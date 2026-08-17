@@ -15,10 +15,60 @@ router.get('/workspace', async (req, res) => {
 
 router.put('/workspace', async (req, res) => {
   try {
-    const data: any = {};
-    if (req.body.name) data.name = req.body.name;
-    res.json(await db.workspace.update({ where: { id: req.workspaceId }, data }));
-  } catch (e) { res.json({ success: true }); }
+    const { name } = req.body;
+    let ws = await db.workspace.findUnique({ where: { id: req.workspaceId } });
+    if (ws) {
+      ws = await db.workspace.update({
+        where: { id: req.workspaceId },
+        data: { ...(name ? { name } : {}) },
+      });
+    } else {
+      ws = await db.workspace.create({
+        data: {
+          id: req.workspaceId,
+          name: name || 'Stone AIO Workspace',
+          ownerId: (req as any).auth?.userId || 'owner_default',
+        },
+      });
+    }
+
+    // Seed default pipeline if workspace has no pipelines yet
+    const existingPipeline = await db.pipeline.findFirst({ where: { workspaceId: req.workspaceId } });
+    if (!existingPipeline) {
+      const pipeline = await db.pipeline.create({
+        data: {
+          workspaceId: req.workspaceId,
+          name: 'Sales Pipeline',
+          isDefault: true,
+        },
+      });
+
+      const defaultStages = [
+        { name: 'Lead', order: 0, color: '#64748b' },
+        { name: 'Qualified', order: 1, color: '#818cf8' },
+        { name: 'Proposal', order: 2, color: '#fbbf24' },
+        { name: 'Negotiation', order: 3, color: '#a78bfa' },
+        { name: 'Won', order: 4, color: '#34d399' },
+        { name: 'Lost', order: 5, color: '#f87171' },
+      ];
+
+      for (const stg of defaultStages) {
+        await db.pipelineStage.create({
+          data: {
+            pipelineId: pipeline.id,
+            name: stg.name,
+            order: stg.order,
+            color: stg.color,
+          },
+        });
+      }
+    }
+
+    res.json(ws);
+  } catch (e) {
+    console.error('[Workspace PUT Error]', e);
+    res.status(500).json({ error: String(e) });
+  }
 });
 
 // ── API Keys ──────────────────────────────────────────────────────────────────

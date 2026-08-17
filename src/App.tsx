@@ -75,6 +75,16 @@ const CampaignDetail         = lazy(() => import('./pages/ads/CampaignDetail'));
 // Lead Studio
 const LeadStudio             = lazy(() => import('./pages/leads/LeadStudio'));
 
+// Email Marketing
+const EmailMarketingLayout = lazy(() => import('./pages/email-marketing/EmailMarketingLayout'));
+const CampaignsList        = lazy(() => import('./pages/email-marketing/CampaignsList'));
+const EmailCampaignBuilder = lazy(() => import('./pages/email-marketing/CampaignBuilder'));
+const ListsAndSegments     = lazy(() => import('./pages/email-marketing/ListsAndSegments'));
+const AutomationsList      = lazy(() => import('./pages/email-marketing/AutomationsList'));
+const AutomationCanvas     = lazy(() => import('./pages/email-marketing/AutomationCanvas'));
+const TemplatesList        = lazy(() => import('./pages/email-marketing/TemplatesList'));
+const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/CampaignAnalytics'));
+
 // Inbox
 const InboxLayout            = lazy(() => import('./pages/inbox/InboxLayout'));
 const InboxView              = lazy(() => import('./pages/inbox/InboxView'));
@@ -144,26 +154,26 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route index element={<ErrorBoundary><Workflows /></ErrorBoundary>} />
               <Route path="runs" element={<Navigate to="/automations" replace />} />
               <Route path="connections" element={<Navigate to="/automations" replace />} />
-              <Route path="tables" element={<AutomationsTables />} />
-              <Route path="tables/:tableId" element={<AutomationsTableDetail />} />
-              <Route path="releases" element={<AutomationsReleases />} />
-              <Route path="settings" element={<AutomationsSettings />} />
+              <Route path="tables" element={<ErrorBoundary><AutomationsTables /></ErrorBoundary>} />
+              <Route path="tables/:tableId" element={<ErrorBoundary><AutomationsTableDetail /></ErrorBoundary>} />
+              <Route path="releases" element={<ErrorBoundary><AutomationsReleases /></ErrorBoundary>} />
+              <Route path="settings" element={<ErrorBoundary><AutomationsSettings /></ErrorBoundary>} />
             </Route>
 
             {/* Inbox (Business Hub) */}
             <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><ConversationsLayout /></Protect></ErrorBoundary>}>
               <Route index element={<Navigate to="chat" replace />} />
-              <Route path="chat"           element={<ConversationsTab />} />
-              <Route path="manual-actions" element={<ManualActionsTab />} />
-              <Route path="snippets"       element={<SnippetsTab />} />
-              <Route path="trigger-links"  element={<TriggerLinksTab />} />
+              <Route path="chat"           element={<ErrorBoundary><ConversationsTab /></ErrorBoundary>} />
+              <Route path="manual-actions" element={<ErrorBoundary><ManualActionsTab /></ErrorBoundary>} />
+              <Route path="snippets"       element={<ErrorBoundary><SnippetsTab /></ErrorBoundary>} />
+              <Route path="trigger-links"  element={<ErrorBoundary><TriggerLinksTab /></ErrorBoundary>} />
             </Route>
 
 
 
             {/* Business Hub */}
             <Route path="/business" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
-              <Route index          element={<BusinessDashboard />} />
+              <Route index          element={<ErrorBoundary><BusinessDashboard /></ErrorBoundary>} />
 
               <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
 
@@ -194,18 +204,33 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             {/* Lead Studio */}
             <Route path="/leads" element={<ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary>} />
 
+            {/* Email Marketing */}
+            <Route path="/email-marketing" element={<ErrorBoundary><Protect withAuth={withAuth}><EmailMarketingLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<Navigate to="campaigns" replace />} />
+              <Route path="campaigns" element={<ErrorBoundary><CampaignsList /></ErrorBoundary>} />
+              <Route path="campaigns/new" element={<ErrorBoundary><EmailCampaignBuilder /></ErrorBoundary>} />
+              <Route path="campaigns/:campaignId" element={<ErrorBoundary><EmailCampaignBuilder /></ErrorBoundary>} />
+              <Route path="automations" element={<ErrorBoundary><AutomationsList /></ErrorBoundary>} />
+              <Route path="automations/new" element={<ErrorBoundary><AutomationCanvas /></ErrorBoundary>} />
+              <Route path="automations/:automationId" element={<ErrorBoundary><AutomationCanvas /></ErrorBoundary>} />
+              <Route path="audience" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
+              <Route path="templates" element={<ErrorBoundary><TemplatesList /></ErrorBoundary>} />
+              <Route path="suppression" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
+              <Route path="analytics" element={<ErrorBoundary><CampaignAnalytics /></ErrorBoundary>} />
+            </Route>
+
             {/* Inbox */}
             <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><InboxLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<InboxView />} />
-              <Route path="reports" element={<InboxReports />} />
-              <Route path="contacts" element={<InboxContacts />} />
-              <Route path="help-center" element={<InboxHelpCenter />} />
-              <Route path="settings" element={<InboxSettings />}>
+              <Route index element={<ErrorBoundary><InboxView /></ErrorBoundary>} />
+              <Route path="reports" element={<ErrorBoundary><InboxReports /></ErrorBoundary>} />
+              <Route path="contacts" element={<ErrorBoundary><InboxContacts /></ErrorBoundary>} />
+              <Route path="help-center" element={<ErrorBoundary><InboxHelpCenter /></ErrorBoundary>} />
+              <Route path="settings" element={<ErrorBoundary><InboxSettings /></ErrorBoundary>}>
                 <Route index element={<Navigate to="channels" replace />} />
-                <Route path="channels" element={<InboxChannels />} />
-                <Route path="teams" element={<InboxTeams />} />
-                <Route path="labels" element={<InboxLabels />} />
-                <Route path="canned-responses" element={<InboxCannedResponses />} />
+                <Route path="channels" element={<ErrorBoundary><InboxChannels /></ErrorBoundary>} />
+                <Route path="teams" element={<ErrorBoundary><InboxTeams /></ErrorBoundary>} />
+                <Route path="labels" element={<ErrorBoundary><InboxLabels /></ErrorBoundary>} />
+                <Route path="canned-responses" element={<ErrorBoundary><InboxCannedResponses /></ErrorBoundary>} />
               </Route>
             </Route>
 

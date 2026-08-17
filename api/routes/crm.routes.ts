@@ -33,8 +33,10 @@ router.get('/dashboard', async (req, res) => {
 // ── Contacts ──────────────────────────────────────────────────────────────────
 router.get('/contacts', async (req, res) => {
   try {
-    const { search, status, page, limit } = req.query as Record<string, string>;
-    res.json(await crm.listContacts(req.workspaceId, { search, status, page: +page, limit: +limit }));
+    const { search, status, page, limit, filtersJson } = req.query as Record<string, string>;
+    const parsedPage = Math.max(1, parseInt(String(page)) || 1);
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(String(limit)) || 50));
+    res.json(await crm.listContacts(req.workspaceId, { search, status, page: parsedPage, limit: parsedLimit, filtersJson }));
   } catch (e) { dbErr(res, e); }
 });
 
@@ -343,8 +345,7 @@ router.delete('/custom-fields/:id', async (req, res) => {
 // ── Tags ──────────────────────────────────────────────────────────────────────
 router.get('/tags', async (req, res) => {
   try {
-    const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.tag.findMany({ where: { workspaceId: req.workspaceId }, orderBy: { name: 'asc' } }));
+    res.json(await crm.getWorkspaceTags(req.workspaceId));
   } catch (e) { dbErr(res, e); }
 });
 
@@ -394,9 +395,11 @@ router.get('/import/template', (_req, res) => {
   res.send('first_name,last_name,email,phone,company_name,status\nJohn,Doe,john@example.com,+15551234567,Acme Corp,lead');
 });
 
-router.post('/import', async (req, res) => {
+router.post(['/import', '/contacts/import'], async (req, res) => {
   try {
-    res.json(await crm.importContacts(req.workspaceId, req.body.contacts ?? []));
+    const contacts = req.body.contacts || req.body.rows || [];
+    const tags = req.body.tags || [];
+    res.json(await crm.importContacts(req.workspaceId, contacts, tags));
   } catch (e) { dbErr(res, e); }
 });
 
@@ -451,8 +454,10 @@ router.delete('/smart-lists/:id', async (req, res) => {
 
 router.get('/smart-lists/:id/contacts', async (req, res) => {
   try { 
-    const { page, limit } = req.query;
-    res.json(await crm.getSmartListContacts(req.params.id, req.workspaceId, Number(page) || 1, Number(limit) || 50)); 
+    const { page, limit } = req.query as Record<string, string>;
+    const parsedPage = Math.max(1, parseInt(String(page)) || 1);
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(String(limit)) || 50));
+    res.json(await crm.getSmartListContacts(req.params.id, req.workspaceId, parsedPage, parsedLimit)); 
   }
   catch (e) { dbErr(res, e); }
 });

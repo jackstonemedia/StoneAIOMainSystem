@@ -80,9 +80,15 @@ export const communicationSendEmail: NodeImplementation = {
     if (!body) throw new Error('Body is required.');
 
     // ── 1. Try Gmail channel connection ─────────────────────────────────────
-    const gmailConn = await db.channelConnection.findFirst({
+    let gmailConn = await db.channelConnection.findFirst({
       where: { workspaceId: context.workspaceId, provider: 'gmail', isActive: true },
     }).catch(() => null);
+
+    if (!gmailConn) {
+      gmailConn = await db.channelConnection.findFirst({
+        where: { provider: 'gmail', isActive: true },
+      }).catch(() => null);
+    }
 
     if (gmailConn) {
       try {
@@ -125,51 +131,7 @@ export const communicationSendEmail: NodeImplementation = {
       }
     }
 
-    // ── 2. Fallback: Resend ──────────────────────────────────────────────────
-    const resendApiKey = process.env.RESEND_API_KEY;
-    if (resendApiKey) {
-      const { Resend } = await import('resend');
-      const resend = new Resend(resendApiKey);
-
-      const fromDisplay = fromName ? `${fromName} <onboarding@resend.dev>` : 'Stone AIO <onboarding@resend.dev>';
-
-      const { data, error } = await resend.emails.send({
-        from: fromDisplay,
-        to: [to],
-        subject,
-        ...(html ? { html: body } : { text: body }),
-      });
-
-      if (error) {
-        throw new Error(`Resend failed: ${(error as any).message ?? JSON.stringify(error)}`);
-      }
-
-      // Write to contact timeline
-      await writeContactEmailEvent(context.workspaceId, to, subject, body);
-
-      return {
-        output: [
-          {
-            json: {
-              messageId: data?.id ?? '',
-              to,
-              subject,
-              provider: 'resend',
-            },
-          },
-        ],
-      };
-    }
-
-    // ── 3. No provider — throw a clear, actionable error ────────────────────
-    const reasons: string[] = [];
-    if (!gmailConn) reasons.push('no active Gmail channel connection (Settings → Channels → Connect Gmail)');
-    if (!resendApiKey) reasons.push('RESEND_API_KEY env var not set');
-
-    throw new Error(
-      `Send Email failed: no email provider is available. ` +
-      `Fix at least one of the following: ${reasons.join('; ')}.`
-    );
+    throw new Error('No active Gmail connection found for this workspace. Please connect Gmail in Settings → Channels.');
   },
 };
 

@@ -81,10 +81,13 @@ router.get('/gmail/callback', async (req, res) => {
       },
     });
 
-    res.redirect('/conversations/chat?channel_connected=gmail');
-  } catch (e) {
+    res.redirect('/settings?tab=integrations&channel_connected=gmail');
+  } catch (e: any) {
     console.error('[Gmail callback]', e);
-    res.status(500).send('Failed to connect Gmail. Check server logs.');
+    const msg = e?.message?.includes('Gmail API has not been used') || e?.cause?.message?.includes('Gmail API has not been used')
+      ? 'Gmail API is not enabled in your Google Cloud Project. Please click Enable on the Gmail API page and retry.'
+      : (e?.message || 'Failed to connect Gmail. Check server logs.');
+    res.redirect(`/settings?tab=integrations&error=${encodeURIComponent(msg)}`);
   }
 });
 
@@ -140,7 +143,7 @@ router.get('/outlook/callback', async (req, res) => {
       );
     }
 
-    res.redirect('/conversations/chat?channel_connected=outlook');
+    res.redirect('/settings?tab=integrations&channel_connected=outlook');
   } catch (e) {
     console.error('[Outlook callback]', e);
     res.status(500).send('Failed to connect Outlook. Check server logs.');

@@ -9,6 +9,7 @@ import TopBar from './TopBar';
 import CommandPalette from '../ui/CommandPalette';
 import NotificationPanel from '../ui/NotificationPanel';
 import AIAssistant from '../ai/AIAssistant';
+import { ToastProvider } from '../ui/Toast';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -33,6 +34,7 @@ export default function AppShell() {
   }, []);
 
   const content = (
+    <ToastProvider>
       <ThemeProvider>
         <div
           className="flex h-screen overflow-hidden relative"
@@ -80,6 +82,7 @@ export default function AppShell() {
             {!location.pathname.startsWith('/crm') &&
              !location.pathname.startsWith('/inbox') &&
              !location.pathname.startsWith('/marketing') &&
+             !location.pathname.startsWith('/email-marketing') &&
              !location.pathname.startsWith('/business') &&
              !location.pathname.startsWith('/automations') &&
              !location.pathname.startsWith('/admin') &&
@@ -101,6 +104,7 @@ export default function AppShell() {
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
       </ThemeProvider>
+    </ToastProvider>
   );
 
   if (isDevBypass) return content;

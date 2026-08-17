@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, Sparkles, Loader2, Maximize2, Minimize2, GripHorizontal, User, Paperclip } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { apiFetch } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'react-router-dom';
 
 interface Message {
   id: string;
@@ -17,34 +18,89 @@ interface CRMAIAssistantProps {
 export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', role: 'ai', content: 'Hi there! I am your CRM AI Assistant. Ask me to find contacts, summarize deals, or draft follow-up emails.' }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
   
   useEffect(() => {
     if (messagesEndRef.current && isOpen) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isOpen, isExpanded]);
+  }, [messages, isOpen, isExpanded, isLoading]);
 
-  const mutation = useMutation({
-    mutationFn: async (text: string) => {
-      await new Promise(r => setTimeout(r, 1500));
-      return `I understand you're asking about "${text}". I have analyzed the CRM data and found relevant records. How else can I assist?`;
-    },
-    onSuccess: (data) => {
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'ai', content: data }]);
-    }
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || mutation.isPending) return;
+    if (!message.trim() || isLoading) return;
 
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: message.trim() }]);
-    mutation.mutate(message.trim());
+    const userText = message.trim();
     setMessage('');
+
+    const userMsgId = Date.now().toString();
+    const aiMsgId = (Date.now() + 1).toString();
+
+    // Prepare clean history for Gemini
+    const history = messages
+      .filter(m => m.content && !m.content.startsWith('Error:'))
+      .map(m => ({ role: m.role === 'ai' ? 'model' : 'user', content: m.content }));
+
+    setMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: 'user', content: userText },
+      { id: aiMsgId, role: 'ai', content: '' }
+    ]);
+    setIsLoading(true);
+
+    try {
+      const res = await apiFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText, route: location.pathname, history }),
+      });
+
+      if (!res.ok || !res.body) throw new Error('AI request failed');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      let doneReading = false;
+
+      while (!doneReading) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') {
+            doneReading = true;
+            break;
+          }
+          try {
+            const { text, error } = JSON.parse(payload);
+            if (error) throw new Error(error);
+            if (text) {
+              setMessages(prev =>
+                prev.map(m => (m.id === aiMsgId ? { ...m, content: m.content + text } : m))
+              );
+            }
+          } catch { /* ignore malformed SSE chunks */ }
+        }
+      }
+    } catch (err: any) {
+      setMessages(prev =>
+        prev.map(m => (m.id === aiMsgId ? { ...m, content: `Error: ${err.message || 'AI request failed'}` } : m))
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -107,19 +163,25 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
                      }}>
                   {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                 </div>
-                <div className="flex-1 pt-0.5 text-[14.5px] leading-relaxed font-serif" style={{ color: 'var(--text-main)', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
-                  {msg.content}
+                <div className="flex-1 pt-0.5 text-[14.5px] leading-relaxed font-serif whitespace-pre-wrap" style={{ color: 'var(--text-main)', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+                  {msg.content || (
+                    <div className="flex items-center gap-1.5 h-5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
-            {mutation.isPending && (
+            {isLoading && messages[messages.length - 1]?.content === '' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 max-w-[100%]">
                 <div className="w-6 h-6 shrink-0 mt-0.5 flex items-center justify-center rounded-md" style={{ background: 'color-mix(in srgb, var(--primary) 15%, transparent)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)', color: 'var(--primary)' }}>
                   <Bot className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex-1 pt-0.5 text-[14.5px] leading-relaxed flex items-center gap-2" style={{ color: 'var(--text-muted)', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span className="text-[13px]">Analyzing...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  <span className="text-[13px]">Thinking & Analyzing CRM...</span>
                 </div>
               </motion.div>
             )}
@@ -149,7 +211,7 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
                  </button>
                  <button
                    type="submit"
-                   disabled={!message.trim() || mutation.isPending}
+                   disabled={!message.trim() || isLoading}
                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-40 disabled:scale-100 active:scale-95 shrink-0"
                    style={{ 
                      background: message.trim() ? 'var(--text-main)' : 'transparent',

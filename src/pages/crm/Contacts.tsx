@@ -5,12 +5,13 @@ import {
   User, CheckSquare, X, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 import { NewContactSlideOver } from './components/NewContactSlideOver';
+import { ImportContactsModal } from './components/ImportContactsModal';
 import { apiFetch } from '../../lib/apiClient';
 
 interface Contact {
@@ -31,8 +32,9 @@ export default function Contacts() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeListId, setActiveListId] = useState<string>('all');
+  const [activeListId, setActiveListId] = useState<string>(() => searchParams.get('smartList') || searchParams.get('list') || 'all');
   const [filters, setFilters] = useState<{id: string; field: string; operator: string; value: string}[]>([]);
   const [filterMatchMode, setFilterMatchMode] = useState<'all' | 'any'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,26 +43,55 @@ export default function Contacts() {
   const [pendingEdits, setPendingEdits] = useState<Record<string, Partial<Contact>>>({});
   const [contactError, setContactError] = useState<string | null>(null);
 
+  // Pagination states (max 50 per page)
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [pageSizeDropdownOpen, setPageSizeDropdownOpen] = useState(false);
+
   const { data: smartLists = [] } = useQuery<any[]>({
     queryKey: ['smart-lists'],
     queryFn: () => apiFetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
   });
 
-  const { data: apiContacts = [], isLoading } = useQuery<Contact[]>({
-    queryKey: ['contacts', { activeListId, filters, filterMatchMode, searchQuery }],
+  const { data: contactsResponse, isLoading } = useQuery<{ contacts: Contact[]; total: number; page: number; limit: number }>({
+    queryKey: ['contacts', { activeListId, filters, filterMatchMode, searchQuery, page, pageSize }],
     placeholderData: (prev) => prev,
-    queryFn: () => {
-      if (activeListId !== 'all') {
-        return apiFetch(`/api/crm/smart-lists/${activeListId}/contacts`).then(r => r.ok ? r.json().then(d => d.contacts || d || []) : []);
-      }
+    queryFn: async () => {
       const q = new URLSearchParams();
+      q.append('page', String(page));
+      q.append('limit', String(pageSize));
       if (searchQuery) q.append('search', searchQuery);
       if (filters.length > 0) {
         q.append('filtersJson', JSON.stringify({ matchMode: filterMatchMode, rules: filters }));
       }
-      return apiFetch(`/api/crm/contacts?${q.toString()}`).then(r => r.ok ? r.json().then(data => data.contacts || []) : []);
+      if (activeListId !== 'all') {
+        const r = await apiFetch(`/api/crm/smart-lists/${activeListId}/contacts?${q.toString()}`);
+        if (!r.ok) return { contacts: [], total: 0, page: 1, limit: pageSize };
+        const data = await r.json();
+        if (Array.isArray(data)) return { contacts: data, total: data.length, page: 1, limit: pageSize };
+        return {
+          contacts: data.contacts || [],
+          total: typeof data.total === 'number' ? data.total : (data.contacts?.length || 0),
+          page: data.page || page,
+          limit: data.limit || pageSize,
+        };
+      }
+      const r = await apiFetch(`/api/crm/contacts?${q.toString()}`);
+      if (!r.ok) return { contacts: [], total: 0, page: 1, limit: pageSize };
+      const data = await r.json();
+      if (Array.isArray(data)) return { contacts: data, total: data.length, page: 1, limit: pageSize };
+      return {
+        contacts: data.contacts || [],
+        total: typeof data.total === 'number' ? data.total : (data.contacts?.length || 0),
+        page: data.page || page,
+        limit: data.limit || pageSize,
+      };
     },
   });
+
+  const apiContacts = Array.isArray(contactsResponse?.contacts) ? contactsResponse.contacts : [];
+  const totalContacts = typeof contactsResponse?.total === 'number' ? contactsResponse.total : apiContacts.length;
+  const totalPages = Math.max(1, Math.ceil(totalContacts / pageSize));
 
   const createContact = useMutation({
     mutationFn: async (data: any) => {
@@ -99,10 +130,16 @@ export default function Contacts() {
       if (!res.ok) throw new Error('Failed');
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (created: any) => {
       qc.invalidateQueries({ queryKey: ['smart-lists'] });
+      qc.invalidateQueries({ queryKey: ['smartlists'] });
       setSmartListNameInput('');
-      toast('success', 'Smart List Created!');
+      setPanelOpen(null);
+      if (created?.id) {
+        setActiveListId(created.id);
+        setPage(1);
+      }
+      toast('success', 'Smart List Created!', `Created smart list "${created?.name || ''}"`);
     },
   });
 
@@ -169,6 +206,7 @@ export default function Contacts() {
   
   // Panel states
   const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
@@ -243,47 +281,6 @@ export default function Contacts() {
     link.click();
     document.body.removeChild(link);
     toast('success', 'Export Complete', `Exported ${rows.length} contacts to CSV`);
-  };
-
-  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
-      const rows = text.split('\n').filter(r => r.trim().length > 0);
-      if (rows.length < 2) { toast('warning', 'Invalid CSV', 'No data rows found'); return; };
-      
-      const headers = rows[0].split(',').map(h => h.replace(/"/g, '').toLowerCase().trim());
-      let imported = 0;
-      
-      for (let i = 1; i < rows.length; i++) {
-        const rowData = rows[i].split(',').map(cell => cell.replace(/"/g, '').trim());
-        const mapped: any = { firstName: 'Unknown', lastName: '', email: '', phone: '' };
-        
-        headers.forEach((h, idx) => {
-          const val = rowData[idx] || '';
-          if (h.includes('name') && !h.includes('business') && !h.includes('company')) {
-            const parts = val.split(' ');
-            mapped.firstName = parts[0] || 'Unknown';
-            mapped.lastName = parts.slice(1).join(' ');
-          }
-          if (h.includes('email')) mapped.email = val;
-          if (h.includes('phone')) mapped.phone = val;
-        });
-        
-        if (mapped.email || mapped.phone || mapped.firstName !== 'Unknown') {
-          // Mutate sequentially to avoid overwhelming rate limits/mock server
-          await createContact.mutateAsync(mapped).catch(() => {});
-          imported++;
-        }
-      }
-      toast('success', 'Import Complete', `Successfully imported ${imported} contacts`);
-      qc.invalidateQueries({ queryKey: ['contacts'] });
-    };
-    reader.readAsText(file);
-    e.target.value = '';
   };
 
   const toggleSelect = (id: string) => {
@@ -422,13 +419,12 @@ export default function Contacts() {
               type="text" 
               placeholder="Search Contacts" 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
             />
           </div>
           
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleImportCSV} />
-          <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
+          <button onClick={() => setImportModalOpen(true)} className="btn-secondary">
             <Download className="w-4 h-4" /> Import
           </button>
           
@@ -454,8 +450,62 @@ export default function Contacts() {
         </div>
       </HeaderPortal>
 
+      {/* Smart List Tabs Header */}
+      <div className="mx-8 mt-4 mb-2 flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/40 scrollbar-none shrink-0">
+        <button
+          onClick={() => {
+            setActiveListId('all');
+            setPage(1);
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('smartList');
+            nextParams.delete('list');
+            setSearchParams(nextParams, { replace: true });
+          }}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all whitespace-nowrap ${
+            activeListId === 'all'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border/40'
+          }`}
+        >
+          <span>All Contacts</span>
+        </button>
+
+        {smartLists.map((list: any) => (
+          <button
+            key={list.id}
+            onClick={() => {
+              setActiveListId(list.id);
+              setPage(1);
+              setSearchParams({ smartList: list.id }, { replace: true });
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all whitespace-nowrap ${
+              activeListId === list.id
+                ? 'bg-primary text-white shadow-sm'
+                : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border/40'
+            }`}
+          >
+            <span>{list.name}</span>
+            {typeof list.contactCount === 'number' && (
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeListId === list.id ? 'bg-white/20 text-white' : 'bg-surface-hover text-text-muted border border-border/40'
+              }`}>
+                {list.contactCount}
+              </span>
+            )}
+          </button>
+        ))}
+
+        <button
+          onClick={() => setPanelOpen('filter')}
+          className="flex items-center gap-1 px-2.5 py-1 text-[11.5px] font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors ml-auto shrink-0 border border-primary/30"
+          title="Create or filter smart list"
+        >
+          <Plus className="w-3.5 h-3.5" /> New Smart List
+        </button>
+      </div>
+
       {/* Content Rendering */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
+      <div className="flex-1 overflow-auto mx-8 mt-2 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>
@@ -519,7 +569,7 @@ export default function Contacts() {
                 {visibleCols.has('Contact name') && (
                   <td className="p-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-bg shadow-sm shrink-0" style={{ backgroundColor: c.color }}>
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
                         {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
                       </div>
                       <span className="text-[13px] font-medium transition-colors text-text-main truncate w-full hover:underline">{c.name ?? 'Unknown'}</span>
@@ -689,17 +739,103 @@ export default function Contacts() {
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
-          <span className="text-[13px] font-medium text-text-muted mr-2">
-            {processedContacts.length} {activeListId === 'all' ? 'Contacts' : 'Members'}
+        <div className="flex items-center gap-4">
+          <span className="text-[13px] font-medium text-text-muted">
+            {totalContacts === 0
+              ? '0 Contacts'
+              : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalContacts)} of ${totalContacts} ${activeListId === 'all' ? 'Contacts' : 'Members'}`
+            }
           </span>
-          <div className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main">
-            20 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+
+          {/* Rows Per Page Selector (Max 50) */}
+          <div className="relative">
+            <button
+              onClick={() => setPageSizeDropdownOpen(!pageSizeDropdownOpen)}
+              className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main text-[12px]"
+              title="Rows per page (Max 50)"
+            >
+              <span>{pageSize} / page</span>
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+
+            {pageSizeDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setPageSizeDropdownOpen(false)} 
+                />
+                <div className="absolute bottom-full mb-1 right-0 w-32 bg-surface border border-border rounded-lg shadow-xl py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                    Rows per page
+                  </div>
+                  {[10, 20, 30, 50].map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => {
+                        setPageSize(size);
+                        setPage(1);
+                        setPageSizeDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between transition-colors ${
+                        pageSize === size
+                          ? 'bg-primary/10 text-primary font-bold'
+                          : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <span>{size} leads</span>
+                      {pageSize === size && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-3 font-semibold">
-            <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Prev</button>
-            <button className="px-3.5 py-1 rounded-[6px] shadow-sm bg-primary text-white font-bold text-[12px]">1</button>
-            <button className="text-[13px] font-medium text-text-muted hover:text-white transition-colors">Next</button>
+
+          {/* Page Navigation */}
+          <div className="flex items-center gap-1.5 font-semibold">
+            <button
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc: (number | string)[], p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                  acc.push('...');
+                }
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) => (
+                typeof p === 'number' ? (
+                  <button
+                    key={idx}
+                    onClick={() => setPage(p)}
+                    className={`min-w-[28px] h-7 px-2 rounded-[6px] text-[12px] font-bold transition-all ${
+                      page === p
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-border text-text-muted hover:text-text-main hover:bg-surface-hover'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ) : (
+                  <span key={idx} className="px-1 text-[12px] text-text-muted">...</span>
+                )
+              ))
+            }
+
+            <button
+              disabled={page >= totalPages || isLoading}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -886,28 +1022,33 @@ export default function Contacts() {
                     </div>
 
                     {/* ── Save Smart List ── */}
-                    {filters.length > 0 && (
-                      <div className="pt-4 border-t border-border mt-4">
-                        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">Save as Smart List</p>
-                        <div className="flex items-center gap-2">
-                          <input type="text" placeholder="Smart List Name..." value={smartListNameInput} onChange={e => setSmartListNameInput(e.target.value)} className="flex-1 bg-surface-hover border border-border text-text-main text-[12px] rounded-[6px] px-3 py-2 outline-none focus:border-primary placeholder:text-text-muted" />
-                          <button 
-                            disabled={createSmartList.isPending}
-                            onClick={() => {
-                              if (!smartListNameInput.trim()) return;
-                              createSmartList.mutate({
-                                name: smartListNameInput.trim(),
-                                filters: { matchMode: filterMatchMode, rules: filters },
-                                viewConfig: { columns: Array.from(visibleCols) },
-                              });
-                            }}
-                            className="bg-primary text-white px-3 py-2 rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-                          >
-                            {createSmartList.isPending ? 'Saving...' : 'Save'}
-                          </button>
-                        </div>
+                    <div className="pt-4 border-t border-border mt-4">
+                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1">Save as Smart List</p>
+                      <p className="text-[11px] text-text-muted mb-2">Give this list a name. If named after an existing tag, it will automatically capture all matching contacts.</p>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Smart List Name (e.g. Lead Studio, VIP)..." 
+                          value={smartListNameInput} 
+                          onChange={e => setSmartListNameInput(e.target.value)} 
+                          className="flex-1 bg-surface-hover border border-border text-text-main text-[12px] rounded-[6px] px-3 py-2 outline-none focus:border-primary placeholder:text-text-muted" 
+                        />
+                        <button 
+                          disabled={createSmartList.isPending || !smartListNameInput.trim()}
+                          onClick={() => {
+                            if (!smartListNameInput.trim()) return;
+                            createSmartList.mutate({
+                              name: smartListNameInput.trim(),
+                              filters: filters.length > 0 ? { matchMode: filterMatchMode, rules: filters } : undefined,
+                              viewConfig: { columns: Array.from(visibleCols) },
+                            });
+                          }}
+                          className="bg-primary text-white px-3 py-2 rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                        >
+                          {createSmartList.isPending ? 'Saving...' : 'Save'}
+                        </button>
                       </div>
-                    )}
+                    </div>
 
                   </div>
                 )}
@@ -944,6 +1085,7 @@ export default function Contacts() {
                       setContactError('Failed to add tags.');
                     }
                   } else {
+                    if (panelOpen === 'filter') setPage(1);
                     setPanelOpen(null);
                   }
                   }}
@@ -1041,6 +1183,12 @@ export default function Contacts() {
           </div>
         </>
       )}
+
+      {/* ── Import Contacts Modal with Tagging ── */}
+      <ImportContactsModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+      />
     </div>
   );
 }

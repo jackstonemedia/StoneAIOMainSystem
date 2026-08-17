@@ -5,23 +5,25 @@
 import { z } from 'zod';
 
 export const ContactSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
+  firstName: z.string().default('Unknown'),
   lastName: z.string().optional().nullable(),
   middleName: z.string().optional().nullable(),
   suffix: z.string().optional().nullable(),
-  avatarUrl: z.string().url().optional().nullable(),
-  email: z.union([z.string().email(), z.literal('')]).optional().nullable(),
+  avatarUrl: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
   emailsJson: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   phonesJson: z.string().optional().nullable(),
-  companyId: z.string().uuid().optional().nullable(),
+  companyId: z.string().optional().nullable(),
   businessName: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
-  tagsJson: z.string().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  tagsJson: z.union([z.string(), z.array(z.string())]).optional().nullable(),
   color: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
   status: z.string().optional().nullable(),
   about: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const CompanySchema = z.object({

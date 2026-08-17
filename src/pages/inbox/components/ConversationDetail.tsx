@@ -35,8 +35,8 @@ function MessageBubble({ msg }: { msg: InboxMessage }) {
     <div className={`flex ${isAgent ? 'justify-end' : 'justify-start'} mb-6 group relative`}>
       {/* Contact Avatar if not agent */}
       {!isAgent && !isNote && (
-        <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden shrink-0 mr-3 mt-1 flex items-center justify-center">
-          <User className="w-4 h-4 text-slate-400" />
+        <div className="w-8 h-8 rounded-full bg-white text-zinc-950 border border-white/20 overflow-hidden shrink-0 mr-3 mt-1 flex items-center justify-center shadow-sm">
+          <User className="w-4 h-4 text-zinc-900" />
         </div>
       )}
 
@@ -244,11 +244,11 @@ function ConversationActionsPanel({ conv }: { conv: InboxConversation }) {
             {/* Contact Profile */}
             <div className="p-5 border-b border-[#2C3036]">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-700">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-white text-zinc-950 border border-white/20 shadow-sm">
                   {conv.inboxContact?.avatarUrl ? (
                     <img src={conv.inboxContact.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white text-lg font-bold">
+                    <div className="w-full h-full flex items-center justify-center text-zinc-950 text-lg font-bold">
                       {(conv.inboxContact?.name || '?').charAt(0).toUpperCase()}
                     </div>
                   )}

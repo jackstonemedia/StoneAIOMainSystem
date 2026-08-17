@@ -35,13 +35,26 @@ function buildRule(f: any): any {
   
   // Support both 'not_empty' and 'is not empty' operator naming
   if (operator === 'not_empty' || operator === 'is not empty') {
+    if (field === 'tags' || field === 'tagsJson' || field === 'tag') {
+      return { AND: [{ tagsJson: { not: null } }, { tagsJson: { not: '[]' } }, { tagsJson: { not: '' } }] };
+    }
     if (field === 'name') return { OR: [{ firstName: { not: null } }, { lastName: { not: null } }] };
     return { [field]: { not: null } };
   }
 
-  const val = String(value || '');
+  const val = String(value || '').trim();
   if (!val) return {}; // skip empty value rules
   
+  if (field === 'tags' || field === 'tagsJson' || field === 'tag') {
+    return {
+      OR: [
+        { tagsJson: { contains: val, mode: 'insensitive' } },
+        { tagsJson: { contains: val.replace(/-/g, ' '), mode: 'insensitive' } },
+        { tagsJson: { contains: val.replace(/\s+/g, '-'), mode: 'insensitive' } },
+      ],
+    };
+  }
+
   if (field === 'name') {
     if (operator === 'contains') return { OR: [{ firstName: { contains: val } }, { lastName: { contains: val } }] };
     if (operator === 'equals') return { OR: [{ firstName: { equals: val } }, { lastName: { equals: val } }] };
@@ -52,7 +65,6 @@ function buildRule(f: any): any {
   if (operator === 'contains') pOp = 'contains';
   if (operator === 'starts_with' || operator === 'starts with') pOp = 'startsWith';
 
-  if (field === 'tags') return { tagsJson: { contains: val } };
   if (field === 'businessName') return { company: { name: { [pOp]: val } } };
 
   return { [field]: { [pOp]: val } };
@@ -110,6 +122,7 @@ function formatContact(c: any) {
     name: `${c.firstName} ${c.lastName ?? ''}`.trim(),
     businessName: c.company?.name ?? '',
     tags: JSON.parse(c.tagsJson ?? '[]'),
+    color: '#FFFFFF',
   };
 }
 
@@ -188,6 +201,123 @@ export async function getDashboard(workspaceId: string) {
   };
 }
 
+export function matchesRule(contact: any, rule: any): boolean {
+  if (!rule || typeof rule !== 'object') return true;
+  const { field, operator, value } = rule;
+  const val = String(value || '').toLowerCase().trim();
+
+  if (operator === 'not_empty' || operator === 'is not empty') {
+    if (field === 'tags' || field === 'tagsJson' || field === 'tag') {
+      const tags = Array.isArray(contact.tags) ? contact.tags : JSON.parse(contact.tagsJson || '[]');
+      return Array.isArray(tags) && tags.length > 0;
+    }
+    if (field === 'name') return Boolean((contact.firstName || contact.lastName || '').trim());
+    return Boolean(contact[field]);
+  }
+
+  if (field === 'tags' || field === 'tagsJson' || field === 'tag') {
+    let tags: string[] = [];
+    try {
+      tags = Array.isArray(contact.tags)
+        ? contact.tags
+        : JSON.parse(contact.tagsJson || '[]');
+    } catch {
+      tags = [];
+    }
+
+    if (operator === 'is_empty' || operator === 'is empty') {
+      return !Array.isArray(tags) || tags.length === 0;
+    }
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return operator === 'not_contains' || operator === 'does not contain' || operator === 'not_equals';
+    }
+
+    if (!val && operator !== 'is_empty' && operator !== 'is empty') return true;
+
+    const matchesAnyTag = tags.some((t: string) => {
+      const tagStr = String(t || '').toLowerCase().trim();
+      const cleanVal = val.toLowerCase().trim();
+      const tagWithSpaces = tagStr.replace(/-/g, ' ');
+      const valWithSpaces = cleanVal.replace(/-/g, ' ');
+
+      if (operator === 'equals' || operator === 'is') return tagStr === cleanVal || tagWithSpaces === valWithSpaces;
+      if (operator === 'starts_with' || operator === 'starts with') return tagStr.startsWith(cleanVal);
+      if (operator === 'in') {
+        const set = Array.isArray(value) ? value.map((v: any) => String(v).toLowerCase().trim()) : val.split(',').map(v => v.trim());
+        return set.includes(tagStr);
+      }
+      // 'contains' / default:
+      return (
+        tagStr.includes(cleanVal) ||
+        cleanVal.includes(tagStr) ||
+        tagWithSpaces.includes(valWithSpaces)
+      );
+    });
+
+    if (operator === 'not_contains' || operator === 'does not contain' || operator === 'not_equals' || operator === 'is not') {
+      return !matchesAnyTag;
+    }
+
+    return matchesAnyTag;
+  }
+
+  if (!val) return true;
+
+  if (field === 'name') {
+    const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.toLowerCase();
+    if (operator === 'equals') return fullName === val;
+    if (operator === 'starts_with' || operator === 'starts with') return fullName.startsWith(val);
+    return fullName.includes(val);
+  }
+
+  if (field === 'businessName') {
+    const bName = String(contact.businessName || contact.company?.name || '').toLowerCase();
+    if (operator === 'equals') return bName === val;
+    if (operator === 'starts_with' || operator === 'starts with') return bName.startsWith(val);
+    return bName.includes(val);
+  }
+
+  const fieldValue = String(contact[field] || '').toLowerCase();
+  if (operator === 'equals') return fieldValue === val;
+  if (operator === 'starts_with' || operator === 'starts with') return fieldValue.startsWith(val);
+  return fieldValue.includes(val);
+}
+
+export function extractRulesAndMatchMode(input: any): { rules: any[]; matchMode: string } {
+  if (!input) return { rules: [], matchMode: 'all' };
+
+  let current = input;
+  if (typeof current === 'string') {
+    try { current = JSON.parse(current); } catch { return { rules: [], matchMode: 'all' }; }
+  }
+
+  let matchMode = 'all';
+
+  for (let i = 0; i < 3; i++) {
+    if (Array.isArray(current)) {
+      return { rules: current, matchMode };
+    }
+    if (current && typeof current === 'object') {
+      if (current.matchMode) matchMode = current.matchMode;
+      if (Array.isArray(current.rules)) {
+        return { rules: current.rules, matchMode };
+      }
+      if (current.rules && typeof current.rules === 'object') {
+        current = current.rules;
+      } else if (current.filters && (Array.isArray(current.filters) || typeof current.filters === 'object')) {
+        current = current.filters;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  return { rules: Array.isArray(current) ? current : [], matchMode };
+}
+
 // ── Contacts ──────────────────────────────────────────────────────────────────
 
 export async function listContacts(workspaceId: string, filters: ContactFilters) {
@@ -209,13 +339,67 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   
   if (filters.filtersJson) {
     try {
-      const parsedFilters = JSON.parse(filters.filtersJson);
-      const builtWhere = buildPrismaWhere(parsedFilters);
-      if (builtWhere.AND || builtWhere.OR || Object.keys(builtWhere).length > 0) {
-        Object.assign(where, builtWhere);
+      const { rules, matchMode } = extractRulesAndMatchMode(filters.filtersJson);
+
+      const validRules = rules.filter((r: any) =>
+        r && (
+          (r.value !== undefined && r.value !== null && String(r.value).trim() !== '') ||
+          r.operator === 'not_empty' ||
+          r.operator === 'is not empty'
+        )
+      );
+
+      if (validRules.length > 0) {
+        const allContacts = await db.contact.findMany({
+          where: { workspaceId },
+          select: {
+            id: true,
+            workspaceId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            status: true,
+            leadScore: true,
+            source: true,
+            color: true,
+            tagsJson: true,
+            createdAt: true,
+            updatedAt: true,
+            company: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        const formatted = allContacts.map(formatContact);
+
+        const filtered = formatted.filter(c => {
+          if (search) {
+            const q = String(search).toLowerCase();
+            const matchesSearch =
+              c.name.toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q);
+            if (!matchesSearch) return false;
+          }
+          if (status && c.status !== status) return false;
+
+          if (matchMode === 'any') {
+            return validRules.some((r: any) => matchesRule(c, r));
+          }
+          return validRules.every((r: any) => matchesRule(c, r));
+        });
+
+        const total = filtered.length;
+        const paged = filtered.slice(skip, skip + parsedLimit);
+
+        return {
+          contacts: paged,
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+        };
       }
     } catch (e) {
-      console.error('Filter parsing error', e);
+      console.error('[listContacts] Filter processing error:', e);
     }
   }
 
@@ -286,6 +470,23 @@ export async function createContact(workspaceId: string, data: any) {
     }
   }
 
+  // Normalize tags
+  let tagsArray: string[] = [];
+  if (Array.isArray(data.tags)) {
+    tagsArray = data.tags.map((t: any) => String(t).trim()).filter(Boolean);
+  } else if (typeof data.tagsJson === 'string' && data.tagsJson.trim()) {
+    try {
+      const parsed = JSON.parse(data.tagsJson);
+      if (Array.isArray(parsed)) tagsArray = parsed.map((t: any) => String(t).trim()).filter(Boolean);
+      else tagsArray = data.tagsJson.split(',').map((t: any) => t.trim()).filter(Boolean);
+    } catch {
+      tagsArray = data.tagsJson.split(',').map((t: any) => t.trim()).filter(Boolean);
+    }
+  } else if (Array.isArray(data.tagsJson)) {
+    tagsArray = data.tagsJson.map((t: any) => String(t).trim()).filter(Boolean);
+  }
+  const finalTagsJson = JSON.stringify(Array.from(new Set(tagsArray)));
+
   const c = await db.contact.create({
     data: {
       workspaceId,
@@ -300,14 +501,19 @@ export async function createContact(workspaceId: string, data: any) {
       phonesJson: data.phonesJson ?? null,
       companyId: finalCompanyId,
       title: data.title ?? null,
-      tagsJson: data.tagsJson ?? '[]',
+      location: data.location ?? null,
+      tagsJson: finalTagsJson,
       color: data.color ?? '#7dd3fc',
       source: data.source ?? null,
       status: data.status ?? 'Lead',
-      about: data.about ?? null,
+      about: data.about ?? data.notes ?? null,
     },
     include: { company: true }
   });
+
+  if (c.tagsJson) {
+    syncContactTagsToWorkspace(workspaceId, c.tagsJson).catch(() => {});
+  }
 
   emitTrigger(workspaceId, 'contact.created', {
     contactId: c.id,
@@ -343,8 +549,13 @@ export async function createContact(workspaceId: string, data: any) {
 
 export async function updateContact(id: string, workspaceId: string, raw: any) {
   const { name, tags, businessName, company, ...data } = raw;
-  if (data.tagsJson && Array.isArray(data.tagsJson)) {
-    data.tagsJson = JSON.stringify(data.tagsJson);
+
+  if (tags !== undefined) {
+    data.tagsJson = Array.isArray(tags) ? JSON.stringify(tags) : String(tags || '[]');
+  } else if (data.tagsJson !== undefined) {
+    if (Array.isArray(data.tagsJson)) {
+      data.tagsJson = JSON.stringify(data.tagsJson);
+    }
   }
 
   if (businessName !== undefined) {
@@ -369,6 +580,10 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
     data,
     include: { company: true } 
   });
+
+  if (c.tagsJson) {
+    syncContactTagsToWorkspace(workspaceId, c.tagsJson).catch(() => {});
+  }
 
   const formatted = formatContact(c);
   emitTrigger(workspaceId, 'contact.updated', {
@@ -459,25 +674,139 @@ export async function bulkContacts(workspaceId: string, action: string, contactI
   return { success: true, affected: contactIds.length };
 }
 
-export async function importContacts(workspaceId: string, rows: any[]) {
+export async function importContacts(workspaceId: string, rows: any[], globalTags: string[] = []) {
   const created: string[] = [];
+  const baseTags = (Array.isArray(globalTags) ? globalTags : []).map(t => String(t).trim()).filter(Boolean);
+
   for (const row of rows) {
-    if (!row.firstName && !row.email && !row.first_name) continue;
+    if (!row || typeof row !== 'object') continue;
+
+    let firstName = row.firstName ?? row.first_name ?? '';
+    let lastName = row.lastName ?? row.last_name ?? '';
+
+    // Handle full name string
+    if (!firstName && row.name) {
+      const parts = String(row.name).trim().split(/\s+/);
+      firstName = parts[0] || 'Unknown';
+      lastName = parts.slice(1).join(' ');
+    } else if (!firstName && row.contactName) {
+      const parts = String(row.contactName).trim().split(/\s+/);
+      firstName = parts[0] || 'Unknown';
+      lastName = parts.slice(1).join(' ');
+    }
+
+    // If no name is provided but we have business name or email/phone, use business or "Unknown"
+    const businessName = (
+      row.businessName ?? row.business_name ?? row.company ??
+      row.company_name ?? row.business ?? row.organization ?? ''
+    ).trim();
+
+    if (!firstName && !row.email && !row.phone && !businessName) {
+      continue;
+    }
+    if (!firstName) {
+      firstName = businessName || 'Unknown';
+    }
+
+    // Handle company auto-link/creation
+    let companyId = row.companyId ?? null;
+    if (!companyId && businessName) {
+      try {
+        let comp = await db.company.findFirst({
+          where: { name: businessName, workspaceId }
+        });
+        if (!comp) {
+          comp = await db.company.create({
+            data: {
+              name: businessName,
+              workspaceId,
+              website: row.website ? String(row.website).trim() : null,
+              location: [row.city, row.state].filter(Boolean).join(', ') || null,
+            }
+          });
+        }
+        companyId = comp.id;
+      } catch (err) {
+        console.error('[importContacts] Company link failed:', err);
+      }
+    }
+
+    // Merge row tags + global import tags
+    let rowTags: string[] = [];
+    if (Array.isArray(row.tags)) {
+      rowTags = row.tags.map((t: any) => String(t).trim()).filter(Boolean);
+    } else if (typeof row.tags === 'string' && row.tags.trim()) {
+      try {
+        const parsed = JSON.parse(row.tags);
+        if (Array.isArray(parsed)) rowTags = parsed.map((t: any) => String(t).trim()).filter(Boolean);
+        else rowTags = row.tags.split(/[,;|]/).map((t: any) => t.trim()).filter(Boolean);
+      } catch {
+        rowTags = row.tags.split(/[,;|]/).map((t: any) => t.trim()).filter(Boolean);
+      }
+    } else if (typeof row.tagsJson === 'string' && row.tagsJson.trim()) {
+      try {
+        const parsed = JSON.parse(row.tagsJson);
+        if (Array.isArray(parsed)) rowTags = parsed.map((t: any) => String(t).trim()).filter(Boolean);
+        else rowTags = row.tagsJson.split(/[,;|]/).map((t: any) => t.trim()).filter(Boolean);
+      } catch {
+        rowTags = row.tagsJson.split(/[,;|]/).map((t: any) => t.trim()).filter(Boolean);
+      }
+    }
+
+    // Category from Lead Studio or external scrapers
+    if (row.category && typeof row.category === 'string') {
+      rowTags.push(row.category.trim());
+    }
+
+    const combinedTags = Array.from(new Set([...baseTags, ...rowTags])).filter(Boolean);
+
+    const location = row.location ?? ([row.address, row.city, row.state, row.postalCode || row.zip].filter(Boolean).join(', ') || null);
+
     const c = await db.contact
       .create({
         data: {
           workspaceId,
-          firstName: row.firstName ?? row.first_name ?? '',
-          lastName: row.lastName ?? row.last_name ?? '',
-          email: row.email ?? null,
-          phone: row.phone ?? null,
-          source: 'import',
-          status: row.status ?? 'new',
+          firstName: String(firstName).trim(),
+          lastName: String(lastName).trim(),
+          email: row.email ? String(row.email).trim() : null,
+          phone: row.phone ? String(row.phone).trim() : null,
+          companyId,
+          title: row.title ? String(row.title).trim() : (row.category ? String(row.category).trim() : null),
+          location,
+          tagsJson: JSON.stringify(combinedTags),
+          source: row.source ? String(row.source).trim() : 'import',
+          status: row.status ? String(row.status).trim() : 'Lead',
+          about: row.about ?? row.notes ?? (row.website ? `Website: ${row.website}` : null),
+          color: row.color ?? '#7dd3fc',
         },
       })
-      .catch(() => null);
-    if (c) created.push(c.id);
+      .catch((err) => {
+        console.error('[importContacts] Error creating contact row:', err);
+        return null;
+      });
+
+    if (c) {
+      created.push(c.id);
+      if (combinedTags.length > 0) {
+        syncContactTagsToWorkspace(workspaceId, JSON.stringify(combinedTags)).catch(() => {});
+      }
+    }
   }
+
+  // Log activity for import
+  if (created.length > 0) {
+    try {
+      await db.activity.create({
+        data: {
+          workspaceId,
+          type: 'contacts.imported',
+          title: `Imported ${created.length} Contacts`,
+          notes: JSON.stringify({ count: created.length, tags: baseTags }),
+        }
+      });
+    } catch { /* ignore */ }
+  }
+
   return { success: true, imported: created.length };
 }
 
@@ -684,10 +1013,109 @@ export async function deleteTask(id: string, workspaceId: string) {
 // ── Smart Lists ───────────────────────────────────────────────────────────────
 
 export async function listSmartLists(workspaceId: string) {
-  return db.smartList.findMany({
+  let lists = await db.smartList.findMany({
     where: { workspaceId },
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { items: true } } },
+  });
+
+  if (lists.length === 0) {
+    try {
+      await Promise.all([
+        db.smartList.create({
+          data: {
+            workspaceId,
+            name: 'Hot Leads',
+            description: 'Contacts with hot lead status',
+            filtersJson: JSON.stringify([{ field: 'status', operator: 'equals', value: 'hot' }]),
+            matchMode: 'all',
+            author: 'System',
+          },
+        }),
+        db.smartList.create({
+          data: {
+            workspaceId,
+            name: 'Enterprise Contacts',
+            description: 'Contacts tagged with enterprise',
+            filtersJson: JSON.stringify([{ field: 'tags', operator: 'contains', value: 'enterprise' }]),
+            matchMode: 'all',
+            author: 'System',
+          },
+        }),
+        db.smartList.create({
+          data: {
+            workspaceId,
+            name: 'All Active Contacts',
+            description: 'All workspace contacts',
+            filtersJson: JSON.stringify([]),
+            matchMode: 'all',
+            author: 'System',
+          },
+        }),
+      ]);
+
+      lists = await db.smartList.findMany({
+        where: { workspaceId },
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { items: true } } },
+      });
+    } catch (e) {
+      console.warn('[listSmartLists] Failed to auto-provision default smart lists:', e);
+    }
+  }
+
+  // Calculate live dynamic contact count for each smart list
+  const allContacts = await db.contact.findMany({
+    where: { workspaceId },
+    select: {
+      id: true,
+      workspaceId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      status: true,
+      leadScore: true,
+      source: true,
+      color: true,
+      tagsJson: true,
+      createdAt: true,
+      updatedAt: true,
+      company: { select: { id: true, name: true } },
+    }
+  });
+  const formattedContacts = allContacts.map(formatContact);
+
+  return lists.map(list => {
+    let { rules, matchMode } = extractRulesAndMatchMode(list.filtersJson);
+    const validRules = rules.filter((r: any) => r && (
+      (r.value !== undefined && r.value !== null && String(r.value).trim() !== '') ||
+      r.operator === 'not_empty' ||
+      r.operator === 'is not empty'
+    ));
+
+    let matchingCount = 0;
+    if (validRules.length === 0) {
+      if (list.name && list.name.toLowerCase() !== 'all active contacts' && list.name.toLowerCase() !== 'all contacts' && list.name.toLowerCase() !== 'all') {
+        const autoRule = { field: 'tags', operator: 'contains', value: list.name.trim() };
+        matchingCount = formattedContacts.filter(c => matchesRule(c, autoRule)).length;
+      } else {
+        matchingCount = formattedContacts.length;
+      }
+    } else {
+      matchingCount = formattedContacts.filter(c => {
+        if (matchMode === 'any') return validRules.some((r: any) => matchesRule(c, r));
+        return validRules.every((r: any) => matchesRule(c, r));
+      }).length;
+    }
+
+    return {
+      ...list,
+      contactCount: matchingCount,
+      _count: {
+        items: matchingCount,
+      }
+    };
   });
 }
 
@@ -695,7 +1123,63 @@ export async function createSmartList(workspaceId: string, data: any) {
   // Normalize the filters — can come in as { matchMode, rules } object or plain array
   const filtersPayload = data.filters ?? [];
   const matchMode = data.matchMode || (filtersPayload?.matchMode) || 'all';
-  const rules = Array.isArray(filtersPayload) ? filtersPayload : (filtersPayload?.rules ?? []);
+  let rules: any[] = Array.isArray(filtersPayload) ? filtersPayload : (filtersPayload?.rules ?? []);
+
+  // Filter out empty invalid rules
+  rules = rules.filter((r: any) => r && (
+    (r.value !== undefined && r.value !== null && String(r.value).trim() !== '') ||
+    r.operator === 'not_empty' ||
+    r.operator === 'is not empty'
+  ));
+
+  // If no explicit valid rules were provided OR if explicit tag was passed, check for existing tag match
+  if (rules.length === 0 && data.name) {
+    const trimmedName = String(data.name).trim();
+    const explicitTag = data.tag ? String(data.tag).trim() : null;
+
+    // Check workspace tags in db.tag
+    const existingTags = await db.tag.findMany({ where: { workspaceId } });
+    const matchedTag = existingTags.find(t => 
+      t.name.toLowerCase().trim() === (explicitTag || trimmedName).toLowerCase() ||
+      t.name.toLowerCase().replace(/[-_]/g, ' ') === (explicitTag || trimmedName).toLowerCase().replace(/[-_]/g, ' ')
+    );
+
+    let targetTagName = explicitTag || matchedTag?.name;
+
+    // If not found in db.tag, check if any contact in workspace has this tag in tagsJson
+    if (!targetTagName) {
+      const contacts = await db.contact.findMany({
+        where: { workspaceId },
+        select: { tagsJson: true },
+        take: 1000,
+      });
+      for (const c of contacts) {
+        try {
+          const tags: string[] = JSON.parse(c.tagsJson || '[]');
+          const found = tags.find(t => 
+            t.toLowerCase().trim() === trimmedName.toLowerCase() ||
+            t.toLowerCase().replace(/[-_]/g, ' ') === trimmedName.toLowerCase().replace(/[-_]/g, ' ')
+          );
+          if (found) {
+            targetTagName = found;
+            break;
+          }
+        } catch {}
+      }
+    }
+
+    // Auto-create a tag filter rule if tag matches or name was provided
+    if (targetTagName || explicitTag) {
+      rules = [
+        {
+          id: `rule-tag-${Date.now()}`,
+          field: 'tags',
+          operator: 'contains',
+          value: targetTagName || explicitTag || trimmedName,
+        }
+      ];
+    }
+  }
   
   return db.smartList.create({
     data: {
@@ -739,9 +1223,27 @@ export async function getSmartListContacts(id: string, workspaceId: string, page
   const list = await db.smartList.findUnique({ where: { id, workspaceId } });
   if (!list) return null;
 
-  // Build a group from stored matchMode + filtersJson
-  const rules = JSON.parse(list.filtersJson || '[]');
-  const group = { matchMode: list.matchMode || 'all', rules };
+  let { rules, matchMode } = extractRulesAndMatchMode(list.filtersJson);
+
+  const hasValidRules = rules.some((r: any) => r && (
+    (r.value !== undefined && r.value !== null && String(r.value).trim() !== '') ||
+    r.operator === 'not_empty' ||
+    r.operator === 'is not empty'
+  ));
+
+  // If the smart list has no valid rules stored, check if the list name corresponds to an existing tag in the workspace
+  if (!hasValidRules && list.name && list.name.toLowerCase() !== 'all contacts' && list.name.toLowerCase() !== 'all') {
+    rules = [
+      {
+        id: `rule-tag-auto`,
+        field: 'tags',
+        operator: 'contains',
+        value: list.name.trim()
+      }
+    ];
+  }
+
+  const group = { matchMode: list.matchMode || matchMode || 'all', rules };
   const filtersJson = JSON.stringify(group);
   return listContacts(workspaceId, { filtersJson, page, limit });
 }
@@ -800,4 +1302,75 @@ export async function mergeTags(sourceTagId: string, targetTagId: string, worksp
 
   await db.tag.delete({ where: { id: sourceTagId } });
   return { success: true };
+}
+
+export async function syncContactTagsToWorkspace(workspaceId: string, tagsInput: any) {
+  if (!tagsInput) return;
+  let tags: string[] = [];
+  try {
+    if (Array.isArray(tagsInput)) {
+      tags = tagsInput;
+    } else if (typeof tagsInput === 'string') {
+      tags = JSON.parse(tagsInput);
+    }
+  } catch {
+    if (typeof tagsInput === 'string') tags = [tagsInput];
+  }
+
+  if (!Array.isArray(tags)) return;
+
+  for (const t of tags) {
+    if (t && typeof t === 'string' && t.trim()) {
+      const cleanName = t.trim();
+      try {
+        const existing = await db.tag.findFirst({
+          where: { workspaceId, name: { equals: cleanName, mode: 'insensitive' } },
+        });
+        if (!existing) {
+          await db.tag.create({
+            data: { workspaceId, name: cleanName, color: '#cbd5e1' },
+          });
+        }
+      } catch {}
+    }
+  }
+}
+
+export async function getWorkspaceTags(workspaceId: string): Promise<Array<{ id: string; name: string; color: string }>> {
+  const dbTags = await db.tag.findMany({
+    where: { workspaceId },
+    orderBy: { name: 'asc' },
+  });
+
+  const tagMap = new Map<string, { id: string; name: string; color: string }>();
+
+  for (const t of dbTags) {
+    if (t?.name) {
+      tagMap.set(t.name.toLowerCase().trim(), { id: t.id, name: t.name, color: t.color || '#cbd5e1' });
+    }
+  }
+
+  const contacts = await db.contact.findMany({
+    where: { workspaceId },
+    select: { tagsJson: true },
+  });
+
+  for (const c of contacts) {
+    try {
+      const tags: string[] = JSON.parse(c.tagsJson || '[]');
+      for (const t of tags) {
+        if (t && typeof t === 'string' && t.trim()) {
+          const clean = t.trim();
+          const lower = clean.toLowerCase();
+          if (!tagMap.has(lower)) {
+            const newObj = { id: `tag_${lower}`, name: clean, color: '#cbd5e1' };
+            tagMap.set(lower, newObj);
+            db.tag.create({ data: { workspaceId, name: clean, color: '#cbd5e1' } }).catch(() => {});
+          }
+        }
+      }
+    } catch {}
+  }
+
+  return Array.from(tagMap.values());
 }

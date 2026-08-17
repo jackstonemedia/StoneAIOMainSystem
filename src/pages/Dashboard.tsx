@@ -15,6 +15,7 @@ import { OverviewGraph } from '../components/dashboard/v2/OverviewGraph';
 import { CalendarWidget } from '../components/dashboard/v2/CalendarWidget';
 import { PipelineActivity } from '../components/dashboard/v2/PipelineActivity';
 import { DashboardFadeIn } from '../components/dashboard/v2/DashboardPanel';
+import { AIControlPanel } from '../components/dashboard/v2/AIControlPanel';
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,6 +98,13 @@ export default function Dashboard() {
           {/* ── Activity tab ── */}
           {activeTab === 'activity' && (
             <PipelineActivity metrics={metrics} isLoading={isMetricsLoading} />
+          )}
+
+          {/* ── AI Control Panel tab ── */}
+          {activeTab === 'ai' && (
+            <DashboardFadeIn delay={0}>
+              <AIControlPanel />
+            </DashboardFadeIn>
           )}
 
           {/* ── Calendar tab ── */}

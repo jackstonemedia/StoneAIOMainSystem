@@ -124,11 +124,11 @@ export default function ConversationList() {
             >
               {/* Avatar section */}
               <div className="relative mr-3 shrink-0">
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-700 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-white text-zinc-950 border border-white/20 flex items-center justify-center shadow-sm">
                   {conv.inboxContact?.avatarUrl ? (
                     <img src={conv.inboxContact.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-white text-sm font-bold">
+                    <span className="text-zinc-950 text-sm font-bold">
                       {(conv.inboxContact?.name || '?').charAt(0).toUpperCase()}
                     </span>
                   )}

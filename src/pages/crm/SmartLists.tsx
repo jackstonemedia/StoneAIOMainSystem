@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Search, Plus, Filter, Download,
   Settings, ChevronDown, Check, Edit2, Trash2, List as ListIcon, X,
@@ -32,6 +33,10 @@ export default function SmartLists() {
     queryFn: () => apiFetch('/api/crm/smart-lists').then(r => r.ok ? r.json() : []),
   });
 
+  const { data: workspaceTags = [] } = useQuery<any[]>({
+    queryKey: ['tags'],
+    queryFn: () => apiFetch('/api/crm/tags').then(r => r.ok ? r.json() : []),
+  });
 
   const createList = useMutation({
     mutationFn: async (data: any) => {
@@ -39,7 +44,10 @@ export default function SmartLists() {
       if (!r.ok) throw new Error();
       return r.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['smartlists'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['smartlists'] });
+      qc.invalidateQueries({ queryKey: ['smart-lists'] });
+    },
   });
 
   const updateList = useMutation({
@@ -48,7 +56,10 @@ export default function SmartLists() {
       if (!r.ok) throw new Error();
       return r.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['smartlists'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['smartlists'] });
+      qc.invalidateQueries({ queryKey: ['smart-lists'] });
+    },
   });
 
   const deleteList = useMutation({
@@ -57,7 +68,10 @@ export default function SmartLists() {
       if (!r.ok) throw new Error();
       return r.json();
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['smartlists'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['smartlists'] });
+      qc.invalidateQueries({ queryKey: ['smart-lists'] });
+    },
   });
 
   const [selected, setSelected]   = useState<Set<string>>(new Set());
@@ -128,7 +142,7 @@ export default function SmartLists() {
   const processedLists = React.useMemo(() => {
     if (!searchQuery) return lists;
     const q = searchQuery.toLowerCase();
-    return lists.filter(l => l.name.toLowerCase().includes(q));
+    return lists.filter(l => String(l?.name || '').toLowerCase().includes(q));
   }, [lists, searchQuery]);
 
 
@@ -158,8 +172,6 @@ export default function SmartLists() {
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
-      {/* Header section removed */}
-
       {/* Unified Toolbar */}
       <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px]">
         <div className="flex items-center gap-2">
@@ -226,7 +238,7 @@ export default function SmartLists() {
               {processedLists.map((l) => {
                 const filtersJsonStr = typeof l.filtersJson === 'string' ? l.filtersJson : JSON.stringify(l.filtersJson || '[]');
                 const parsedFilters = (() => { try { return JSON.parse(filtersJsonStr); } catch { return []; } })();
-                const activeFilters = parsedFilters.filter((f: any) => f.value || f.operator === 'is not empty').length;
+                const activeFilters = parsedFilters.filter((f: any) => f && (f.value || f.operator === 'is not empty')).length;
                 return (
                   <tr key={l.id} className={`border-b border-border/50 transition-colors ${selected.has(l.id) ? 'bg-primary/5' : 'hover:bg-surface-hover/50'}`}>
                     <td className="p-3 text-center">
@@ -235,7 +247,12 @@ export default function SmartLists() {
                       </button>
                     </td>
                     <td className="p-3">
-                      <span className="text-[13px] font-semibold text-text-main cursor-pointer hover:text-primary transition-colors">{l.name}</span>
+                      <Link
+                        to={`/crm/contacts?smartList=${l.id}`}
+                        className="text-[13px] font-semibold text-text-main hover:text-primary transition-colors hover:underline flex items-center gap-1.5"
+                      >
+                        {l.name}
+                      </Link>
                     </td>
                     <td className="p-3">
                       <span className="px-2.5 py-1 rounded-[6px] text-[12px] font-bold shadow-sm border border-border bg-surface text-text-main">
@@ -244,7 +261,7 @@ export default function SmartLists() {
                     </td>
                     <td className="p-3">
                       <span className="px-2.5 py-1 rounded-[6px] text-[12px] font-bold shadow-sm border border-border bg-surface text-text-main">
-                        {l._count?.items ?? 0}
+                        {l.contactCount ?? l._count?.items ?? 0}
                       </span>
                     </td>
                     <td className="p-3 text-[13px] font-medium text-text-muted">{l.createdAt ? new Date(l.createdAt).toLocaleDateString() : '—'}</td>
@@ -307,37 +324,39 @@ export default function SmartLists() {
         </div>
       </div>
 
-      {/* ── Create Smart List Slide-Over ── */}
+      {/* Slide-over Form Panel */}
       <AnimatePresence>
         {panelOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/20 z-40 backdrop-blur-[2px]"
-              onClick={() => { setPanelOpen(false); resetPanel(); }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPanelOpen(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
             />
             <motion.div
-              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-[460px] bg-surface shadow-2xl z-50 flex flex-col border-l border-border"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+              className="fixed right-0 top-0 bottom-0 w-[420px] bg-surface border-l border-border z-50 flex flex-col shadow-2xl"
             >
-              {/* Panel Header */}
-              <div className="px-6 py-5 flex items-center justify-between border-b border-border bg-surface-hover/50 shrink-0">
+              {/* Slide-over Header */}
+              <div className="p-6 border-b border-border flex items-center justify-between">
                 <div>
                   <h2 className="text-[16px] font-bold text-text-main">
-                  {editingListId ? 'Edit Smart List' : 'Create Smart List'}
-                </h2>  <p className="text-[12px] text-text-muted mt-0.5">Define a name and optional filter conditions.</p>
+                    {editingListId ? 'Edit Smart List' : 'Create Smart List'}
+                  </h2>
+                  <p className="text-[12px] text-text-muted mt-0.5">Filter contacts by real-time dynamic conditions.</p>
                 </div>
-                <button
-                  onClick={() => { setPanelOpen(false); resetPanel(); }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors"
-                >
+                <button onClick={() => setPanelOpen(false)} className="text-text-muted hover:text-text-main transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Panel Body */}
-              <div className="p-6 flex-1 overflow-auto space-y-5">
+              {/* Slide-over Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {/* Name */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">List Name</label>
@@ -348,6 +367,43 @@ export default function SmartLists() {
                     onChange={e => setNewName(e.target.value)}
                     className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
                   />
+
+                  {/* Quick tag presets */}
+                  {workspaceTags.length > 0 && !editingListId && (
+                    <div className="pt-2">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">Auto-populate from existing Tag:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {workspaceTags.map((tag: any, idx: number) => {
+                          const tagName = typeof tag === 'string' ? tag : String(tag?.name || '');
+                          if (!tagName) return null;
+                          const isSelected = conditions.some(c => 
+                            c.field === 'tags' && 
+                            String(c?.value || '').trim().toLowerCase() === tagName.trim().toLowerCase()
+                          );
+                          return (
+                            <button
+                              key={tag?.id || `${tagName}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setNewName(tagName);
+                                setConditions([
+                                  { id: Date.now().toString(), field: 'tags', operator: 'contains', value: tagName }
+                                ]);
+                              }}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-primary/20 text-primary border-primary'
+                                  : 'bg-surface-hover text-text-muted border-border hover:border-primary/50 hover:text-text-main'
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              {tagName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── Match Mode ── */}
@@ -422,6 +478,12 @@ export default function SmartLists() {
                       <p className="text-[12px] text-text-muted">No conditions. Add one below to filter contacts.</p>
                     </div>
                   )}
+                  <datalist id="tag-suggestions">
+                    {workspaceTags.map((t: any, idx: number) => {
+                      const name = typeof t === 'string' ? t : String(t?.name || '');
+                      return name ? <option key={t?.id || `${name}-${idx}`} value={name} /> : null;
+                    })}
+                  </datalist>
                   <div className="space-y-2 mb-3">
                     {conditions.map((cond, idx) => (
                       <div key={cond.id} className="flex items-center gap-1.5 group">
@@ -445,8 +507,9 @@ export default function SmartLists() {
                         {cond.operator !== 'is not empty' && (
                           <input
                             type="text"
-                            placeholder="Value…"
-                            value={cond.value}
+                            placeholder={cond.field === 'tags' ? 'Tag name (or pick below)…' : 'Value…'}
+                            list={cond.field === 'tags' ? 'tag-suggestions' : undefined}
+                            value={cond.value || ''}
                             onChange={e => updateCondition(cond.id, 'value', e.target.value)}
                             className="flex-1 bg-surface-hover border border-border text-text-main text-[11px] rounded-[6px] px-2 py-1.5 outline-none focus:border-primary min-w-0 placeholder:text-text-muted"
                           />

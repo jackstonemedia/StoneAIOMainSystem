@@ -100,15 +100,17 @@ export async function sendGmailMessage(
     '',
     `--${boundary}`,
     'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: quoted-printable',
+    'Content-Transfer-Encoding: 8bit',
     '',
     body,
     '',
     `--${boundary}`,
     'Content-Type: text/html; charset=utf-8',
-    'Content-Transfer-Encoding: quoted-printable',
+    'Content-Transfer-Encoding: 8bit',
     '',
-    `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#222;">${htmlPart}</body></html>`,
+    htmlPart.includes('<html') || htmlPart.includes('<!DOCTYPE')
+      ? htmlPart
+      : `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:14px;line-height:1.6;color:#222;">${htmlPart}</body></html>`,
     '',
     `--${boundary}--`,
   ];

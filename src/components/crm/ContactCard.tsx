@@ -43,7 +43,7 @@ export default function ContactCard({ contact }: ContactCardProps) {
 
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${avatarGradient} flex items-center justify-center font-bold text-white text-base shadow-md shrink-0`}>
+        <div className="w-12 h-12 rounded-xl bg-white text-zinc-950 flex items-center justify-center font-bold text-base shadow-md shrink-0 border border-white/20">
           {initials}
         </div>
         <LeadScoreRing score={score} size={38} strokeWidth={3} />

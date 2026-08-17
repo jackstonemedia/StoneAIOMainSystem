@@ -115,58 +115,76 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
         if (activeChannel === 'email' || activeChannel === 'gmail') {
           // ── Gmail outbound ────────────────────────────────────────────────
-          const conn = await db.channelConnection.findFirst({
+          let conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
           });
+          if (!conn) {
+            conn = await db.channelConnection.findFirst({
+              where: { provider: 'gmail', isActive: true },
+            });
+          }
+
           const recipientEmail = msgTo || convo?.contact?.email;
           const emailSubject = msgSubject || convo?.subject || '(no subject)';
-          if (conn && recipientEmail) {
-            if (msgSubject && msgSubject !== convo?.subject) {
-              await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
-            }
-            const now = new Date().toUTCString();
+
+          if (!conn) {
             await db.conversationMessage.update({
               where: { id: msg.id },
-              data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
+              data: { status: 'failed', errorMsg: 'No active Gmail connection found. Please connect your Gmail in Settings.' },
             }).catch(() => null);
+            return res.status(400).json({ error: 'No active Gmail account connected. Please connect Gmail in Settings > Integrations.' });
+          }
+
+          if (!recipientEmail) {
+            await db.conversationMessage.update({
+              where: { id: msg.id },
+              data: { status: 'failed', errorMsg: 'Recipient has no valid email address.' },
+            }).catch(() => null);
+            return res.status(400).json({ error: 'Recipient has no valid email address.' });
+          }
+
+          if (msgSubject && msgSubject !== convo?.subject) {
+            await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
+          }
+          const now = new Date().toUTCString();
+          await db.conversationMessage.update({
+            where: { id: msg.id },
+            data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
+          }).catch(() => null);
+
+          try {
             const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
             const sent = await sendGmailMessage(
               conn.id, recipientEmail, emailSubject, msgBody,
               convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
-            ).catch(err => { console.error('[Outbound Gmail] ❌ Failed:', err.message); return null; });
-            if (sent && !convo?.externalId && sent.threadId) {
-              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
+            );
+            if (sent) {
+              await db.conversationMessage.update({
+                where: { id: msg.id },
+                data: { status: 'delivered', externalId: sent.messageId },
+              }).catch(() => null);
+              if (!convo?.externalId && sent.threadId) {
+                await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
+              }
             }
-          }
-        } else if (activeChannel === 'outlook') {
-          // ── Outlook outbound ──────────────────────────────────────────────
-          const conn = await db.channelConnection.findFirst({
-            where: { workspaceId: req.workspaceId, provider: 'outlook', isActive: true },
-          });
-          const recipientEmail = msgTo || convo?.contact?.email;
-          const emailSubject = msgSubject || convo?.subject || '(no subject)';
-          if (conn && recipientEmail) {
-            if (msgSubject && msgSubject !== convo?.subject) {
-              await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
-            }
-            const now = new Date().toUTCString();
+          } catch (err: any) {
+            console.error('[Outbound Gmail] ❌ Failed to send:', err.message);
             await db.conversationMessage.update({
               where: { id: msg.id },
-              data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
+              data: { status: 'failed', errorMsg: err.message },
             }).catch(() => null);
-            const { sendOutlookMessage } = await import('../services/channels/outlook.service.js');
-            const sent = await sendOutlookMessage(
-              conn.id, recipientEmail, emailSubject, msgBody, convo?.externalId ?? undefined,
-            ).catch((err: Error) => { console.error('[Outbound Outlook] ❌ Failed:', err.message); return null; });
-            if (sent && !convo?.externalId && sent.conversationId) {
-              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.conversationId } }).catch(() => null);
-            }
+            return res.status(400).json({ error: `Gmail sending failed: ${err.message}` });
           }
         } else if (activeChannel === 'sms') {
           // ── SMS / Twilio outbound ─────────────────────────────────────────
-          const conn = await db.channelConnection.findFirst({
+          let conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
           });
+          if (!conn) {
+            conn = await db.channelConnection.findFirst({
+              where: { provider: 'twilio', isActive: true },
+            });
+          }
           if (conn && convo?.contact?.phone) {
             const { decryptJson } = await import('../services/channels/encryption.js');
             const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };

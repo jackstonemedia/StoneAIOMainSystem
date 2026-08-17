@@ -1,15 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
   Plug, Globe, Phone, Mail, Mic, Copy, Eye, EyeOff, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
-  QrCode, Monitor, Trash2, Code
+  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../lib/apiClient';
+import { channelConnectionsApi } from '../lib/api/conversations';
 
 const TABS = [
   { id: 'general', label: 'General', icon: Building2 },
@@ -59,14 +61,28 @@ const INTEGRATIONS = [
   },
   {
     id: 'google',
-    label: 'Google',
-    desc: 'Google Calendar sync, My Business reviews, and OAuth',
+    label: 'Google & Gmail',
+    desc: 'Connect your Gmail account to send & receive customer emails and sync Google services',
     icon: Globe,
-    color: 'text-amber-400',
-    bg: 'bg-amber-400/10',
+    color: 'text-red-400',
+    bg: 'bg-red-400/10',
+    isChannelOAuth: 'gmail',
     fields: [
-      { key: 'google_client_id', label: 'OAuth Client ID', placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
-      { key: 'google_client_secret', label: 'OAuth Client Secret', placeholder: 'GOCSPX-xxxxxxxxxxxx', type: 'password' },
+      { key: 'google_client_id', label: 'OAuth Client ID (Optional override)', placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
+      { key: 'google_client_secret', label: 'OAuth Client Secret (Optional override)', placeholder: 'GOCSPX-xxxxxxxxxxxx', type: 'password' },
+    ],
+  },
+  {
+    id: 'outlook',
+    label: 'Microsoft Outlook',
+    desc: 'Connect your Outlook / Microsoft 365 inbox for direct email synchronization',
+    icon: Mail,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    isChannelOAuth: 'outlook',
+    fields: [
+      { key: 'outlook_client_id', label: 'Application (client) ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', type: 'text' },
+      { key: 'outlook_client_secret', label: 'Client Secret', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
     ],
   },
 ];
@@ -82,7 +98,7 @@ const NOTIF_PREFS = [
   { key: 'weekly_summary', label: 'Weekly Summary', desc: 'A weekly digest of key performance metrics' },
 ];
 
-function fieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
+function FieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
   const [show, setShow] = useState(false);
   const isPass = props.type === 'password';
   return (
@@ -108,7 +124,8 @@ export default function SettingsPage() {
   const { theme, setTheme, themes } = useTheme();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState('general');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'general');
   const [wsName, setWsName] = useState('Stone AIO');
   const [wsId, setWsId] = useState('ws_default_stone_aio');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -118,6 +135,27 @@ export default function SettingsPage() {
     Object.fromEntries(NOTIF_PREFS.map(n => [n.key, true]))
   );
   const [expandedIntegration, setExpandedIntegration] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+    const connected = searchParams.get('channel_connected');
+    if (connected) {
+      toast('success', `${connected === 'gmail' ? 'Gmail' : connected === 'outlook' ? 'Outlook' : connected} connected successfully!`);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('channel_connected');
+      setSearchParams(nextParams, { replace: true });
+    }
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      toast('error', errorParam);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('error');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams]);
 
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -145,6 +183,20 @@ export default function SettingsPage() {
   const { data: savedKeys = [] } = useQuery<any[]>({
     queryKey: ['settings', 'api-keys'],
     queryFn: () => apiFetch('/api/settings/api-keys').then(r => r.ok ? r.json() : []),
+  });
+
+  const { data: channelConnections = [] } = useQuery<any[]>({
+    queryKey: ['channel-connections'],
+    queryFn: () => channelConnectionsApi.list(),
+  });
+
+  const disconnectChannel = useMutation({
+    mutationFn: (id: string) => channelConnectionsApi.disconnect(id),
+    onSuccess: () => {
+      toast('info', 'Channel disconnected.');
+      qc.invalidateQueries({ queryKey: ['channel-connections'] });
+    },
+    onError: (err: any) => toast('error', err?.message || 'Failed to disconnect channel'),
   });
 
   const { data: members = [] } = useQuery<any[]>({
@@ -286,13 +338,17 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <div>
           <h2 className="text-[18px] font-bold text-text-main mb-0.5">Integrations</h2>
-          <p className="text-[13px] text-text-muted">Connect third-party services to power your platform.</p>
+          <p className="text-[13px] text-text-muted">Connect third-party services and email accounts to power your platform.</p>
         </div>
         <div className="space-y-3">
           {INTEGRATIONS.map(intg => {
-            const connected = isConnected(intg.id);
+            const isOAuthProvider = Boolean((intg as any).isChannelOAuth);
+            const providerType = (intg as any).isChannelOAuth as string | undefined;
+            const activeConns = providerType ? (channelConnections || []).filter((c: any) => c.provider === providerType) : [];
+            const connected = isConnected(intg.id) || activeConns.length > 0;
             const isOpen = expandedIntegration === intg.id;
             const Icon = intg.icon;
+
             return (
               <motion.div key={intg.id} className="bg-surface border border-border rounded-[12px] overflow-hidden"
                 animate={{ borderColor: isOpen ? 'var(--primary-border, rgba(82,103,125,0.5))' : 'var(--border)' }}>
@@ -308,11 +364,15 @@ export default function SettingsPage() {
                       <span className="text-[14px] font-bold text-text-main">{intg.label}</span>
                       {connected && (
                         <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Connected
+                          <CheckCircle2 className="w-2.5 h-2.5" /> {activeConns.length > 0 ? `${activeConns.length} Connected` : 'Connected'}
                         </span>
                       )}
                     </div>
-                    <p className="text-[12px] text-text-muted mt-0.5">{intg.desc}</p>
+                    <p className="text-[12px] text-text-muted mt-0.5">
+                      {activeConns.length > 0
+                        ? `Connected as ${activeConns.map((c: any) => c.email || c.label).join(', ')}`
+                        : intg.desc}
+                    </p>
                   </div>
                   <ChevronRight className={`w-4 h-4 text-text-muted transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                 </div>
@@ -320,33 +380,124 @@ export default function SettingsPage() {
                 <AnimatePresence>
                   {isOpen && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}>
-                      <div className="px-5 pb-5 pt-0 border-t border-border space-y-4 mt-0 pt-4">
-                        {intg.fields.map(field => (
-                          <div key={field.key}>
-                            <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
-                            {fieldInput({
-                              type: field.type,
-                              placeholder: field.placeholder,
-                              value: keyValues[field.key] || '',
-                              onChange: v => setKeyValues(prev => ({ ...prev, [field.key]: v })),
-                            })}
+                      <div className="px-5 pb-5 pt-0 border-t border-border space-y-5 mt-0 pt-4">
+                        {isOAuthProvider ? (
+                          <div className="space-y-4">
+                            {/* Connected Accounts List */}
+                            {activeConns.length > 0 ? (
+                              <div className="space-y-2">
+                                <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Connected Accounts</p>
+                                {activeConns.map((conn: any) => (
+                                  <div key={conn.id} className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-bg shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                                      <div>
+                                        <div className="text-[13px] font-bold text-text-main">{conn.email || conn.label || 'Connected Account'}</div>
+                                        <div className="text-[11px] text-emerald-400 font-semibold">Active & Ready (Sending & Receiving)</div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => disconnectChannel.mutate(conn.id)}
+                                      disabled={disconnectChannel.isPending}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+                                    >
+                                      <Unlink className="w-3.5 h-3.5" /> Disconnect
+                                    </button>
+                                  </div>
+                                ))}
+
+                                <div className="pt-2">
+                                  <button
+                                    onClick={() => providerType === 'gmail' ? channelConnectionsApi.connectGmail() : channelConnectionsApi.connectOutlook()}
+                                    className="flex items-center gap-2 px-4 py-2 bg-surface hover:bg-surface-hover border border-border text-text-main rounded-lg text-[12px] font-bold transition-all shadow-sm"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" /> Connect Another {providerType === 'gmail' ? 'Gmail' : 'Outlook'} Account
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-5 rounded-xl border border-border bg-bg/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3.5">
+                                  <div className={`w-11 h-11 rounded-xl ${intg.bg} flex items-center justify-center shrink-0`}>
+                                    <Icon className={`w-5 h-5 ${intg.color}`} />
+                                  </div>
+                                  <div>
+                                    <div className="text-[14px] font-bold text-text-main">Connect your {providerType === 'gmail' ? 'Gmail' : 'Outlook'} Account</div>
+                                    <div className="text-[12px] text-text-muted mt-0.5">Authorizes Stone AIO to send & receive customer emails securely.</div>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => providerType === 'gmail' ? channelConnectionsApi.connectGmail() : channelConnectionsApi.connectOutlook()}
+                                  className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-md transition-all shrink-0 cursor-pointer"
+                                >
+                                  <Mail className="w-4 h-4" /> Connect {providerType === 'gmail' ? 'Gmail' : 'Outlook'}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Collapsible API Keys Section */}
+                            <div className="pt-3 border-t border-border/60">
+                              <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">Custom OAuth Credentials (Optional)</p>
+                              <div className="space-y-3">
+                                {intg.fields.map(field => (
+                                  <div key={field.key}>
+                                    <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
+                                    <FieldInput
+                                      type={field.type}
+                                      placeholder={field.placeholder}
+                                      value={keyValues[field.key] || ''}
+                                      onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
+                                    />
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const promises = intg.fields.map(f =>
+                                        keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
+                                      );
+                                      await Promise.all(promises);
+                                    } catch { toast('error', 'One or more keys failed to save'); }
+                                  }}
+                                  disabled={saveKey.isPending}
+                                  className="flex items-center gap-2 px-3.5 py-1.5 bg-surface-hover border border-border text-text-main rounded-md text-[12px] font-semibold hover:bg-surface transition-colors"
+                                >
+                                  {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                  Save Custom Keys
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        ))}
-                        <button
-                          onClick={async () => {
-                            try {
-                              const promises = intg.fields.map(f =>
-                                keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                              );
-                              await Promise.all(promises);
-                            } catch { toast('error', 'One or more keys failed to save'); }
-                          }}
-                          disabled={saveKey.isPending}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
-                        >
-                          {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                          Save {intg.label} Keys
-                        </button>
+                        ) : (
+                          <>
+                            {intg.fields.map(field => (
+                              <div key={field.key}>
+                                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
+                                <FieldInput
+                                  type={field.type}
+                                  placeholder={field.placeholder}
+                                  value={keyValues[field.key] || ''}
+                                  onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
+                                />
+                              </div>
+                            ))}
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const promises = intg.fields.map(f =>
+                                    keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
+                                  );
+                                  await Promise.all(promises);
+                                } catch { toast('error', 'One or more keys failed to save'); }
+                              }}
+                              disabled={saveKey.isPending}
+                              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                            >
+                              {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                              Save {intg.label} Keys
+                            </button>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}

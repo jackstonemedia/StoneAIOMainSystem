@@ -21,6 +21,10 @@
   --color-border:         var(--border);
   --color-text-main:      var(--text-main);
   --color-text-muted:     var(--text-muted);
+
+  /* Glass utilities — enables bg-glass-bg, border-glass-border */
+  --color-glass-bg:       var(--glass-bg);
+  --color-glass-border:   var(--glass-border);
 }
 
 /* ============================================

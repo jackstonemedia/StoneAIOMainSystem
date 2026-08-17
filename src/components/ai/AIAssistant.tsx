@@ -1,11 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sparkles, X, Send, Bot, User, Loader2 } from 'lucide-react';
+import { Sparkles, X, Send, Bot, User, Loader2, Mail, Users, BarChart2, Zap } from 'lucide-react';
 import { apiFetch } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
-
-const SYSTEM_PROMPT =
-  "You are Stone AIO's AI assistant — an expert CRM strategist, sales coach, and marketing advisor. Be concise, actionable, and data-driven. When referencing data, be specific about numbers.";
 
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,16 +27,20 @@ export default function AIAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
 
-    const prompt = `Current Route: ${location.pathname}\nUser Message: ${userMsg}`;
+    const message = userMsg;
 
     // Append empty assistant message to stream into
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
     try {
-      const res = await apiFetch('/api/workflow-ai/chat', {
+      const history = messages
+        .filter(m => !m.content.startsWith('Error:'))
+        .map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', content: m.content }));
+
+      const res = await apiFetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, systemPrompt: SYSTEM_PROMPT }),
+        body: JSON.stringify({ message, route: location.pathname, history }),
       });
 
       if (!res.ok || !res.body) throw new Error('AI request failed');
@@ -48,7 +49,9 @@ export default function AIAssistant() {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      while (true) {
+      let doneReading = false;
+
+      while (!doneReading) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -59,7 +62,10 @@ export default function AIAssistant() {
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const payload = line.slice(6).trim();
-          if (payload === '[DONE]') break;
+          if (payload === '[DONE]') {
+            doneReading = true;
+            break;
+          }
           try {
             const { text, error } = JSON.parse(payload);
             if (error) throw new Error(error);
@@ -85,9 +91,10 @@ export default function AIAssistant() {
   };
 
   const quickPrompts = [
-    "Summarize my pipeline",
-    "Contacts not reached in 30 days",
-    "Draft a follow-up email"
+    { icon: Mail,     text: "Write a re-engagement email for cold leads" },
+    { icon: Users,    text: "How should I follow up with a warm prospect?" },
+    { icon: BarChart2,text: "What metrics should I track for email campaigns?" },
+    { icon: Zap,      text: "Suggest an automation workflow for new contacts" },
   ];
 
   return (
@@ -154,16 +161,20 @@ export default function AIAssistant() {
                     I can analyze your pipeline, draft emails, and manage your contacts.
                   </p>
                   <div className="w-full flex flex-col gap-2.5">
-                    {quickPrompts.map((p, i) => (
-                      <button 
-                        key={i}
-                        onClick={() => setInput(p)}
-                        className="text-xs text-left px-4 py-3.5 rounded-xl border transition-all hover:-translate-y-0.5 hover:shadow-sm"
-                        style={{ borderColor: 'var(--border)', color: 'var(--text-main)', background: 'var(--bg)' }}
-                      >
-                        {p}
-                      </button>
-                    ))}
+                    {quickPrompts.map((p, i) => {
+                      const Icon = p.icon;
+                      return (
+                        <button 
+                          key={i}
+                          onClick={() => setInput(p.text)}
+                          className="text-xs text-left px-4 py-3.5 rounded-xl border transition-all hover:-translate-y-0.5 hover:shadow-sm flex items-center gap-3"
+                          style={{ borderColor: 'var(--border)', color: 'var(--text-main)', background: 'var(--bg)' }}
+                        >
+                          <Icon className="w-3.5 h-3.5 shrink-0 text-primary opacity-70" />
+                          {p.text}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (

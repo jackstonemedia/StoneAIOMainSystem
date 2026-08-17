@@ -21,11 +21,30 @@ export async function getStoredToken(): Promise<string | null> {
   try { return await _getToken(); } catch { return null; }
 }
 
-
+/**
+ * Extracts a clean, human-readable error message from any API error.
+ * Works with axios errors, fetch Response objects, or plain Error instances.
+ *
+ * Use this in catch blocks to get a consistent string to show users:
+ *   toast('error', 'Failed', extractApiError(err));
+ */
+export function extractApiError(err: unknown): string {
+  if (!err) return 'An unexpected error occurred';
+  // Axios-style error (already normalized by response interceptor)
+  if (err instanceof Error) return err.message || 'An unexpected error occurred';
+  // Plain object with error/message field (raw API response shape)
+  if (typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    if (typeof e['error'] === 'string') return e['error'];
+    if (typeof e['message'] === 'string') return e['message'];
+  }
+  return String(err) || 'An unexpected error occurred';
+}
 
 /**
  * Authenticated fetch() drop-in — attaches the Clerk JWT just like apiClient does.
- * Use this in any CRM page that uses raw fetch() instead of apiClient.
+ * Unlike raw fetch(), throws a normalized Error on non-2xx responses so callers
+ * get consistent error handling regardless of which fetch utility they use.
  */
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const headers: Record<string, string> = {
@@ -38,7 +57,20 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       if (token) headers['Authorization'] = `Bearer ${token}`;
     } catch { /* proceed without token */ }
   }
-  return fetch(url, { ...options, headers });
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body = await response.clone().json() as Record<string, unknown>;
+      if (typeof body['error'] === 'string') message = body['error'];
+      else if (typeof body['message'] === 'string') message = body['message'];
+    } catch { /* body not JSON — keep status-based message */ }
+    throw new Error(message);
+  }
+
+  return response;
 }
 
 export const apiClient = axios.create({

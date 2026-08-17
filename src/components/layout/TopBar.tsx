@@ -68,8 +68,8 @@ export default function TopBar({ onOpenCommandPalette, onOpenNotifications }: To
           )}
         </button>
 
-        <button className="w-8 h-8 rounded-full overflow-hidden border border-border ml-2 flex items-center justify-center bg-primary/10 text-primary font-bold text-sm">
-          <User className="w-4 h-4" />
+        <button className="w-8 h-8 rounded-full overflow-hidden border border-white/20 ml-2 flex items-center justify-center bg-white text-zinc-950 font-bold text-sm shadow-sm">
+          <User className="w-4 h-4 text-zinc-900" />
         </button>
       </div>
     </div>

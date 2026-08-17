@@ -26,6 +26,7 @@ const envSchema = z.object({
 
   // App
   VITE_APP_URL: z.string().default('http://localhost:3000'),
+  PUBLIC_APP_URL: z.string().optional(),
 
   // Auth (Clerk)
   CLERK_SECRET_KEY: z.string().optional(),
@@ -33,6 +34,8 @@ const envSchema = z.object({
 
   // Email
   RESEND_API_KEY: z.string().optional(),
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
+  RESEND_RATE_LIMIT_PER_SECOND: z.coerce.number().default(10),
 
   // TikTok OAuth
   TIKTOK_CLIENT_KEY: z.string().optional(),

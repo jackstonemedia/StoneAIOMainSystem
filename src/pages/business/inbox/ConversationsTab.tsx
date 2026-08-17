@@ -771,8 +771,7 @@ function ConversationDetails({ selected }: { selected: any }) {
         {/* Avatar & Title */}
         <div className="flex flex-col mb-4">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-bold text-bg shadow-sm mb-3"
-            style={{ backgroundColor: cColor }}
+            className="w-12 h-12 rounded-full flex items-center justify-center text-[16px] font-bold bg-white text-zinc-950 shadow-sm mb-3 border border-white/20"
           >
             {cInitials}
           </div>
@@ -991,7 +990,7 @@ export default function ConversationsTab() {
                   </div>
 
                   <div className="flex items-start gap-2.5">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shadow-sm shrink-0 mt-0.5" style={{ backgroundColor: convo.contact?.color ?? '#7dd3fc' }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 mt-0.5 border border-white/20">
                       {contactInitials(convo.contact)}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1071,7 +1070,7 @@ export default function ConversationsTab() {
                   <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest block mb-2">Contact</label>
                   {ncContact ? (
                     <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-700/30 bg-slate-700/5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-bg"
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold bg-white text-zinc-950 shadow-sm border border-white/20"
                         style={{ backgroundColor: ncContact.color ?? '#7dd3fc' }}>
                         {((ncContact.firstName?.[0] ?? '') + (ncContact.lastName?.[0] ?? '')).toUpperCase() || '?'}
                       </div>
@@ -1093,7 +1092,7 @@ export default function ConversationsTab() {
                           {ncFiltered.map((c: any) => (
                             <button key={c.id} onClick={() => { setNcContact(c); setNcSearch(''); }}
                               className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-surface-hover transition-colors text-left">
-                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shrink-0"
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20"
                                 style={{ backgroundColor: c.color ?? '#7dd3fc' }}>
                                 {((c.firstName?.[0] ?? '') + (c.lastName?.[0] ?? '')).toUpperCase() || '?'}
                               </div>

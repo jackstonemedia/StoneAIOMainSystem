@@ -96,7 +96,7 @@ function DealCard({ deal, index, stageColor, rottingDays, onEdit, onDelete }: {
               <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/40">
                 {deal.contact && (
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shrink-0" style={{ backgroundColor: stageColor }}>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
                       {deal.contact.firstName.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-[12px] font-medium text-text-main truncate">

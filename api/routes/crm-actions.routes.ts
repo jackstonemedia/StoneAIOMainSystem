@@ -1,6 +1,5 @@
 import express from 'express';
 import twilio from 'twilio';
-import { Resend } from 'resend';
 import { db } from '../../infrastructure/database/client.js';
 
 const router = express.Router();
@@ -12,19 +11,12 @@ function getTwilioClient() {
   return twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 }
 
-function getResendClient() {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('Resend is not configured. Set RESEND_API_KEY.');
-  }
-  return new Resend(process.env.RESEND_API_KEY);
-}
-
 // POST /api/crm/actions/sms
 router.post('/sms', async (req, res) => {
   try {
     const { contactId, message } = req.body;
 
-    const contact = await db.contact.findUnique({ where: { id: contactId } });
+    const contact = await db.contact.findFirst({ where: { id: contactId, workspaceId: req.workspaceId } });
     if (!contact || !contact.phone) {
       return res.status(400).json({ error: 'Contact not found or missing phone number' });
     }
@@ -61,19 +53,36 @@ router.post('/email', async (req, res) => {
   try {
     const { contactId, subject, body } = req.body;
 
-    const contact = await db.contact.findUnique({ where: { id: contactId } });
+    const contact = await db.contact.findFirst({ where: { id: contactId, workspaceId: req.workspaceId } });
     if (!contact || !contact.email) {
       return res.status(400).json({ error: 'Contact not found or missing email address' });
     }
 
-    const resendClient = getResendClient();
-    const resendFromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-    const resendResponse = await resendClient.emails.send({
-      from: `Stone AIO <${resendFromEmail}>`,
-      to: [contact.email],
-      subject,
-      html: body,
+    let gmailConn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
     });
+    if (!gmailConn) {
+      gmailConn = await db.channelConnection.findFirst({
+        where: { provider: 'gmail', isActive: true },
+      });
+    }
+
+    if (!gmailConn) {
+      return res.status(400).json({ error: 'No active Gmail connection found. Please connect your Gmail in Settings.' });
+    }
+
+    const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+    const plainText = body.replace(/<[^>]*>?/gm, '').trim();
+
+    const result = await sendGmailMessage(
+      gmailConn.id,
+      contact.email,
+      subject,
+      plainText,
+      undefined,
+      body,
+      'Stone AIO'
+    );
 
     const event = await db.contactEvent.create({
       data: {
@@ -81,7 +90,7 @@ router.post('/email', async (req, res) => {
         type: 'email',
         title: `Email: ${subject}`,
         content: body,
-        metadataJson: JSON.stringify({ resendId: resendResponse.data?.id, status: resendResponse.error ? 'error' : 'sent' }),
+        metadataJson: JSON.stringify({ messageId: result.messageId, status: 'sent', provider: 'gmail' }),
       },
     });
 
@@ -89,7 +98,7 @@ router.post('/email', async (req, res) => {
 
     res.json({ success: true, event });
   } catch (err: any) {
-    console.error('Resend Email Error:', err);
+    console.error('Gmail Email Error:', err);
     res.status(500).json({ error: 'Failed to send Email', details: err.message });
   }
 });
@@ -98,6 +107,10 @@ router.post('/email', async (req, res) => {
 router.post('/notes', async (req, res) => {
   try {
     const { contactId, note } = req.body;
+    const contact = await db.contact.findFirst({ where: { id: contactId, workspaceId: req.workspaceId } });
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found in this workspace' });
+    }
     const event = await db.contactEvent.create({
       data: { contactId, type: 'note', title: 'Internal Note', content: note },
     });

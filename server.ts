@@ -1,5 +1,6 @@
 /**
  * Stone AIO — Server Bootstrap
+ * Environment config reloaded.
  *
  * Route logic:      api/routes/*.routes.ts
  * Business logic:   api/services/*.service.ts
@@ -9,6 +10,7 @@
  */
 
 import 'dotenv/config';
+console.log('>>> [server.ts] Loading modules...');
 import express from 'express';
 import path from 'path';
 import helmet from 'helmet';
@@ -24,6 +26,8 @@ import billingRouter       from './api/routes/billing.routes.js';
 import workflowRouter      from './api/routes/workflows.routes.js';
 import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
+import aiRouter            from './api/routes/ai.routes.js';
+import aiActionsRouter     from './api/routes/ai-actions.routes.js';
 import chatRouter          from './api/routes/chat.routes.js';
 import agentsRouter        from './api/routes/agents.routes.js';
 import voiceAgentsRouter   from './api/routes/voice-agents.routes.js';
@@ -37,6 +41,12 @@ import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webh
 import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
+
+// ── Email Marketing Module ─────────────────────────────────────────────────────
+import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
+import { resendWebhookHandler } from './api/webhooks/resend-webhook.handler.js';
+import { startEmailSendWorker } from './api/services/email-marketing/email-send-worker.service.js';
+import { triggerScheduledCampaigns } from './api/services/email-marketing/campaigns.service.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -68,6 +78,7 @@ import { queueService } from './api/services/workflow-engine/queue.service.js';
 import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/nodes/index.js';
 
 async function startServer() {
+  console.log('>>> [server.ts] startServer() executing...');
   const app = express();
 
   // ── Security + perf middleware ────────────────────────────────────────────
@@ -168,10 +179,29 @@ async function startServer() {
   app.get('/api/hooks/meta', metaWebhookVerify);
   app.post('/api/hooks/meta', metaWebhookPost);
 
+  // ── Resend delivery webhook — MUST be before resolveWorkspace (no JWT from Resend) ──
+  // Uses raw JSON body so signature verification works on the original payload bytes.
+  app.post(
+    '/api/webhooks/resend',
+    webhookLimiter,
+    express.json(),
+    resendWebhookHandler,
+  );
+
+  // ── Public unsubscribe pages (no JWT) ────────────────────────────────────────
+  app.get('/unsubscribe/:token', handleUnsubscribeGet);
+  app.post('/unsubscribe/:token', handleUnsubscribePost);
+
+  // ── Public email open & click tracking (no JWT) ──────────────────────────────
+  app.get('/api/email-marketing/track/click', handleTrackClick);
+  app.get('/api/email-marketing/track/open', handleTrackOpen);
+
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
 
   // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
+  app.use('/api/ai',             aiLimiter, aiRouter);
+  app.use('/api/ai/actions',     aiActionsRouter);
   app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
   app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
@@ -195,6 +225,7 @@ async function startServer() {
   app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
+  app.use('/api/email-marketing', emailMarketingRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -280,6 +311,22 @@ async function startServer() {
       console.error('❌ Failed to initialize Lead Studio worker:', e.message);
     }
 
+    // ── Email Marketing Send Worker ───────────────────────────────────────
+    try {
+      startEmailSendWorker();
+      console.log('✅ Email Marketing send worker: active');
+    } catch (e: any) {
+      console.error('❌ Failed to initialize Email Marketing send worker:', e.message);
+    }
+
+    // ── Email Marketing: Scheduled campaign cron (every minute) ──────────
+    cron.schedule('* * * * *', async () => {
+      try {
+        await triggerScheduledCampaigns();
+      } catch (err) { console.error('[EmailMarketing Cron]', err); }
+    });
+    console.log('✅ Email Marketing campaign scheduler: active (1-min interval)');
+
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────
     initRealtime();
 
@@ -337,7 +384,9 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error('>>> [server.ts] Fatal error during startServer:', err);
+});
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 // Ensures in-flight workflow runs, Redis connections, and DB pool are closed

@@ -115,7 +115,7 @@ router.post('/messages/send', async (req: Request, res: Response): Promise<any> 
       if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
         return res.status(401).json({ error: 'Missing Twilio environment variables' });
       }
-      const contact = await db.contact.findUnique({ where: { id: to } });
+      const contact = await db.contact.findFirst({ where: { id: to, workspaceId: req.workspaceId } });
       if (!contact || !contact.phone) return res.status(400).json({ error: 'Contact has no phone number.' });
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       await client.messages.create({ body, from: process.env.TWILIO_PHONE_NUMBER, to: contact.phone });

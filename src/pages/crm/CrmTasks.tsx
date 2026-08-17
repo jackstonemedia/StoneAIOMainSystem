@@ -221,14 +221,14 @@ export default function CrmTasks() {
                 <td className="p-3 text-[13px] font-medium text-text-muted truncate max-w-[200px]">{t.description}</td>
                 <td className="p-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-bg uppercase shadow-sm" style={{ backgroundColor: t.contact?.color || '#52677D' }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 uppercase shadow-sm border border-white/20">
                       {(t.contact?.name || 'TB').substring(0, 2)}
                     </div>
                   </div>
                 </td>
                 <td className="p-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-bg uppercase shadow-sm" style={{ backgroundColor: t.assignee?.color || '#52677D' }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 uppercase shadow-sm border border-white/20">
                       {(t.assignee?.name || 'Un').substring(0, 2)}
                     </div>
                     <span className="text-[13px] font-medium text-text-main">{t.assignee?.name || 'Unassigned'}</span>
@@ -390,7 +390,7 @@ export default function CrmTasks() {
                     <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Link to Contact <span className="normal-case font-normal text-text-muted/50">(optional)</span></p>
                     {selectedTaskContact ? (
                       <div className="flex items-center gap-3 px-3 py-2.5 rounded-[8px] border border-primary/30 bg-primary/5">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-bg shrink-0" style={{ backgroundColor: selectedTaskContact.color ?? '#7dd3fc' }}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
                           {((selectedTaskContact.firstName?.[0] ?? '') + (selectedTaskContact.lastName?.[0] ?? '')).toUpperCase() || '?'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -415,7 +415,7 @@ export default function CrmTasks() {
                             {taskContacts.map((c: any) => (
                               <button key={c.id} onClick={() => { setSelectedTaskContact(c); setTaskContactSearch(''); }}
                                 className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover transition-colors text-left">
-                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-bg shrink-0" style={{ backgroundColor: c.color ?? '#7dd3fc' }}>
+                                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
                                   {((c.firstName?.[0] ?? '') + (c.lastName?.[0] ?? '')).toUpperCase() || '?'}
                                 </div>
                                 <div className="min-w-0">

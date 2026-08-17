@@ -75,7 +75,37 @@ model Workspace {
   contactSegments         ContactSegment[]
   inboxCampaigns          InboxCampaign[]
 
+  // Email Marketing relations
+  emailLists                  EmailList[]
+  contactListMemberships       ContactListMembership[]
+  emailSegments               Segment[]
+  emailTemplates              EmailTemplate[]
+  emailCampaigns              Campaign[]
+  emailAutomations            Automation[]
+  emailAutomationEnrollments  AutomationEnrollment[]
+  emailEvents                 EmailEvent[]
+  emailSuppressionEntries     SuppressionEntry[]
+  aiActions                   AIAction[]
+
   @@map("workspaces")
+}
+
+// ─── AI Action Queue ─────────────────────────────────────────────────────────
+
+model AIAction {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  toolName     String   @map("tool_name")
+  args         Json
+  label        String
+  status       String   @default("pending") // pending | approved | rejected
+  result       Json?
+  chatContext  String?  @map("chat_context")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("ai_actions")
 }
 
 // ─── Inbox Models ────────────────────────────────────────────────────────────
@@ -429,6 +459,16 @@ model Contact {
   // Ad attribution — source field holds 'GOOGLE_ADS' | 'FACEBOOK_ADS' when applicable
   adLeadId              String?           @unique @map("ad_lead_id")
   adLead                AdLead?           @relation("ContactAdLead", fields: [adLeadId], references: [id], onDelete: SetNull)
+
+  // Email Marketing engagement fields & relations
+  lastEmailOpenedAt     DateTime?         @map("last_email_opened_at")
+  lastEmailClickedAt    DateTime?         @map("last_email_clicked_at")
+  totalEmailsReceived   Int               @default(0) @map("total_emails_received")
+  totalOpens            Int               @default(0) @map("total_opens")
+  listMemberships       ContactListMembership[]
+  campaignRecipients    CampaignRecipient[]
+  automationEnrollments AutomationEnrollment[]
+  emailEvents           EmailEvent[]
 
   @@index([workspaceId])
   @@index([email])
@@ -1445,4 +1485,253 @@ model InboxCampaign {
   @@index([workspaceId])
   @@index([inboxChannelId])
   @@map("inbox_campaigns")
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Email Marketing Module Models & Enums
+// ──────────────────────────────────────────────────────────────────
+
+enum SubscriptionStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+  BOUNCED
+  COMPLAINED
+  PENDING_CONFIRMATION
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  CANCELLED
+}
+
+enum AutomationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AutomationTriggerType {
+  CONTACT_CREATED
+  TAG_ADDED
+  TAG_REMOVED
+  FORM_SUBMITTED
+  LIST_JOINED
+  DEAL_STAGE_CHANGED
+  CUSTOM_FIELD_CHANGED
+  DATE_BASED
+  EMAIL_OPENED
+  EMAIL_LINK_CLICKED
+  MANUAL_ENROLLMENT
+  API_EVENT
+}
+
+enum AutomationStepType {
+  SEND_EMAIL
+  WAIT
+  CONDITION_BRANCH
+  ADD_TAG
+  REMOVE_TAG
+  UPDATE_FIELD
+  ADD_TO_LIST
+  REMOVE_FROM_LIST
+  WEBHOOK_CALL
+  GOAL_CHECK
+  EXIT_AUTOMATION
+}
+
+enum EnrollmentExitReason {
+  COMPLETED_ALL_STEPS
+  GOAL_MET
+  MANUALLY_REMOVED
+  UNSUBSCRIBED
+  SUPPRESSED
+  CONTACT_DELETED
+}
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  DELIVERY_DELAYED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+}
+
+enum ConsentSource {
+  MANUAL_ADD
+  CSV_IMPORT
+  FORM_SUBMISSION
+  API
+  AUTOMATION
+}
+
+model EmailList {
+  id             String                  @id @default(uuid())
+  workspaceId    String                  @map("workspace_id")
+  name           String
+  doubleOptIn    Boolean                 @default(false) @map("double_opt_in")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  workspace      Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberships    ContactListMembership[]
+
+  @@index([workspaceId])
+  @@map("email_lists")
+}
+
+model ContactListMembership {
+  id               String             @id @default(uuid())
+  workspaceId      String             @map("workspace_id")
+  contactId        String             @map("contact_id")
+  listId           String             @map("list_id")
+  status           SubscriptionStatus @default(SUBSCRIBED)
+  consentSource    ConsentSource      @map("consent_source")
+  consentTimestamp DateTime           @default(now()) @map("consent_timestamp")
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  list             EmailList          @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, listId])
+  @@index([workspaceId])
+  @@map("contact_list_memberships")
+}
+
+model Segment {
+  id               String    @id @default(uuid())
+  workspaceId      String    @map("workspace_id")
+  name             String
+  filterDefinition Json      @map("filter_definition")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("email_segments")
+}
+
+model EmailTemplate {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  name           String
+  blockJson      Json      @map("block_json")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("email_templates")
+}
+
+model Campaign {
+  id             String              @id @default(uuid())
+  workspaceId    String              @map("workspace_id")
+  name           String
+  subject        String
+  status         CampaignStatus      @default(DRAFT)
+  blockJson      Json                @map("block_json")
+  listId         String?             @map("list_id")
+  segmentId      String?             @map("segment_id")
+  smartListId    String?             @map("smart_list_id")
+  scheduledAtUtc DateTime?           @map("scheduled_at_utc")
+  sentAtUtc      DateTime?           @map("sent_at_utc")
+  abTestConfig   Json?               @map("ab_test_config")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients     CampaignRecipient[]
+
+  @@index([workspaceId])
+  @@map("email_campaigns")
+}
+
+model CampaignRecipient {
+  id              String    @id @default(uuid())
+  campaignId      String    @map("campaign_id")
+  contactId       String    @map("contact_id")
+  variant         String?
+  sentAt          DateTime? @map("sent_at")
+  status          String
+  resendMessageId String?   @map("resend_message_id")
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@index([resendMessageId])
+  @@map("campaign_recipients")
+}
+
+model Automation {
+  id                  String                @id @default(uuid())
+  workspaceId         String                @map("workspace_id")
+  name                String
+  status              AutomationStatus      @default(DRAFT)
+  triggerType         AutomationTriggerType @map("trigger_type")
+  triggerConfig       Json                  @map("trigger_config")
+  canvasJson          Json                  @map("canvas_json")
+  reentryAllowed      Boolean               @default(false) @map("reentry_allowed")
+  reentryCooldownDays Int                   @default(0) @map("reentry_cooldown_days")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+  workspace           Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  enrollments         AutomationEnrollment[]
+
+  @@index([workspaceId])
+  @@map("email_automations")
+}
+
+model AutomationEnrollment {
+  id            String                @id @default(uuid())
+  workspaceId   String                @map("workspace_id")
+  automationId  String                @map("automation_id")
+  contactId     String                @map("contact_id")
+  currentStepId String?               @map("current_step_id")
+  enrolledAt    DateTime              @default(now()) @map("enrolled_at")
+  exitedAt      DateTime?             @map("exited_at")
+  exitReason    EnrollmentExitReason? @map("exit_reason")
+  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  automation    Automation            @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  contact       Contact               @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([automationId])
+  @@index([contactId])
+  @@map("automation_enrollments")
+}
+
+model EmailEvent {
+  id                     String         @id @default(uuid())
+  workspaceId            String         @map("workspace_id")
+  contactId              String         @map("contact_id")
+  campaignId             String?        @map("campaign_id")
+  automationEnrollmentId String?        @map("automation_enrollment_id")
+  eventType              EmailEventType @map("event_type")
+  linkUrl                String?        @map("link_url")
+  occurredAt             DateTime       @default(now()) @map("occurred_at")
+  workspace              Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact                Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([contactId])
+  @@index([campaignId])
+  @@map("email_events")
+}
+
+model SuppressionEntry {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  email       String
+  reason      String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@map("email_suppression_entries")
 }

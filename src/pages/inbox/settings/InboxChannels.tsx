@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../lib/api/inbox';
-import { Plus, Trash2, Copy, Check, Globe, Mail, MessageSquare, ArrowLeft, Facebook, Twitter, Instagram, Phone, Settings, Loader2 } from 'lucide-react';
+import { channelConnectionsApi } from '../../../lib/api/conversations';
+import { Plus, Trash2, Copy, Check, Globe, Mail, MessageSquare, ArrowLeft, Facebook, Twitter, Instagram, Phone, Settings, Loader2, ExternalLink } from 'lucide-react';
 import type { InboxChannel } from '../types/inbox';
 
 const AVAILABLE_CHANNELS = [
@@ -265,18 +266,60 @@ export default function InboxChannels() {
           )}
 
           {selectedChannelType === 'email' && (
-            <>
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-900 dark:text-white">Google / Gmail Account</div>
+                      <div className="text-[11px] text-slate-500">Direct 1-click authorization via Google OAuth</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => channelConnectionsApi.connectGmail()}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[12px] font-semibold transition-colors shadow-sm"
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Connect Gmail
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-900 dark:text-white">Microsoft Outlook Account</div>
+                      <div className="text-[11px] text-slate-500">Direct 1-click authorization via Microsoft OAuth</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => channelConnectionsApi.connectOutlook()}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[12px] font-semibold transition-colors shadow-sm"
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Connect Outlook
+                  </button>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-[13px] font-medium text-slate-700 dark:text-slate-300 mb-1.5">Forwarding Email</label>
+                <label className="block text-[13px] font-medium text-slate-700 dark:text-slate-300 mb-1.5">Or Email Forwarding Address</label>
                 <input
                   type="text"
                   disabled
                   value="support-12345@inbox.stoneaio.com"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-500"
+                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-500"
                 />
-                <p className="text-[12px] text-slate-500 mt-1">Configure your email provider to forward emails to this address.</p>
+                <p className="text-[12px] text-slate-500 mt-1">Alternatively, configure your custom domain to forward inbound emails here.</p>
               </div>
-            </>
+            </div>
           )}
 
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
