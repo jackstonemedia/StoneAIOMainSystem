@@ -15,7 +15,7 @@ interface DashboardGridProps {
   isMetricsLoading: boolean;
   dateRange: DateRange;
   isEditing: boolean;
-  onLayoutChange: (next: Layout[]) => void;
+  onLayoutChange: (next: any[]) => void;
   onRemoveWidget: (id: string) => void;
 }
 

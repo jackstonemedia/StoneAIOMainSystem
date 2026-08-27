@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
-  Plug, Globe, Phone, Mail, Mic, Copy, Eye, EyeOff, Plus,
+  Plug, Globe, Phone, Mail, Copy, Eye, EyeOff, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
   QrCode, Monitor, Trash2, Code, ExternalLink, Unlink
 } from 'lucide-react';
@@ -46,17 +46,6 @@ const INTEGRATIONS = [
     bg: 'bg-blue-400/10',
     fields: [
       { key: 'resend', label: 'API Key', placeholder: 're_xxxxxxxxxxxxxxxxxxxx', type: 'password' },
-    ],
-  },
-  {
-    id: 'retell',
-    label: 'Retell AI',
-    desc: 'Power your voice agents with Retell conversational AI',
-    icon: Mic,
-    color: 'text-violet-400',
-    bg: 'bg-violet-400/10',
-    fields: [
-      { key: 'retell', label: 'API Key', placeholder: 'key_xxxxxxxxxxxx', type: 'password' },
     ],
   },
   {

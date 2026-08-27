@@ -22,28 +22,29 @@ import '@xyflow/react/dist/style.css';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
+import { useToast } from '../../components/ui/Toast';
 import { nanoid } from 'nanoid';
 import {
   Mail, Clock, GitBranch, Tag, Target, Globe,
   LogOut, Plus, Save, ArrowLeft, Zap, List,
-  UserMinus, UserPlus, Edit3, Loader2,
+  UserMinus, UserPlus, Edit3, Loader2, Sparkles, Check
 } from 'lucide-react';
 
 // ── Custom Node styles ────────────────────────────────────────────────────────
 
 const NODE_STYLES: Record<string, { bg: string; border: string; icon: any; label: string }> = {
-  TRIGGER:          { bg: 'bg-violet-900/60', border: 'border-violet-500', icon: Zap,         label: 'Trigger' },
-  SEND_EMAIL:       { bg: 'bg-blue-900/60',   border: 'border-blue-500',   icon: Mail,        label: 'Send Email' },
-  WAIT:             { bg: 'bg-amber-900/60',  border: 'border-amber-500',  icon: Clock,       label: 'Wait' },
-  CONDITION_BRANCH: { bg: 'bg-orange-900/60', border: 'border-orange-500', icon: GitBranch,   label: 'Condition' },
-  ADD_TAG:          { bg: 'bg-green-900/60',  border: 'border-green-500',  icon: Tag,         label: 'Add Tag' },
-  REMOVE_TAG:       { bg: 'bg-red-900/60',    border: 'border-red-500',    icon: Tag,         label: 'Remove Tag' },
-  UPDATE_FIELD:     { bg: 'bg-indigo-900/60', border: 'border-indigo-500', icon: Edit3,       label: 'Update Field' },
-  ADD_TO_LIST:      { bg: 'bg-teal-900/60',   border: 'border-teal-500',   icon: UserPlus,    label: 'Add to List' },
-  REMOVE_FROM_LIST: { bg: 'bg-pink-900/60',   border: 'border-pink-500',   icon: UserMinus,   label: 'Remove from List' },
-  WEBHOOK_CALL:     { bg: 'bg-cyan-900/60',   border: 'border-cyan-500',   icon: Globe,       label: 'Webhook' },
-  GOAL_CHECK:       { bg: 'bg-emerald-900/60',border: 'border-emerald-500',icon: Target,      label: 'Goal Check' },
-  EXIT_AUTOMATION:  { bg: 'bg-gray-800',      border: 'border-gray-600',   icon: LogOut,      label: 'Exit' },
+  TRIGGER:          { bg: 'bg-purple-950/80',  border: 'border-purple-500/60',  icon: Zap,         label: 'Trigger' },
+  SEND_EMAIL:       { bg: 'bg-blue-950/80',    border: 'border-blue-500/60',    icon: Mail,        label: 'Send Email' },
+  WAIT:             { bg: 'bg-amber-950/80',   border: 'border-amber-500/60',   icon: Clock,       label: 'Wait Delay' },
+  CONDITION_BRANCH: { bg: 'bg-orange-950/80',  border: 'border-orange-500/60',  icon: GitBranch,   label: 'If / Else' },
+  ADD_TAG:          { bg: 'bg-emerald-950/80', border: 'border-emerald-500/60', icon: Tag,         label: 'Add Tag' },
+  REMOVE_TAG:       { bg: 'bg-rose-950/80',    border: 'border-rose-500/60',    icon: Tag,         label: 'Remove Tag' },
+  UPDATE_FIELD:     { bg: 'bg-indigo-950/80',  border: 'border-indigo-500/60',  icon: Edit3,       label: 'Update Field' },
+  ADD_TO_LIST:      { bg: 'bg-teal-950/80',    border: 'border-teal-500/60',    icon: UserPlus,    label: 'Add to List' },
+  REMOVE_FROM_LIST: { bg: 'bg-pink-950/80',    border: 'border-pink-500/60',    icon: UserMinus,   label: 'Remove from List' },
+  WEBHOOK_CALL:     { bg: 'bg-cyan-950/80',    border: 'border-cyan-500/60',    icon: Globe,       label: 'Webhook' },
+  GOAL_CHECK:       { bg: 'bg-emerald-950/80', border: 'border-emerald-500/60', icon: Target,      label: 'Goal Check' },
+  EXIT_AUTOMATION:  { bg: 'bg-surface/90',     border: 'border-border/80',      icon: LogOut,      label: 'Exit' },
 };
 
 // ── Custom Node Component ─────────────────────────────────────────────────────
@@ -56,33 +57,35 @@ function AutomationNode({ data, selected }: { data: any; selected?: boolean }) {
   const isBranch = data.stepType === 'CONDITION_BRANCH';
 
   return (
-    <div className={`min-w-48 rounded-xl border-2 ${cfg.border} ${cfg.bg} ${selected ? 'ring-2 ring-white/30' : ''} backdrop-blur-sm shadow-xl overflow-hidden`}>
+    <div className={`min-w-52 rounded-2xl border-2 ${cfg.border} ${cfg.bg} ${selected ? 'ring-2 ring-primary shadow-luxury' : ''} backdrop-blur-md shadow-card overflow-hidden transition-all hover:border-primary`}>
       {/* Input handle */}
       {data.stepType !== 'TRIGGER' && (
-        <Handle type="target" position={Position.Top} className="!bg-white/40 !border-white/60 !w-3 !h-3" />
+        <Handle type="target" position={Position.Top} className="!bg-primary !border-white/60 !w-3 !h-3" />
       )}
 
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Icon className="w-4 h-4 text-white opacity-80" />
-          <span className="text-xs font-semibold text-white/70 uppercase tracking-wider">{cfg.label}</span>
+      <div className="px-4 py-3.5">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-5 h-5 rounded-md bg-white/10 flex items-center justify-center">
+            <Icon className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="text-[10px] font-bold text-white/70 uppercase tracking-wider">{cfg.label}</span>
         </div>
-        <div className="text-white font-medium text-sm leading-snug">{data.label || cfg.label}</div>
-        {data.description && <div className="text-white/50 text-xs mt-1">{data.description}</div>}
+        <div className="text-white font-bold text-xs leading-snug">{data.label || cfg.label}</div>
+        {data.description && <div className="text-white/60 text-[11px] mt-1 leading-relaxed">{data.description}</div>}
       </div>
 
       {/* Output handles */}
       {isBranch ? (
         <>
-          <div className="flex justify-between px-4 pb-3">
-            <span className="text-xs text-green-400">Yes</span>
-            <span className="text-xs text-red-400">No</span>
+          <div className="flex justify-between px-4 pb-2.5 pt-1 border-t border-white/10">
+            <span className="text-[10px] font-bold text-emerald-400">Yes (True)</span>
+            <span className="text-[10px] font-bold text-rose-400">No (False)</span>
           </div>
-          <Handle id="TRUE_PATH"  type="source" position={Position.Bottom} style={{ left: '30%' }}  className="!bg-green-400 !border-green-300 !w-3 !h-3" />
-          <Handle id="FALSE_PATH" type="source" position={Position.Bottom} style={{ left: '70%' }}  className="!bg-red-400 !border-red-300 !w-3 !h-3" />
+          <Handle id="TRUE_PATH"  type="source" position={Position.Bottom} style={{ left: '30%' }}  className="!bg-emerald-400 !border-white !w-3 !h-3" />
+          <Handle id="FALSE_PATH" type="source" position={Position.Bottom} style={{ left: '70%' }}  className="!bg-rose-400 !border-white !w-3 !h-3" />
         </>
       ) : data.stepType !== 'EXIT_AUTOMATION' ? (
-        <Handle type="source" position={Position.Bottom} className="!bg-white/40 !border-white/60 !w-3 !h-3" />
+        <Handle type="source" position={Position.Bottom} className="!bg-primary !border-white !w-3 !h-3" />
       ) : null}
     </div>
   );
@@ -128,15 +131,14 @@ function buildInitialNodes(automation: any): Node[] {
     const canvas = automation.canvasJson as { nodes?: any[] };
     if (canvas?.nodes?.length) return canvas.nodes;
   } catch {}
-  // Default: single trigger node
   return [{
     id: 'trigger',
     type: 'automationNode',
-    position: { x: 250, y: 50 },
+    position: { x: 300, y: 60 },
     data: {
       stepType: 'TRIGGER',
       label: TRIGGER_LABELS[automation.triggerType] || automation.triggerType,
-      description: 'Automation starts here',
+      description: 'Automation workflow entry point',
     },
   }];
 }
@@ -155,13 +157,13 @@ export default function AutomationCanvas() {
   const { automationId } = useParams<{ automationId?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const isNew = !automationId || automationId === 'new';
 
   const [automationName, setAutomationName] = useState('New Automation');
   const [triggerType, setTriggerType] = useState('CONTACT_CREATED');
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [savedId, setSavedId] = useState<string | null>(null);
 
   const { isLoading, data: automationData } = useQuery({
     queryKey: ['email-marketing', 'automation', automationId],
@@ -196,13 +198,16 @@ export default function AutomationCanvas() {
     },
     onSuccess: (id: string) => {
       qc.invalidateQueries({ queryKey: ['email-marketing', 'automations'] });
-      setSavedId(id);
+      toast('success', 'Workflow Saved', 'Automation changes saved successfully.');
       if (isNew) navigate(`/email-marketing/automations/${id}`, { replace: true });
     },
+    onError: (err: any) => {
+      toast('error', 'Save Failed', err?.message || 'Could not save automation.');
+    }
   });
 
   const onConnect = useCallback((params: Connection) => {
-    const edgeDefaults: Partial<Edge> = { animated: true, style: { stroke: '#8b5cf6', strokeWidth: 2 } };
+    const edgeDefaults: Partial<Edge> = { animated: true, style: { stroke: 'var(--primary, #6366f1)', strokeWidth: 2 } };
     setEdges(eds => addEdge({ ...params, ...edgeDefaults } as Edge, eds));
   }, [setEdges]);
 
@@ -211,49 +216,72 @@ export default function AutomationCanvas() {
     const newNode: Node = {
       id: nanoid(),
       type: 'automationNode',
-      position: { x: 250 + Math.random() * 100, y: 200 + nodes.length * 120 },
+      position: { x: 300 + (Math.random() * 80 - 40), y: 160 + nodes.length * 110 },
       data: { stepType, label: cfg.label, description: '' },
     };
     setNodes(nds => [...nds, newNode]);
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full py-24 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mr-3" /> Loading…</div>;
+    return (
+      <div className="flex items-center justify-center h-full py-24 text-text-muted">
+        <Loader2 className="w-6 h-6 animate-spin mr-3 text-primary" /> Loading workflow canvas…
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-4 px-6 py-3 bg-gray-900 border-b border-white/10 flex-shrink-0">
-        <button onClick={() => navigate('/email-marketing/automations')} className="text-gray-400 hover:text-white">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <input
-          value={automationName}
-          onChange={e => setAutomationName(e.target.value)}
-          className="bg-transparent text-white font-semibold border-b border-transparent hover:border-white/20 focus:border-violet-500 outline-none px-1"
-        />
-        <select
-          value={triggerType}
-          onChange={e => setTriggerType(e.target.value)}
-          disabled={!isNew}
-          className="bg-gray-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white"
-        >
-          {Object.entries(TRIGGER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <div className="flex-1" />
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-medium transition-all"
-        >
-          {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Save
-        </button>
+    <div className="flex flex-col h-full w-full bg-bg text-text-main">
+      {/* Top Bar / Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 bg-surface/90 border-b border-border/60 backdrop-blur-md shrink-0 shadow-sm z-20">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/email-marketing/automations')}
+            className="p-1.5 rounded-lg border border-border/60 hover:bg-surface text-text-muted hover:text-text-main transition-colors"
+            title="Back to Automations"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          <div>
+            <input
+              value={automationName}
+              onChange={e => setAutomationName(e.target.value)}
+              className="bg-transparent text-text-main font-bold text-base border-b border-transparent hover:border-border/60 focus:border-primary outline-none px-1 transition-all"
+              placeholder="Automation Name"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-semibold text-text-muted bg-surface-hover/80 px-3 py-1.5 rounded-full border border-border/50">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            <span>Trigger:</span>
+            <select
+              value={triggerType}
+              onChange={e => setTriggerType(e.target.value)}
+              disabled={!isNew}
+              className="bg-transparent text-text-main font-bold focus:outline-none cursor-pointer"
+            >
+              {Object.entries(TRIGGER_LABELS).map(([k, v]) => (
+                <option key={k} value={k} className="bg-surface text-text-main">{v}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-primary hover:bg-primary-hover text-white rounded-full text-xs font-bold transition-all shadow-interactive cursor-pointer"
+          >
+            {saveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Save Automation
+          </button>
+        </div>
       </div>
 
-      {/* Canvas */}
-      <div className="flex-1 overflow-hidden">
+      {/* Visual Canvas Area */}
+      <div className="flex-1 overflow-hidden relative">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -262,17 +290,20 @@ export default function AutomationCanvas() {
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           fitView
-          className="bg-gray-950"
+          className="bg-bg"
         >
-          <Background color="#374151" gap={20} />
-          <Controls className="!bg-gray-900 !border-white/10 !shadow-xl" />
-          <MiniMap className="!bg-gray-900 !border-white/10" nodeColor="#6366f1" />
+          <Background color="rgba(255,255,255,0.08)" gap={24} size={1} />
+          <Controls className="!bg-surface !border-border/60 !shadow-luxury !rounded-xl overflow-hidden" />
+          <MiniMap className="!bg-surface !border-border/60 !rounded-xl shadow-luxury" nodeColor="#6366f1" />
 
           {/* Step type palette panel */}
-          <Panel position="top-left" className="!left-4 !top-4">
-            <div className="bg-gray-900 border border-white/10 rounded-xl p-3 shadow-xl w-52">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Add Step</div>
-              <div className="space-y-1">
+          <Panel position="top-left" className="!left-5 !top-5">
+            <div className="bg-surface/90 border border-border/60 rounded-2xl p-4 shadow-luxury backdrop-blur-md w-56">
+              <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                <span>Add Node Step</span>
+                <Sparkles className="w-3 h-3 text-primary" />
+              </div>
+              <div className="space-y-1 max-h-[60vh] overflow-y-auto pr-1">
                 {STEP_PALETTE.map(stepType => {
                   const cfg = NODE_STYLES[stepType];
                   const Icon = cfg.icon;
@@ -280,11 +311,11 @@ export default function AutomationCanvas() {
                     <button
                       key={stepType}
                       onClick={() => addStepNode(stepType)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-all text-left"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-text-muted hover:bg-surface-hover hover:text-text-main transition-all text-left font-medium border border-transparent hover:border-border/40"
                     >
-                      <Plus className="w-3 h-3 text-gray-500" />
-                      <Icon className="w-3.5 h-3.5 text-gray-400" />
-                      {cfg.label}
+                      <Plus className="w-3 h-3 text-primary" />
+                      <Icon className="w-3.5 h-3.5 text-text-muted" />
+                      <span>{cfg.label}</span>
                     </button>
                   );
                 })}

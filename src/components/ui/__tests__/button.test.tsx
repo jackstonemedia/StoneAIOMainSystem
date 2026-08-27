@@ -9,8 +9,8 @@ describe('Button component', () => {
     const button = screen.getByRole('button', { name: /click me/i });
     
     expect(button).toBeInTheDocument();
-    expect(button).toHaveClass('bg-primary');
-    expect(button).toHaveClass('text-primary-foreground');
+    expect(button).toHaveClass('bg-slate-700');
+    expect(button).toHaveClass('text-white');
   });
 
   it('renders correctly with secondary variant', () => {
@@ -19,7 +19,7 @@ describe('Button component', () => {
     
     const button = screen.getByRole('button', { name: /secondary/i });
     expect(button).toHaveClass('border');
-    expect(button).toHaveClass('border-input');
+    expect(button).toHaveClass('border-zinc-200');
   });
 
   it('handles the disabled state', () => {

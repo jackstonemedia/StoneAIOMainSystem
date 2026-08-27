@@ -21,10 +21,18 @@ export type MetricKey =
   | 'pipeline'
   | 'contacts'
   | 'conversion'
-  | 'deals_won'
-  | 'avg_deal'
-  | 'response_time'
-  | 'csat';
+  | 'email_sent'
+  | 'email_delivered'
+  | 'email_unique_opens'
+  | 'email_total_opens'
+  | 'email_unique_clicks'
+  | 'email_total_clicks'
+  | 'email_open_rate'
+  | 'email_click_rate'
+  | 'email_hard_bounces'
+  | 'email_soft_bounces'
+  | 'email_complaints'
+  | 'email_unsubscribes';
 
 export interface MetricWidgetConfig {
   metricKey: MetricKey;

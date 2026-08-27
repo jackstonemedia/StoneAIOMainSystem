@@ -54,4 +54,5 @@ export function useSyncExternalStoreWithSelector<S, T>(
   return value;
 }
 
-export default { useSyncExternalStoreWithSelector };
+Object.assign(useSyncExternalStoreWithSelector, { useSyncExternalStoreWithSelector });
+export default useSyncExternalStoreWithSelector;

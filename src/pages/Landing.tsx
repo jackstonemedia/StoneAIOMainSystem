@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Bot, Mic, ArrowRight, Play, Sparkles, GitMerge, MessageSquare, Server } from 'lucide-react';
+import { Bot, Target, ArrowRight, Play, Sparkles, GitMerge, MessageSquare, Server } from 'lucide-react';
 
 export default function Landing() {
   return (
@@ -101,17 +101,16 @@ export default function Landing() {
             </p>
           </div>
 
-          {/* Voice Agent */}
+          {/* Autonomous AI SDR */}
           <div className="bg-surface border border-border rounded-2xl p-8 relative overflow-hidden group hover:border-light-purple/50 transition-all hover:shadow-lg">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-light-purple to-light-purple/50" />
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-light-purple/10 text-light-purple text-xs font-medium mb-6">
-              <Mic className="w-3.5 h-3.5" /> Voice Agent
+              <Target className="w-3.5 h-3.5" /> Autonomous AI SDR
             </div>
-            <h3 className="text-xl font-semibold mb-3">AI Phone Agents</h3>
+            <h3 className="text-xl font-semibold mb-3">Self-Driving Outreach Engine</h3>
             <p className="text-text-muted text-sm leading-relaxed">
-              Deploy human-like AI phone agents for inbound and outbound calls. 
-              Powered by ElevenLabs voices with real-time transcription, knowledge bases, 
-              and CRM integration built in.
+              Autonomously research prospect websites, craft bespoke 1-to-1 cold outreach sequences, 
+              handle replies, and book qualified meetings directly into your calendar.
             </p>
           </div>
 

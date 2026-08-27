@@ -1,18 +1,12 @@
-/**
- * AuthTokenProvider — wires Clerk's getToken into the apiClient module ref.
- *
- * Must be rendered INSIDE <ClerkProvider>. On mount (synchronous via layout effect),
- * it sets the token getter so the first request already has auth.
- */
-import { useLayoutEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { setTokenGetter } from './apiClient';
+import { IS_DEV_AUTH_BYPASS } from './clerkConfig';
 
-export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
+function AuthTokenInner() {
   const { getToken, isSignedIn } = useAuth();
 
-  // useLayoutEffect fires before browser paint — before React Query first renders
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (isSignedIn) {
       setTokenGetter(getToken);
     } else {
@@ -24,5 +18,18 @@ export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isSignedIn, getToken]);
 
-  return <>{children}</>;
+  return null;
+}
+
+export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
+  if (IS_DEV_AUTH_BYPASS) {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      <AuthTokenInner />
+      {children}
+    </>
+  );
 }

@@ -49,8 +49,7 @@ export default function Marketplace() {
       const newAgent = await res.json();
       toast('success', `${agent.name} deployed! Opening builder...`);
       setTimeout(() => {
-        if (agent.agentType === 'voice') navigate(`/agents/voice/${newAgent.id}/build`);
-        else navigate(`/agents/${newAgent.id}/build`);
+        navigate('/automations');
       }, 800);
     } catch (err) {
       toast('error', 'Failed to deploy agent. Please try again.');

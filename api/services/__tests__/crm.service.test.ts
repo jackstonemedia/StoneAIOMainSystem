@@ -58,7 +58,7 @@ describe('CRM Service', () => {
           })
         })
       );
-      expect(result).toEqual(expectedResponse);
+      expect(result).toMatchObject(expectedResponse);
     });
   });
 

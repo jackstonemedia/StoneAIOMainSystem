@@ -939,10 +939,55 @@ export async function deleteDeal(id: string, workspaceId: string) {
 // ── Pipelines ─────────────────────────────────────────────────────────────────
 
 export async function listPipelines(workspaceId: string) {
-  return db.pipeline.findMany({
+  let pipelines = await db.pipeline.findMany({
     where: { workspaceId },
     include: { stages: { orderBy: { order: 'asc' } } },
   });
+
+  if (pipelines.length === 0) {
+    const created = await db.pipeline.create({
+      data: {
+        workspaceId,
+        name: 'Sales Pipeline',
+        isDefault: true,
+        stages: {
+          create: [
+            { name: 'New Lead', color: '#818CF8', order: 0, probability: 20 },
+            { name: 'Close', color: '#34D399', order: 1, probability: 100 },
+          ],
+        },
+      },
+      include: { stages: { orderBy: { order: 'asc' } } },
+    });
+    pipelines = [created];
+  } else {
+    // Remove old auto-seeded stages that were added by previous code versions.
+    // Reassigns deals on legacy stages to 'New Lead' so only New Lead & Close remain by default.
+    const OLD_AUTO_SEEDED = new Set(['contacted', 'proposal sent', 'closed', 'new group', 'active deals', 'closed won']);
+    const defaultPipeline = pipelines.find(p => p.isDefault) || pipelines[0];
+    const newLeadStage = defaultPipeline?.stages.find(s => s.name.toLowerCase() === 'new lead');
+    const toDelete = (defaultPipeline?.stages || []).filter(s =>
+      OLD_AUTO_SEEDED.has(s.name.toLowerCase())
+    );
+    if (toDelete.length > 0) {
+      for (const stage of toDelete) {
+        if (newLeadStage) {
+          await db.deal.updateMany({
+            where: { pipelineStageId: stage.id },
+            data: { pipelineStageId: newLeadStage.id },
+          });
+        }
+        await db.pipelineStage.delete({ where: { id: stage.id } }).catch(() => {});
+      }
+      // Re-fetch after cleanup
+      pipelines = await db.pipeline.findMany({
+        where: { workspaceId },
+        include: { stages: { orderBy: { order: 'asc' } } },
+      });
+    }
+  }
+
+  return pipelines;
 }
 
 export async function createPipeline(workspaceId: string, name: string, stages: any[]) {
@@ -1013,56 +1058,34 @@ export async function deleteTask(id: string, workspaceId: string) {
 // ── Smart Lists ───────────────────────────────────────────────────────────────
 
 export async function listSmartLists(workspaceId: string) {
+  // Purge any legacy default smart lists from earlier versions
+  try {
+    await db.smartList.deleteMany({
+      where: {
+        workspaceId,
+        OR: [
+          { name: { equals: 'Hot Leads', mode: 'insensitive' } },
+          { name: { equals: 'Enterprise Contacts', mode: 'insensitive' } },
+          { name: { equals: 'All Active Contacts', mode: 'insensitive' } },
+        ]
+      }
+    });
+  } catch (e) {}
+
   let lists = await db.smartList.findMany({
-    where: { workspaceId },
+    where: { 
+      workspaceId,
+      NOT: {
+        OR: [
+          { name: { equals: 'Hot Leads', mode: 'insensitive' } },
+          { name: { equals: 'Enterprise Contacts', mode: 'insensitive' } },
+          { name: { equals: 'All Active Contacts', mode: 'insensitive' } },
+        ]
+      }
+    },
     orderBy: { createdAt: 'desc' },
     include: { _count: { select: { items: true } } },
   });
-
-  if (lists.length === 0) {
-    try {
-      await Promise.all([
-        db.smartList.create({
-          data: {
-            workspaceId,
-            name: 'Hot Leads',
-            description: 'Contacts with hot lead status',
-            filtersJson: JSON.stringify([{ field: 'status', operator: 'equals', value: 'hot' }]),
-            matchMode: 'all',
-            author: 'System',
-          },
-        }),
-        db.smartList.create({
-          data: {
-            workspaceId,
-            name: 'Enterprise Contacts',
-            description: 'Contacts tagged with enterprise',
-            filtersJson: JSON.stringify([{ field: 'tags', operator: 'contains', value: 'enterprise' }]),
-            matchMode: 'all',
-            author: 'System',
-          },
-        }),
-        db.smartList.create({
-          data: {
-            workspaceId,
-            name: 'All Active Contacts',
-            description: 'All workspace contacts',
-            filtersJson: JSON.stringify([]),
-            matchMode: 'all',
-            author: 'System',
-          },
-        }),
-      ]);
-
-      lists = await db.smartList.findMany({
-        where: { workspaceId },
-        orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { items: true } } },
-      });
-    } catch (e) {
-      console.warn('[listSmartLists] Failed to auto-provision default smart lists:', e);
-    }
-  }
 
   // Calculate live dynamic contact count for each smart list
   const allContacts = await db.contact.findMany({

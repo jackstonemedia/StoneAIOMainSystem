@@ -165,27 +165,79 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       return;
     }
 
+    const recipient = await db.campaignRecipient.findFirst({
+      where: { id: campaignRecipientId },
+      select: { variant: true },
+    }).catch(() => null);
+
+    const variant = recipient?.variant || 'A';
+    const abConfig = (campaign.abTestConfig as any);
+    const isAbTest = abConfig && abConfig.enabled;
+
     let rawBody = '';
     bj = campaign.blockJson as any;
-    if (typeof bj === 'string') {
-      rawBody = bj;
-    } else if (bj?.html) {
-      rawBody = bj.html;
-    } else if (bj?.body) {
-      rawBody = bj.body;
-    } else if (bj?.text) {
-      rawBody = bj.text;
+
+    if (isAbTest && variant === 'B') {
+      if (abConfig.bodyHtmlB && abConfig.bodyHtmlB.trim()) {
+        rawBody = abConfig.bodyHtmlB;
+      } else if (typeof bj === 'string') {
+        rawBody = bj;
+      } else if (bj?.html) {
+        rawBody = bj.html;
+      } else if (bj?.body) {
+        rawBody = bj.body;
+      } else if (bj?.text) {
+        rawBody = bj.text;
+      }
+      emailSubject = overrideSubject || abConfig.subjectB || campaign.subject;
+      if (abConfig.fromNameB) {
+        sendFromName = abConfig.fromNameB;
+      } else if (bj?.sender?.fromName) {
+        sendFromName = bj.sender.fromName;
+      }
+    } else if (isAbTest && variant === 'A') {
+      if (abConfig.bodyHtmlA && abConfig.bodyHtmlA.trim()) {
+        rawBody = abConfig.bodyHtmlA;
+      } else if (typeof bj === 'string') {
+        rawBody = bj;
+      } else if (bj?.html) {
+        rawBody = bj.html;
+      } else if (bj?.body) {
+        rawBody = bj.body;
+      } else if (bj?.text) {
+        rawBody = bj.text;
+      }
+      emailSubject = overrideSubject || abConfig.subjectA || campaign.subject;
+      if (abConfig.fromNameA) {
+        sendFromName = abConfig.fromNameA;
+      } else if (bj?.sender?.fromName) {
+        sendFromName = bj.sender.fromName;
+      }
+    } else {
+      if (typeof bj === 'string') {
+        rawBody = bj;
+      } else if (bj?.html) {
+        rawBody = bj.html;
+      } else if (bj?.body) {
+        rawBody = bj.body;
+      } else if (bj?.text) {
+        rawBody = bj.text;
+      }
+      emailSubject = overrideSubject || campaign.subject;
+      if (bj?.sender?.fromName) {
+        sendFromName = bj.sender.fromName;
+      }
     }
 
     if (!rawBody.trim()) {
-      rawBody = campaign.subject || 'Campaign Message';
+      rawBody = emailSubject || campaign.subject || 'Campaign Message';
     }
 
     const firstName = contact.firstName || 'there';
     const lastName = contact.lastName || '';
     const fullName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Valued Contact';
     const email = contact.email || '';
-    const businessName = contact.company?.name || contact.businessName || '';
+    const businessName = (contact as any).company?.name || (contact as any).businessName || '';
     const phone = contact.phone || '';
 
     emailHtml = rawBody
@@ -201,13 +253,21 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       .replace(/\{\{company\}\}/gi, businessName)
       .replace(/\{\{phone\}\}/gi, phone);
 
+    emailSubject = emailSubject
+      .replace(/\{\{first_name\}\}/gi, firstName)
+      .replace(/\{\{firstName\}\}/gi, firstName)
+      .replace(/\{\{last_name\}\}/gi, lastName)
+      .replace(/\{\{lastName\}\}/gi, lastName)
+      .replace(/\{\{name\}\}/gi, fullName)
+      .replace(/\{\{full_name\}\}/gi, fullName)
+      .replace(/\{\{email\}\}/gi, email)
+      .replace(/\{\{business_name\}\}/gi, businessName)
+      .replace(/\{\{businessName\}\}/gi, businessName)
+      .replace(/\{\{company\}\}/gi, businessName)
+      .replace(/\{\{phone\}\}/gi, phone);
+
     if (!emailHtml.includes('<') || !emailHtml.includes('>')) {
       emailHtml = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; color: #111827; line-height: 1.6;">${emailHtml.replace(/\n/g, '<br/>')}</div>`;
-    }
-
-    emailSubject = overrideSubject || campaign.subject;
-    if (bj?.sender?.fromName) {
-      sendFromName = bj.sender.fromName;
     }
   } else {
     // Automation step email — subject and HTML passed directly

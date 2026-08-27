@@ -22,7 +22,7 @@ import { apiFetch } from '../../lib/apiClient';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 import { SlideOverPanel } from '../../components/ui/SlideOverPanel';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Stage { id: string; name: string; color: string; order: number; probability: number; }
 interface Pipeline { id: string; name: string; isDefault: boolean; stages: Stage[]; updatedAt?: string; }
@@ -37,7 +37,7 @@ interface Deal {
 interface Contact { id: string; name: string; firstName: string; lastName: string; email?: string; phone?: string; }
 
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -93,72 +93,102 @@ async function queryFetch<T>(url: string): Promise<T> {
   const r = await fetch(url); if (!r.ok) throw new Error('Failed'); return r.json();
 }
 
-// ─── Add Opportunity Modal ────────────────────────────────────────────────────
+// â”€â”€â”€ Add Opportunity Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipelineId }: {
   pipelines: Pipeline[]; contacts: Contact[]; onClose: () => void; onSave: () => void; defaultPipelineId?: string;
 }) {
   const qc = useQueryClient();
   const [contactSearch, setContactSearch] = useState('');
-  const [contactDropOpen, setContactDropOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', pipelineId: defaultPipelineId || pipelines[0]?.id || '', stageId: '', status: 'open', amount: '', source: '', contactId: '', phone: '', email: '', closeDate: '', priority: 'medium', description: '' });
+  const [form, setForm] = useState({
+    title: '',
+    pipelineId: defaultPipelineId || pipelines[0]?.id || '',
+    stageId: '',
+    status: 'open',
+    amount: '',
+    source: '',
+    contactId: '',
+    closeDate: '',
+    priority: 'medium',
+    description: ''
+  });
   const [error, setError] = useState('');
+  const [showNewContactForm, setShowNewContactForm] = useState(false);
+  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [isCreatingContact, setIsCreatingContact] = useState(false);
 
-  const selectedPipeline = pipelines.find(p => p.id === form.pipelineId);
-  const stages = (selectedPipeline?.stages ?? []).sort((a, b) => a.order - b.order);
+  const selectedPipeline = pipelines.find(p => p.id === form.pipelineId) || pipelines[0];
+  const stages = (selectedPipeline?.stages ?? []).slice().sort((a, b) => a.order - b.order);
 
-  useEffect(() => { if (stages.length && !form.stageId) setForm(f => ({ ...f, stageId: stages[0].id })); }, [stages.length]);
+  useEffect(() => {
+    if (stages.length && !form.stageId) {
+      setForm(f => ({ ...f, stageId: stages[0].id }));
+    }
+  }, [stages, form.stageId]);
 
-  const filteredContacts = contacts.filter(c => (c.name || `${c.firstName} ${c.lastName}`).toLowerCase().includes(contactSearch.toLowerCase()));
+  const filteredContacts = contacts.filter(c => {
+    if (!contactSearch.trim()) return true;
+    const name = (c.name || `${c.firstName} ${c.lastName}`).toLowerCase();
+    return name.includes(contactSearch.toLowerCase()) || (c.email || '').toLowerCase().includes(contactSearch.toLowerCase());
+  });
+
+  const selectedContact = contacts.find(c => c.id === form.contactId);
 
   const mut = useMutation({
     mutationFn: async (data: any) => {
-      const r = await apiFetch('/api/crm/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await apiFetch('/api/crm/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
       if (!r.ok) throw new Error('Failed');
       return r.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['deals'] }); onSave(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      onSave();
+    },
     onError: () => setError('Failed to create opportunity. Please try again.'),
   });
 
-  const [isCreatingContact, setIsCreatingContact] = useState(false);
+  const createNewContact = async () => {
+    if (!newContact.firstName.trim()) return;
+    setIsCreatingContact(true);
+    try {
+      const r = await apiFetch('/api/crm/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newContact.firstName.trim(),
+          lastName: newContact.lastName.trim() || undefined,
+          email: newContact.email.trim() || null,
+          phone: newContact.phone.trim() || null,
+        }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setForm(f => ({ ...f, contactId: data.id }));
+        setContactSearch(`${newContact.firstName} ${newContact.lastName}`.trim());
+        qc.invalidateQueries({ queryKey: ['contacts'] });
+        setShowNewContactForm(false);
+        setNewContact({ firstName: '', lastName: '', email: '', phone: '' });
+      }
+    } catch (err) {
+      console.error('Failed to create contact', err);
+    } finally {
+      setIsCreatingContact(false);
+    }
+  };
 
   const submit = async () => {
     if (!form.title.trim()) { setError('Opportunity name is required.'); return; }
     if (!form.stageId) { setError('Please select a stage.'); return; }
     setError('');
-
-    let finalContactId = form.contactId || null;
-
-    if (!finalContactId && (contactSearch || form.email || form.phone)) {
-      setIsCreatingContact(true);
-      try {
-        const contactReq = await apiFetch('/api/crm/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName: contactSearch.trim() || (form.email ? form.email.split('@')[0] : 'Unknown'),
-            email: form.email || null,
-            phone: form.phone || null,
-          }),
-        });
-        if (contactReq.ok) {
-          const contactData = await contactReq.json();
-          finalContactId = contactData.id;
-          qc.invalidateQueries({ queryKey: ['contacts'] });
-        }
-      } catch (err) {
-        console.error('Failed to auto-create contact', err);
-      } finally {
-        setIsCreatingContact(false);
-      }
-    }
-
     mut.mutate({
       title: form.title,
       amount: parseFloat(form.amount) || 0,
       pipelineStageId: form.stageId,
-      contactId: finalContactId,
+      contactId: form.contactId || null,
       source: form.source || null,
       status: form.status,
       priority: form.priority,
@@ -172,84 +202,241 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
     <SlideOverPanel
       isOpen={true}
       onClose={onClose}
-      title="Add Opportunity"
-      width="w-[500px]"
+      title="Create Opportunity"
+      width="w-[520px]"
       footer={
         <>
-          <button onClick={onClose} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border-0 hover:bg-surface-hover transition-colors">
-            Cancel
-          </button>
-          <button 
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button
             disabled={mut.isPending || isCreatingContact}
             onClick={submit}
-            className="px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="btn-primary disabled:opacity-50"
           >
-            {mut.isPending || isCreatingContact ? 'Creating...' : 'Create'}
+            {mut.isPending ? 'Creating...' : 'Create Opportunity'}
           </button>
         </>
       }
     >
-      <div className="space-y-6 pb-8">
-        {error && <div className="flex items-center gap-2 px-3 py-2 bg-red-400/10 border border-red-400/20 rounded-[6px] text-[12px] text-red-400"><AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}</div>}
+      <div className="space-y-6 pb-6">
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-[8px] text-[12px] text-red-400">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
+        {/* 1. Contact Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] font-bold text-text-main uppercase tracking-wider">Contact</label>
+            <button
+              type="button"
+              onClick={() => setShowNewContactForm(v => !v)}
+              className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:opacity-80 transition-opacity"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              {showNewContactForm ? 'Cancel' : 'Add New Contact'}
+            </button>
+          </div>
+
+          {/* Inline new contact form */}
+          <AnimatePresence>
+            {showNewContactForm && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="p-3 rounded-[10px] bg-surface-hover/60 border border-border space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-text-muted">First Name <span className="text-red-400">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="John"
+                        value={newContact.firstName}
+                        onChange={e => setNewContact(c => ({ ...c, firstName: e.target.value }))}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-text-muted">Last Name</label>
+                      <input
+                        type="text"
+                        placeholder="Doe"
+                        value={newContact.lastName}
+                        onChange={e => setNewContact(c => ({ ...c, lastName: e.target.value }))}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-text-muted">Email</label>
+                      <input
+                        type="email"
+                        placeholder="john@example.com"
+                        value={newContact.email}
+                        onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-text-muted">Phone</label>
+                      <input
+                        type="tel"
+                        placeholder="(555) 000-0000"
+                        value={newContact.phone}
+                        onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))}
+                        className="w-full px-3 py-1.5 bg-surface border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!newContact.firstName.trim() || isCreatingContact}
+                    onClick={createNewContact}
+                    className="w-full py-1.5 text-[12px] font-semibold bg-primary text-white rounded-[8px] hover:opacity-90 disabled:opacity-40 transition-opacity"
+                  >
+                    {isCreatingContact ? 'Creating...' : 'Create & Link Contact'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Selected contact chip */}
+          {selectedContact && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-[8px]">
+              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
+                {(selectedContact.firstName || '?').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[13px] font-semibold text-text-main truncate block">
+                  {selectedContact.firstName} {selectedContact.lastName}
+                </span>
+                {selectedContact.email && <span className="text-[11px] text-text-muted truncate block">{selectedContact.email}</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => { setForm(f => ({ ...f, contactId: '' })); setContactSearch(''); }}
+                className="text-text-muted hover:text-red-400 transition-colors p-1 rounded"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Search + scrollable contact list */}
+          {!selectedContact && !showNewContactForm && (
+            <div className="space-y-1.5">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search contacts..."
+                  value={contactSearch}
+                  onChange={e => setContactSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+                />
+              </div>
+              <div className="border border-border rounded-[8px] overflow-hidden bg-surface max-h-[180px] overflow-y-auto [scrollbar-width:thin]">
+                {filteredContacts.length > 0 ? (
+                  filteredContacts.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setForm(f => ({ ...f, contactId: c.id }));
+                        setContactSearch('');
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-surface-hover transition-colors border-b border-border/40 last:border-b-0"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-primary/20 text-primary text-[11px] font-bold flex items-center justify-center shrink-0">
+                        {(c.name || c.firstName || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium text-text-main truncate">
+                          {c.name || `${c.firstName} ${c.lastName}`.trim()}
+                        </div>
+                        {c.email && <div className="text-[11px] text-text-muted truncate">{c.email}</div>}
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-5 text-center text-[12px] text-text-muted">
+                    No contacts found.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="w-full h-[1px] bg-border" />
+
+        {/* 2. Opportunity Details Section */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Opportunity Name <span className="text-red-400">*</span></label>
-            <input type="text" placeholder="Enter opportunity name" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1">
+              Opportunity Name <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Website Redesign Deal"
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all placeholder:text-text-muted font-medium"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Pipeline</label>
-              <select value={form.pipelineId} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); setForm(f => ({ ...f, pipelineId: e.target.value, stageId: p?.stages?.[0]?.id || '' })); }}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              <label className="text-[11px] font-semibold text-text-muted">Pipeline</label>
+              <select
+                value={form.pipelineId}
+                onChange={e => {
+                  const p = pipelines.find(x => x.id === e.target.value);
+                  setForm(f => ({ ...f, pipelineId: e.target.value, stageId: p?.stages?.[0]?.id || '' }));
+                }}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
               >
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Stage</label>
-              <select value={form.stageId} onChange={e => setForm(f => ({ ...f, stageId: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              <label className="text-[11px] font-semibold text-text-muted">Stage</label>
+              <select
+                value={form.stageId}
+                onChange={e => setForm(f => ({ ...f, stageId: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
               >
                 {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Status</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-              >
-                <option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option><option value="abandoned">Abandoned</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Value</label>
+              <label className="text-[11px] font-semibold text-text-muted">Deal Value ($)</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[13px] font-semibold">$</span>
-                <input type="number" placeholder="0.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                  className="w-full pl-7 pr-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={form.amount}
+                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full pl-7 pr-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all font-medium"
                 />
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Expected Close Date</label>
-              <input type="date" value={form.closeDate} onChange={e => setForm(f => ({ ...f, closeDate: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Priority</label>
-              <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+              <label className="text-[11px] font-semibold text-text-muted">Priority</label>
+              <select
+                value={form.priority}
+                onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -258,63 +445,38 @@ function AddOpportunityModal({ pipelines, contacts, onClose, onSave, defaultPipe
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Opportunity Notes</label>
-            <textarea placeholder="Add context, next steps, or specific requirements..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all min-h-[80px] resize-y"
-            />
-          </div>
-        </div>
-
-        <div className="h-px bg-border my-6" />
-
-        <div className="space-y-4">
-          <h3 className="text-[14px] font-bold text-text-main">Contact Details</h3>
-          
-          <div className="space-y-1.5 relative">
-            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Search Contact</label>
-            <div className="relative">
-              <input type="text" placeholder="Select Contact" value={contactSearch}
-                onChange={e => { setContactSearch(e.target.value); setContactDropOpen(true); }}
-                onFocus={() => setContactDropOpen(true)}
-                className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Expected Close Date</label>
+              <input
+                type="date"
+                value={form.closeDate}
+                onChange={e => setForm(f => ({ ...f, closeDate: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
               />
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
             </div>
-            <AnimatePresence>
-              {contactDropOpen && filteredContacts.length > 0 && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setContactDropOpen(false)} />
-                  <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    className="absolute top-[calc(100%+2px)] left-0 right-0 bg-surface border border-border rounded-[8px] shadow-xl z-20 max-h-[180px] overflow-y-auto"
-                  >
-                    {filteredContacts.slice(0, 20).map(c => (
-                      <button key={c.id} onClick={() => { setContactSearch(c.name || `${c.firstName} ${c.lastName}`); setForm(f => ({ ...f, contactId: c.id, email: c.email || f.email, phone: c.phone || f.phone })); setContactDropOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-hover text-left transition-colors"
-                      >
-                        <div className="w-6 h-6 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {(c.name || c.firstName || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div><div className="text-[12px] font-semibold text-text-main">{c.name || `${c.firstName} ${c.lastName}`}</div>{c.email && <div className="text-[11px] text-text-muted">{c.email}</div>}</div>
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Source</label>
+              <select
+                value={form.source}
+                onChange={e => setForm(f => ({ ...f, source: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              >
+                <option value="">None</option>
+                {['Referral', 'Email Campaign', 'Inbound', 'Outbound', 'Google', 'LinkedIn', 'Conference', 'Cold Call'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Email</label>
-            <input type="email" placeholder="Enter Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-text-main flex items-center gap-1.5">Phone</label>
-            <input type="tel" placeholder="Phone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className="w-full px-3 py-2 bg-surface-hover border-0 rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+            <label className="text-[11px] font-semibold text-text-muted">Notes / Details</label>
+            <textarea
+              placeholder="Add deal context, next steps, or specific requirements..."
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all min-h-[80px] resize-y placeholder:text-text-muted"
             />
           </div>
         </div>
@@ -334,10 +496,8 @@ function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | nu
     pipeline?.stages?.length
       ? [...pipeline.stages].sort((a, b) => a.order - b.order)
       : [
-          { id: 'ns1', name: 'New Lead', color: '#64748b', order: 0, probability: 10, isNew: true },
-          { id: 'ns2', name: 'Contacted', color: '#818cf8', order: 1, probability: 30, isNew: true },
-          { id: 'ns3', name: 'Proposal Sent', color: '#fbbf24', order: 2, probability: 60, isNew: true },
-          { id: 'ns4', name: 'Closed', color: '#34d399', order: 3, probability: 100, isNew: true },
+          { id: 'ns1', name: 'New Lead', color: '#818cf8', order: 0, probability: 20, isNew: true },
+          { id: 'ns2', name: 'Close', color: '#34d399', order: 1, probability: 100, isNew: true },
         ]
   );
   const [nameError, setNameError] = useState('');
@@ -403,7 +563,7 @@ function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | nu
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-[13px] font-bold text-text-main">Pipeline stages ({stages.length})</h3>
-              <p className="text-[11px] text-text-muted mt-0.5">Drag to reorder · Click color to change</p>
+              <p className="text-[11px] text-text-muted mt-0.5">Drag to reorder Â· Click color to change</p>
             </div>
             <button onClick={() => setStages(s => [...s, { id: `ns_${Date.now()}`, name: '', color: STAGE_COLORS[s.length % STAGE_COLORS.length], order: s.length, probability: 50, isNew: true }])}
               className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:opacity-80 transition-opacity"
@@ -475,7 +635,7 @@ function PipelineModal({ pipeline, onClose, onSave }: { pipeline?: Pipeline | nu
   );
 }
 
-// ─── Deal Card ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Deal Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DealCard: React.FC<{ deal: Deal; index: number; onDelete: () => void; onEdit: () => any; }> = ({ deal, index, onDelete, onEdit }) => {
   return (
@@ -523,14 +683,32 @@ const DealCard: React.FC<{ deal: Deal; index: number; onDelete: () => void; onEd
       )}
     </Draggable>
   );
-}
+};
 
-// ─── Edit Deal Modal ──────────────────────────────────────────────────────────
+// ─── Opportunity Detail Drawer ────────────────────────────────────────────────
 
-function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipelines: Pipeline[]; onClose: () => void; onSave: () => void }) {
+function OpportunityDetailDrawer({
+  deal,
+  pipelines,
+  onClose,
+  onSave
+}: {
+  deal: Deal;
+  pipelines: Pipeline[];
+  onClose: () => void;
+  onSave: () => void;
+}) {
   const qc = useQueryClient();
   const allStages = pipelines.flatMap(p => (p.stages || []).map(s => ({ ...s, pipelineName: p.name })));
-  const [form, setForm] = useState({ title: deal.title, amount: String(deal.amount || ''), pipelineStageId: deal.pipelineStageId || deal.pipelineStage?.id || '', source: deal.source || '', status: deal.status || 'open' });
+  const [form, setForm] = useState({
+    title: deal.title,
+    amount: String(deal.amount || ''),
+    pipelineStageId: deal.pipelineStageId || deal.pipelineStage?.id || '',
+    source: deal.source || '',
+    status: deal.status || 'open',
+    priority: deal.priority || 'medium',
+    closeDate: deal.closeDate ? deal.closeDate.substring(0, 10) : ''
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -538,63 +716,260 @@ function EditDealModal({ deal, pipelines, onClose, onSave }: { deal: Deal; pipel
     if (!form.title.trim()) { setError('Title is required'); return; }
     setSaving(true);
     try {
-      const r = await apiFetch(`/api/crm/deals/${deal.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: form.title, amount: parseFloat(form.amount) || 0, pipelineStageId: form.pipelineStageId, source: form.source, status: form.status }) });
+      const r = await apiFetch(`/api/crm/deals/${deal.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: form.title,
+          amount: parseFloat(form.amount) || 0,
+          pipelineStageId: form.pipelineStageId,
+          source: form.source || null,
+          status: form.status,
+          priority: form.priority,
+          closeDate: form.closeDate ? new Date(form.closeDate).toISOString() : undefined
+        })
+      });
       if (!r.ok) throw new Error('Failed');
       qc.invalidateQueries({ queryKey: ['deals'] });
       onSave();
-    } catch { setError('Failed to save.'); }
-    finally { setSaving(false); }
+    } catch {
+      setError('Failed to save opportunity.');
+    } finally {
+      setSaving(false);
+    }
   };
 
+  const deleteOpportunity = async () => {
+    if (!confirm('Are you sure you want to delete this opportunity?')) return;
+    try {
+      await apiFetch(`/api/crm/deals/${deal.id}`, { method: 'DELETE' });
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      onClose();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const currentStage = allStages.find(s => s.id === form.pipelineStageId) || deal.pipelineStage;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-        className="relative w-[480px] rounded-2xl z-10 border border-white/20 ring-1 ring-white/5 shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
-        style={{ background: 'rgba(15,26,43,0.62)', backdropFilter: 'blur(32px) saturate(200%) brightness(1.10)', WebkitBackdropFilter: 'blur(32px) saturate(200%) brightness(1.10)' }}
-      >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.06]">
-          <h2 className="text-[15px] font-bold text-text-main">Edit Opportunity</h2>
-          <button onClick={onClose} className="p-1.5 rounded-full text-text-muted hover:bg-surface-hover transition-colors"><X className="w-4 h-4" /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          <div className="space-y-1.5"><label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Name</label>
-            <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+    <SlideOverPanel
+      isOpen={true}
+      onClose={onClose}
+      title="Opportunity Details"
+      width="w-[520px]"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <button
+            type="button"
+            onClick={deleteOpportunity}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] text-[13px] font-semibold text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" /> Delete
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="btn-secondary">
+              Cancel
+            </button>
+            <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Value</label>
-              <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[13px]">$</span>
-                <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full pl-7 pr-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary" />
+        </div>
+      }
+    >
+      <div className="space-y-6 pb-6">
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-[8px] text-[12px] text-red-400">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Header summary */}
+        <div className="p-4 rounded-xl bg-surface-hover/40 border border-border/60 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Current Stage</div>
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className="px-2.5 py-1 rounded-md text-[12px] font-bold shadow-sm"
+                style={{
+                  backgroundColor: currentStage?.color || '#818cf8',
+                  color: getDarkTextColor(currentStage?.color || '#818cf8')
+                }}
+              >
+                {currentStage?.name || 'Stage'}
+              </span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Value</div>
+            <div className="text-[18px] font-bold text-text-main mt-0.5">
+              ${(parseFloat(form.amount) || 0).toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Info (if attached) */}
+        {deal.contact && (
+          <div className="p-4 rounded-xl bg-surface-hover/30 border border-border/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Primary Contact</div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm('Remove this contact from the opportunity?')) return;
+                  try {
+                    await apiFetch(`/api/crm/deals/${deal.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ contactId: null }),
+                    });
+                    qc.invalidateQueries({ queryKey: ['deals'] });
+                    onClose();
+                  } catch (e) { console.error(e); }
+                }}
+                className="text-[11px] font-semibold text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Remove
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-primary/20 text-primary text-[13px] font-bold flex items-center justify-center">
+                  {(deal.contact.firstName || '?').charAt(0)}
+                </div>
+                <div>
+                  <div className="text-[14px] font-semibold text-text-main">
+                    {deal.contact.firstName} {deal.contact.lastName}
+                  </div>
+                  {deal.contact.email && (
+                    <div className="text-[12px] text-text-muted">{deal.contact.email}</div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {deal.contact.phone && (
+                  <a
+                    href={`tel:${deal.contact.phone}`}
+                    className="p-2 rounded-lg bg-surface border border-border text-text-muted hover:text-primary transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                {deal.contact.email && (
+                  <a
+                    href={`mailto:${deal.contact.email}`}
+                    className="p-2 rounded-lg bg-surface border border-border text-text-muted hover:text-primary transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </div>
             </div>
-            <div className="space-y-1.5"><label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Status</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary">
-                <option value="open">Open</option><option value="won">Won</option><option value="lost">Lost</option><option value="abandoned">Abandoned</option>
+          </div>
+        )}
+
+        {/* Form fields */}
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-text-main">Opportunity Name</label>
+            <input
+              type="text"
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all font-medium"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Stage</label>
+              <select
+                value={form.pipelineStageId}
+                onChange={e => setForm(f => ({ ...f, pipelineStageId: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              >
+                {allStages.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.pipelineName ? `${s.pipelineName} → ` : ''}{s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Status</label>
+              <select
+                value={form.status}
+                onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              >
+                <option value="open">Open</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+                <option value="abandoned">Abandoned</option>
               </select>
             </div>
           </div>
-          <div className="space-y-1.5"><label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Stage</label>
-            <select value={form.pipelineStageId} onChange={e => setForm(f => ({ ...f, pipelineStageId: e.target.value }))} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary">
-              {allStages.map(s => <option key={s.id} value={s.id}>{s.pipelineName} → {s.name}</option>)}
-            </select>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Opportunity Value ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-[13px] font-semibold">$</span>
+                <input
+                  type="number"
+                  value={form.amount}
+                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  className="w-full pl-7 pr-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all font-medium"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Priority</label>
+              <select
+                value={form.priority}
+                onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
           </div>
-          <div className="space-y-1.5"><label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Source</label>
-            <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary">
-              <option value="">None</option>{['Referral','Email Campaign','Inbound','Outbound','Google','LinkedIn','Conference','Cold Call'].map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Close Date</label>
+              <input
+                type="date"
+                value={form.closeDate}
+                onChange={e => setForm(f => ({ ...f, closeDate: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted">Source</label>
+              <select
+                value={form.source}
+                onChange={e => setForm(f => ({ ...f, source: e.target.value }))}
+                className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all cursor-pointer"
+              >
+                <option value="">None</option>
+                {['Referral', 'Email Campaign', 'Inbound', 'Outbound', 'Google', 'LinkedIn', 'Conference', 'Cold Call'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          {error && <p className="text-[12px] text-red-400">{error}</p>}
         </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-surface-hover/30">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
-          <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </SlideOverPanel>
   );
 }
 
-// ─── Pipelines Tab ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Pipelines Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Icon aliases
 const GitBranch2 = GitBranch;
@@ -637,7 +1012,7 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
         {[
           { label: 'Total Pipelines', value: pipelines.length, icon: GitBranch2, color: 'text-primary', bg: 'bg-primary/10' },
           { label: 'Total Stages', value: pipelines.reduce((s, p) => s + (p.stages?.length || 0), 0), icon: GitBranch, color: 'text-violet-400', bg: 'bg-violet-400/10' },
-          { label: 'Default Pipeline', value: pipelines.find(p => p.isDefault)?.name || '—', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+          { label: 'Default Pipeline', value: pipelines.find(p => p.isDefault)?.name || 'â€”', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
         ].map((stat, i) => (
           <div key={i} className="bg-surface border border-border rounded-[10px] px-5 py-4 flex items-center gap-4 shadow-sm">
             <div className={`w-10 h-10 rounded-[8px] flex items-center justify-center shrink-0 ${stat.bg}`}>
@@ -690,12 +1065,12 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
                   <span className="text-[13px] font-semibold text-text-main">{pipeline.name}</span>
                   {pipeline.isDefault && <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-[3px]">Default</span>}
                 </div>
-                <div className="text-[11px] text-text-muted mt-0.5">{(pipeline.stages || []).map(s => s.name).join(' → ')}</div>
+                <div className="text-[11px] text-text-muted mt-0.5">{(pipeline.stages || []).map(s => s.name).join(' â†’ ')}</div>
               </div>
             </div>
             <div className="text-[13px] font-medium text-text-muted">{(pipeline.stages || []).length} stages</div>
             <div className="text-[12px] text-text-muted">
-              {pipeline.updatedAt ? new Date(pipeline.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+              {pipeline.updatedAt ? new Date(pipeline.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”'}
             </div>
             <div className="relative flex justify-start">
               <button onClick={() => setMenuOpen(menuOpen === pipeline.id ? null : pipeline.id)}
@@ -741,10 +1116,10 @@ function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipeline[];
   );
 }
 
-// ─── Bulk Actions Tab ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Bulk Actions Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const MOCK_BULK_ACTIONS = [
-  { id: 'ba1', label: 'Update status → Active', operation: 'Update Field', status: 'completed', user: 'Jack Stone', created: '2026-04-22 11:30 AM', completed: '2026-04-22 11:31 AM', total: 45, done: 45 },
+  { id: 'ba1', label: 'Update status â†’ Active', operation: 'Update Field', status: 'completed', user: 'Jack Stone', created: '2026-04-22 11:30 AM', completed: '2026-04-22 11:31 AM', total: 45, done: 45 },
   { id: 'ba2', label: 'Add tag: enterprise', operation: 'Add Tag', status: 'completed', user: 'Jack Stone', created: '2026-04-21 09:15 AM', completed: '2026-04-21 09:16 AM', total: 28, done: 28 },
   { id: 'ba3', label: 'Send follow-up email', operation: 'Send Email', status: 'running', user: 'Jack Stone', created: '2026-04-22 11:45 AM', completed: null, total: 120, done: 67 },
   { id: 'ba4', label: 'Move to pipeline: Q2 Sales', operation: 'Update Pipeline', status: 'paused', user: 'Jack Stone', created: '2026-04-20 02:00 PM', completed: null, total: 15, done: 6 },
@@ -859,7 +1234,7 @@ function BulkActionsTab() {
                   </td>
                   <td className="px-4 py-3 text-[12px] text-text-muted">{action.user}</td>
                   <td className="px-4 py-3 text-[12px] text-text-muted whitespace-nowrap">{action.created}</td>
-                  <td className="px-4 py-3 text-[12px] text-text-muted whitespace-nowrap">{action.completed || '—'}</td>
+                  <td className="px-4 py-3 text-[12px] text-text-muted whitespace-nowrap">{action.completed || 'â€”'}</td>
                   <td className="px-4 py-3 min-w-[160px]">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1.5 rounded-full bg-border overflow-hidden">
@@ -899,6 +1274,7 @@ export default function Opportunities() {
   const qc = useQueryClient();
   const [pipelinesOpen, setPipelinesOpen] = useState(false);
   const [selectedPipelineId, setSelectedPipelineId] = useState('all');
+  const [pipelineDropdownOpen, setPipelineDropdownOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [search, setSearch] = useState('');
@@ -912,6 +1288,19 @@ export default function Opportunities() {
   const [activeColorPicker, setActiveColorPicker] = useState<string | null>(null);
   const [createPipelineOpen, setCreatePipelineOpen] = useState(false);
   const [addingGroup, setAddingGroup] = useState(false);
+  
+  // Table column tracking & inline stage popover
+  const [activeStagePopover, setActiveStagePopover] = useState<string | null>(null);
+  const [manageColsOpen, setManageColsOpen] = useState(false);
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(['Priority', 'Source']));
+  const toggleCol = (col: string) => {
+    setVisibleCols(prev => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  };
   
   const PASTEL_COLORS = [
     '#FFF59D', '#FFCC80', '#FFCDD2', '#F48FB1', '#F8BBD0', '#E1BEE7',
@@ -961,7 +1350,7 @@ export default function Opportunities() {
       
       const newColor = PASTEL_COLORS[Math.floor(Math.random() * PASTEL_COLORS.length)];
       await apiClient.post(`/crm/pipelines/${pId}/stages`, {
-        name: 'New Group',
+        name: 'New Stage',
         color: newColor,
         order: 99,
         probability: 50
@@ -999,26 +1388,20 @@ export default function Opportunities() {
   const isLoading = loadingPipelines || loadingDeals;
   const AVATAR_COLORS = ['#4F8EF7', '#52C27E', '#F5A623', '#9B59B6', '#E74C3C', '#1ABC9C', '#3498DB', '#E67E22'];
 
-  const groupedDeals = [
-    {
-      stage: { id: 'active', name: 'Active Deals', color: '#4F8EF7', order: 1, probability: 50 },
-      deals: deals.filter(deal => {
-        const raw = rawDeals.find(d => d.id === deal.id) as any;
-        const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
-        const stage = allStages.find(s => s.id === stageId);
-        return stage && !stage.name.toLowerCase().includes('won') && !stage.name.toLowerCase().includes('lost');
-      })
-    },
-    {
-      stage: { id: 'won', name: 'Closed Won', color: '#1ABC9C', order: 2, probability: 100 },
-      deals: deals.filter(deal => {
-        const raw = rawDeals.find(d => d.id === deal.id) as any;
-        const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
-        const stage = allStages.find(s => s.id === stageId);
-        return stage && stage.name.toLowerCase().includes('won');
-      })
-    }
-  ];
+  const activePipeline = selectedPipelineId !== 'all'
+    ? pipelines.find(p => p.id === selectedPipelineId) || pipelines[0]
+    : pipelines.find(p => p.isDefault) || pipelines[0];
+
+  const activeStages = (activePipeline?.stages ?? []).slice().sort((a, b) => a.order - b.order);
+
+  const groupedDeals = activeStages.map(stage => ({
+    stage,
+    deals: deals.filter(deal => {
+      const raw = rawDeals.find(d => d.id === deal.id) as any;
+      const stageId = raw?.pipelineStageId || raw?.pipelineStage?.id;
+      return stageId === stage.id;
+    })
+  }));
 
   return (
     <div className="flex flex-col h-full w-full bg-bg relative">
@@ -1028,24 +1411,73 @@ export default function Opportunities() {
 
       <HeaderPortal>
         <div className="flex items-center gap-3">
-          {pipelines.length > 1 && (
-            <div className="relative group mr-2">
-              <select
-                value={selectedPipelineId}
-                onChange={e => setSelectedPipelineId(e.target.value)}
-                className="appearance-none bg-surface-hover/50 border border-border rounded-lg pl-3 pr-8 py-1.5 text-[13px] font-medium text-text-main focus:outline-none focus:border-primary cursor-pointer hover:bg-surface-hover transition-colors shadow-sm"
-              >
-                <option value="all">All Pipelines</option>
-                {pipelines.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none group-hover:text-text-main transition-colors" />
-            </div>
-          )}
+          <div className="relative shadow-sm rounded-full flex items-center mr-2">
+            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search Opportunities"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+            />
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setPipelineDropdownOpen(!pipelineDropdownOpen)}
+              className="btn-secondary"
+            >
+              <span>{selectedPipelineId === 'all' ? 'All Pipelines' : (pipelines.find(p => p.id === selectedPipelineId)?.name || 'All Pipelines')}</span>
+              <ChevronDown className="w-4 h-4 text-text-muted" />
+            </button>
+
+            <AnimatePresence>
+              {pipelineDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setPipelineDropdownOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    className="absolute left-0 top-full mt-1.5 w-[200px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedPipelineId('all');
+                        setPipelineDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
+                        selectedPipelineId === 'all' ? 'text-primary bg-primary/10 font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <span>All Pipelines</span>
+                      {selectedPipelineId === 'all' && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </button>
+                    {pipelines.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedPipelineId(p.id);
+                          setPipelineDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
+                          selectedPipelineId === p.id ? 'text-primary bg-primary/10 font-bold' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                        }`}
+                      >
+                        <span className="truncate">{p.name}</span>
+                        {selectedPipelineId === p.id && <Check className="w-3.5 h-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button onClick={() => setCreatePipelineOpen(true)} className="btn-secondary">
-            <Plus className="w-4 h-4" /> Create New Pipeline
+            <GitBranch className="w-4 h-4" /> Create New Pipeline
           </button>
+          
           <button onClick={() => setAddModalOpen(true)} className="btn-secondary">
             <Plus className="w-4 h-4" /> Create Opportunity
           </button>
@@ -1063,7 +1495,7 @@ export default function Opportunities() {
         </div>
       </HeaderPortal>
 
-      {/* ── Table — matches Contacts container + row style ── */}
+      {/* â”€â”€ Table â€” matches Contacts container + row style â”€â”€ */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -1095,7 +1527,7 @@ export default function Opportunities() {
         </div>
       ) : (
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 relative">
+          <div className="flex-1 overflow-y-auto mx-8 mt-6 mb-6 relative [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex flex-col gap-10">
             {groupedDeals.map(group => {
               const groupTotal = group.deals.reduce((sum, d) => sum + (d.amount || 0), 0);
@@ -1140,7 +1572,38 @@ export default function Opportunities() {
                       className="w-5 h-5 rounded-full border-2 border-surface ml-2 shadow-sm cursor-pointer hover:scale-110 transition-transform relative"
                       style={{ backgroundColor: group.stage.color }}
                     />
-                    
+
+                    {/* Delete Stage Button */}
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete stage "${group.stage.name}"? Deals in this stage will be moved to New Lead.`)) return;
+                        try {
+                          const pipeline = pipelines.find(p => p.stages?.some(s => s.id === group.stage.id));
+                          if (!pipeline) return;
+                          // Move deals to New Lead first
+                          const newLeadStage = pipeline.stages.find(s => s.name.toLowerCase() === 'new lead');
+                          if (newLeadStage) {
+                            await Promise.all(
+                              group.deals.map(d =>
+                                apiFetch(`/api/crm/deals/${d.id}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ pipelineStageId: newLeadStage.id }),
+                                })
+                              )
+                            );
+                          }
+                          await apiFetch(`/api/crm/pipelines/${pipeline.id}/stages/${group.stage.id}`, { method: 'DELETE' });
+                          qc.invalidateQueries({ queryKey: ['pipelines'] });
+                          qc.invalidateQueries({ queryKey: ['deals'] });
+                        } catch (e) { console.error(e); }
+                      }}
+                      className="ml-auto p-1 rounded text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Delete stage"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+
                     {/* Inline Color Picker Popover */}
                     <AnimatePresence>
                       {activeColorPicker === group.stage.id && (
@@ -1172,13 +1635,62 @@ export default function Opportunities() {
                           <th className="w-8 text-center border-r border-border relative"><div className="w-[6px] h-full absolute left-0 top-0 bottom-0" style={{ backgroundColor: group.stage.color }} /></th>
                           <th className="w-10 text-center border-r border-border"><input type="checkbox" className="rounded border-border text-primary focus:ring-primary w-3.5 h-3.5" /></th>
                           <th className="p-2 border-r border-border font-medium text-text-main w-[240px]">Deal</th>
-                          <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[120px]">Activities time...</th>
+                          <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[120px]">Close Date</th>
                           <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[140px]">Stage</th>
                           <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[100px]">Owner</th>
                           <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[120px]">Deal Value</th>
+                          {visibleCols.has('Priority') && (
+                            <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[110px]">Priority</th>
+                          )}
+                          {visibleCols.has('Source') && (
+                            <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[130px]">Source</th>
+                          )}
+                          {visibleCols.has('Status') && (
+                            <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[110px]">Status</th>
+                          )}
                           <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[160px]">Contacts</th>
                           <th className="p-2 border-r border-border font-medium text-text-muted text-center w-[160px]">Accounts</th>
-                          <th className="p-2 border-r border-border font-medium text-text-muted text-center w-8"><Plus className="w-4 h-4 inline-block opacity-50" /></th>
+                          <th className="p-2 border-r border-border font-medium text-text-muted text-center w-8 relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setManageColsOpen(!manageColsOpen);
+                              }}
+                              className="w-full h-full flex items-center justify-center text-text-muted hover:text-text-main hover:bg-surface-hover rounded p-1 transition-colors"
+                              title="Add / Manage Columns"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <AnimatePresence>
+                              {manageColsOpen && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setManageColsOpen(false); }} />
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="absolute right-0 top-full mt-1 w-[180px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1.5 z-40 text-left"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="px-3 py-1 text-[11px] font-bold text-text-muted uppercase tracking-wider border-b border-border/50">
+                                      Track Columns
+                                    </div>
+                                    {['Priority', 'Source', 'Status'].map(col => (
+                                      <button
+                                        key={col}
+                                        onClick={() => toggleCol(col)}
+                                        className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium text-text-main hover:bg-surface-hover transition-colors text-left"
+                                      >
+                                        <span>{col}</span>
+                                        {visibleCols.has(col) && <Check className="w-3.5 h-3.5 text-primary" />}
+                                      </button>
+                                    ))}
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </th>
                         </tr>
                       </thead>
                       <Droppable droppableId={group.stage.id}>
@@ -1230,20 +1742,68 @@ export default function Opportunities() {
                                           </div>
                                         </div>
                                       </td>
-                                      <td className="p-0 border-r border-border align-middle w-[120px]">
-                                        <div className="flex items-center justify-center gap-1 px-4">
-                                          <div className="flex-1 h-2 bg-surface-hover rounded-full overflow-hidden flex">
-                                            <div className="w-1/4 h-full bg-border/40 border-r border-bg"></div>
-                                            <div className="w-1/4 h-full bg-border/40 border-r border-bg"></div>
-                                            <div className="w-1/4 h-full bg-border/40 border-r border-bg"></div>
-                                            <div className="w-1/4 h-full bg-surface-hover"></div>
-                                          </div>
-                                        </div>
+                                      <td className="p-2 border-r border-border text-center w-[120px]">
+                                        {deal.closeDate ? (
+                                          <span className="text-[12px] text-text-main">
+                                            {new Date(deal.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[12px] text-text-muted opacity-40">-</span>
+                                        )}
                                       </td>
-                                      <td className="p-0 border-r border-border text-center w-[140px]">
-                                        <div className="w-full h-full min-h-[36px] flex items-center justify-center text-[12px] font-medium px-2" style={{ backgroundColor: group.stage.color, color: getDarkTextColor(group.stage.color) }}>
-                                          {group.stage.name}
+                                      {/* Interactive Inline Stage Switcher */}
+                                      <td
+                                        className="p-0 border-r border-border text-center w-[140px] relative group/stage"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveStagePopover(activeStagePopover === deal.id ? null : deal.id);
+                                        }}
+                                      >
+                                        <div
+                                          className="w-full h-full min-h-[36px] flex items-center justify-between text-[12px] font-semibold px-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+                                          style={{ backgroundColor: group.stage.color, color: getDarkTextColor(group.stage.color) }}
+                                          title="Click to switch stage"
+                                        >
+                                          <span className="truncate">{group.stage.name}</span>
+                                          <ChevronDown className="w-3 h-3 opacity-60 group-hover/stage:opacity-100 shrink-0 ml-1" />
                                         </div>
+
+                                        <AnimatePresence>
+                                          {activeStagePopover === deal.id && (
+                                            <>
+                                              <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setActiveStagePopover(null); }} />
+                                              <motion.div
+                                                initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.95 }}
+                                                className="absolute left-0 top-full mt-1 w-[180px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-40 text-left"
+                                                onClick={(e) => e.stopPropagation()}
+                                              >
+                                                <div className="px-3 py-1.5 text-[10px] font-bold text-text-muted uppercase tracking-wider border-b border-border/50">
+                                                  Move to Stage
+                                                </div>
+                                                {activeStages.map(st => (
+                                                  <button
+                                                    key={st.id}
+                                                    onClick={() => {
+                                                      moveDealToStage(deal.id, st.id);
+                                                      setActiveStagePopover(null);
+                                                    }}
+                                                    className={`w-full flex items-center justify-between px-3 py-2 text-[12px] font-medium transition-colors hover:bg-surface-hover ${
+                                                      st.id === group.stage.id ? 'font-bold bg-primary/10 text-primary' : 'text-text-main'
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
+                                                      <span className="truncate">{st.name}</span>
+                                                    </div>
+                                                    {st.id === group.stage.id && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                                  </button>
+                                                ))}
+                                              </motion.div>
+                                            </>
+                                          )}
+                                        </AnimatePresence>
                                       </td>
                                       <td className="p-0 border-r border-border align-middle w-[100px]">
                                         <div className="flex justify-center items-center h-full min-h-[36px]">
@@ -1255,6 +1815,29 @@ export default function Opportunities() {
                                       <td className="p-2 border-r border-border text-center text-text-main w-[120px]">
                                         ${(deal.amount || 0).toLocaleString()}
                                       </td>
+                                      {visibleCols.has('Priority') && (
+                                        <td className="p-2 border-r border-border text-center w-[110px]">
+                                          <span className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase ${
+                                            (deal.priority || 'medium') === 'high' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                            (deal.priority || 'medium') === 'low' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                          }`}>
+                                            {deal.priority || 'medium'}
+                                          </span>
+                                        </td>
+                                      )}
+                                      {visibleCols.has('Source') && (
+                                        <td className="p-2 border-r border-border text-center text-text-main text-[12px] w-[130px] truncate">
+                                          {deal.source || '—'}
+                                        </td>
+                                      )}
+                                      {visibleCols.has('Status') && (
+                                        <td className="p-2 border-r border-border text-center w-[110px]">
+                                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-hover border border-border text-text-main capitalize">
+                                            {deal.status || 'open'}
+                                          </span>
+                                        </td>
+                                      )}
                                       <td className="p-0 border-r border-border text-center align-middle relative group/cell w-[160px]">
                                         <div className="absolute inset-0 bg-[#B3E5FC]/10 transition-colors group-hover/cell:bg-[#B3E5FC]/20 pointer-events-none" />
                                         {contactName !== '—' ? (
@@ -1288,7 +1871,7 @@ export default function Opportunities() {
                             {provided.placeholder}
                             {/* Add deal inline */}
                             <tr className="group/add">
-                              <td colSpan={10} className="p-0 relative">
+                              <td colSpan={10 + (visibleCols.has('Priority') ? 1 : 0) + (visibleCols.has('Source') ? 1 : 0) + (visibleCols.has('Status') ? 1 : 0)} className="p-0 relative">
                                 <div className="w-[6px] absolute left-0 top-0 bottom-0" style={{ backgroundColor: group.stage.color }} />
                                 <div className="py-2.5 px-12 text-[13px] text-text-muted hover:text-text-main cursor-pointer transition-colors bg-surface/50 hover:bg-surface-hover flex items-center gap-1.5 border-t border-border/50" onClick={() => setAddModalOpen(true)}>
                                   <Plus className="w-4 h-4 opacity-70 group-hover/add:opacity-100" /> Add deal
@@ -1308,7 +1891,7 @@ export default function Opportunities() {
                             <div className="text-text-main font-semibold">${groupTotal.toLocaleString()}</div>
                             <div className="text-[10px] text-text-muted font-medium">sum</div>
                           </td>
-                          <td colSpan={3} className="border-r border-border"></td>
+                          <td colSpan={3 + (visibleCols.has('Priority') ? 1 : 0) + (visibleCols.has('Source') ? 1 : 0) + (visibleCols.has('Status') ? 1 : 0)} className="border-r border-border"></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -1372,7 +1955,7 @@ export default function Opportunities() {
         )}
       </AnimatePresence>
 
-      {/* ── Modals ── */}
+      {/* ── Modals & Drawers ── */}
       <AnimatePresence>
         {createPipelineOpen && (
           <PipelineModal onClose={() => setCreatePipelineOpen(false)} onSave={() => setCreatePipelineOpen(false)} />
@@ -1381,7 +1964,7 @@ export default function Opportunities() {
           <AddOpportunityModal pipelines={pipelines} contacts={contacts} defaultPipelineId={selectedPipelineId === 'all' ? (pipelines[0]?.id || '') : selectedPipelineId} onClose={() => setAddModalOpen(false)} onSave={() => setAddModalOpen(false)} />
         )}
         {editingDeal && (
-          <EditDealModal deal={editingDeal} pipelines={pipelines} onClose={() => setEditingDeal(null)} onSave={() => setEditingDeal(null)} />
+          <OpportunityDetailDrawer deal={editingDeal} pipelines={pipelines} onClose={() => setEditingDeal(null)} onSave={() => setEditingDeal(null)} />
         )}
         {invoiceDeal && (
           <InvoiceModal isOpen={true} onClose={() => setInvoiceDeal(null)} dealId={invoiceDeal.id} amount={invoiceDeal.amount} />

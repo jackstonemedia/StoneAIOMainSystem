@@ -22,38 +22,97 @@ router.get('/metrics', async (req, res) => {
 });
 
 
-// ── Appointments ──────────────────────────────────────────────────────────────
+// ── Appointments & Calendar Hub ─────────────────────────────────────────────
 router.get('/appointments', async (req, res) => {
-  try { res.json(await biz.listAppointments(req.workspaceId)); }
-  catch (e) { err500(res, e); }
+  try {
+    const filters: biz.ListAppointmentsFilters = {
+      startDate: req.query.startDate as string,
+      endDate: req.query.endDate as string,
+      contactId: req.query.contactId as string,
+      status: req.query.status as string,
+      type: req.query.type as string,
+      search: req.query.search as string,
+    };
+    res.json(await biz.listAppointments(req.workspaceId, filters));
+  } catch (e) {
+    err500(res, e);
+  }
+});
+
+router.get('/appointments/:id', async (req, res) => {
+  try {
+    const appt = await biz.getAppointment(req.params.id, req.workspaceId);
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+    res.json(appt);
+  } catch (e) {
+    err500(res, e);
+  }
 });
 
 router.post('/appointments', async (req, res) => {
   try {
     const appt = await biz.createAppointment(req.workspaceId, req.body);
-    emitTrigger(req.workspaceId, 'appointment.booked', appt as Record<string, unknown>).catch(console.error);
     res.json(appt);
-  } catch (e) { err500(res, e); }
+  } catch (e) {
+    err500(res, e);
+  }
 });
 
 router.put('/appointments/:id', async (req, res) => {
   try {
     const appt = await biz.updateAppointment(req.params.id, req.body);
-    if (req.body.status === 'completed') {
-      emitTrigger(req.workspaceId, 'appointment.completed', appt as Record<string, unknown>).catch(console.error);
-    } else if (req.body.status === 'cancelled') {
-      emitTrigger(req.workspaceId, 'appointment.cancelled', appt as Record<string, unknown>).catch(console.error);
-    }
     res.json(appt);
-  } catch (e) { err500(res, e); }
+  } catch (e) {
+    err500(res, e);
+  }
 });
 
 router.delete('/appointments/:id', async (req, res) => {
   try {
-    const appt = await biz.deleteAppointment(req.params.id);
-    emitTrigger(req.workspaceId, 'appointment.cancelled', { id: req.params.id, ...(appt ?? {}) } as Record<string, unknown>).catch(console.error);
+    await biz.deleteAppointment(req.params.id);
     res.json({ success: true });
-  } catch (e) { err500(res, e); }
+  } catch (e) {
+    err500(res, e);
+  }
+});
+
+// ── Calendar Slot Engine & Public Booking ───────────────────────────────────
+router.get('/calendar/slots', async (req, res) => {
+  try {
+    const date = (req.query.date as string) || new Date().toISOString();
+    const durationMinutes = Number(req.query.durationMinutes) || 30;
+    const slots = await biz.getAvailableSlots(req.workspaceId, { date, durationMinutes });
+    res.json(slots);
+  } catch (e) {
+    err500(res, e);
+  }
+});
+
+router.post('/calendar/book', async (req, res) => {
+  try {
+    const result = await biz.bookPublicAppointment(req.workspaceId, req.body);
+    res.json(result);
+  } catch (e) {
+    err500(res, e);
+  }
+});
+
+router.get('/calendar/sync-status', async (req, res) => {
+  try {
+    const syncStatus = await biz.getCalendarSyncStatus(req.workspaceId);
+    res.json(syncStatus);
+  } catch (e) {
+    err500(res, e);
+  }
+});
+
+router.post('/calendar/ai-suggest', async (req, res) => {
+  try {
+    const suggestion = await biz.generateAiScheduleSuggestion(req.workspaceId, req.body);
+    res.json(suggestion);
+  } catch (e) {
+    err500(res, e);
+  }
 });
 
 // ── Conversations ─────────────────────────────────────────────────────────────

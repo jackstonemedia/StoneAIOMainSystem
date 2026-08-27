@@ -14,7 +14,8 @@ import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 import {
   FileText, Plus, Trash2, Loader2, X, Edit3, Send, Sparkles,
-  Eye, AlertCircle, Search, ChevronRight, Check, ChevronDown
+  Eye, AlertCircle, Search, ChevronRight, Check, ChevronDown,
+  LayoutGrid, List as ListIcon
 } from 'lucide-react';
 
 const STARTER_TEMPLATES = [
@@ -104,7 +105,10 @@ export default function TemplatesList() {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'CUSTOM' | 'STARTERS'>('ALL');
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [editorTab, setEditorTab] = useState<'edit' | 'preview'>('edit');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const extractApiError = (err: any) => err?.response?.data?.error || err?.message || 'An error occurred';
 
   // Fetch custom templates from database
   const { data: dbTemplates = [], isLoading, error } = useQuery({
@@ -276,115 +280,256 @@ export default function TemplatesList() {
         </div>
       )}
 
-      {/* Content Container — matches Campaigns section 1:1 */}
+      {/* Filter Pills & View Mode Switcher */}
       {!isLoading && !error && (
-        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
-          <table className="w-full text-left">
-            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
-              <tr>
-                <th className="w-12 p-3 text-center">
-                  <span className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center text-text-muted text-[10px] font-bold">
-                    #
-                  </span>
-                </th>
-                <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
-                  Template name
-                </th>
-                <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
-                  Default subject line
-                </th>
-                <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
-                  Category / Source
-                </th>
-                <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
-                  Last updated
-                </th>
-                <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {processedTemplates.map((tpl, idx) => (
-                <tr 
-                  key={tpl.id}
-                  className="border-b border-border/50 transition-colors cursor-pointer bg-black/5 hover:bg-black/10"
-                  onClick={() => openEditModal(tpl.raw)}
+        <div className="mx-8 mt-5 mb-1 space-y-4 relative z-10">
+          <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {[
+                { key: 'ALL', label: 'All Templates', count: allTemplates.length },
+                { key: 'STARTERS', label: 'Starter Kits', count: STARTER_TEMPLATES.length },
+                { key: 'CUSTOM', label: 'Custom Designs', count: dbTemplates.length },
+              ].map(pill => (
+                <button
+                  key={pill.key}
+                  onClick={() => setActiveFilter(pill.key as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeFilter === pill.key
+                      ? 'bg-primary text-white shadow-interactive font-bold'
+                      : 'bg-surface/60 border border-border/50 text-text-muted hover:text-text-main hover:bg-surface-hover'
+                  }`}
                 >
-                  <td className="p-3 text-center text-[12px] font-medium text-text-muted opacity-60">
-                    {idx + 1}
-                  </td>
+                  <span>{pill.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    activeFilter === pill.key ? 'bg-white/20 text-white' : 'bg-surface border border-border/60 text-text-muted'
+                  }`}>
+                    {pill.count}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-                  {/* Template Name */}
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-primary shadow-sm shrink-0 bg-primary/20 border border-primary/30">
-                        <FileText className="w-3.5 h-3.5" />
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-surface/80 border border-border/60 rounded-lg p-0.5 shadow-sm">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-md transition-all ${
+                    viewMode === 'grid' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
+                  }`}
+                  title="Card Gallery View"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`p-1.5 rounded-md transition-all ${
+                    viewMode === 'table' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
+                  }`}
+                  title="Table List View"
+                >
+                  <ListIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Content Container */}
+      {!isLoading && !error && (
+        <div className="flex-1 overflow-auto mx-8 mt-3 mb-6 relative z-10">
+          {viewMode === 'grid' ? (
+            /* ── GRID CARD GALLERY ── */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {processedTemplates.map(tpl => (
+                <div
+                  key={tpl.id}
+                  className="bg-surface/50 border border-border/60 rounded-2xl p-5 backdrop-blur-md shadow-card hover:border-primary/50 transition-all group flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-primary bg-primary/15 border border-primary/25 shrink-0 shadow-sm">
+                          {tpl.isStarter ? <Sparkles className="w-4 h-4 text-amber-400" /> : <FileText className="w-4 h-4 text-primary" />}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-text-main truncate group-hover:text-primary transition-colors">
+                            {tpl.name}
+                          </h4>
+                          <span className="text-[11px] text-text-muted font-medium block">
+                            {tpl.category}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">
-                        {tpl.name}
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                        tpl.isStarter
+                          ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+                          : 'text-primary bg-primary/10 border-primary/25'
+                      }`}>
+                        {tpl.isStarter ? 'Starter' : 'Custom'}
                       </span>
                     </div>
-                  </td>
 
-                  {/* Default Subject Line */}
-                  <td className="p-3">
-                    <span className="text-[13px] font-medium text-text-muted truncate max-w-[280px] block">
-                      {tpl.subject || '(No default subject)'}
-                    </span>
-                  </td>
-
-                  {/* Category / Source Badge */}
-                  <td className="p-3">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-sm ${
-                      tpl.isStarter 
-                        ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' 
-                        : 'text-primary bg-primary/10 border-primary/20'
-                    }`}>
-                      {tpl.isStarter ? <Sparkles className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                      {tpl.category}
-                    </span>
-                  </td>
-
-                  {/* Last Updated */}
-                  <td className="p-3 text-[11px] font-medium whitespace-nowrap text-text-muted opacity-60">
-                    {tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleDateString() : 'Starter Kit'}
-                  </td>
-
-                  {/* Actions */}
-                  <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => openEditModal(tpl.raw)}
-                        className="flex items-center gap-1 px-2.5 py-1 border border-border bg-surface-hover hover:bg-surface text-text-main rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
-                      >
-                        <Edit3 className="w-3 h-3" /> Customize
-                      </button>
-
-                      <button
-                        onClick={() => handleUseTemplate(tpl.raw)}
-                        className="flex items-center gap-1 px-3 py-1 bg-primary hover:bg-primary-hover text-white rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
-                      >
-                        <Send className="w-3 h-3" /> Use Template
-                      </button>
-
-                      {!tpl.isStarter && (
-                        <button
-                          onClick={() => deleteMutation.mutate(tpl.id)}
-                          className="p-1 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-[6px] transition-colors"
-                          title="Delete Template"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      <ChevronRight className="w-4 h-4 text-text-muted opacity-40 hover:opacity-100" />
+                    {/* Subject Line Preview */}
+                    <div className="bg-bg/60 border border-border/40 rounded-xl p-3 mb-4 text-xs">
+                      <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1">
+                        Default Subject
+                      </span>
+                      <p className="text-text-main font-medium truncate">
+                        {tpl.subject || '(No default subject)'}
+                      </p>
                     </div>
-                  </td>
-                </tr>
+
+                    {/* Miniature Body Snapshot */}
+                    {tpl.description && (
+                      <p className="text-xs text-text-muted leading-relaxed line-clamp-2 mb-4">
+                        {tpl.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/40">
+                    <button
+                      onClick={() => openEditModal(tpl.raw)}
+                      className="flex-1 py-1.5 px-3 rounded-lg border border-border/60 bg-surface-hover hover:bg-surface text-text-main text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <Edit3 className="w-3 h-3" /> Customize
+                    </button>
+
+                    <button
+                      onClick={() => handleUseTemplate(tpl.raw)}
+                      className="flex-1 py-1.5 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-interactive"
+                    >
+                      <Send className="w-3 h-3" /> Use in Campaign
+                    </button>
+
+                    {!tpl.isStarter && (
+                      <button
+                        onClick={() => deleteMutation.mutate(tpl.id)}
+                        className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Delete Template"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          ) : (
+            /* ── TABLE VIEW ── */
+            <div className="rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 flex flex-col">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
+                  <tr>
+                    <th className="w-12 p-3 text-center">
+                      <span className="w-4 h-4 border border-border bg-bg rounded flex items-center justify-center text-text-muted text-[10px] font-bold">
+                        #
+                      </span>
+                    </th>
+                    <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
+                      Template name
+                    </th>
+                    <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
+                      Default subject line
+                    </th>
+                    <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
+                      Category / Source
+                    </th>
+                    <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted">
+                      Last updated
+                    </th>
+                    <th className="p-3 text-[13px] font-semibold whitespace-nowrap text-text-muted text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processedTemplates.map((tpl, idx) => (
+                    <tr 
+                      key={tpl.id}
+                      className="border-b border-border/50 transition-colors cursor-pointer bg-black/5 hover:bg-black/10"
+                      onClick={() => openEditModal(tpl.raw)}
+                    >
+                      <td className="p-3 text-center text-[12px] font-medium text-text-muted opacity-60">
+                        {idx + 1}
+                      </td>
+
+                      {/* Template Name */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-primary shadow-sm shrink-0 bg-primary/20 border border-primary/30">
+                            <FileText className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">
+                            {tpl.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Default Subject Line */}
+                      <td className="p-3">
+                        <span className="text-[13px] font-medium text-text-muted truncate max-w-[280px] block">
+                          {tpl.subject || '(No default subject)'}
+                        </span>
+                      </td>
+
+                      {/* Category / Source Badge */}
+                      <td className="p-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-sm ${
+                          tpl.isStarter 
+                            ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' 
+                            : 'text-primary bg-primary/10 border-primary/20'
+                        }`}>
+                          {tpl.isStarter ? <Sparkles className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                          {tpl.category}
+                        </span>
+                      </td>
+
+                      {/* Last Updated */}
+                      <td className="p-3 text-[11px] font-medium whitespace-nowrap text-text-muted opacity-60">
+                        {tpl.updatedAt ? new Date(tpl.updatedAt).toLocaleDateString() : 'Starter Kit'}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => openEditModal(tpl.raw)}
+                            className="flex items-center gap-1 px-2.5 py-1 border border-border bg-surface-hover hover:bg-surface text-text-main rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
+                          >
+                            <Edit3 className="w-3 h-3" /> Customize
+                          </button>
+
+                          <button
+                            onClick={() => handleUseTemplate(tpl.raw)}
+                            className="flex items-center gap-1 px-3 py-1 bg-primary hover:bg-primary-hover text-white rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
+                          >
+                            <Send className="w-3 h-3" /> Use Template
+                          </button>
+
+                          {!tpl.isStarter && (
+                            <button
+                              onClick={() => deleteMutation.mutate(tpl.id)}
+                              className="p-1 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-[6px] transition-colors"
+                              title="Delete Template"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

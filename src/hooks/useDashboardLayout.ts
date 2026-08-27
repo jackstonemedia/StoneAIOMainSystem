@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type {
   DashboardLayout,
   DashboardGridItem,
+  MetricKey,
   WidgetInstance,
   WidgetType,
 } from '../types/dashboard';
@@ -89,11 +90,16 @@ export function useDashboardLayout(workspaceId: string) {
     setAndPersist((prev) => ({ ...prev, gridLayout: grid }));
   };
 
-  const addWidget = (type: WidgetType, config?: Record<string, unknown>) => {
+  const addWidget = (type: WidgetType, config?: { metricKey?: MetricKey }) => {
     setAndPersist((prev) => {
-      const exists = prev.widgets.some((w) => w.type === type);
+      const metricKey = config?.metricKey;
+      const exists = prev.widgets.some((widget) =>
+        metricKey
+          ? widget.type === type && (widget.config as { metricKey?: MetricKey })?.metricKey === metricKey
+          : widget.type === type,
+      );
       if (exists) return prev;
-      const id = createId(type);
+      const id = createId(type) + (metricKey ? '_' + metricKey : '');
       const size = DEFAULT_SIZES[type] ?? { w: 4, h: 2 };
       const maxY = prev.gridLayout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
       const widget: WidgetInstance = { id, type, config: config ?? {} };

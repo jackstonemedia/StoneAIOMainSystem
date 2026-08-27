@@ -166,8 +166,48 @@ export default function ListsAndSegments() {
         </div>
       </HeaderPortal>
 
+      {/* Audience Sub-Tabs & Controls */}
+      <div className="mx-8 mt-5 mb-1 space-y-4 relative z-10">
+        <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {[
+              { key: 'smart-lists', label: 'CRM Smart Lists', icon: Sparkles, count: smartLists.length },
+              { key: 'lists', label: 'Email Lists', icon: List, count: lists.length },
+              { key: 'segments', label: 'Dynamic Segments', icon: Filter, count: segments.length },
+              { key: 'suppression', label: 'Suppression List', icon: Shield, count: suppression?.total ?? 0 },
+            ].map(t => {
+              const Icon = t.icon;
+              const isSelected = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key as Tab)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-primary text-white shadow-interactive font-bold'
+                      : 'bg-surface/60 border border-border/50 text-text-muted hover:text-text-main hover:bg-surface-hover'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{t.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-surface border border-border/60 text-text-muted'
+                  }`}>
+                    {t.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="text-xs text-text-muted font-medium">
+            Manage your audience targeting and compliance
+          </div>
+        </div>
+      </div>
+
       {/* Content Container — matches Campaigns section 1:1 */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
+      <div className="flex-1 overflow-auto mx-8 mt-3 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>

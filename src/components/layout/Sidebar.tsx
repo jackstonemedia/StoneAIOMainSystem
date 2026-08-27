@@ -6,7 +6,7 @@ import {
   BarChart3, Reply, FileText,
   Settings, HelpCircle, ChevronDown, Zap,
   Users, Calendar, Star, MessageSquare,
-  Mic, LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
+  LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
   AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone,
   Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen
@@ -65,7 +65,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           icon: Users,
           subItems: [
             { name: 'Contacts', path: '/crm/contacts' },
-            { name: 'Opportunities', path: '/crm/pipeline' },
+            { name: 'Opportunities', path: '/opportunities' },
             { name: 'Companies', path: '/crm/companies' },
             { name: 'Tasks', path: '/crm/tasks' },
             { name: 'Documents', path: '/crm/documents' },
@@ -107,6 +107,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           ]
         },
         { name: 'Lead Studio',  path: '/leads',              icon: Megaphone },
+        { name: 'AI SDR Agents', path: '/sdr',               icon: Target },
       ]
     },
     {
@@ -125,7 +126,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Settings', path: '/automations/settings' }
           ]
         },
-        { name: 'Voice Agents', path: '/voice-agents',       icon: Mic },
       ]
     },
   ];

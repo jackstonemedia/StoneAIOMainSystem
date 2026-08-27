@@ -32,6 +32,9 @@ model Workspace {
   tags              Tag[]
   webhookEndpoints  WebhookEndpoint[]
   attachments       Attachment[]
+  wonLostReasons          WonLostReason[]
+  opportunitySavedViews   OpportunitySavedView[]
+  opportunityActivityLogs OpportunityActivityLog[]
   automationFolders AutomationFolder[]
   automationTables  AutomationTable[]
   Release           Release[]
@@ -86,6 +89,7 @@ model Workspace {
   emailEvents                 EmailEvent[]
   emailSuppressionEntries     SuppressionEntry[]
   aiActions                   AIAction[]
+  sdrAgents                   AutonomousSdrAgent[]
 
   @@map("workspaces")
 }
@@ -522,11 +526,17 @@ model Deal {
   updatedAt           DateTime       @updatedAt @map("updated_at")
   workspace           Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   company             Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  customFieldsJson    String?        @map("custom_fields_json")
-  contact             Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  pipelineStage       PipelineStage? @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
+  customFieldsJson    String?                  @map("custom_fields_json")
+  tagsJson            String?                  @default("[]") @map("tags_json")
+  source              String?
+  status              String                   @default("open")
+  wonLostNotes        String?                  @map("won_lost_notes")
+  contact             Contact?                 @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  pipelineStage       PipelineStage?           @relation(fields: [pipelineStageId], references: [id], onDelete: SetNull)
   activities          Activity[]
   tasks               Task[]
+  lineItems           OpportunityLineItem[]
+  opportunityLogs     OpportunityActivityLog[]
 
   @@index([workspaceId])
   @@index([pipelineStageId])
@@ -702,29 +712,38 @@ model ContactEvent {
 }
 
 model Pipeline {
-  id          String          @id @default(uuid())
-  workspaceId String          @map("workspace_id")
-  name        String
-  isDefault   Boolean         @default(false) @map("is_default")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  stages      PipelineStage[]
+  id                 String                 @id @default(uuid())
+  workspaceId        String                 @map("workspace_id")
+  name               String
+  isDefault          Boolean                @default(false) @map("is_default")
+  staleThresholdDays Int                    @default(14) @map("stale_threshold_days")
+  allowStageSkip     Boolean                @default(true) @map("allow_stage_skip")
+  enableLineItems    Boolean                @default(false) @map("enable_line_items")
+  visibleTabsJson    String?                @default("[\"overview\",\"activity\",\"line_items\",\"files\",\"automations\"]") @map("visible_tabs_json")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  workspace          Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stages             PipelineStage[]
+  wonLostReasons     WonLostReason[]
+  savedViews         OpportunitySavedView[]
 
   @@map("pipelines")
 }
 
 model PipelineStage {
-  id          String   @id @default(uuid())
-  pipelineId  String   @map("pipeline_id")
-  name        String
-  color       String   @default("#52677D")
-  order       Int      @default(0)
-  probability Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  deals       Deal[]
+  id                 String   @id @default(uuid())
+  pipelineId         String   @map("pipeline_id")
+  name               String
+  color              String   @default("#52677D")
+  order              Int      @default(0)
+  probability        Int      @default(0)
+  isWon              Boolean  @default(false) @map("is_won")
+  isLost             Boolean  @default(false) @map("is_lost")
+  requiredFieldsJson String?  @default("[]") @map("required_fields_json")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  pipeline           Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals              Deal[]
 
   @@map("pipeline_stages")
 }
@@ -782,6 +801,8 @@ model CustomField {
   optionsJson String?   @map("options_json")
   required    Boolean   @default(false)
   order       Int       @default(0)
+  pipelineId  String?   @map("pipeline_id")
+  scope       String    @default("all") // "all" | "pipeline"
   createdAt   DateTime  @default(now()) @map("created_at")
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -793,11 +814,81 @@ model Tag {
   workspaceId String    @map("workspace_id")
   name        String
   color       String    @default("#52677D")
+  isShared    Boolean   @default(true) @map("is_shared")
+  entityType  String    @default("all") @map("entity_type") // "all" | "contacts" | "opportunities"
   createdAt   DateTime  @default(now()) @map("created_at")
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, name])
   @@map("tags")
+}
+
+model WonLostReason {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  pipelineId  String?   @map("pipeline_id")
+  reason      String
+  type        String    @default("both") // "won" | "lost" | "both"
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pipeline    Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("won_lost_reasons")
+}
+
+model OpportunityLineItem {
+  id          String   @id @default(uuid())
+  dealId      String   @map("deal_id")
+  name        String
+  description String?
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0) @map("unit_price")
+  subtotal    Float    @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+  @@map("opportunity_line_items")
+}
+
+model OpportunityActivityLog {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  dealId       String    @map("deal_id")
+  type         String    // "created" | "stage_change" | "field_edit" | "owner_reassigned" | "tags_changed" | "won_lost" | "line_item" | "file"
+  title        String
+  description  String?
+  userId       String?   @map("user_id")
+  userName     String?   @map("user_name")
+  metadataJson String?   @map("metadata_json")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deal         Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([dealId])
+  @@map("opportunity_activity_logs")
+}
+
+model OpportunitySavedView {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  pipelineId     String?   @map("pipeline_id")
+  name           String
+  isDefault      Boolean   @default(false) @map("is_default")
+  viewType       String    @default("board") @map("view_type") // "board" | "list" | "calendar"
+  filtersJson    String    @default("[]") @map("filters_json")
+  sortJson       String?   @map("sort_json")
+  columnsJson    String?   @map("columns_json")
+  cardConfigJson String?   @map("card_config_json")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pipeline       Pipeline? @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("opportunity_saved_views")
 }
 
 model WebhookEndpoint {
@@ -1735,3 +1826,73 @@ model SuppressionEntry {
   @@unique([workspaceId, email])
   @@map("email_suppression_entries")
 }
+
+// ─── Autonomous AI SDR Models ──────────────────────────────────────────────────
+
+enum SdrMode {
+  COPILOT
+  AUTOPILOT
+}
+
+enum SdrStatus {
+  ACTIVE
+  PAUSED
+  DRAFT
+}
+
+enum DossierStatus {
+  DRAFTED
+  APPROVED
+  SENDING
+  ENGAGED
+  MEETING_BOOKED
+  BOUNCED
+  DECLINED
+}
+
+model AutonomousSdrAgent {
+  id               String           @id @default(uuid())
+  workspaceId      String           @map("workspace_id")
+  name             String
+  targetIcp        Json             @map("target_icp")
+  valueProposition String           @map("value_proposition")
+  primaryOffer     String           @map("primary_offer")
+  calendarUrl      String?          @map("calendar_url")
+  mode             SdrMode          @default(COPILOT)
+  status           SdrStatus        @default(ACTIVE)
+  dailyLimit       Int              @default(35) @map("daily_limit")
+  sequenceConfig   Json             @map("sequence_config")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dossiers         SdrLeadDossier[]
+
+  @@index([workspaceId])
+  @@map("autonomous_sdr_agents")
+}
+
+model SdrLeadDossier {
+  id             String             @id @default(uuid())
+  agentId        String             @map("agent_id")
+  contactId      String?            @map("contact_id")
+  businessName   String             @map("business_name")
+  websiteUrl     String?            @map("website_url")
+  contactEmail   String?            @map("contact_email")
+  contactPhone   String?            @map("contact_phone")
+  contactName    String?            @map("contact_name")
+  websiteSummary String             @map("website_summary")
+  hookAngle      String             @map("hook_angle")
+  draftedSubject String             @map("drafted_subject")
+  draftedBody    String             @map("drafted_body")
+  sequenceSteps  Json               @map("sequence_steps")
+  status         DossierStatus      @default(DRAFTED)
+  metrics        Json?              @map("metrics")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  agent          AutonomousSdrAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([status])
+  @@map("sdr_lead_dossiers")
+}
+

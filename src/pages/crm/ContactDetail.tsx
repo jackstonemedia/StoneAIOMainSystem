@@ -242,7 +242,17 @@ export default function ContactDetail() {
                 {(contact.name || '').charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col items-start text-left">
-                <h1 className="text-[13px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h1 className="text-[13px] font-bold text-text-main tracking-tight leading-tight">{contact.name}</h1>
+                  {((contact as any).totalEmailsReceived || 0) > 0 && (
+                    <span
+                      className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20"
+                      title={`Contacted ${(contact as any).totalEmailsReceived} time${(contact as any).totalEmailsReceived !== 1 ? 's' : ''}`}
+                    >
+                      {(contact as any).totalEmailsReceived}x Emailed
+                    </span>
+                  )}
+                </div>
                 <span className="text-[11px] font-medium text-text-muted">{contact.jobTitle ? `${contact.jobTitle} at ` : ''}{contact.businessName || 'No Company'}</span>
               </div>
             </div>

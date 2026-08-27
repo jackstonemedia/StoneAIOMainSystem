@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Appointment } from '../../../types/business';
@@ -27,8 +27,9 @@ function apptType(a: Appointment): string {
 
 export function CalendarWidget({ appointments, isLoading, compact }: CalendarWidgetProps) {
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const [viewDate, setViewDate] = useState(new Date());
+  const currentMonth = viewDate.getMonth();
+  const currentYear = viewDate.getFullYear();
 
   const firstOfMonth = new Date(currentYear, currentMonth, 1);
   const startDay = firstOfMonth.getDay();
@@ -43,7 +44,7 @@ export function CalendarWidget({ appointments, isLoading, compact }: CalendarWid
         return dt.getFullYear() === currentYear && dt.getMonth() === currentMonth && dt.getDate() === d;
       });
       const dots = [...new Set(dayAppts.map((a) => TYPE_DOT[apptType(a)] || TYPE_DOT.default))].slice(0, 3);
-      result.push({ day: d, dots, isToday: now.getDate() === d });
+      result.push({ day: d, dots, isToday: now.getDate() === d && now.getMonth() === currentMonth && now.getFullYear() === currentYear });
     }
     while (result.length % 7 !== 0) result.push({ day: null, dots: [], isToday: false });
     return result;
@@ -58,8 +59,20 @@ export function CalendarWidget({ appointments, isLoading, compact }: CalendarWid
   }, [appointments, now, compact]);
 
   const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const monthName = now.toLocaleDateString(undefined, { month: 'long' });
+  const monthName = viewDate.toLocaleDateString(undefined, { month: 'long' });
   const upcomingCount = appointments.filter((a) => new Date(a.startTime).getTime() >= now.getTime()).length;
+
+  const prevMonth = () => {
+    const d = new Date(viewDate);
+    d.setMonth(d.getMonth() - 1);
+    setViewDate(d);
+  };
+
+  const nextMonth = () => {
+    const d = new Date(viewDate);
+    d.setMonth(d.getMonth() + 1);
+    setViewDate(d);
+  };
 
   return (
     <DashboardFadeIn delay={0.15} className="h-full">
@@ -75,7 +88,8 @@ export function CalendarWidget({ appointments, isLoading, compact }: CalendarWid
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="w-6 h-6 rounded-md border border-border/50 bg-bg flex items-center justify-center text-text-muted hover:text-text-main hover:border-border transition-colors duration-150"
+              onClick={prevMonth}
+              className="w-6 h-6 rounded-md border border-border/50 bg-bg flex items-center justify-center text-text-muted hover:text-text-main hover:border-border transition-colors duration-150 cursor-pointer"
               aria-label="Previous month"
             >
               <ChevronLeft className="w-3 h-3" />
@@ -85,13 +99,15 @@ export function CalendarWidget({ appointments, isLoading, compact }: CalendarWid
             </span>
             <button
               type="button"
-              className="w-6 h-6 rounded-md border border-border/50 bg-bg flex items-center justify-center text-text-muted hover:text-text-main hover:border-border transition-colors duration-150"
+              onClick={nextMonth}
+              className="w-6 h-6 rounded-md border border-border/50 bg-bg flex items-center justify-center text-text-muted hover:text-text-main hover:border-border transition-colors duration-150 cursor-pointer"
               aria-label="Next month"
             >
               <ChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>
+
 
         {/* Calendar grid body */}
         <div className="flex-1 px-5 py-4">

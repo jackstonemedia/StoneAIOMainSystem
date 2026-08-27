@@ -6,74 +6,52 @@ import {defineConfig} from 'vite';
 export default defineConfig(({mode: _mode}) => {
   return {
     plugins: [
-      react({
-        // Disable nonce injection — it blocks Cloudflare Turnstile (used by Clerk OAuth)
-        babel: { babelrc: false, configFile: false },
-      }),
+      react(),
       tailwindcss(),
-      {
-        name: 'use-sync-external-store-shim',
-        resolveId(id: string) {
-          if (/^use-sync-external-store\/shim(\/index(\.js)?)?$/.test(id)) {
-            return path.resolve(__dirname, 'src/shims/use-sync-external-store-shim.ts');
-          }
-          if (/^use-sync-external-store\/shim\/with-selector(\.js)?$/.test(id)) {
-            return path.resolve(__dirname, 'src/shims/use-sync-external-store-with-selector.ts');
-          }
-        },
-        load(id: string) {
-          const n = id.replace(/\\/g, '/');
-          if (/use-sync-external-store\/shim\/index\.js/.test(n)) {
-            return `export { useSyncExternalStore } from 'react';`;
-          }
-          if (/use-sync-external-store\/shim\/with-selector\.js/.test(n)) {
-            return `
-import { useSyncExternalStore } from 'react';
-import { useRef } from 'react';
-export function useSyncExternalStoreWithSelector(subscribe, getSnapshot, getServerSnapshot, selector, isEqual) {
-  let hasMemo = false, memoSnap, memoSel;
-  const sel = (snap) => {
-    if (!hasMemo) { hasMemo = true; memoSnap = snap; memoSel = selector(snap); return memoSel; }
-    if (Object.is(memoSnap, snap)) return memoSel;
-    const next = selector(snap);
-    if (isEqual && isEqual(memoSel, next)) { memoSnap = snap; return memoSel; }
-    memoSnap = snap; memoSel = next; return next;
-  };
-  return useSyncExternalStore(subscribe, () => sel(getSnapshot()), getServerSnapshot ? () => sel(getServerSnapshot()) : undefined);
-}
-export default { useSyncExternalStoreWithSelector };
-`;
-          }
-        },
-      },
     ],
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
+      alias: [
+        { find: '@', replacement: path.resolve(__dirname, '.') },
+        { find: /^react$/, replacement: path.resolve(__dirname, 'src/shims/react-shim.ts') },
+        { find: /^use-sync-external-store(\/shim)?\/with-selector(\.js)?$/, replacement: path.resolve(__dirname, 'src/shims/use-sync-external-store-with-selector.ts') },
+        { find: /^use-sync-external-store(\/shim)?(\/index(\.js)?)?$/, replacement: path.resolve(__dirname, 'src/shims/use-sync-external-store-shim.ts') },
+      ],
       dedupe: [
         'react', 'react-dom', 'react-dom/client',
         'react/jsx-runtime', 'react/jsx-dev-runtime',
         'react-router-dom',
+        '@tanstack/react-query',
+        '@tanstack/query-core',
+        'motion', 'motion/react',
         'react-grid-layout',
-        'react-resizable'
+        'react-resizable',
       ],
     },
     optimizeDeps: {
-      holdUntilCrawlEnd: true,
+      force: false, // set to true temporarily to bust cache if hooks crash
+      entries: ['./index.html', './src/main.tsx'],
       include: [
         'react',
-        'react/jsx-runtime',
-        'react/jsx-dev-runtime',
         'react-dom',
         'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        '@clerk/clerk-react',
         'react-router-dom',
         '@tanstack/react-query',
+        '@tiptap/react',
+        '@tiptap/starter-kit',
+        '@radix-ui/react-dialog',
+        '@radix-ui/react-label',
+        '@radix-ui/react-select',
+        '@radix-ui/react-slot',
         'lucide-react',
         'axios',
         'zustand',
         'clsx',
         'tailwind-merge',
+        'class-variance-authority',
+        'date-fns',
         'motion',
         'motion/react',
         '@hello-pangea/dnd',
@@ -83,7 +61,8 @@ export default { useSyncExternalStoreWithSelector };
         'retell-client-js-sdk',
         'react-grid-layout',
         'react-resizable',
-        '@google/genai'
+        '@google/genai',
+        'zod',
       ],
       exclude: ['@templatical/editor', '@templatical/renderer'],
     },

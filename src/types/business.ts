@@ -47,16 +47,26 @@ export interface Appointment {
   workspaceId: string;
   title: string;
   description: string | null;
-  type: string;
+  type: string; // 'meeting' | 'call' | 'video' | 'demo' | 'consultation' | 'in_person'
   location: string | null;
   contactId: string | null;
   startTime: string;
   endTime: string;
-  status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed';
+  status: 'scheduled' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
   createdAt: string;
   updatedAt: string;
-  contact?: { id: string; firstName: string; lastName: string } | null;
+  contact?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    color?: string;
+    companyName?: string;
+    title?: string;
+  } | null;
 }
+
 
 export type CreateAppointmentInput = Omit<Appointment, 'id' | 'workspaceId' | 'createdAt' | 'updatedAt' | 'contact'>;
 export type UpdateAppointmentInput = Partial<CreateAppointmentInput>;

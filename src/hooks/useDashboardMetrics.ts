@@ -45,6 +45,7 @@ export interface BusinessMetrics {
   contacts?: ContactsMetrics;
   pipeline_stages?: PipelineStageMetrics[];
   campaigns?: CampaignSummary[];
+  email?: EmailMetrics;
   agentPerformance?: AgentPerformanceRow[];
 }
 
@@ -66,6 +67,20 @@ function resolveDateRange(dateRange: DateRange) {
   const to = now.toISOString();
   const from = new Date(now.getTime() - days * 86_400_000).toISOString();
   return { from, to, key: dateRange };
+}
+
+
+export interface EmailMetrics {
+  sent?: number;
+  delivered?: number;
+  uniqueOpens?: number;
+  totalOpens?: number;
+  uniqueClicks?: number;
+  totalClicks?: number;
+  hardBounces?: number;
+  softBounces?: number;
+  complaints?: number;
+  unsubscribes?: number;
 }
 
 export function useDashboardMetrics(dateRange: DateRange) {

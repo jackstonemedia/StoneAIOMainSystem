@@ -9,8 +9,10 @@ import {
   Plus, Send, Clock, CheckCircle2, XCircle, Pause,
   BarChart2, Edit2, Trash2, ChevronRight, Mail,
   Calendar, Users, Loader2, AlertCircle, Search, Filter,
-  ChevronDown, Check, CheckSquare, X, Flame
+  ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Crown, Sparkles,
+  Eye, MousePointer
 } from 'lucide-react';
+import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
 
 interface Campaign {
   id: string;
@@ -18,6 +20,7 @@ interface Campaign {
   subject: string;
   status: 'DRAFT' | 'SCHEDULED' | 'SENDING' | 'SENT' | 'PAUSED' | 'CANCELLED';
   blockJson?: any;
+  abTestConfig?: any;
   scheduledAtUtc?: string | null;
   sentAtUtc?: string | null;
   createdAt: string;
@@ -72,6 +75,67 @@ export default function CampaignsList() {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
+  const [showAICopilotModal, setShowAICopilotModal] = useState(false);
+
+  const handleApplyAICampaignFromList = async (payload: GeneratedCampaignPayload) => {
+    try {
+      const isDrip = Array.isArray(payload.dripSteps) && payload.dripSteps.length > 0;
+      const initialStep = payload.dripSteps?.[0];
+      const initialSubject = payload.abTest?.enabled
+        ? (payload.abTest.subjectA || payload.campaignName || 'New Campaign')
+        : (initialStep?.subject || payload.campaignName || 'New Campaign');
+      const initialBody = payload.abTest?.enabled
+        ? (payload.abTest.bodyHtmlA || '')
+        : (initialStep?.body || (payload as any).bodyHtml || (payload as any).body || '');
+
+      const formattedSteps = (payload.dripSteps || []).map((st: any, idx: number) => ({
+        id: st.id || `step-${idx + 1}-${Date.now()}`,
+        stepNumber: st.stepNumber || idx + 1,
+        subject: st.subject || st.title || `Email ${idx + 1}`,
+        delayDays: typeof st.delayDays === 'number' ? st.delayDays : (idx === 0 ? 0 : 2),
+        delayHours: typeof st.delayHours === 'number' ? st.delayHours : 0,
+        body: st.body || st.bodyHtml || st.html || st.content || st.text || '',
+        threadWithPrevious: st.threadWithPrevious ?? (idx > 0),
+        stopOnReply: st.stopOnReply ?? true,
+      }));
+
+      const blockJson = {
+        campaignType: isDrip ? 'drip' : 'broadcast',
+        type: isDrip ? 'drip' : 'broadcast',
+        dripSteps: formattedSteps,
+        strategySummary: payload.strategySummary,
+        sequenceSummary: payload.sequenceSummary,
+        deliverySettings: payload.deliverySettings,
+        html: initialBody,
+        bodyHtml: initialBody,
+      };
+
+      const res = await apiClient.post('/email-marketing/campaigns', {
+        name: payload.campaignName || 'AI Generated Campaign',
+        subject: initialSubject,
+        blockJson,
+        abTestConfig: payload.abTest?.enabled
+          ? {
+              enabled: true,
+              hypothesis: payload.abTest.hypothesis || null,
+              subjectA: payload.abTest.subjectA || initialSubject,
+              subjectB: payload.abTest.subjectB || '',
+              previewTextA: payload.abTest.previewTextA || '',
+              previewTextB: payload.abTest.previewTextB || '',
+              bodyHtmlA: payload.abTest.bodyHtmlA || initialBody,
+              bodyHtmlB: payload.abTest.bodyHtmlB || '',
+            }
+          : null,
+      });
+
+      setShowAICopilotModal(false);
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'campaigns'] });
+      toast('success', 'Campaign Created', 'Your AI campaign sequence is ready in the builder.');
+      navigate(`/email-marketing/campaigns/${res.data.id}`);
+    } catch (err: any) {
+      toast('error', 'Error Creating Campaign', err?.response?.data?.error || err?.message || 'Could not create campaign.');
+    }
+  };
 
   const { data: rawCampaigns = [], isLoading, error, refetch } = useQuery({
     queryKey: ['email-marketing', 'campaigns'],
@@ -100,6 +164,29 @@ export default function CampaignsList() {
     },
     onError: (err: any) => {
       toast('error', 'Send Failed', err?.message || 'Failed to send campaign.');
+    }
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: async (campaign: Campaign) => {
+      const { data } = await apiClient.post('/email-marketing/campaigns', {
+        name: `${campaign.name} (Copy)`,
+        subject: campaign.subject,
+        blockJson: campaign.blockJson,
+        abTestConfig: campaign.abTestConfig,
+        status: 'DRAFT',
+      });
+      return data;
+    },
+    onSuccess: (newCampaign: any) => {
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'campaigns'] });
+      toast('success', 'Campaign Cloned', 'Created a draft duplicate of the campaign.');
+      if (newCampaign?.id) {
+        navigate(`/email-marketing/campaigns/${newCampaign.id}`);
+      }
+    },
+    onError: (err: any) => {
+      toast('error', 'Clone Failed', err?.message || 'Could not duplicate campaign.');
     }
   });
 
@@ -225,28 +312,47 @@ export default function CampaignsList() {
               placeholder="Search Campaigns..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+              className="bg-surface border border-border/60 text-text-main placeholder:text-text-muted text-[13px] rounded-full pl-8 pr-4 py-1.5 focus:outline-none focus:border-primary transition-all w-52 focus:w-64"
             />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 text-text-muted hover:text-text-main"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
-          
-          <button 
-            onClick={() => navigate('/email-marketing/campaigns/new')} 
-            className="btn-secondary"
+
+          {/* AI Campaign Copilot Button */}
+          <button
+            onClick={() => setShowAICopilotModal(true)}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600/90 to-primary/90 hover:from-purple-600 hover:to-primary text-white border border-purple-400/30 rounded-full px-3.5 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
+            title="Create Campaign with AI Strategy Consultant"
           >
-            <Plus className="w-4 h-4" /> New Campaign
+            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+            <span>AI Copilot</span>
+          </button>
+
+          {/* New Campaign Button */}
+          <button
+            onClick={() => navigate('/email-marketing/campaigns/new')}
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <span>Create Campaign</span>
           </button>
         </div>
       </HeaderPortal>
 
-      {/* Bulk Actions Bar */}
-      <AnimatePresence mode="wait" initial={false}>
+      {/* Bulk actions floating action bar */}
+      <AnimatePresence>
         {selected.size > 0 && (
-          <motion.div 
-            key="bulk-toolbar"
-            initial={{ opacity: 0, height: 0 }} 
-            animate={{ opacity: 1, height: 60 }} 
-            exit={{ opacity: 0, height: 0 }}
-            className="px-8 flex items-center justify-between border-b border-border bg-surface-hover/50 relative shadow-sm w-full overflow-hidden shrink-0"
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mx-8 mt-4 px-4 py-3 bg-surface/90 backdrop-blur-md border border-primary/30 rounded-xl shadow-luxury flex items-center justify-between z-20"
           >
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-4">
@@ -288,9 +394,117 @@ export default function CampaignsList() {
         </div>
       )}
 
+      {/* KPI Performance Overview & Filter Pills */}
+      {!isLoading && !error && (
+        <div className="mx-8 mt-5 mb-1 space-y-4 relative z-10">
+          {/* KPI Cards Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
+              <div className="flex items-center justify-between text-text-muted mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Total Delivered</span>
+                <Send className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="text-xl font-bold text-text-main">
+                {campaigns.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0).toLocaleString()}
+              </div>
+              <div className="text-[11px] text-text-muted mt-1 flex items-center gap-1">
+                <span className="text-accent-green font-semibold">100% deliverability target</span>
+              </div>
+            </div>
+
+            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
+              <div className="flex items-center justify-between text-text-muted mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Avg Open Rate</span>
+                <Eye className="w-3.5 h-3.5 text-accent-green" />
+              </div>
+              <div className="text-xl font-bold text-accent-green">
+                {(() => {
+                  const sent = campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING');
+                  if (sent.length === 0) return '0.0%';
+                  const totalSent = sent.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0);
+                  const totalOpens = sent.reduce((acc, c) => acc + (c.stats?.uniqueOpens || (c.stats as any)?.totalOpens || 0), 0);
+                  return totalSent > 0 ? `${((totalOpens / totalSent) * 100).toFixed(1)}%` : '0.0%';
+                })()}
+              </div>
+              <div className="text-[11px] text-text-muted mt-1">
+                Industry avg: ~21.5%
+              </div>
+            </div>
+
+            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
+              <div className="flex items-center justify-between text-text-muted mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Avg Click Rate</span>
+                <MousePointer className="w-3.5 h-3.5 text-indigo-400" />
+              </div>
+              <div className="text-xl font-bold text-indigo-400">
+                {(() => {
+                  const sent = campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING');
+                  if (sent.length === 0) return '0.0%';
+                  const totalSent = sent.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0);
+                  const totalClicks = sent.reduce((acc, c) => acc + (c.stats?.uniqueClicks || (c.stats as any)?.totalClicks || 0), 0);
+                  return totalSent > 0 ? `${((totalClicks / totalSent) * 100).toFixed(1)}%` : '0.0%';
+                })()}
+              </div>
+              <div className="text-[11px] text-text-muted mt-1">
+                High-intent conversions
+              </div>
+            </div>
+
+            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
+              <div className="flex items-center justify-between text-text-muted mb-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider">Active Campaigns</span>
+                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              </div>
+              <div className="text-xl font-bold text-text-main">
+                {campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING' || c.status === 'SCHEDULED').length}
+                <span className="text-xs text-text-muted font-normal ml-2">/ {campaigns.length} total</span>
+              </div>
+              <div className="text-[11px] text-text-muted mt-1">
+                {campaigns.filter(c => c.status === 'DRAFT').length} in drafts
+              </div>
+            </div>
+          </div>
+
+          {/* Status Filter Pills */}
+          <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              {[
+                { key: 'ALL', label: 'All', count: campaigns.length },
+                { key: 'SENT', label: 'Sent', count: campaigns.filter(c => c.status === 'SENT').length },
+                { key: 'SENDING', label: 'Sending', count: campaigns.filter(c => c.status === 'SENDING').length },
+                { key: 'SCHEDULED', label: 'Scheduled', count: campaigns.filter(c => c.status === 'SCHEDULED').length },
+                { key: 'DRAFT', label: 'Drafts', count: campaigns.filter(c => c.status === 'DRAFT').length },
+                { key: 'PAUSED', label: 'Paused', count: campaigns.filter(c => c.status === 'PAUSED').length },
+              ].map(pill => (
+                <button
+                  key={pill.key}
+                  onClick={() => setStatusFilter(pill.key)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    statusFilter === pill.key
+                      ? 'bg-primary text-white shadow-interactive font-bold'
+                      : 'bg-surface/60 border border-border/50 text-text-muted hover:text-text-main hover:bg-surface-hover'
+                  }`}
+                >
+                  <span>{pill.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    statusFilter === pill.key ? 'bg-white/20 text-white' : 'bg-surface border border-border/60 text-text-muted'
+                  }`}>
+                    {pill.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="text-xs text-text-muted font-medium">
+              Showing <span className="text-text-main font-bold">{processedCampaigns.length}</span> of {campaigns.length} campaigns
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content Container — matches Contacts section 1:1 */}
       {!isLoading && !error && (
-        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
+        <div className="flex-1 overflow-auto mx-8 mt-3 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
           <table className="w-full text-left">
             <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
               <tr>
@@ -372,6 +586,8 @@ export default function CampaignsList() {
                 processedCampaigns.map((campaign) => {
                   const cfg = STATUS_CONFIG[campaign.status] || STATUS_CONFIG.DRAFT;
                   const StatusIcon = cfg.icon;
+                  const isAb = campaign.abTestConfig?.enabled;
+                  const winner = campaign.abTestConfig?.winnerVariant;
 
                   return (
                     <tr 
@@ -396,7 +612,11 @@ export default function CampaignsList() {
                       {/* Campaign Name */}
                       <td className="p-3">
                         <div className="flex items-center gap-3">
-                          {campaign.blockJson?.campaignType === 'drip' || (Array.isArray(campaign.blockJson?.dripSteps) && campaign.blockJson?.dripSteps.length > 0) ? (
+                          {isAb ? (
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-purple-300 shadow-sm shrink-0 bg-purple-500/20 border border-purple-500/30" title="A/B Split Test">
+                              <Split className="w-3.5 h-3.5" />
+                            </div>
+                          ) : campaign.blockJson?.campaignType === 'drip' || (Array.isArray(campaign.blockJson?.dripSteps) && campaign.blockJson?.dripSteps.length > 0) ? (
                             <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-amber-300 shadow-sm shrink-0 bg-amber-400/20 border border-amber-400/30">
                               <Flame className="w-3.5 h-3.5" />
                             </div>
@@ -405,10 +625,16 @@ export default function CampaignsList() {
                               <Mail className="w-3.5 h-3.5" />
                             </div>
                           )}
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
                             <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">
                               {campaign.name}
                             </span>
+                            {isAb && (
+                              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 shrink-0 flex items-center gap-1">
+                                <Split className="w-2.5 h-2.5" />
+                                {winner ? `Winner: Variant ${winner}` : 'A/B Split'}
+                              </span>
+                            )}
                             {(campaign.blockJson?.campaignType === 'drip' || (Array.isArray(campaign.blockJson?.dripSteps) && campaign.blockJson?.dripSteps.length > 0)) && (
                               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20 shrink-0">
                                 Drip · {campaign.blockJson?.dripSteps?.length || 2} Steps
@@ -490,9 +716,18 @@ export default function CampaignsList() {
                               onClick={() => navigate(`/email-marketing/analytics?campaign=${campaign.id}`)}
                               className="flex items-center gap-1 px-2.5 py-1 border border-border bg-surface-hover hover:bg-surface text-text-main rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
                             >
-                              <BarChart2 className="w-3 h-3" /> Analytics
+                              <BarChart2 className="w-3 h-3 text-primary" /> Analytics
                             </button>
                           )}
+
+                          <button
+                            onClick={() => cloneMutation.mutate(campaign)}
+                            disabled={cloneMutation.isPending}
+                            className="p-1 text-text-muted hover:text-primary hover:bg-surface-hover rounded-[6px] transition-colors"
+                            title="Duplicate campaign"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
 
                           {(campaign.status === 'DRAFT' || campaign.status === 'SCHEDULED') && (
                             <button
@@ -526,17 +761,24 @@ export default function CampaignsList() {
         } as React.CSSProperties}
       >
         <div className="flex items-center gap-3">
-          {/* Status Filter Pills */}
-          <div className="flex items-center gap-1 bg-surface-hover/50 p-1 rounded-lg border border-border/50">
-            {['ALL', 'DRAFT', 'SCHEDULED', 'SENT'].map((st) => (
+          {/* Status & Type Filter Pills */}
+          <div className="flex items-center gap-1 bg-surface-hover/50 p-1 rounded-lg border border-border/50 flex-wrap">
+            {[
+              { id: 'ALL', label: 'All Campaigns' },
+              { id: 'DRAFT', label: 'Drafts' },
+              { id: 'SCHEDULED', label: 'Scheduled' },
+              { id: 'SENT', label: 'Sent' },
+              { id: 'AB_TEST', label: '⚡ A/B Tests' },
+              { id: 'DRIP', label: '🔥 Drip Sequences' },
+            ].map((st) => (
               <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
+                key={st.id}
+                onClick={() => setStatusFilter(st.id)}
                 className={`px-3 py-1 rounded-[6px] text-[11px] font-bold transition-all ${
-                  statusFilter === st ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
+                  statusFilter === st.id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
                 }`}
               >
-                {st === 'ALL' ? 'All Campaigns' : st.charAt(0) + st.slice(1).toLowerCase()}
+                {st.label}
               </button>
             ))}
           </div>
@@ -637,6 +879,13 @@ export default function CampaignsList() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── AI CAMPAIGN COPILOT MODAL ────────────────────────────────────── */}
+      <AICampaignCopilotModal
+        isOpen={showAICopilotModal}
+        onClose={() => setShowAICopilotModal(false)}
+        onApplyCampaign={handleApplyAICampaignFromList}
+      />
     </div>
   );
 }

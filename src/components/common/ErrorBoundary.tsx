@@ -43,11 +43,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, errorMessage: error.message };
+    return { hasError: true, errorMessage: error?.message || String(error) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught render error:', error, info.componentStack);
+    console.error('=== [ErrorBoundary CAUGHT ERROR] ===\nError Message:', error?.message, '\nStack:', error?.stack, '\nComponent Stack:', info?.componentStack);
   }
 
   reset() {

@@ -143,6 +143,21 @@ export default function Contacts() {
     },
   });
 
+  const deleteSmartList = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiFetch(`/api/crm/smart-lists/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['smart-lists'] });
+      qc.invalidateQueries({ queryKey: ['smartlists'] });
+      setActiveListId('all');
+      setPage(1);
+      toast('success', 'Smart List Deleted');
+    },
+  });
+
   const bulkAction = useMutation({
     mutationFn: async ({ action, contactIds, payload }: { action: string; contactIds: string[]; payload?: any }) => {
       const res = await apiFetch('/api/crm/contacts/bulk', {
@@ -450,62 +465,8 @@ export default function Contacts() {
         </div>
       </HeaderPortal>
 
-      {/* Smart List Tabs Header */}
-      <div className="mx-8 mt-4 mb-2 flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/40 scrollbar-none shrink-0">
-        <button
-          onClick={() => {
-            setActiveListId('all');
-            setPage(1);
-            const nextParams = new URLSearchParams(searchParams);
-            nextParams.delete('smartList');
-            nextParams.delete('list');
-            setSearchParams(nextParams, { replace: true });
-          }}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all whitespace-nowrap ${
-            activeListId === 'all'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border/40'
-          }`}
-        >
-          <span>All Contacts</span>
-        </button>
-
-        {smartLists.map((list: any) => (
-          <button
-            key={list.id}
-            onClick={() => {
-              setActiveListId(list.id);
-              setPage(1);
-              setSearchParams({ smartList: list.id }, { replace: true });
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all whitespace-nowrap ${
-              activeListId === list.id
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border/40'
-            }`}
-          >
-            <span>{list.name}</span>
-            {typeof list.contactCount === 'number' && (
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                activeListId === list.id ? 'bg-white/20 text-white' : 'bg-surface-hover text-text-muted border border-border/40'
-              }`}>
-                {list.contactCount}
-              </span>
-            )}
-          </button>
-        ))}
-
-        <button
-          onClick={() => setPanelOpen('filter')}
-          className="flex items-center gap-1 px-2.5 py-1 text-[11.5px] font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors ml-auto shrink-0 border border-primary/30"
-          title="Create or filter smart list"
-        >
-          <Plus className="w-3.5 h-3.5" /> New Smart List
-        </button>
-      </div>
-
       {/* Content Rendering */}
-      <div className="flex-1 overflow-auto mx-8 mt-2 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
+      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>
@@ -572,7 +533,15 @@ export default function Contacts() {
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
                         {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
                       </div>
-                      <span className="text-[13px] font-medium transition-colors text-text-main truncate w-full hover:underline">{c.name ?? 'Unknown'}</span>
+                      <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">{c.name ?? 'Unknown'}</span>
+                      {((c as any).totalEmailsReceived || 0) > 0 && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 shrink-0"
+                          title={`Contacted ${(c as any).totalEmailsReceived} time${(c as any).totalEmailsReceived !== 1 ? 's' : ''}`}
+                        >
+                          {(c as any).totalEmailsReceived}x
+                        </span>
+                      )}
                     </div>
                   </td>
                 )}
@@ -740,13 +709,6 @@ export default function Contacts() {
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-[13px] font-medium text-text-muted">
-            {totalContacts === 0
-              ? '0 Contacts'
-              : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalContacts)} of ${totalContacts} ${activeListId === 'all' ? 'Contacts' : 'Members'}`
-            }
-          </span>
-
           {/* Rows Per Page Selector (Max 50) */}
           <div className="relative">
             <button
@@ -1116,16 +1078,16 @@ export default function Contacts() {
           setContactError(null);
           try {
             const contactData = {
-              firstName: newContact.firstName || (newContact.email ? newContact.email.split('@')[0] : 'Unknown'),
-              lastName: newContact.lastName,
-              email: newContact.email || '',
-              phone: newContact.phone,
-              businessName: newContact.businessName,
-              title: newContact.title,
-              status: newContact.status,
-              about: newContact.about,
-              source: newContact.source,
-              color: newContact.color,
+              firstName: (newContact.firstName || '').trim() || (newContact.email ? newContact.email.split('@')[0] : 'Unknown'),
+              lastName: (newContact.lastName || '').trim() || undefined,
+              email: (newContact.email || '').trim() || undefined,
+              phone: (newContact.phone || '').trim() || undefined,
+              businessName: (newContact.businessName || '').trim() || undefined,
+              title: (newContact.title || '').trim() || undefined,
+              status: newContact.leadStatus || newContact.lifecycleStage || newContact.status || 'Lead',
+              about: (newContact.about || '').trim() || undefined,
+              source: newContact.source || undefined,
+              color: newContact.color || '#7dd3fc',
               tagsJson: JSON.stringify(newContact.tags || []),
             };
             const created = await createContact.mutateAsync(contactData);
@@ -1140,12 +1102,13 @@ export default function Contacts() {
                   title: 'Initial Note',
                   notes: newContact.notes
                 })
-              });
+              }).catch(() => {});
             }
 
             setNewContact({ firstName: '', lastName: '', email: '', phone: '', businessName: '', title: '', status: 'Lead', about: '', source: '', color: '#7dd3fc', tags: [], notes: '' });
             setNewContactTagInput('');
             setPanelOpen(null);
+            toast('success', 'Contact Saved', `${contactData.firstName} added to CRM.`);
           } catch (err: any) {
             setContactError(err.message || 'Something went wrong. Please try again.');
           }

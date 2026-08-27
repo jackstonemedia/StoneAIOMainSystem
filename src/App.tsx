@@ -28,8 +28,6 @@ const AutomationsTableDetail = lazy(() => import('./pages/automations/Automation
 const AutomationsReleases = lazy(() => import('./pages/automations/AutomationsReleases'));
 const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSettings'));
 const WorkflowBuilder = lazy(() => import('./pages/automations/WorkflowBuilder'));
-
-const VoiceAgentBuilder  = lazy(() => import('./pages/VoiceAgentBuilder')); // 40KB
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
 const Marketplace        = lazy(() => import('./pages/Marketplace'));
@@ -60,7 +58,11 @@ const SmartLists    = lazy(() => import('./pages/crm/SmartLists'));
 const BulkActions   = lazy(() => import('./pages/crm/BulkActions'));
 const CrmTasks      = lazy(() => import('./pages/crm/CrmTasks'));
 const CrmDocuments  = lazy(() => import('./pages/crm/Documents'));
-const Opportunities = lazy(() => import('./pages/crm/Opportunities'));
+const OpportunitiesPage         = lazy(() => import('./pages/opportunities/OpportunitiesPage'));
+const OpportunityDetailPage     = lazy(() => import('./pages/opportunities/OpportunityDetailPage'));
+const PipelineSettingsPage      = lazy(() => import('./pages/opportunities/settings/PipelineSettingsPage'));
+const CustomFieldsSettingsPage  = lazy(() => import('./pages/opportunities/settings/CustomFieldsSettingsPage'));
+const TagsSettingsPage          = lazy(() => import('./pages/opportunities/settings/TagsSettingsPage'));
 
 // Ad Manager
 const AdsLayout              = lazy(() => import('./pages/ads/AdsLayout'));
@@ -84,6 +86,9 @@ const AutomationsList      = lazy(() => import('./pages/email-marketing/Automati
 const AutomationCanvas     = lazy(() => import('./pages/email-marketing/AutomationCanvas'));
 const TemplatesList        = lazy(() => import('./pages/email-marketing/TemplatesList'));
 const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/CampaignAnalytics'));
+
+// Autonomous AI SDR
+const AutonomousSdrDashboard = lazy(() => import('./pages/sdr/AutonomousSdrDashboard'));
 
 // Inbox
 const InboxLayout            = lazy(() => import('./pages/inbox/InboxLayout'));
@@ -144,8 +149,10 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               path="/dashboard"
               element={<ErrorBoundary><Protect withAuth={withAuth}><DashboardPage /></Protect></ErrorBoundary>}
             />
-            <Route path="/agents/voice/new"   element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
-            <Route path="/agents/voice/:id/build" element={<ErrorBoundary><Protect withAuth={withAuth}><VoiceAgentBuilder /></Protect></ErrorBoundary>} />
+            <Route
+              path="/sdr"
+              element={<ErrorBoundary><Protect withAuth={withAuth}><AutonomousSdrDashboard /></Protect></ErrorBoundary>}
+            />
             <Route path="/workflows"          element={<Navigate to="/automations" replace />} />
             <Route path="/automations/:id"      element={<ErrorBoundary><Protect withAuth={withAuth}><WorkflowBuilder /></Protect></ErrorBoundary>} />
 
@@ -192,9 +199,16 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="documents"       element={<ErrorBoundary><CrmDocuments /></ErrorBoundary>} />
               <Route path="smart-lists"     element={<ErrorBoundary><SmartLists /></ErrorBoundary>} />
               <Route path="bulk-actions"    element={<ErrorBoundary><BulkActions /></ErrorBoundary>} />
-              <Route path="pipeline"        element={<ErrorBoundary><Opportunities /></ErrorBoundary>} />
+              <Route path="pipeline"        element={<Navigate to="/opportunities" replace />} />
               <Route path="settings"        element={<ErrorBoundary><CrmSettings /></ErrorBoundary>} />
             </Route>
+
+            {/* Opportunities (Rebuilt Module) */}
+            <Route path="/opportunities"                       element={<ErrorBoundary><Protect withAuth={withAuth}><OpportunitiesPage /></Protect></ErrorBoundary>} />
+            <Route path="/opportunities/:id"                   element={<ErrorBoundary><Protect withAuth={withAuth}><OpportunityDetailPage /></Protect></ErrorBoundary>} />
+            <Route path="/opportunities/settings/pipelines"    element={<ErrorBoundary><Protect withAuth={withAuth}><PipelineSettingsPage /></Protect></ErrorBoundary>} />
+            <Route path="/opportunities/settings/fields"       element={<ErrorBoundary><Protect withAuth={withAuth}><CustomFieldsSettingsPage /></Protect></ErrorBoundary>} />
+            <Route path="/opportunities/settings/tags"         element={<ErrorBoundary><Protect withAuth={withAuth}><TagsSettingsPage /></Protect></ErrorBoundary>} />
 
             {/* Shared */}
             <Route path="/marketplace" element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
@@ -253,13 +267,15 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
         <Route path="/ads/campaigns/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
 
         {/* Redirect unknown routes */}
-          {withAuth && (
+          {withAuth ? (
             <Route path="*" element={
               <>
                 <SignedOut><RedirectToSignIn /></SignedOut>
                 <SignedIn><Navigate to="/crm" replace /></SignedIn>
               </>
             } />
+          ) : (
+            <Route path="*" element={<Navigate to="/opportunities" replace />} />
           )}
         </Routes>
       </Suspense>

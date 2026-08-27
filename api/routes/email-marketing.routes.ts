@@ -66,18 +66,28 @@ import {
 import {
   createTemplate, getTemplates, getTemplate, updateTemplate, deleteTemplate,
   createCampaign, getCampaigns, getCampaign, updateCampaign, deleteCampaign,
-  sendCampaign, scheduleCampaign, cancelCampaign,
+  sendCampaign, scheduleCampaign, cancelCampaign, selectABTestWinner,
   previewCampaignHtml, getCampaignAnalytics, processScheduledCampaigns,
 } from '../services/email-marketing/campaigns.service.js';
+import {
+  getCampaignSequenceOverview,
+  markContactReplied,
+  processDripSequences,
+} from '../services/email-marketing/sequence-scheduler.service.js';
+import emailCopilotRouter from './email-copilot.routes.js';
 
-// Background runner: check for due scheduled campaigns every 30s
+// Background runner: check for due scheduled campaigns & drip sequence follow-ups
 setInterval(() => {
   processScheduledCampaigns().catch(err => console.error('[ScheduledCampaigns] Background runner error:', err));
+  processDripSequences().catch(err => console.error('[SequenceScheduler] Background runner error:', err));
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';
 
 const router = Router();
+
+// Mount AI Campaign Copilot
+router.use('/ai-copilot', emailCopilotRouter);
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -337,9 +347,20 @@ router.post('/campaigns/:campaignId/cancel', asyncHandler(async (req, res) => {
 }));
 
 router.get('/campaigns/:campaignId/preview', asyncHandler(async (req, res) => {
-  const html = await previewCampaignHtml(getWid(req), req.params.campaignId);
+  const variant = (req.query.variant as 'A' | 'B') || 'A';
+  const html = await previewCampaignHtml(getWid(req), req.params.campaignId, variant);
   res.setHeader('Content-Type', 'text/html');
   res.send(html);
+}));
+
+router.post('/campaigns/:campaignId/select-winner', asyncHandler(async (req, res) => {
+  const { winnerVariant } = req.body;
+  if (!winnerVariant || (winnerVariant !== 'A' && winnerVariant !== 'B')) {
+    res.status(400).json({ error: 'winnerVariant must be "A" or "B"' });
+    return;
+  }
+  const result = await selectABTestWinner(getWid(req), req.params.campaignId, winnerVariant, true);
+  res.json(result);
 }));
 
 router.post('/campaigns/:campaignId/send-test', asyncHandler(async (req, res) => {
@@ -379,6 +400,14 @@ router.post('/campaigns/:campaignId/send-test', asyncHandler(async (req, res) =>
 
 router.get('/campaigns/:campaignId/analytics', asyncHandler(async (req, res) => {
   res.json(await getCampaignAnalytics(getWid(req), req.params.campaignId));
+}));
+
+router.get('/campaigns/:campaignId/sequence-overview', asyncHandler(async (req, res) => {
+  res.json(await getCampaignSequenceOverview(getWid(req), req.params.campaignId));
+}));
+
+router.post('/campaigns/:campaignId/recipients/:contactId/reply', asyncHandler(async (req, res) => {
+  res.json(await markContactReplied(getWid(req), req.params.campaignId, req.params.contactId));
 }));
 
 // ── Automations ───────────────────────────────────────────────────────────────

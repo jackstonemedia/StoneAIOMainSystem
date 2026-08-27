@@ -1,33 +1,41 @@
 import { useState } from 'react';
-import type { WidgetType } from '../../types/dashboard';
+import type { MetricKey, WidgetType } from '../../types/dashboard';
 import { SlidePanel } from '../ui/SlidePanel';
 
 interface AddWidgetModalProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (type: WidgetType) => void;
+  onAdd: (type: WidgetType, config?: { metricKey?: MetricKey; label?: string }) => void;
   existingTypes: WidgetType[];
 }
 
-type Category = 'All' | 'Metrics' | 'CRM' | 'Marketing' | 'Productivity';
+type Category = 'All' | 'CRM' | 'Email' | 'Metrics' | 'Productivity';
 
 const WIDGETS: {
   type: WidgetType;
+  config?: { metricKey?: MetricKey; group?: string };
   name: string;
   description: string;
   category: Category;
 }[] = [
-  { type: 'metric', name: 'Metric', description: 'Single KPI tile (revenue, pipeline, contacts, conversion).', category: 'Metrics' },
+  { type: 'metric', name: 'Revenue Metrics', description: 'Revenue, pipeline, contacts and conversion.', category: 'CRM' },
+  { type: 'metric', name: 'Email Volume', description: 'Sent and delivered email counts.', category: 'Email', config: { group: 'volume' } },
+  { type: 'metric', name: 'Engagement', description: 'Opens, clicks and engagement rates.', category: 'Email', config: { group: 'engagement' } },
+  { type: 'metric', name: 'Deliverability Risk', description: 'Bounces, complaints and unsubscribes.', category: 'Email', config: { group: 'risk' } },
   { type: 'revenue_chart', name: 'Revenue Chart', description: 'Area chart of revenue over time.', category: 'Metrics' },
   { type: 'pipeline_funnel', name: 'Pipeline Funnel', description: 'Visualize deals by pipeline stage.', category: 'CRM' },
-  { type: 'activity_feed', name: 'Activity Feed', description: 'Live feed of recent activity across the workspace.', category: 'CRM' },
-  { type: 'tasks', name: 'Tasks', description: "Today's outstanding tasks with quick-complete.", category: 'Productivity' },
   { type: 'schedule', name: 'Schedule', description: "Today's upcoming appointments and calls.", category: 'Productivity' },
-  { type: 'conversion', name: 'Conversion Funnel', description: 'Conversion rates between pipeline stages.', category: 'Metrics' },
-  { type: 'campaign_health', name: 'Campaign Health', description: 'Performance of active campaigns.', category: 'Marketing' },
+  { type: 'tasks', name: 'Tasks', description: "Today's outstanding tasks with quick-complete.", category: 'Productivity' },
   { type: 'leaderboard', name: 'Leaderboard', description: 'Top performing workflows by run volume.', category: 'Productivity' },
-  { type: 'quick_actions', name: 'Quick Actions', description: 'Grid of shortcuts to common actions.', category: 'Productivity' },
 ];
+
+const EMAIL_METRIC_GROUPS: Record<string, MetricKey[]> = {
+  volume: ['email_sent', 'email_delivered'],
+  engagement: ['email_unique_opens', 'email_total_opens', 'email_unique_clicks', 'email_total_clicks', 'email_open_rate', 'email_click_rate'],
+  risk: ['email_hard_bounces', 'email_soft_bounces', 'email_complaints', 'email_unsubscribes'],
+};
+
+const CRM_METRICS: MetricKey[] = ['revenue', 'pipeline', 'contacts', 'conversion'];
 
 export function AddWidgetModal({ open, onClose, onAdd, existingTypes }: AddWidgetModalProps) {
   const [category, setCategory] = useState<Category>('All');
@@ -49,7 +57,7 @@ export function AddWidgetModal({ open, onClose, onAdd, existingTypes }: AddWidge
           <span className="uppercase tracking-[0.16em] font-semibold">Categories</span>
         </div>
         <div className="flex items-center gap-1 text-[12px]">
-          {(['All', 'Metrics', 'CRM', 'Marketing', 'Productivity'] as Category[]).map((cat) => (
+          {(['All', 'CRM', 'Email', 'Metrics', 'Productivity'] as Category[]).map((cat) => (
             <button
               key={cat}
               type="button"
@@ -67,7 +75,31 @@ export function AddWidgetModal({ open, onClose, onAdd, existingTypes }: AddWidge
       </div>
 
       <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((w) => {
+        {filtered.map((w, index) => {
+          const metrics = w.config?.group ? EMAIL_METRIC_GROUPS[w.config.group] : w.type === 'metric' ? CRM_METRICS : undefined;
+          if (metrics) {
+            return (
+              <div
+                key={`${w.type}-${index}`}
+                className="card-surface border border-border rounded-xl p-4 shadow-[var(--shadow-card)]"
+              >
+                <div className="text-sm font-semibold text-text-main">{w.name}</div>
+                <div className="text-xs text-text-muted mt-0.5 mb-3 leading-relaxed">{w.description}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {metrics.map((metricKey) => (
+                    <button
+                      key={metricKey}
+                      type="button"
+                      onClick={() => onAdd('metric', { metricKey })}
+                      className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:border-primary hover:text-text-main"
+                    >
+                      Add {metricKey.replace(/^(email_)/, '').replace(/_/g, ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          }
           const disabled = existingTypes.includes(w.type);
           return (
             <div

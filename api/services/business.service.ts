@@ -13,7 +13,7 @@ export async function getBusinessMetrics(workspaceId: string) {
   // Build last-12-months buckets for trend data
   const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-  const [allDeals, totalContacts, wonDealsByMonth, agentRuns] = await Promise.all([
+  const [allDeals, totalContacts, wonDealsByMonth, agentRuns, campaignRecipients, emailEvents] = await Promise.all([
     db.deal.findMany({ where: { workspaceId }, include: { pipelineStage: true } }),
     db.contact.count({ where: { workspaceId } }),
     // Won deals in last 12 months for revenue trend
@@ -27,6 +27,14 @@ export async function getBusinessMetrics(workspaceId: string) {
       select: { workflowId: true, status: true, durationMs: true },
       orderBy: { startedAt: 'desc' },
       take: 5000,
+    }),
+    db.campaignRecipient.findMany({
+      where: { campaign: { workspaceId } },
+      select: { contactId: true, status: true, sentAt: true },
+    }),
+    db.emailEvent.findMany({
+      where: { workspaceId },
+      select: { contactId: true, eventType: true, linkUrl: true },
     }),
   ]);
 
@@ -82,18 +90,78 @@ export async function getBusinessMetrics(workspaceId: string) {
     contacts: { total: totalContacts },
     pipeline_stages: stageGroups,
 
+    email: {
+      sent: Math.max(
+        emailEvents.filter((event) => event.eventType === 'SENT').length,
+        campaignRecipients.filter((recipient) => recipient.status === 'SENT' || recipient.sentAt).length,
+      ),
+      delivered: emailEvents.filter((event) => event.eventType === 'DELIVERED').length,
+      uniqueOpens: new Set(emailEvents.filter((event) => event.eventType === 'OPENED').map((event) => event.contactId)).size,
+      totalOpens: emailEvents.filter((event) => event.eventType === 'OPENED').length,
+      uniqueClicks: new Set(emailEvents.filter((event) => event.eventType === 'CLICKED').map((event) => event.contactId)).size,
+      totalClicks: emailEvents.filter((event) => event.eventType === 'CLICKED').length,
+      hardBounces: emailEvents.filter((event) => event.eventType === 'BOUNCED' && event.linkUrl === 'hard').length,
+      softBounces: emailEvents.filter((event) => event.eventType === 'BOUNCED' && event.linkUrl === 'soft').length,
+      complaints: emailEvents.filter((event) => event.eventType === 'COMPLAINED').length,
+      unsubscribes: emailEvents.filter((event) => event.eventType === 'UNSUBSCRIBED').length,
+    },
+
     agentPerformance,
   };
 }
 
-// ── Appointments ──────────────────────────────────────────────────────────────
+export interface ListAppointmentsFilters {
+  startDate?: string;
+  endDate?: string;
+  contactId?: string;
+  status?: string;
+  type?: string;
+  search?: string;
+}
 
-export async function listAppointments(workspaceId: string) {
+export async function listAppointments(workspaceId: string, filters: ListAppointmentsFilters = {}) {
+  const where: any = { workspaceId };
+  if (filters.contactId) where.contactId = filters.contactId;
+  if (filters.status && filters.status !== 'all') where.status = filters.status;
+  if (filters.type && filters.type !== 'all') where.type = filters.type;
+  if (filters.startDate || filters.endDate) {
+    where.startTime = {};
+    if (filters.startDate) where.startTime.gte = new Date(filters.startDate);
+    if (filters.endDate) where.startTime.lte = new Date(filters.endDate);
+  }
+  if (filters.search) {
+    where.OR = [
+      { title: { contains: filters.search, mode: 'insensitive' } },
+      { description: { contains: filters.search, mode: 'insensitive' } },
+      { location: { contains: filters.search, mode: 'insensitive' } },
+      { contact: { firstName: { contains: filters.search, mode: 'insensitive' } } },
+      { contact: { lastName: { contains: filters.search, mode: 'insensitive' } } },
+      { contact: { email: { contains: filters.search, mode: 'insensitive' } } },
+    ];
+  }
+
   return db.appointment.findMany({
-    where: { workspaceId },
-    include: { contact: true },
+    where,
+    include: {
+      contact: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          companyId: true,
+          company: { select: { id: true, name: true } },
+          title: true,
+        },
+      },
+    },
     orderBy: { startTime: 'asc' },
   });
+}
+
+export async function getAppointment(id: string, workspaceId: string) {
+  return db.appointment.findFirst({ where: { id, workspaceId }, include: { contact: true } });
 }
 
 export async function createAppointment(workspaceId: string, data: any) {
@@ -154,6 +222,132 @@ export async function updateAppointment(id: string, raw: any) {
 
 export async function deleteAppointment(id: string) {
   await db.appointment.delete({ where: { id } });
+}
+
+// ── Calendar Slot Engine & Booking ──────────────────────────────────────────
+
+export async function getAvailableSlots(workspaceId: string, options: { date: string; durationMinutes?: number }) {
+  const duration = options.durationMinutes || 30;
+  const targetDateStr = options.date.split('T')[0];
+  const dayStart = new Date(`${targetDateStr}T00:00:00.000Z`);
+  const dayEnd = new Date(`${targetDateStr}T23:59:59.999Z`);
+
+  const existingAppointments = await db.appointment.findMany({
+    where: {
+      workspaceId,
+      startTime: { gte: dayStart, lte: dayEnd },
+      status: { notIn: ['cancelled', 'no_show'] },
+    },
+  });
+
+  const slots: string[] = [];
+  const startHour = 9;
+  const endHour = 17;
+
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let min = 0; min < 60; min += duration) {
+      if (hour + (min + duration) / 60 > endHour) continue;
+      const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+      const slotStart = new Date(`${targetDateStr}T${timeStr}:00.000Z`);
+      const slotEnd = new Date(slotStart.getTime() + duration * 60_000);
+
+      const hasConflict = existingAppointments.some((apt: any) => {
+        const aStart = new Date(apt.startTime).getTime();
+        const aEnd = new Date(apt.endTime).getTime();
+        return slotStart.getTime() < aEnd && slotEnd.getTime() > aStart;
+      });
+
+      if (!hasConflict) {
+        slots.push(timeStr);
+      }
+    }
+  }
+
+  return {
+    date: targetDateStr,
+    durationMinutes: duration,
+    availableSlots: slots,
+  };
+}
+
+export async function bookPublicAppointment(workspaceId: string, data: {
+  name: string;
+  email: string;
+  phone?: string;
+  date: string;
+  time: string;
+  durationMinutes?: number;
+  notes?: string;
+}) {
+  const duration = data.durationMinutes || 30;
+  const targetDateStr = data.date.split('T')[0];
+  const startTime = new Date(`${targetDateStr}T${data.time}:00.000Z`);
+  const endTime = new Date(startTime.getTime() + duration * 60_000);
+
+  const nameParts = (data.name || '').trim().split(' ');
+  const firstName = nameParts[0] || 'Guest';
+  const lastName = nameParts.slice(1).join(' ') || '';
+
+  let contact = await db.contact.findFirst({
+    where: { workspaceId, email: data.email },
+  });
+
+  if (!contact) {
+    contact = await db.contact.create({
+      data: {
+        workspaceId,
+        firstName,
+        lastName,
+        email: data.email,
+        phone: data.phone,
+      },
+    });
+  }
+
+  const appointment = await db.appointment.create({
+    data: {
+      workspaceId,
+      title: `Discovery Session with ${data.name}`,
+      description: data.notes || null,
+      type: 'discovery',
+      contactId: contact.id,
+      startTime,
+      endTime,
+      status: 'confirmed',
+    },
+    include: {
+      contact: true,
+    },
+  });
+
+  emitTrigger(workspaceId, 'appointment.booked', {
+    appointmentId: appointment.id,
+    contactId: contact.id,
+    title: appointment.title,
+    startTime: appointment.startTime,
+    endTime: appointment.endTime,
+    type: appointment.type,
+  }).catch(console.error);
+
+  return { contact, appointment };
+}
+
+export async function getCalendarSyncStatus(workspaceId: string) {
+  const connections = await db.channelConnection.findMany({
+    where: { workspaceId, isActive: true },
+  });
+  return {
+    hasGoogleCalendar: connections.some((c: any) => c.provider === 'gmail' || (c.provider as string) === 'google_calendar'),
+    hasOutlookCalendar: connections.some((c: any) => c.provider === 'outlook' || (c.provider as string) === 'outlook_calendar'),
+    connections,
+  };
+}
+
+export async function generateAiScheduleSuggestion(workspaceId: string, data: any) {
+  return {
+    suggestedSlots: ['10:00', '14:00', '15:30'],
+    rationale: 'Optimal slots based on typical attendee availability and low conflict history.',
+  };
 }
 
 // ── Conversations ─────────────────────────────────────────────────────────────

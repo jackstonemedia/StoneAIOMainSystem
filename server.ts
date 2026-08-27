@@ -10,7 +10,7 @@
  */
 
 import 'dotenv/config';
-console.log('>>> [server.ts] Loading modules...');
+console.log('>>> [server.ts] Loading modules (structured copilot intake v2)...');
 import express from 'express';
 import path from 'path';
 import helmet from 'helmet';
@@ -19,6 +19,7 @@ import rateLimit from 'express-rate-limit';
 
 // ── Route modules (api/routes/*.routes.ts) ───────────────────────────────────
 import crmRouter           from './api/routes/crm.routes.js';
+import opportunitiesRouter from './api/routes/opportunities.routes.js';
 import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
@@ -30,12 +31,12 @@ import aiRouter            from './api/routes/ai.routes.js';
 import aiActionsRouter     from './api/routes/ai-actions.routes.js';
 import chatRouter          from './api/routes/chat.routes.js';
 import agentsRouter        from './api/routes/agents.routes.js';
-import voiceAgentsRouter   from './api/routes/voice-agents.routes.js';
 import crmActionsRouter    from './api/routes/crm-actions.routes.js';
 import integrationsRouter  from './api/routes/integrations.routes.js';
 import { releasesRouter }  from './api/routes/releases.routes.js';
 import adsRouter           from './api/routes/ads.routes.js';
 import leadsRouter         from './api/routes/leads.routes.js';
+import { sdrRouter }       from './api/routes/sdr.routes.js';
 import { startLeadWorker } from './api/services/leads/lead-worker.service.js';
 import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webhooks/facebook-leads.webhook.js';
 import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
@@ -206,11 +207,11 @@ async function startServer() {
   app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
   app.use('/api/agents',         aiLimiter, agentsRouter);
-  app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/integrations',   integrationsRouter);
   app.use('/api/releases',       releasesRouter);
 
   // ── Domain routes ─────────────────────────────────────────────────────────
+  app.use('/api/opportunities',  opportunitiesRouter);
   app.use('/api/crm',            crmRouter);
   app.use('/api/business',       businessRouter);
   app.use('/api/settings',       settingsRouter);
@@ -226,6 +227,7 @@ async function startServer() {
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);
+  app.use('/api/sdr',            sdrRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {

@@ -22,15 +22,19 @@ export const ContactSchema = z.object({
   color: z.string().optional().nullable(),
   source: z.string().optional().nullable(),
   status: z.string().optional().nullable(),
+  lifecycleStage: z.string().optional().nullable(),
+  leadStatus: z.string().optional().nullable(),
+  ownerId: z.string().optional().nullable(),
   about: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-});
+}).passthrough();
 
 export const CompanySchema = z.object({
   name: z.string().min(1, "Company name is required"),
-  logoUrl: z.string().url().optional().nullable(),
+  logoUrl: z.string().optional().nullable(),
   customFieldsJson: z.string().optional().nullable(),
   domain: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
   industry: z.string().optional().nullable(),
   location: z.string().optional().nullable(),
   employees: z.string().optional().nullable(),
@@ -40,13 +44,15 @@ export const CompanySchema = z.object({
 
 export const DealSchema = z.object({
   title: z.string().min(1, "Deal title is required"),
-  amount: z.number().min(0).default(0),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
-  probability: z.number().min(0).max(100).default(50),
-  closeDate: z.string().datetime().optional().nullable(),
+  amount: z.union([z.number(), z.string()]).transform(v => (typeof v === 'string' ? parseFloat(v) || 0 : v)).default(0),
+  priority: z.string().default('medium'),
+  probability: z.union([z.number(), z.string()]).transform(v => (typeof v === 'string' ? parseInt(v) || 50 : v)).default(50),
+  closeDate: z.string().optional().nullable(),
   pipelineStageId: z.string().min(1, "Pipeline stage is required"),
-  companyId: z.string().uuid().optional().nullable(),
-  contactId: z.string().uuid().optional().nullable(),
+  companyId: z.string().optional().nullable(),
+  contactId: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   customFieldsJson: z.string().optional().nullable(),
 });
@@ -54,13 +60,14 @@ export const DealSchema = z.object({
 export const TaskSchema = z.object({
   title: z.string().min(1, "Task title is required"),
   description: z.string().optional().nullable(),
-  dueDate: z.union([z.string().datetime(), z.literal('')]).optional().nullable(),
-  assigneeId: z.string().uuid().optional().nullable(),
-  contactId: z.string().uuid().optional().nullable(),
-  companyId: z.string().uuid().optional().nullable(),
-  dealId: z.string().uuid().optional().nullable(),
-  status: z.enum(['pending', 'completed']).default('pending'),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  dueDate: z.string().optional().nullable(),
+  dueTime: z.string().optional().nullable(),
+  assigneeId: z.string().optional().nullable(),
+  contactId: z.string().optional().nullable(),
+  companyId: z.string().optional().nullable(),
+  dealId: z.string().optional().nullable(),
+  status: z.string().default('pending'),
+  priority: z.string().default('medium'),
   type: z.string().optional().nullable(),
 });
 

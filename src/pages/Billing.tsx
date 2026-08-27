@@ -30,7 +30,7 @@ export default function Billing() {
       price: '$99',
       period: '/month',
       desc: 'For professionals and growing businesses.',
-      features: ['25,000 credits/month', 'Unlimited agents', 'Priority support', 'Voice agents', 'Autonomous agents', 'Cloud Computer', 'Advanced analytics'],
+      features: ['25,000 credits/month', 'Unlimited agents', 'Priority support', 'Autonomous SDR Agents', 'Autonomous agents', 'Cloud Computer', 'Advanced analytics'],
       color: 'border-purple',
     },
     {

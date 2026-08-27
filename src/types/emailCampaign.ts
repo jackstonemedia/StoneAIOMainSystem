@@ -11,12 +11,25 @@ export type RecipientConfig =
 
 export interface ABTestConfig {
   enabled: boolean
+  testType?: 'subject' | 'content' | 'sender' | 'full'
   subjectA: string
   subjectB: string
-  testPercentage: number
+  bodyHtmlA?: string
+  bodyHtmlB?: string
+  previewTextA?: string
+  previewTextB?: string
+  fromNameA?: string
+  fromNameB?: string
+  testPercentage: number // percentage of audience used for testing (e.g., 20 or 50)
+  splitPercentage?: number // alias for testPercentage / split ratio
   winnerMetric: 'open_rate' | 'click_rate'
-  autoSelectAfterHours: 1 | 4 | 24 | 48
-  winnerId?: 'a' | 'b'
+  autoSelectAfterHours: 1 | 4 | 24 | 48 | 72 | number
+  autoRollout?: boolean
+  winnerId?: 'a' | 'b' | 'A' | 'B'
+  winnerVariant?: 'A' | 'B'
+  winningMetricValue?: number
+  decidedAt?: string
+  status?: 'draft' | 'testing' | 'completed'
 }
 
 export interface RecipientTracking {

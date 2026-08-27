@@ -2,8 +2,19 @@ import { useState } from 'react';
 import { ChevronDown, LayoutGrid, Plus, RotateCcw } from 'lucide-react';
 import type { DateRange } from '../../types/dashboard';
 
+interface DashboardFilterOption {
+  id: string;
+  label: string;
+}
+
 interface DashboardToolbarProps {
   greeting: string;
+  pipelineOptions?: DashboardFilterOption[];
+  contactOptions?: DashboardFilterOption[];
+  activePipeline?: string;
+  activeContact?: string;
+  onPipelineChange?: (value: string) => void;
+  onContactChange?: (value: string) => void;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
   isEditing: boolean;
@@ -27,6 +38,12 @@ function getRangeLabel(value: DateRange): string {
 
 export function DashboardToolbar({
   greeting,
+  pipelineOptions,
+  contactOptions,
+  activePipeline,
+  activeContact,
+  onPipelineChange,
+  onContactChange,
   dateRange,
   onDateRangeChange,
   isEditing,
@@ -91,8 +108,33 @@ export function DashboardToolbar({
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          {pipelineOptions && onPipelineChange && (
+            <select
+              aria-label="Filter by pipeline"
+              value={activePipeline}
+              onChange={(event) => onPipelineChange(event.target.value)}
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 text-[13px] text-text-main"
+            >
+              {pipelineOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          )}
+          {contactOptions && onContactChange && (
+            <select
+              aria-label="Filter by contact list"
+              value={activeContact}
+              onChange={(event) => onContactChange(event.target.value)}
+              className="h-9 rounded-lg border border-border bg-surface px-2.5 text-[13px] text-text-main"
+            >
+              {contactOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          )}
         <div className="flex items-center justify-between gap-3">
-          <div className="hidden md:flex items-center gap-2 text-[11px] text-text-muted">
+          <div className="hidden xl:flex items-center gap-2 text-[11px] text-text-muted">
             <span>Drag cards to rearrange, resize from corners, and tailor this view to your workflow.</span>
           </div>
           <div className="flex items-center gap-2 ml-auto">
@@ -128,6 +170,7 @@ export function DashboardToolbar({
               </button>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>
