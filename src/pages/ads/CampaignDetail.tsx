@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Play, Pause, Trash2, Copy, Edit3, ExternalLink,
   BarChart3, Image, Users, Settings, AlertCircle, RefreshCw,
-  CheckCircle, Clock, XCircle, ChevronRight, Layers, LayoutTemplate,
+  CheckCircle, Clock, XCircle, ChevronRight,
 } from 'lucide-react';
-import { useAdCampaign, usePauseCampaign, useResumeCampaign, useDeleteCampaign, useDuplicateCampaign } from '../../hooks/useAdCampaigns';
+import { useAdCampaign, usePauseCampaign, useResumeCampaign, useDeleteCampaign, useDuplicateCampaign, useUpdateCampaign } from '../../hooks/useAdCampaigns';
 import { useCampaignMetrics } from '../../hooks/useAdMetrics';
-import { useAdLeads } from '../../hooks/useAdLeads';
+import { useAdLeads, useRetryLeadSync, useBulkRetryLeadSync } from '../../hooks/useAdLeads';
 import { formatCurrency } from '../../lib/utils';
 import type { AdCampaignStatus } from '../../types/ads';
 
@@ -185,20 +185,10 @@ function AdPreview({ campaign }: { campaign: any }) {
 // ─── Leads Table ─────────────────────────────────────────────────────────────
 
 function LeadsTab({ campaignId }: { campaignId: string }) {
-  const { data: leadsData } = useAdLeads({ campaignId, page: 1, pageSize: 25 });
+  const { data: leadsData, isLoading, refetch } = useAdLeads({ campaignId, page: 1, pageSize: 50 });
+  const { mutate: retrySync, isPending: isRetrying } = useRetryLeadSync();
+  const { mutate: bulkRetry, isPending: isSyncingAll } = useBulkRetryLeadSync();
   const leads = leadsData?.data || [];
-
-  const MOCK_LEADS = [
-    { id: 'l1', leadName: 'James Rodriguez', leadEmail: 'james.r@example.com', leadPhone: '+1 (813) 555-0192', syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-    { id: 'l2', leadName: 'Sarah Mitchell', leadEmail: 'smitchell@gmail.com', leadPhone: null, syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-    { id: 'l3', leadName: 'Michael Torres', leadEmail: 'mike.torres@outlook.com', leadPhone: '+1 (407) 555-0847', syncStatus: 'PENDING', capturedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-    { id: 'l4', leadName: 'Amanda Chen', leadEmail: 'achen.biz@gmail.com', leadPhone: '+1 (305) 555-1233', syncStatus: 'FAILED', capturedAt: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-    { id: 'l5', leadName: 'Robert Williams', leadEmail: 'robwill@yahoo.com', leadPhone: null, syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(), platform: 'GOOGLE' },
-    { id: 'l6', leadName: 'Jennifer Davis', leadEmail: 'jdavis.home@gmail.com', leadPhone: '+1 (904) 555-7732', syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 1.2 * 24 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-    { id: 'l7', leadName: 'Thomas Anderson', leadEmail: null, leadPhone: '+1 (561) 555-8821', syncStatus: 'SYNCED', capturedAt: new Date(Date.now() - 1.8 * 24 * 60 * 60 * 1000).toISOString(), platform: 'FACEBOOK' },
-  ];
-
-  const displayLeads = leads;
 
   function syncBadge(status: string) {
     if (status === 'SYNCED')  return <span className="flex items-center gap-1 text-[11px] font-semibold text-green-600"><CheckCircle className="w-3.5 h-3.5" />Synced</span>;
@@ -207,6 +197,7 @@ function LeadsTab({ campaignId }: { campaignId: string }) {
   }
 
   function timeAgo(iso: string) {
+    if (!iso) return '—';
     const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
     if (mins < 60)  return `${mins}m ago`;
     if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
@@ -218,183 +209,79 @@ function LeadsTab({ campaignId }: { campaignId: string }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-[14px] font-bold text-text-main">Captured Leads</h3>
-          <p className="text-[12px] text-text-muted mt-0.5">{displayLeads.length} leads · all time</p>
+          <p className="text-[12px] text-text-muted mt-0.5">{leads.length} leads · all time</p>
         </div>
-        <button className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-border/50 transition-colors">
-          <RefreshCw className="w-3.5 h-3.5" /> Sync Leads
+        <button
+          type="button"
+          onClick={() => bulkRetry(campaignId)}
+          disabled={isSyncingAll}
+          className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-border/50 disabled:opacity-50 transition-colors"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
+          <span>{isSyncingAll ? 'Syncing...' : 'Sync Leads'}</span>
         </button>
       </div>
 
-      <div className="border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-background/60 border-b border-border">
-            <tr>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Name</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Email</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Phone</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">CRM Status</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Captured</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {displayLeads.map((lead: any) => (
-              <tr key={lead.id} className="hover:bg-surface/60 transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold shrink-0">
-                      {(lead.leadName || '?')[0].toUpperCase()}
+      <div className="border border-border rounded-xl overflow-hidden bg-surface">
+        {isLoading ? (
+          <div className="flex items-center justify-center p-12 text-text-muted text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Loading leads...
+          </div>
+        ) : leads.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center">
+            <Users className="w-8 h-8 text-text-muted/40 mb-2" />
+            <p className="text-[13px] font-medium text-text-main">No leads captured yet</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Leads submitted through your ad forms will appear here automatically.</p>
+          </div>
+        ) : (
+          <table className="w-full text-left">
+            <thead className="bg-background/60 border-b border-border">
+              <tr>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Name</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Email</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Phone</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">CRM Status</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Captured</th>
+                <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {leads.map((lead: any) => (
+                <tr key={lead.id} className="hover:bg-surface/60 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold shrink-0">
+                        {(lead.leadName || '?')[0].toUpperCase()}
+                      </div>
+                      <span className="text-[13px] font-medium text-text-main">{lead.leadName || '—'}</span>
                     </div>
-                    <span className="text-[13px] font-medium text-text-main">{lead.leadName || '—'}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-[13px] text-text-muted">{lead.leadEmail || '—'}</td>
-                <td className="px-4 py-3 text-[13px] text-text-muted">{lead.leadPhone || '—'}</td>
-                <td className="px-4 py-3">{syncBadge(lead.syncStatus)}</td>
-                <td className="px-4 py-3 text-[12px] text-text-muted">{timeAgo(lead.capturedAt)}</td>
-                <td className="px-4 py-3">
-                  {lead.syncStatus === 'SYNCED' && (
-                    <button className="flex items-center gap-1 text-[11px] text-primary font-medium hover:underline underline-offset-2">
-                      <ExternalLink className="w-3.5 h-3.5" /> CRM
-                    </button>
-                  )}
-                  {lead.syncStatus === 'FAILED' && (
-                    <button className="text-[11px] text-red-500 font-medium hover:underline underline-offset-2">
-                      Retry
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Ad Groups Tab ────────────────────────────────────────────────────────────
-
-function AdGroupsTab({ campaign }: { campaign: any }) {
-  const isGoogle = campaign.platform === 'GOOGLE';
-  
-  const MOCK_AD_GROUPS = [
-    { id: 'ag1', name: isGoogle ? 'Search - Brand Terms' : 'Retargeting - 30d', status: 'ACTIVE', budget: 2000, spend: 1250, cpc: 0.85, conversions: 12 },
-    { id: 'ag2', name: isGoogle ? 'Search - Competitors' : 'Lookalike - 1%', status: 'ACTIVE', budget: 3000, spend: 2800, cpc: 1.15, conversions: 8 },
-    { id: 'ag3', name: isGoogle ? 'Display - Remarketing' : 'Broad - US', status: 'PAUSED', budget: 1000, spend: 450, cpc: 0.45, conversions: 2 },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h3 className="text-[14px] font-bold text-text-main">Ad Groups {isGoogle ? '' : '(Ad Sets)'}</h3>
-          <p className="text-[12px] text-text-muted mt-0.5">Manage targeting and budgets per group.</p>
-        </div>
-        <button className="h-8 px-3 bg-primary text-white rounded-lg text-[12px] font-medium hover:bg-primary/90 transition-colors">
-          + New {isGoogle ? 'Ad Group' : 'Ad Set'}
-        </button>
-      </div>
-
-      <div className="border border-border rounded-xl overflow-hidden bg-surface">
-        <table className="w-full text-left">
-          <thead className="bg-background/60 border-b border-border">
-            <tr>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Status</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Name</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">Budget</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">Spend</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">CPC</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">Conversions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {MOCK_AD_GROUPS.map(ag => (
-              <tr key={ag.id} className="hover:bg-surface/80 transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center">
-                    {ag.status === 'ACTIVE' ? (
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.5)] animate-pulse" />
-                    ) : (
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  </td>
+                  <td className="px-4 py-3 text-[13px] text-text-muted">{lead.leadEmail || '—'}</td>
+                  <td className="px-4 py-3 text-[13px] text-text-muted">{lead.leadPhone || '—'}</td>
+                  <td className="px-4 py-3">{syncBadge(lead.syncStatus)}</td>
+                  <td className="px-4 py-3 text-[12px] text-text-muted">{timeAgo(lead.capturedAt)}</td>
+                  <td className="px-4 py-3 text-right">
+                    {lead.syncStatus === 'SYNCED' && (
+                      <a href={`/crm/contacts`} className="inline-flex items-center gap-1 text-[11px] text-primary font-medium hover:underline underline-offset-2">
+                        <ExternalLink className="w-3.5 h-3.5" /> CRM
+                      </a>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 font-medium text-[13px] text-text-main">{ag.name}</td>
-                <td className="px-4 py-3 text-[13px] text-text-main text-right">${(ag.budget/100).toFixed(2)}/d</td>
-                <td className="px-4 py-3 text-[13px] text-text-main text-right">${(ag.spend/100).toFixed(2)}</td>
-                <td className="px-4 py-3 text-[13px] text-text-main text-right">${ag.cpc.toFixed(2)}</td>
-                <td className="px-4 py-3 text-[13px] font-medium text-text-main text-right">{ag.conversions}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Ads Tab ──────────────────────────────────────────────────────────────────
-
-function AdsTab({ campaign }: { campaign: any }) {
-  const isGoogle = campaign.platform === 'GOOGLE';
-
-  const MOCK_ADS = [
-    { id: 'ad1', name: isGoogle ? 'RSA - Promo A' : 'Carousel - Spring Collection', status: 'ACTIVE', spend: 850, ctr: 0.042, conversions: 8, adGroup: isGoogle ? 'Search - Brand' : 'Retargeting' },
-    { id: 'ad2', name: isGoogle ? 'RSA - Value Prop' : 'Single Image - Discount', status: 'ACTIVE', spend: 400, ctr: 0.028, conversions: 4, adGroup: isGoogle ? 'Search - Brand' : 'Retargeting' },
-    { id: 'ad3', name: isGoogle ? 'RSA - Urgency' : 'Video - How it works', status: 'PAUSED', spend: 120, ctr: 0.015, conversions: 0, adGroup: isGoogle ? 'Search - Competitors' : 'Lookalike' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h3 className="text-[14px] font-bold text-text-main">Ads</h3>
-          <p className="text-[12px] text-text-muted mt-0.5">Individual creative performance.</p>
-        </div>
-        <button className="h-8 px-3 bg-primary text-white rounded-lg text-[12px] font-medium hover:bg-primary/90 transition-colors">
-          + New Ad
-        </button>
-      </div>
-
-      <div className="border border-border rounded-xl overflow-hidden bg-surface">
-        <table className="w-full text-left">
-          <thead className="bg-background/60 border-b border-border">
-            <tr>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Status</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">Ad Name</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">{isGoogle ? 'Ad Group' : 'Ad Set'}</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">Spend</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">CTR</th>
-              <th className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted text-right">Conversions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {MOCK_ADS.map(ad => (
-              <tr key={ad.id} className="hover:bg-surface/80 transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center">
-                    {ad.status === 'ACTIVE' ? (
-                      <span className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_6px_2px_rgba(34,197,94,0.5)] animate-pulse" />
-                    ) : (
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                    {lead.syncStatus === 'FAILED' && (
+                      <button
+                        type="button"
+                        onClick={() => retrySync(lead.id)}
+                        disabled={isRetrying}
+                        className="text-[11px] text-red-500 font-medium hover:underline underline-offset-2 disabled:opacity-50"
+                      >
+                        Retry
+                      </button>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 font-medium text-[13px] text-text-main">
-                  <div className="flex flex-col">
-                    <span>{ad.name}</span>
-                    <button className="text-[10px] text-primary hover:underline self-start mt-0.5">Preview</button>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-[12px] text-text-muted">{ad.adGroup}</td>
-                <td className="px-4 py-3 text-[13px] text-text-main text-right">${(ad.spend/100).toFixed(2)}</td>
-                <td className="px-4 py-3 text-[13px] text-text-main text-right">{(ad.ctr * 100).toFixed(2)}%</td>
-                <td className="px-4 py-3 text-[13px] font-medium text-text-main text-right">{ad.conversions}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -403,9 +290,61 @@ function AdsTab({ campaign }: { campaign: any }) {
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
 
 function SettingsTab({ campaign }: { campaign: any }) {
-  const [budgetVal, setBudgetVal] = useState(String(campaign.budgetAmountCents / 100));
+  const navigate = useNavigate();
+  const { mutate: updateCampaignMut, isPending: isUpdating } = useUpdateCampaign();
+  const { mutate: removeCampaignMut, isPending: isDeleting } = useDeleteCampaign();
+
+  const [budgetVal, setBudgetVal] = useState(String((campaign.budgetAmountCents || 0) / 100));
+  const [startDate, setStartDate] = useState(campaign.startDate ? campaign.startDate.slice(0, 10) : '');
+  const [endDate, setEndDate] = useState(campaign.endDate ? campaign.endDate.slice(0, 10) : '');
+  const [budgetSaved, setBudgetSaved] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+
+  const handleSaveBudget = () => {
+    const cents = Math.round(Number(budgetVal) * 100);
+    if (isNaN(cents) || cents <= 0) return;
+    updateCampaignMut(
+      { id: campaign.id, data: { budgetAmountCents: cents } },
+      {
+        onSuccess: () => {
+          setBudgetSaved(true);
+          setTimeout(() => setBudgetSaved(false), 2500);
+        },
+      }
+    );
+  };
+
+  const handleSaveSchedule = () => {
+    updateCampaignMut(
+      {
+        id: campaign.id,
+        data: {
+          startDate: startDate ? new Date(startDate).toISOString() : undefined,
+          endDate: endDate ? new Date(endDate).toISOString() : undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setScheduleSaved(true);
+          setTimeout(() => setScheduleSaved(false), 2500);
+        },
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    if (window.confirm(`Are you sure you want to permanently delete "${campaign.name}"? Active campaigns will be paused on the ad platform first.`)) {
+      removeCampaignMut(campaign.id, {
+        onSuccess: () => {
+          navigate('/ads/campaigns');
+        },
+      });
+    }
+  };
+
   return (
     <div className="max-w-lg space-y-6">
+      {/* Budget */}
       <div className="p-5 border border-border rounded-xl bg-surface space-y-4">
         <h4 className="text-[13px] font-bold text-text-main">Budget</h4>
         <div>
@@ -416,17 +355,33 @@ function SettingsTab({ campaign }: { campaign: any }) {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
             <input
               type="number"
+              min="1"
+              step="0.01"
               value={budgetVal}
               onChange={e => setBudgetVal(e.target.value)}
               className="w-full pl-7 pr-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
-        <button className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors">
-          Save Budget
+        <button
+          type="button"
+          onClick={handleSaveBudget}
+          disabled={isUpdating}
+          className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+        >
+          {budgetSaved ? (
+            <>
+              <CheckCircle className="w-4 h-4" /> Saved!
+            </>
+          ) : isUpdating ? (
+            'Saving...'
+          ) : (
+            'Save Budget'
+          )}
         </button>
       </div>
 
+      {/* Schedule */}
       <div className="p-5 border border-border rounded-xl bg-surface space-y-4">
         <h4 className="text-[13px] font-bold text-text-main">Schedule</h4>
         <div className="grid grid-cols-2 gap-4">
@@ -434,7 +389,8 @@ function SettingsTab({ campaign }: { campaign: any }) {
             <label className="text-[12px] text-text-muted font-medium block mb-1.5">Start date</label>
             <input
               type="date"
-              defaultValue={campaign.startDate?.slice(0, 10)}
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -442,21 +398,42 @@ function SettingsTab({ campaign }: { campaign: any }) {
             <label className="text-[12px] text-text-muted font-medium block mb-1.5">End date (optional)</label>
             <input
               type="date"
-              defaultValue={campaign.endDate?.slice(0, 10) || ''}
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
-        <button className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors">
-          Save Schedule
+        <button
+          type="button"
+          onClick={handleSaveSchedule}
+          disabled={isUpdating}
+          className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+        >
+          {scheduleSaved ? (
+            <>
+              <CheckCircle className="w-4 h-4" /> Saved!
+            </>
+          ) : isUpdating ? (
+            'Saving...'
+          ) : (
+            'Save Schedule'
+          )}
         </button>
       </div>
 
+      {/* Danger Zone */}
       <div className="p-5 border border-red-500/20 rounded-xl bg-red-500/5 space-y-3">
         <h4 className="text-[13px] font-bold text-red-500">Danger Zone</h4>
         <p className="text-[12px] text-text-muted">Deleting this campaign is permanent. Active campaigns will be paused on the ad platform first.</p>
-        <button className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 transition-colors">
-          Delete Campaign
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+        >
+          <Trash2 className="w-4 h-4" />
+          {isDeleting ? 'Deleting...' : 'Delete Campaign'}
         </button>
       </div>
     </div>
@@ -467,8 +444,6 @@ function SettingsTab({ campaign }: { campaign: any }) {
 
 const TABS = [
   { id: 'overview',   label: 'Overview',     icon: BarChart3 },
-  { id: 'adgroups',   label: 'Ad Groups',    icon: Layers },
-  { id: 'ads',        label: 'Ads',          icon: LayoutTemplate },
   { id: 'creatives',  label: 'Ad Creative',  icon: Image },
   { id: 'leads',      label: 'Leads',        icon: Users },
   { id: 'settings',   label: 'Settings',     icon: Settings },
@@ -481,6 +456,7 @@ export default function CampaignDetail() {
 
   const { data: rawCampaign, isLoading } = useAdCampaign(id || '');
   const { data: metrics }                 = useCampaignMetrics(id || '', { preset: 'LAST_30' });
+  const { data: recentLeadsData }         = useAdLeads({ campaignId: id || '', page: 1, pageSize: 3 });
 
   const { mutate: pause }     = usePauseCampaign();
   const { mutate: resume }    = useResumeCampaign();
@@ -517,18 +493,20 @@ export default function CampaignDetail() {
   const impressions = (campaign as any).impressions30d ?? 0;
   const clicks      = (campaign as any).clicks30d ?? 0;
   const cpc         = clicks > 0 ? spend / clicks : null;
-  const cpm         = impressions > 0 ? (spend / impressions) * 1000 : null;
 
-  // Generate mock chart data from campaign metrics
-  const MOCK_DAILY = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (29 - i));
-    const base = 0.5 + Math.sin(i / 4) * 0.3 + Math.random() * 0.2;
-    return {
-      date: d.toISOString().slice(0, 10),
-      spend: Math.round(base * (spend / 30) * (0.8 + Math.random() * 0.4)),
-      leads: Math.round(base * (leads / 30) * (0.7 + Math.random() * 0.6)),
-    };
-  });
+  // Real daily snapshot data for chart
+  const chartData = (metrics?.daily && metrics.daily.length > 0)
+    ? metrics.daily.map((d: any) => ({
+        date: d.date,
+        spend: Math.round((d.spendCents || 0) / 100),
+        leads: d.leads || 0,
+      }))
+    : Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(); d.setDate(d.getDate() - (6 - i));
+        return { date: d.toISOString().slice(0, 10), spend: 0, leads: 0 };
+      });
+
+  const recentLeads = recentLeadsData?.data || [];
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -572,6 +550,7 @@ export default function CampaignDetail() {
             <div className="flex items-center gap-2 shrink-0">
               {campaign.status === 'ACTIVE' && (
                 <button
+                  type="button"
                   onClick={() => pause(campaign.id)}
                   className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-amber-500/10 hover:text-amber-500 hover:border-amber-500/30 transition-colors"
                 >
@@ -580,6 +559,7 @@ export default function CampaignDetail() {
               )}
               {campaign.status === 'PAUSED' && (
                 <button
+                  type="button"
                   onClick={() => resume(campaign.id)}
                   className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-green-500/10 hover:text-green-500 hover:border-green-500/30 transition-colors"
                 >
@@ -587,22 +567,26 @@ export default function CampaignDetail() {
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => navigate(`/ads/campaigns/${campaign.id}/edit`)}
                 className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-border/50 transition-colors"
               >
                 <Edit3 className="w-3.5 h-3.5" /> Edit
               </button>
               <button
+                type="button"
                 onClick={() => duplicate(campaign.id)}
                 className="flex items-center gap-1.5 h-8 px-3 bg-background border border-border rounded-lg text-[12px] font-medium hover:bg-border/50 transition-colors"
               >
                 <Copy className="w-3.5 h-3.5" /> Duplicate
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  if (confirm('Delete this campaign? This can\'t be undone.')) {
-                    remove(campaign.id);
-                    navigate('/ads/campaigns');
+                  if (window.confirm('Delete this campaign? This can\'t be undone.')) {
+                    remove(campaign.id, {
+                      onSuccess: () => navigate('/ads/campaigns'),
+                    });
                   }
                 }}
                 className="flex items-center gap-1.5 h-8 px-3 bg-background border border-red-500/30 text-red-500 rounded-lg text-[12px] font-medium hover:bg-red-500/10 transition-colors"
@@ -617,6 +601,7 @@ export default function CampaignDetail() {
             {TABS.map(t => (
               <button
                 key={t.id}
+                type="button"
                 onClick={() => setTab(t.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-colors ${
                   tab === t.id
@@ -660,7 +645,7 @@ export default function CampaignDetail() {
                 <div className="p-5 bg-surface border border-border rounded-xl">
                   <h3 className="text-[13px] font-bold text-text-main mb-4">Daily Spend (30d)</h3>
                   <MiniAreaChart
-                    data={MOCK_DAILY}
+                    data={chartData}
                     color={isGoogle ? '#4285F4' : '#1877F2'}
                     height={140}
                     valueKey="spend"
@@ -669,7 +654,7 @@ export default function CampaignDetail() {
                 <div className="p-5 bg-surface border border-border rounded-xl">
                   <h3 className="text-[13px] font-bold text-text-main mb-4">Daily Leads (30d)</h3>
                   <MiniAreaChart
-                    data={MOCK_DAILY}
+                    data={chartData}
                     color="#10b981"
                     height={140}
                     valueKey="leads"
@@ -689,6 +674,8 @@ export default function CampaignDetail() {
                       { term: 'Schedule',      val: campaign.scheduleType === 'CONTINUOUS' ? 'Continuous (no end date)' : `${campaign.startDate?.slice(0,10) || '—'} → ${campaign.endDate?.slice(0,10) || '—'}` },
                       { term: 'Bid Strategy',  val: campaign.bidStrategy?.replace('_', ' ').toLowerCase().replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Default' },
                       { term: 'Campaign ID',   val: campaign.platformCampaignId || 'Not launched' },
+                      { term: 'Ad Set / Group', val: campaign.platformAdSetId || campaign.platformAdGroupId || '—' },
+                      { term: 'Platform Ad ID', val: campaign.platformAdId || '—' },
                     ].map(row => (
                       <div key={row.term} className="flex items-start justify-between gap-2">
                         <dt className="text-[12px] text-text-muted shrink-0">{row.term}</dt>
@@ -756,32 +743,31 @@ export default function CampaignDetail() {
                 <div className="p-5 bg-surface border border-border rounded-xl space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[13px] font-bold text-text-main">Recent Leads</h3>
-                    <button onClick={() => setTab('leads')} className="text-[12px] text-primary font-medium hover:underline underline-offset-2">
+                    <button type="button" onClick={() => setTab('leads')} className="text-[12px] text-primary font-medium hover:underline underline-offset-2">
                       See all →
                     </button>
                   </div>
                   <div className="space-y-2.5">
-                    {[
-                      { name: 'James Rodriguez', email: 'james.r@example.com', ago: '2h ago', synced: true },
-                      { name: 'Sarah Mitchell', email: 'smitchell@gmail.com', ago: '5h ago', synced: true },
-                      { name: 'Michael Torres', email: 'mike.torres@outlook.com', ago: '8h ago', synced: false },
-                    ].map((l, i) => (
-                      <div key={i} className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold shrink-0">
-                          {l.name[0]}
+                    {recentLeads.length === 0 ? (
+                      <p className="text-[12px] text-text-muted py-4 text-center">No leads recorded yet</p>
+                    ) : (
+                      recentLeads.map((l: any, i: number) => (
+                        <div key={l.id || i} className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold shrink-0">
+                            {(l.leadName || '?')[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-medium text-text-main truncate">{l.leadName || 'Anonymous'}</p>
+                            <p className="text-[11px] text-text-muted truncate">{l.leadEmail || l.leadPhone || '—'}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className={`text-[10px] font-semibold ${l.syncStatus === 'SYNCED' ? 'text-green-500' : l.syncStatus === 'PENDING' ? 'text-amber-500' : 'text-red-500'}`}>
+                              {l.syncStatus === 'SYNCED' ? '✓ CRM' : l.syncStatus === 'PENDING' ? 'Pending' : 'Failed'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[12px] font-medium text-text-main truncate">{l.name}</p>
-                          <p className="text-[11px] text-text-muted truncate">{l.email}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-[10px] text-text-muted">{l.ago}</p>
-                          <span className={`text-[10px] font-semibold ${l.synced ? 'text-green-500' : 'text-amber-500'}`}>
-                            {l.synced ? '✓ CRM' : 'Pending'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -817,6 +803,7 @@ export default function CampaignDetail() {
 
                   <div className="mt-6">
                     <button
+                      type="button"
                       onClick={() => navigate(`/ads/campaigns/${campaign.id}/edit`)}
                       className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors"
                     >
@@ -830,12 +817,6 @@ export default function CampaignDetail() {
 
           {/* Leads tab */}
           {tab === 'leads' && <LeadsTab campaignId={id || ''} />}
-
-          {/* Ad Groups tab */}
-          {tab === 'adgroups' && <AdGroupsTab campaign={campaign} />}
-
-          {/* Ads tab */}
-          {tab === 'ads' && <AdsTab campaign={campaign} />}
 
           {/* Settings tab */}
           {tab === 'settings' && <SettingsTab campaign={campaign} />}

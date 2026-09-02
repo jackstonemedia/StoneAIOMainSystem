@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { Sparkles, RefreshCw } from 'lucide-react';
 import type { CampaignDraft } from '../../../../types/ads';
 import { SectionCard, Label, Input, Textarea, Select, HeadlineList } from './shared';
+import { useGenerateAdCopy } from '../../../../hooks/useAdAI';
+import MediaLibraryModal from '../../../../components/ads/MediaLibraryModal';
 
 export function Step4Creative({
   draft,
@@ -20,20 +23,53 @@ export function Step4Creative({
   const isLeadAd = objectiveId === 'meta_leads' || objectiveId === 'google_leads';
   const [showMediaModal, setShowMediaModal] = useState(false);
 
+  const { mutate: generateCopy, isPending: isGeneratingCopy } = useGenerateAdCopy();
+
+  const handleAiCopy = () => {
+    const desc = creative.primaryText || draft.name || draft.objective || 'Stone AIO Platform Campaign';
+    const adType: any = platform === 'GOOGLE' ? 'GOOGLE_SEARCH' : 'FACEBOOK_FEED';
+
+    generateCopy(
+      { description: desc, adType },
+      {
+        onSuccess: (data) => {
+          if (data && data.length > 0) {
+            const first = data[0];
+            if (platform === 'GOOGLE') {
+              const allHeadlines = data.flatMap(v => v.headlines || []).filter(Boolean);
+              const allDescriptions = data.flatMap(v => v.descriptions || []).filter(Boolean);
+              update({
+                headlines: allHeadlines.length >= 3 ? allHeadlines.slice(0, 5) : [allHeadlines[0] || 'Top Rated Service', `${draft.name || 'Professional Solutions'}`, 'Get Started Today'],
+                descriptions: allDescriptions.length >= 2 ? allDescriptions.slice(0, 3) : [allDescriptions[0] || 'Contact our team of experts today for a consultation.', 'Specialized services with guaranteed results.'],
+              });
+            } else {
+              update({
+                primaryText: first.primaryText || (first.descriptions && first.descriptions[0]) || '',
+                headlines: first.headlines && first.headlines.length > 0 ? [first.headlines[0]] : ['Get Started Today'],
+                descriptions: first.descriptions && first.descriptions.length > 0 ? [first.descriptions[0]] : [],
+                callToAction: creative.callToAction || 'LEARN_MORE',
+              });
+            }
+          }
+        },
+      }
+    );
+  };
+
   return (
     <div className="space-y-5">
       {/* URL */}
       <SectionCard title="Final URL" description={isLeadAd ? "Required for your privacy policy and ad creative." : "Where users go when they click your ad."}>
         <div>
           <Label required>Website URL</Label>
-            <Input
-              type="url"
-              value={creative.finalUrl || ''}
-              onChange={e => update({ finalUrl: e.target.value })}
-              placeholder="https://yourwebsite.com/landing-page"
-            />
-          </div>
-        </SectionCard>
+          <Input
+            type="url"
+            value={creative.finalUrl || ''}
+            onChange={e => update({ finalUrl: e.target.value })}
+            placeholder="https://yourwebsite.com/landing-page"
+          />
+        </div>
+      </SectionCard>
 
       {platform === 'META' && (
         <SectionCard title="Facebook Page" description="Select the Facebook Page to run this ad from.">
@@ -55,6 +91,18 @@ export function Step4Creative({
           title="Responsive search ad"
           description="Google automatically combines up to 3 headlines and 2 descriptions to create the best-performing ad."
         >
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={handleAiCopy}
+              disabled={isGeneratingCopy}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingCopy ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingCopy ? 'Generating Copy...' : 'AI Generate Copy'}</span>
+            </button>
+          </div>
+
           <HeadlineList
             label="Headlines"
             headlines={creative.headlines || []}
@@ -79,13 +127,29 @@ export function Step4Creative({
       {/* Google Display: Image + headline */}
       {platform === 'GOOGLE' && draft.objective === 'Display' && (
         <SectionCard title="Responsive display ad" description="Upload images and write copy. Google resizes and reformats them automatically.">
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={handleAiCopy}
+              disabled={isGeneratingCopy}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingCopy ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingCopy ? 'Generating Copy...' : 'AI Generate Copy'}</span>
+            </button>
+          </div>
+
           <div>
             <Label>Marketing images</Label>
             {creative.imageUrls?.[0] ? (
               <div className="relative group rounded-xl overflow-hidden border border-border aspect-video">
                 <img src={creative.imageUrls[0]} alt="Creative" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <button onClick={() => setShowMediaModal(true)} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaModal(true)}
+                    className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold shadow-sm"
+                  >
                     Change Image
                   </button>
                 </div>
@@ -96,7 +160,7 @@ export function Step4Creative({
                   <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M21 15l-5-5L5 21"/>
                 </svg>
                 <p className="text-[13px] font-medium text-text-muted">Click to open Media Library</p>
-                <p className="text-[11px] text-text-muted mt-1">Select or upload from your existing assets.</p>
+                <p className="text-[11px] text-text-muted mt-1">Select from library, upload file, or generate with AI.</p>
               </div>
             )}
           </div>
@@ -125,6 +189,18 @@ export function Step4Creative({
       {platform === 'META' && (
         <>
           <SectionCard title="Ad copy" description="Write the text that appears in your ad.">
+            <div className="flex justify-end mb-1">
+              <button
+                type="button"
+                onClick={handleAiCopy}
+                disabled={isGeneratingCopy}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-lg text-xs font-semibold hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isGeneratingCopy ? 'animate-spin' : ''}`} />
+                <span>{isGeneratingCopy ? 'Generating Copy...' : 'AI Generate Copy'}</span>
+              </button>
+            </div>
+
             <div>
               <Label required>Primary text</Label>
               <Textarea
@@ -191,7 +267,11 @@ export function Step4Creative({
                 <div className="relative group rounded-xl overflow-hidden border border-border aspect-square w-64 max-w-full">
                   <img src={creative.imageUrls[0]} alt="Creative" className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => setShowMediaModal(true)} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setShowMediaModal(true)}
+                      className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold shadow-sm"
+                    >
                       Change Media
                     </button>
                   </div>
@@ -199,7 +279,11 @@ export function Step4Creative({
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   {['1:1 Square (1080×1080)', '1.91:1 Landscape (1200×628)', '9:16 Story (1080×1920)'].slice(0, 2).map(format => (
-                    <div key={format} onClick={() => setShowMediaModal(true)} className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/40 hover:bg-surface-hover transition-colors cursor-pointer">
+                    <div
+                      key={format}
+                      onClick={() => setShowMediaModal(true)}
+                      className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/40 hover:bg-surface-hover transition-colors cursor-pointer"
+                    >
                       <svg className="w-6 h-6 text-text-muted mx-auto mb-1.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M21 15l-5-5L5 21"/>
                       </svg>
@@ -267,6 +351,18 @@ export function Step4Creative({
             <Textarea rows={2} placeholder="Tell people what they'll get..." maxLength={200} />
           </div>
         </SectionCard>
+      )}
+
+      {/* Media Library Modal */}
+      {showMediaModal && (
+        <MediaLibraryModal
+          onClose={() => setShowMediaModal(false)}
+          onSelect={(url) => {
+            update({ imageUrls: [url] });
+            setShowMediaModal(false);
+          }}
+          initialPrompt={creative.primaryText || draft.name || ''}
+        />
       )}
     </div>
   );

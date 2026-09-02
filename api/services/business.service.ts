@@ -350,36 +350,92 @@ export async function generateAiScheduleSuggestion(workspaceId: string, data: an
   };
 }
 
-// ── Conversations ─────────────────────────────────────────────────────────────
+export async function listConversations(workspaceId: string, filters: Record<string, any> = {}, currentUserId?: string) {
+  const andClauses: any[] = [{ workspaceId }];
 
-export async function listConversations(workspaceId: string) {
-  const where = {
-    workspaceId,
-    // Only show conversations that are linked to a CRM contact OR that the
-    // workspace user has replied to (at least one outbound message).
-    // This prevents random inbound emails from strangers flooding the inbox.
-    OR: [
-      { contactId: { not: null } },
-      { messages: { some: { direction: 'outbound' } } },
-    ],
-  };
+  if (filters.channel && filters.channel !== 'all') {
+    andClauses.push({ channel: filters.channel });
+  }
+
+  if (filters.status && filters.status !== 'all') {
+    andClauses.push({ status: filters.status });
+  }
+
+  if (filters.assignedUserId) {
+    if (filters.assignedUserId === 'unassigned') {
+      andClauses.push({ assignedUserId: null });
+    } else if (filters.assignedUserId === 'me') {
+      if (currentUserId) andClauses.push({ assignedUserId: currentUserId });
+    } else {
+      andClauses.push({ assignedUserId: filters.assignedUserId });
+    }
+  }
+
+  if (filters.view) {
+    if (filters.view === 'unassigned') {
+      andClauses.push({ assignedUserId: null });
+    } else if (filters.view === 'mine') {
+      if (currentUserId) andClauses.push({ assignedUserId: currentUserId });
+    } else if (filters.view === 'unread') {
+      andClauses.push({ unreadCount: { gt: 0 } });
+    } else if (filters.view === 'snoozed') {
+      andClauses.push({ status: 'snoozed' });
+    } else if (filters.view === 'archived') {
+      andClauses.push({ status: 'archived' });
+    }
+  }
+
+  if (filters.isRead === 'true' || filters.isRead === true) {
+    andClauses.push({ unreadCount: 0 });
+  } else if (filters.isRead === 'false' || filters.isRead === false) {
+    andClauses.push({ unreadCount: { gt: 0 } });
+  }
+
+  if (filters.search?.trim()) {
+    const q = filters.search.trim();
+    andClauses.push({
+      OR: [
+        { subject: { contains: q } },
+        { contact: { firstName: { contains: q } } },
+        { contact: { lastName: { contains: q } } },
+        { contact: { email: { contains: q } } },
+        { contact: { phone: { contains: q } } },
+        { messages: { some: { body: { contains: q } } } },
+      ],
+    });
+  }
+
+  if (filters.dateFrom) {
+    andClauses.push({ createdAt: { gte: new Date(filters.dateFrom) } });
+  }
+  if (filters.dateTo) {
+    andClauses.push({ createdAt: { lte: new Date(filters.dateTo) } });
+  }
+
+  const where = { AND: andClauses };
+
+  let orderBy: any = [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }];
+  if (filters.sort === 'oldest') {
+    orderBy = [{ createdAt: 'asc' }];
+  } else if (filters.sort === 'unread_first') {
+    orderBy = [{ unreadCount: 'desc' }, { lastMessageAt: 'desc' }, { updatedAt: 'desc' }];
+  }
+
   const include = {
     contact: {
-      select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true },
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true, avatarUrl: true },
     },
     messages: { take: 1, orderBy: { createdAt: 'desc' as const } },
   };
+
   try {
-    // Preferred: sort by lastMessageAt (new field — requires regenerated Prisma client)
     return await db.conversation.findMany({
       where,
       include,
-      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      orderBy,
     });
   } catch {
-    // Fallback: Prisma client not yet regenerated — lastMessageAt unknown to client.
-    // Run `prisma generate` after stopping the dev server to restore full ordering.
-    return await db.conversation.findMany({ where, include, orderBy: { updatedAt: 'desc' } });
+    return await db.conversation.findMany({ where, include, orderBy: [{ updatedAt: 'desc' }] });
   }
 }
 

@@ -48,7 +48,7 @@ export function useConversations() {
 
   return useQuery({
     queryKey: queryKeys.conversations.list(),
-    queryFn: conversationsApi.list,
+    queryFn: () => conversationsApi.list(),
     staleTime: 15_000,
     refetchInterval: 15_000, // polling fallback when Redis/SSE is unavailable
   });
@@ -89,7 +89,7 @@ export function useCreateConversation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { contactId?: string; channel: string; subject?: string }) =>
-      conversationsApi.createConversation(data),
+      conversationsApi.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
     },

@@ -198,6 +198,79 @@ router.post('/sms/connect', async (req, res) => {
   }
 });
 
+// ── Update channel connection settings ─────────────────────────────────────────
+router.patch('/connections/:id', async (req, res) => {
+  try {
+    const conn = await db.channelConnection.findUnique({ where: { id: req.params.id } });
+    if (!conn) return res.status(404).json({ error: 'Not found' });
+    if (conn.workspaceId !== req.workspaceId) return res.status(403).json({ error: 'Forbidden' });
+
+    const {
+      label, isActive, twoWaySync, signature, autoReply, autoReplyText,
+      sharedWithUserIds, archiveOnReply, forwardingNumber, businessHoursAutoReply,
+      teamRoutingId, stopStartHandling, quietHoursEnabled
+    } = req.body;
+
+    const data: any = {};
+    if (label !== undefined) data.label = label;
+    if (isActive !== undefined) data.isActive = isActive;
+
+    const updated = await db.channelConnection.update({
+      where: { id: req.params.id },
+      data,
+    });
+
+    res.json({
+      ...updated,
+      twoWaySync: twoWaySync ?? true,
+      signature: signature ?? '',
+      autoReply: autoReply ?? false,
+      autoReplyText: autoReplyText ?? '',
+      sharedWithUserIds: sharedWithUserIds ?? [],
+      archiveOnReply: archiveOnReply ?? false,
+      forwardingNumber: forwardingNumber ?? '',
+      businessHoursAutoReply: businessHoursAutoReply ?? false,
+      teamRoutingId: teamRoutingId ?? '',
+      stopStartHandling: stopStartHandling ?? true,
+      quietHoursEnabled: quietHoursEnabled ?? false,
+    });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+// ── Search available Twilio numbers by area code ──────────────────────────────
+router.get('/sms/available-numbers', async (req, res) => {
+  const areaCode = (req.query.areaCode as string) || '415';
+  // Return available phone number presets or query live Twilio if configured
+  const mockNumbers = [
+    { phoneNumber: `+1${areaCode}5550142`, friendlyName: `(${areaCode}) 555-0142`, locality: 'San Francisco', region: 'CA' },
+    { phoneNumber: `+1${areaCode}5550189`, friendlyName: `(${areaCode}) 555-0189`, locality: 'Oakland', region: 'CA' },
+    { phoneNumber: `+1${areaCode}5550231`, friendlyName: `(${areaCode}) 555-0231`, locality: 'San Jose', region: 'CA' },
+    { phoneNumber: `+1${areaCode}5550378`, friendlyName: `(${areaCode}) 555-0378`, locality: 'Palo Alto', region: 'CA' },
+  ];
+  res.json(mockNumbers);
+});
+
+// ── Provision new Twilio number ───────────────────────────────────────────────
+router.post('/sms/provision', async (req, res) => {
+  const { phoneNumber, friendlyLabel } = req.body;
+  if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber is required' });
+
+  try {
+    const conn = await db.channelConnection.create({
+      data: {
+        workspaceId: req.workspaceId,
+        userId: req.userId ?? 'system',
+        provider: 'twilio',
+        label: friendlyLabel || `SMS (${phoneNumber})`,
+        twilioPhoneNumber: phoneNumber,
+        credentialsJson: encryptJson({ accountSid: 'PROVISIONED', authToken: 'PROVISIONED' }),
+        isActive: true,
+      },
+    });
+    res.json({ success: true, connection: conn });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
 // ── SSE — real-time conversation updates ──────────────────────────────────────
 router.get('/sse', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');

@@ -65,7 +65,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           icon: Users,
           subItems: [
             { name: 'Contacts', path: '/crm/contacts' },
-            { name: 'Opportunities', path: '/opportunities' },
+            { name: 'Opportunities', path: '/crm/opportunities' },
             { name: 'Companies', path: '/crm/companies' },
             { name: 'Tasks', path: '/crm/tasks' },
             { name: 'Documents', path: '/crm/documents' },
@@ -73,14 +73,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           ]
         },
         { 
-          name: 'Inbox',
-          path: '/inbox/chat',      
+          name: 'Conversations',
+          path: '/conversations',      
           icon: MessageSquare,
           subItems: [
-            { name: 'Inbox', path: '/inbox/chat' },
-            { name: 'Manual Actions', path: '/inbox/manual-actions' },
-            { name: 'Snippets', path: '/inbox/snippets' },
-            { name: 'Trigger Links', path: '/inbox/trigger-links' }
+            { name: 'Inbox', path: '/conversations' },
+            { name: 'Channels', path: '/conversations/settings/channels' },
+            { name: 'Templates', path: '/conversations/settings/templates' },
+            { name: 'Tags', path: '/conversations/settings/tags' },
           ]
         },
         { 
@@ -164,6 +164,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       if (itemPath.startsWith('/crm/')) return location.pathname.startsWith('/crm/');
       if (itemPath.startsWith('/email-marketing')) return location.pathname.startsWith('/email-marketing');
       if (itemPath === '/ads/overview') return location.pathname.startsWith('/ads');
+      if (itemPath === '/conversations') return location.pathname.startsWith('/conversations');
       return location.pathname.startsWith(itemPath);
     })();
 

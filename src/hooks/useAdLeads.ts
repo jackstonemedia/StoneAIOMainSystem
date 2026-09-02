@@ -28,6 +28,16 @@ async function retrySync(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to retry lead sync');
 }
 
+async function bulkRetrySync(campaignId?: string): Promise<{ total: number; succeeded: number; failed: number }> {
+  const res = await fetch(`${API}/bulk-retry`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ campaignId }),
+  });
+  if (!res.ok) throw new Error('Failed to bulk retry lead sync');
+  return res.json();
+}
+
 export function useAdLeads(filters: LeadFilters = {}) {
   return useQuery({
     queryKey: queryKeys.ads.leads(Object.fromEntries(Object.entries(filters).map(([k, v]) => [k, String(v ?? '')]))),
@@ -40,6 +50,14 @@ export function useRetryLeadSync() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: retrySync,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ads.leads() }),
+  });
+}
+
+export function useBulkRetryLeadSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (campaignId?: string) => bulkRetrySync(campaignId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.ads.leads() }),
   });
 }

@@ -176,6 +176,23 @@ export async function retryLeadSync(leadId: string, workspaceId: string) {
   });
 }
 
+// ─── Bulk retry failed sync ───────────────────────────────────────────────────
+
+export async function bulkRetryLeadSync(workspaceId: string, campaignId?: string) {
+  const where: any = { workspaceId, syncStatus: { in: ['FAILED', 'PENDING'] } };
+  if (campaignId) where.campaignId = campaignId;
+
+  const leads = await db.adLead.findMany({ where, take: 50 });
+  const results = await Promise.allSettled(
+    leads.map(lead => retryLeadSync(lead.id, workspaceId))
+  );
+
+  const succeeded = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.filter(r => r.status === 'rejected').length;
+
+  return { total: leads.length, succeeded, failed };
+}
+
 // ─── List Leads ───────────────────────────────────────────────────────────────
 
 export async function listLeads(

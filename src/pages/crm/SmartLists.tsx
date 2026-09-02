@@ -195,19 +195,8 @@ export default function SmartLists() {
         </div>
       </HeaderPortal>
 
-      {/* View Tabs Header */}
-      <div className="mx-8 mt-4 mb-2 flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/40 scrollbar-none shrink-0">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-bold bg-primary text-white shadow-sm whitespace-nowrap">
-          <ListIcon className="w-3.5 h-3.5" />
-          <span>All Smart Lists</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/20 text-white">
-            {processedLists.length}
-          </span>
-        </div>
-      </div>
-
-      {/* Table Content */}
-      <div className="flex-1 overflow-auto mx-8 mt-2 mb-6 rounded-[10px] bg-surface/40 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
+      {/* Table Content inside Frosted Glass Panel */}
+      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
         {lists.length === 0 ? (
           <div className="py-24 text-center text-text-muted">
             <ListIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -222,7 +211,7 @@ export default function SmartLists() {
           </div>
         ) : (
           <table className="w-full text-left">
-            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/90 backdrop-blur-md shadow-sm">
+            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
               <tr>
                 <th className="w-12 p-3 text-center">
                   <button onClick={toggleAll} className="w-4 h-4 border border-border rounded flex items-center justify-center transition-colors bg-bg hover:border-primary text-primary">
@@ -307,10 +296,27 @@ export default function SmartLists() {
         )}
       </div>
 
-      {/* Footer Paginator */}
-      <div className="px-8 py-3.5 border-t border-border bg-surface flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0 shadow-lg">
+      {/* Footer Paginator matching CRM standard */}
+      <div 
+        className="pr-8 pl-8 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-20 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
+        style={{ 
+          background: 'var(--sidebar-bg)', 
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
+          '--btn-border': 'transparent'
+        } as React.CSSProperties}
+      >
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-lg text-[12px] font-bold bg-bg text-text-main shadow-sm border border-border flex items-center gap-1.5">
+          <span className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-surface border border-border flex items-center gap-2 text-text-main">
             <span className="w-2 h-2 rounded-full bg-primary" />
             {processedLists.length} Smart Lists
           </span>
@@ -319,9 +325,9 @@ export default function SmartLists() {
         <div className="flex items-center gap-2 font-semibold">
           <button
             onClick={() => { resetPanel(); setPanelOpen(true); }}
-            className="px-3.5 py-1.5 rounded-lg bg-primary text-white text-[12px] font-bold shadow-sm hover:opacity-90 transition-opacity"
+            className="btn-primary"
           >
-            + Create New List
+            <Plus className="w-4 h-4" /> Create Smart List
           </button>
         </div>
       </div>

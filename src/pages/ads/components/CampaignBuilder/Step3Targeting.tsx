@@ -1,6 +1,7 @@
 import { Info } from 'lucide-react';
 import type { CampaignDraft, AdTargeting } from '../../../../types/ads';
 import { SectionCard, Label, Textarea, Select, OptionPill, LocationAutocomplete, TagInput } from './shared';
+import KeywordGenerator from '../../../../components/ads/KeywordGenerator';
 
 export function Step3Targeting({
   draft,
@@ -51,7 +52,23 @@ export function Step3Targeting({
             </div>
           </div>
 
-          <div>
+          {/* AI Keyword Generator */}
+          <div className="mt-4 pt-4 border-t border-border/60">
+            <KeywordGenerator
+              description={draft.name || draft.objective || 'Search Campaign'}
+              seedKeywords={(targeting.keywords || []).map((k: any) => typeof k === 'string' ? k : k.text)}
+              onAddKeywords={(newKws) => {
+                const existing = targeting.keywords || [];
+                const formatted = newKws.map(text => ({
+                  text: text.trim().replace(/^["\[\]]+|["\[\]]+$/g, ''),
+                  matchType: 'BROAD' as const,
+                }));
+                update({ keywords: [...existing, ...formatted] });
+              }}
+            />
+          </div>
+
+          <div className="mt-4">
             <Label>Negative keywords (optional)</Label>
             <Textarea
               rows={3}

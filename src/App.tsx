@@ -47,6 +47,14 @@ const ManualActionsTab    = lazy(() => import('./pages/business/inbox/ManualActi
 const SnippetsTab         = lazy(() => import('./pages/business/inbox/SnippetsTab'));
 const TriggerLinksTab     = lazy(() => import('./pages/business/inbox/TriggerLinksTab'));
 
+// Conversations module (unified inbox — Email + SMS)
+const ConvLayout        = lazy(() => import('./pages/conversations/ConversationsLayout'));
+const ConvInbox         = lazy(() => import('./pages/conversations/ConversationsInbox'));
+const ConvSettingsLayout = lazy(() => import('./pages/conversations/settings/ConversationsSettingsLayout'));
+const ConvChannels      = lazy(() => import('./pages/conversations/settings/ConversationsChannelsSettings'));
+const ConvTemplates     = lazy(() => import('./pages/conversations/settings/ConversationsTemplatesSettings'));
+const ConvTags          = lazy(() => import('./pages/conversations/settings/ConversationsTagsSettings'));
+
 // CRM — top-level at /crm (removed from /business nesting — see Task 3.6)
 const CrmLayout     = lazy(() => import('./pages/crm/CrmLayout'));
 const Contacts      = lazy(() => import('./pages/crm/Contacts'));      // 45KB
@@ -195,20 +203,25 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="contacts/:id"    element={<ErrorBoundary><ContactDetail /></ErrorBoundary>} />
               <Route path="companies"       element={<ErrorBoundary><Companies /></ErrorBoundary>} />
               <Route path="companies/:id"   element={<ErrorBoundary><CompanyDetail /></ErrorBoundary>} />
+              <Route path="opportunities"                    element={<ErrorBoundary><OpportunitiesPage /></ErrorBoundary>} />
+              <Route path="opportunities/:id"                element={<ErrorBoundary><OpportunityDetailPage /></ErrorBoundary>} />
+              <Route path="opportunities/settings/pipelines" element={<ErrorBoundary><PipelineSettingsPage /></ErrorBoundary>} />
+              <Route path="opportunities/settings/fields"    element={<ErrorBoundary><CustomFieldsSettingsPage /></ErrorBoundary>} />
+              <Route path="opportunities/settings/tags"      element={<ErrorBoundary><TagsSettingsPage /></ErrorBoundary>} />
               <Route path="tasks"           element={<ErrorBoundary><CrmTasks /></ErrorBoundary>} />
               <Route path="documents"       element={<ErrorBoundary><CrmDocuments /></ErrorBoundary>} />
               <Route path="smart-lists"     element={<ErrorBoundary><SmartLists /></ErrorBoundary>} />
               <Route path="bulk-actions"    element={<ErrorBoundary><BulkActions /></ErrorBoundary>} />
-              <Route path="pipeline"        element={<Navigate to="/opportunities" replace />} />
+              <Route path="pipeline"        element={<Navigate to="/crm/opportunities" replace />} />
               <Route path="settings"        element={<ErrorBoundary><CrmSettings /></ErrorBoundary>} />
             </Route>
 
-            {/* Opportunities (Rebuilt Module) */}
-            <Route path="/opportunities"                       element={<ErrorBoundary><Protect withAuth={withAuth}><OpportunitiesPage /></Protect></ErrorBoundary>} />
-            <Route path="/opportunities/:id"                   element={<ErrorBoundary><Protect withAuth={withAuth}><OpportunityDetailPage /></Protect></ErrorBoundary>} />
-            <Route path="/opportunities/settings/pipelines"    element={<ErrorBoundary><Protect withAuth={withAuth}><PipelineSettingsPage /></Protect></ErrorBoundary>} />
-            <Route path="/opportunities/settings/fields"       element={<ErrorBoundary><Protect withAuth={withAuth}><CustomFieldsSettingsPage /></Protect></ErrorBoundary>} />
-            <Route path="/opportunities/settings/tags"         element={<ErrorBoundary><Protect withAuth={withAuth}><TagsSettingsPage /></Protect></ErrorBoundary>} />
+            {/* Opportunities Route Aliases */}
+            <Route path="/opportunities"                    element={<Navigate to="/crm/opportunities" replace />} />
+            <Route path="/opportunities/:id"                element={<Navigate to="/crm/opportunities/:id" replace />} />
+            <Route path="/opportunities/settings/pipelines" element={<Navigate to="/crm/opportunities/settings/pipelines" replace />} />
+            <Route path="/opportunities/settings/fields"    element={<Navigate to="/crm/opportunities/settings/fields" replace />} />
+            <Route path="/opportunities/settings/tags"      element={<Navigate to="/crm/opportunities/settings/tags" replace />} />
 
             {/* Shared */}
             <Route path="/marketplace" element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
@@ -245,6 +258,18 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
                 <Route path="teams" element={<ErrorBoundary><InboxTeams /></ErrorBoundary>} />
                 <Route path="labels" element={<ErrorBoundary><InboxLabels /></ErrorBoundary>} />
                 <Route path="canned-responses" element={<ErrorBoundary><InboxCannedResponses /></ErrorBoundary>} />
+              </Route>
+            </Route>
+
+            {/* Conversations (unified inbox — Email + SMS) */}
+            <Route path="/conversations" element={<ErrorBoundary><Protect withAuth={withAuth}><ConvLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<ErrorBoundary><ConvInbox /></ErrorBoundary>} />
+              <Route path=":id" element={<ErrorBoundary><ConvInbox /></ErrorBoundary>} />
+              <Route path="settings" element={<ErrorBoundary><ConvSettingsLayout /></ErrorBoundary>}>
+                <Route index element={<Navigate to="channels" replace />} />
+                <Route path="channels"  element={<ErrorBoundary><ConvChannels /></ErrorBoundary>} />
+                <Route path="templates" element={<ErrorBoundary><ConvTemplates /></ErrorBoundary>} />
+                <Route path="tags"      element={<ErrorBoundary><ConvTags /></ErrorBoundary>} />
               </Route>
             </Route>
 

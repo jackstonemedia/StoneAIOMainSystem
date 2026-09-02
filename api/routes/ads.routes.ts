@@ -20,7 +20,7 @@ import {
   getDashboardMetrics, getDailyChartData, getCampaignMetrics,
 } from '../services/ads/ads-metrics.service.js';
 import {
-  listLeads, retryLeadSync,
+  listLeads, retryLeadSync, bulkRetryLeadSync,
 } from '../services/ads/ads-lead.service.js';
 import {
   generateAdCopy, suggestKeywords, generateAdImage,
@@ -328,6 +328,15 @@ router.post('/leads/:id/retry-sync', async (req: Request, res: Response) => {
   try {
     await retryLeadSync(req.params.id, req.workspaceId!);
     res.json({ success: true });
+  } catch (err) { handleError(res, err); }
+});
+
+// POST /api/ads/leads/bulk-retry
+router.post('/leads/bulk-retry', async (req: Request, res: Response) => {
+  try {
+    const { campaignId } = req.body || {};
+    const result = await bulkRetryLeadSync(req.workspaceId!, campaignId);
+    res.json(result);
   } catch (err) { handleError(res, err); }
 });
 

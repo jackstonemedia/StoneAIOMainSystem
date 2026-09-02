@@ -247,45 +247,15 @@ export default function Companies() {
         </div>
       </HeaderPortal>
 
-      {/* View Tabs Header */}
-      <div className="mx-8 mt-4 mb-2 flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/40 scrollbar-none shrink-0">
-        <button
-          onClick={() => {
-            setActiveTab('all');
-            setPage(1);
-          }}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all whitespace-nowrap ${
-            activeTab === 'all'
-              ? 'bg-primary text-white shadow-sm'
-              : 'text-text-muted hover:text-text-main hover:bg-surface-hover border border-border/40'
-          }`}
-        >
-          <Building2 className="w-3.5 h-3.5" />
-          <span>All Accounts</span>
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-            activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-surface-hover text-text-muted'
-          }`}>
-            {companies.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setPanelOpen('filter')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-primary hover:bg-primary/10 transition-colors ml-auto shrink-0 border border-primary/30"
-        >
-          <Filter className="w-3.5 h-3.5" /> Custom Filter Rule
-        </button>
-      </div>
-
-      {/* Main Table Content */}
+      {/* Main Table Content inside Frosted Glass Panel */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         </div>
       ) : (
-        <div className="flex-1 overflow-auto mx-8 mt-2 mb-6 rounded-[10px] bg-surface/40 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
+        <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
           <table className="w-full text-left">
-            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/90 backdrop-blur-md shadow-sm">
+            <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
               <tr>
                 <th className="w-12 p-3 text-center">
                   <button
@@ -364,7 +334,7 @@ export default function Companies() {
                     {visibleCols.has('Account Name') && (
                       <td className="p-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[12px] bg-primary/10 text-primary border border-primary/20 shrink-0">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[12px] bg-white/10 text-white border border-white/20 shrink-0 shadow-xs">
                             {company.logoUrl ? (
                               <img src={company.logoUrl} alt="" className="w-full h-full object-contain rounded-lg" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
                             ) : (
@@ -461,11 +431,22 @@ export default function Companies() {
 
       {/* Footer Paginator matching Contacts design */}
       <div
-        className="px-8 py-3.5 border-t flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0 shadow-lg"
+        className="pr-8 pl-8 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-20 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
         style={{
-          background: 'var(--surface)',
-          borderColor: 'var(--border)'
-        }}
+          background: 'var(--sidebar-bg)',
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
+          '--btn-border': 'transparent',
+        } as React.CSSProperties}
       >
         <div className="flex items-center gap-2">
           <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
