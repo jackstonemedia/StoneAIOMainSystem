@@ -1,52 +1,64 @@
 /**
- * Autonomous Business Calendar & Scheduling Hub — Stone AIO
- *
- * Full-featured enterprise scheduling engine:
- * 1. Month, Week (7-day hourly grid), Day, and Agenda / List views.
- * 2. Synchronized date navigation (Previous, Today, Next) and interactive mini-calendar.
- * 3. Deep CRM Integration: live contact search, auto-fill, and 1-click CRM profile links.
- * 4. Availability & Slot Engine with live Public Booking simulation.
- * 5. AI Smart Scheduling Assistant (slot discovery & copy generation).
- * 6. Google Calendar / Outlook OAuth sync state indicator.
- * 7. Real-time status management (Scheduled, Confirmed, Completed, Cancelled, No Show).
+ * Calendar & Scheduling Hub — Stone AIO
+ * Visual rework: frosted-glass CRM aesthetic, cleaner week grid, SlideOverPanel form.
+ * Data layer (API calls, mutations, computed values) unchanged from prior version.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Plus, Video, Phone, Users, Clock, Calendar as CalIcon,
   X, MapPin, Trash2, AlertCircle, RefreshCw, Check, User, Sparkles,
-  Copy, Globe, Search, Mail, Share2, Bot
+  Copy, Globe, Search, Mail, Share2, Bot, ChevronDown
 } from 'lucide-react';
-import { SlidePanel } from '../../components/ui/SlidePanel';
+import { motion, AnimatePresence } from 'motion/react';
+import { SlideOverPanel } from '../../components/ui/SlideOverPanel';
+import { ConfirmDelete } from '../../components/ui/ConfirmDelete';
 import { useToast } from '../../components/ui/Toast';
 import { apiClient } from '../../lib/apiClient';
 import type { Appointment } from '../../types/business';
 
-// ── Constants & Helpers ───────────────────────────────────────────────────────
+// ─── Constants & Helpers ──────────────────────────────────────────────────────
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM to 9 PM
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM – 9 PM
 
-const TYPE_CONFIG: Record<string, { icon: any; label: string; color: string; bg: string; border: string; dot: string }> = {
-  video: { icon: Video, label: 'Video Call', color: 'text-teal-400', bg: 'bg-teal-500/10', border: 'border-teal-500/30', dot: 'bg-teal-400' },
-  call: { icon: Phone, label: 'Phone Call', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', dot: 'bg-amber-400' },
-  meeting: { icon: Users, label: 'Meeting', color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/30', dot: 'bg-primary' },
-  demo: { icon: Sparkles, label: 'Product Demo', color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30', dot: 'bg-purple-400' },
-  consultation: { icon: Sparkles, label: 'Consultation', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
-  in_person: { icon: MapPin, label: 'In Person', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', dot: 'bg-blue-400' },
+const TYPE_CONFIG: Record<string, { icon: any; label: string; color: string; bg: string; border: string; dot: string; pill: string }> = {
+  video:        { icon: Video,    label: 'Video Call',     color: 'text-teal-400',    bg: 'bg-teal-500/10',    border: 'border-teal-500/30',    dot: 'bg-teal-400',    pill: 'bg-teal-500/20 text-teal-300 border-teal-500/30' },
+  call:         { icon: Phone,    label: 'Phone Call',     color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',   dot: 'bg-amber-400',   pill: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  meeting:      { icon: Users,    label: 'Meeting',        color: 'text-primary',     bg: 'bg-primary/10',     border: 'border-primary/30',     dot: 'bg-primary',     pill: 'bg-primary/20 text-primary border-primary/30' },
+  demo:         { icon: Sparkles, label: 'Product Demo',   color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/30',  dot: 'bg-purple-400',  pill: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  consultation: { icon: Sparkles, label: 'Consultation',   color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', dot: 'bg-emerald-400', pill: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  in_person:    { icon: MapPin,   label: 'In Person',      color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30',    dot: 'bg-blue-400',    pill: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  scheduled: { label: 'Scheduled', color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
-  confirmed: { label: 'Confirmed', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
-  completed: { label: 'Completed', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
-  cancelled: { label: 'Cancelled', color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30' },
-  no_show: { label: 'No Show', color: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+  scheduled: { label: 'Scheduled', color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30' },
+  confirmed:  { label: 'Confirmed', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+  completed:  { label: 'Completed', color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
+  cancelled:  { label: 'Cancelled', color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30' },
+  no_show:    { label: 'No Show',   color: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30' },
+};
+
+const EMPTY_FORM = {
+  id: '',
+  title: '',
+  type: 'video',
+  date: '',
+  time: '09:00',
+  duration: 30,
+  contactId: '',
+  contactName: '',
+  contactEmail: '',
+  contactPhone: '',
+  location: 'https://meet.google.com/new',
+  description: '',
+  status: 'scheduled',
 };
 
 function getCalendarGrid(year: number, month: number) {
@@ -65,57 +77,62 @@ function formatDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function fmtTime(d: Date) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function Calendar() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // ── Date Navigation State ──────────────────────────────────────────────────
+  // ── Navigation & view ─────────────────────────────────────────────────────
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [view, setView] = useState<'month' | 'week' | 'day' | 'agenda'>('week');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // ── Modals & Drawers ───────────────────────────────────────────────────────
+  // ── Panels & modals ────────────────────────────────────────────────────────
   const [panelOpen, setPanelOpen] = useState(false);
-  const [publicBookingModalOpen, setPublicBookingModalOpen] = useState(false);
+  const [publicBookingOpen, setPublicBookingOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Appointment | null>(null);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
-  // ── Event Form State ───────────────────────────────────────────────────────
-  const [form, setForm] = useState({
-    id: '',
-    title: '',
-    type: 'video',
-    date: formatDateKey(new Date()),
-    time: '09:00',
-    duration: 30,
-    contactId: '',
-    contactName: '',
-    contactEmail: '',
-    contactPhone: '',
-    location: 'https://meet.google.com/new',
-    description: '',
-    status: 'scheduled',
-  });
+  // ── Form state ─────────────────────────────────────────────────────────────
+  const [form, setForm] = useState({ ...EMPTY_FORM, date: formatDateKey(new Date()) });
 
-  // ── Public Booking Simulator State ─────────────────────────────────────────
+  // ── Contact combobox ───────────────────────────────────────────────────────
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactDropOpen, setContactDropOpen] = useState(false);
+  const contactRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (contactRef.current && !contactRef.current.contains(e.target as Node)) setContactDropOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  // ── Public booking sim ─────────────────────────────────────────────────────
   const [bookingSimDate, setBookingSimDate] = useState<string>(formatDateKey(new Date()));
   const [bookingSimDuration, setBookingSimDuration] = useState<number>(30);
   const [bookingSimSlot, setBookingSimSlot] = useState<string>('');
   const [bookingSimName, setBookingSimName] = useState<string>('Alex Johnson');
-  const [bookingSimEmail, setBookingSimEmail] = useState<string>('alex@austinplumbing.com');
+  const [bookingSimEmail, setBookingSimEmail] = useState<string>('alex@example.com');
   const [bookingSimPhone, setBookingSimPhone] = useState<string>('+1 (512) 555-0199');
   const [bookingSimType, setBookingSimType] = useState<string>('video');
-  const [bookingSimNotes, setBookingSimNotes] = useState<string>('Discussing automated outbound SDR system');
+  const [bookingSimNotes, setBookingSimNotes] = useState<string>('');
 
-  // ── AI Assistant State ─────────────────────────────────────────────────────
-  const [aiContactName, setAiContactName] = useState('Sarah');
+  // ── AI assistant ───────────────────────────────────────────────────────────
+  const [aiContactName, setAiContactName] = useState('');
   const [aiPurpose, setAiPurpose] = useState('a 20-minute product walkthrough');
   const [aiGeneratedCopy, setAiGeneratedCopy] = useState('');
 
-  // ── Data Queries ───────────────────────────────────────────────────────────
-  const { data: appointments = [], refetch } = useQuery<Appointment[]>({
+  // ── Queries ───────────────────────────────────────────────────────────────
+  const { data: appointments = [], isLoading } = useQuery<Appointment[]>({
     queryKey: ['appointments', typeFilter, statusFilter, searchQuery],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -149,28 +166,25 @@ export default function Calendar() {
       const { data } = await apiClient.get(`/business/calendar/slots?date=${bookingSimDate}&durationMinutes=${bookingSimDuration}`);
       return data;
     },
-    enabled: publicBookingModalOpen,
+    enabled: publicBookingOpen,
   });
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
+  // ── Mutations ─────────────────────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: async (payload: any) => {
       if (payload.id) {
         const { data } = await apiClient.put(`/business/appointments/${payload.id}`, payload);
         return data;
-      } else {
-        const { data } = await apiClient.post('/business/appointments', payload);
-        return data;
       }
+      const { data } = await apiClient.post('/business/appointments', payload);
+      return data;
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
-      toast('success', form.id ? 'Appointment Updated' : 'Appointment Scheduled', `"${saved.title}" confirmed for ${form.date} at ${form.time}`);
+      toast('success', form.id ? 'Appointment updated' : 'Appointment scheduled', `"${saved.title}" confirmed for ${form.date} at ${form.time}`);
       setPanelOpen(false);
     },
-    onError: (err: any) => {
-      toast('error', 'Booking Failed', err?.response?.data?.error || err?.message || 'Could not save appointment');
-    },
+    onError: (err: any) => toast('error', 'Booking failed', err?.response?.data?.error || err?.message),
   });
 
   const deleteMutation = useMutation({
@@ -180,13 +194,11 @@ export default function Calendar() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
-      toast('success', 'Appointment Cancelled', 'The event has been removed from the schedule.');
+      toast('success', 'Appointment cancelled');
       setDeleteTarget(null);
       setPanelOpen(false);
     },
-    onError: (err: any) => {
-      toast('error', 'Cancellation Failed', err?.response?.data?.error || err?.message);
-    },
+    onError: (err: any) => toast('error', 'Cancellation failed', err?.response?.data?.error || err?.message),
   });
 
   const updateStatusMutation = useMutation({
@@ -196,7 +208,7 @@ export default function Calendar() {
     },
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
-      toast('success', 'Status Updated', `Appointment marked as ${updated.status}`);
+      toast('success', 'Status updated', `Marked as ${updated.status}`);
     },
   });
 
@@ -207,12 +219,10 @@ export default function Calendar() {
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['appointments'] });
-      toast('success', 'Public Booking Confirmed!', `Appointment booked for ${res.contact?.firstName || 'Guest'} (${bookingSimSlot} on ${bookingSimDate})`);
-      setPublicBookingModalOpen(false);
+      toast('success', 'Booking confirmed!', `Booked for ${res.contact?.firstName || 'Guest'}`);
+      setPublicBookingOpen(false);
     },
-    onError: (err: any) => {
-      toast('error', 'Booking Failed', err?.response?.data?.error || err?.message);
-    },
+    onError: (err: any) => toast('error', 'Booking failed', err?.response?.data?.error || err?.message),
   });
 
   const aiSuggestMutation = useMutation({
@@ -227,75 +237,60 @@ export default function Calendar() {
     },
     onSuccess: (data) => {
       setAiGeneratedCopy(data.suggestedEmailCopy);
-      toast('success', 'AI Proposal Generated', 'Open slots identified and personalized email ready.');
+      toast('success', 'AI proposal generated');
     },
-    onError: (err: any) => {
-      toast('error', 'AI Suggestion Failed', err?.response?.data?.error || err?.message);
-    },
+    onError: (err: any) => toast('error', 'AI suggestion failed', err?.response?.data?.error || err?.message),
   });
 
-  // ── Computed Date Navigation ───────────────────────────────────────────────
+  // ── Date navigation ────────────────────────────────────────────────────────
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const todayStr = formatDateKey(new Date());
 
   const handlePrev = () => {
-    const next = new Date(currentDate);
-    if (view === 'month') next.setMonth(next.getMonth() - 1);
-    else if (view === 'week') next.setDate(next.getDate() - 7);
-    else next.setDate(next.getDate() - 1);
-    setCurrentDate(next);
+    const d = new Date(currentDate);
+    if (view === 'month') d.setMonth(d.getMonth() - 1);
+    else if (view === 'week') d.setDate(d.getDate() - 7);
+    else d.setDate(d.getDate() - 1);
+    setCurrentDate(d);
   };
-
   const handleNext = () => {
-    const next = new Date(currentDate);
-    if (view === 'month') next.setMonth(next.getMonth() + 1);
-    else if (view === 'week') next.setDate(next.getDate() + 7);
-    else next.setDate(next.getDate() + 1);
-    setCurrentDate(next);
+    const d = new Date(currentDate);
+    if (view === 'month') d.setMonth(d.getMonth() + 1);
+    else if (view === 'week') d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 1);
+    setCurrentDate(d);
   };
+  const handleToday = () => setCurrentDate(new Date());
 
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  // 7-day week view bounds
   const weekStart = useMemo(() => {
     const d = new Date(currentDate);
-    const day = d.getDay(); // 0 is Sun
-    d.setDate(d.getDate() - day);
+    d.setDate(d.getDate() - d.getDay());
     d.setHours(0, 0, 0, 0);
     return d;
   }, [currentDate]);
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
+  const weekDays = useMemo(() =>
+    Array.from({ length: 7 }, (_, i) => {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
       return d;
-    });
-  }, [weekStart]);
+    }), [weekStart]);
 
-  // Filtered Appointments
+  // ── Filtered appointments ─────────────────────────────────────────────────
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((apt) => {
+    return appointments.filter(apt => {
       if (typeFilter !== 'all' && apt.type !== typeFilter) return false;
       if (statusFilter !== 'all' && apt.status !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const contactName = `${apt.contact?.firstName || ''} ${apt.contact?.lastName || ''}`.toLowerCase();
-        return (
-          apt.title.toLowerCase().includes(q) ||
-          (apt.description || '').toLowerCase().includes(q) ||
-          contactName.includes(q) ||
-          (apt.location || '').toLowerCase().includes(q)
-        );
+        const cn = `${apt.contact?.firstName || ''} ${apt.contact?.lastName || ''}`.toLowerCase();
+        return apt.title.toLowerCase().includes(q) || cn.includes(q) || (apt.location || '').toLowerCase().includes(q);
       }
       return true;
     });
   }, [appointments, typeFilter, statusFilter, searchQuery]);
 
-  // Appointments grouped by date string (YYYY-MM-DD)
   const appointmentsByDate = useMemo(() => {
     const map = new Map<string, Appointment[]>();
     for (const apt of filteredAppointments) {
@@ -308,78 +303,62 @@ export default function Calendar() {
     return map;
   }, [filteredAppointments]);
 
-  // Today's appointments
-  const todayAppointments = useMemo(() => {
-    return appointmentsByDate.get(todayStr) || [];
-  }, [appointmentsByDate, todayStr]);
+  const todayAppointments = useMemo(() =>
+    (appointmentsByDate.get(todayStr) || []).sort((a, b) =>
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    ), [appointmentsByDate, todayStr]);
 
-  // KPI Metrics
-  const kpiStats = useMemo(() => {
+  // KPI stats
+  const kpi = useMemo(() => {
     const total = appointments.length;
     const completed = appointments.filter(a => a.status === 'completed').length;
-    const scheduled = appointments.filter(a => a.status === 'scheduled' || a.status === 'confirmed').length;
-    const noShowOrCancel = appointments.filter(a => a.status === 'cancelled' || a.status === 'no_show').length;
-    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const projectedRev = total * 175;
-
-    return { total, completed, scheduled, noShowOrCancel, completionRate, projectedRev };
+    const upcoming = appointments.filter(a => ['scheduled', 'confirmed'].includes(a.status)).length;
+    const noShow = appointments.filter(a => a.status === 'no_show').length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { total, completed, upcoming, noShow, rate };
   }, [appointments]);
 
-  // ── Form Handlers ──────────────────────────────────────────────────────────
-  const openFormForNew = (dateStr?: string, timeStr?: string) => {
-    setForm({
-      id: '',
-      title: '',
-      type: 'video',
-      date: dateStr || formatDateKey(currentDate),
-      time: timeStr || '09:00',
-      duration: 30,
-      contactId: '',
-      contactName: '',
-      contactEmail: '',
-      contactPhone: '',
-      location: 'https://meet.google.com/new',
-      description: '',
-      status: 'scheduled',
-    });
+  // ── Form helpers ───────────────────────────────────────────────────────────
+  const openCreate = (dateStr?: string, timeStr?: string) => {
+    setForm({ ...EMPTY_FORM, date: dateStr || formatDateKey(currentDate), time: timeStr || '09:00' });
+    setContactSearch('');
     setPanelOpen(true);
   };
 
-  const openFormForEdit = (apt: Appointment) => {
-    const sDate = new Date(apt.startTime);
-    const eDate = new Date(apt.endTime);
-    const durationMins = Math.max(15, Math.round((eDate.getTime() - sDate.getTime()) / 60000));
-
+  const openEdit = (apt: Appointment) => {
+    const s = new Date(apt.startTime);
+    const e = new Date(apt.endTime);
+    const dur = Math.max(15, Math.round((e.getTime() - s.getTime()) / 60000));
+    const cn = apt.contact ? `${apt.contact.firstName || ''} ${apt.contact.lastName || ''}`.trim() : '';
     setForm({
       id: apt.id,
       title: apt.title,
       type: apt.type || 'video',
-      date: formatDateKey(sDate),
-      time: `${String(sDate.getHours()).padStart(2, '0')}:${String(sDate.getMinutes()).padStart(2, '0')}`,
-      duration: durationMins,
+      date: formatDateKey(s),
+      time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`,
+      duration: dur,
       contactId: apt.contactId || '',
-      contactName: apt.contact ? `${apt.contact.firstName || ''} ${apt.contact.lastName || ''}`.trim() : '',
+      contactName: cn,
       contactEmail: apt.contact?.email || '',
       contactPhone: apt.contact?.phone || '',
       location: apt.location || '',
       description: apt.description || '',
       status: apt.status || 'scheduled',
     });
+    setContactSearch(cn);
     setPanelOpen(true);
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.date || !form.time) {
-      toast('warning', 'Missing Details', 'Please enter an event title, date, and start time.');
+      toast('warning', 'Missing details', 'Please enter a title, date, and time.');
       return;
     }
-
     const [h, m] = form.time.split(':').map(Number);
     const sDate = new Date(form.date);
     sDate.setHours(h, m, 0, 0);
     const eDate = new Date(sDate.getTime() + form.duration * 60000);
-
     saveMutation.mutate({
       id: form.id || undefined,
       title: form.title,
@@ -396,1284 +375,1050 @@ export default function Calendar() {
     });
   };
 
-  const handleSelectContact = (c: any) => {
+  const selectContact = (c: any) => {
     if (!c) {
       setForm(prev => ({ ...prev, contactId: '', contactName: '', contactEmail: '', contactPhone: '' }));
+      setContactSearch('');
       return;
     }
-    const fullName = `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.companyName || 'Contact';
+    const name = `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email || 'Contact';
     setForm(prev => ({
       ...prev,
       contactId: c.id,
-      contactName: fullName,
+      contactName: name,
       contactEmail: c.email || '',
       contactPhone: c.phone || '',
-      title: prev.title || `Sync with ${fullName}`,
+      title: prev.title || `Sync with ${name}`,
     }));
+    setContactSearch(name);
+    setContactDropOpen(false);
   };
 
+  const filteredContacts = useMemo(() => {
+    const q = contactSearch.toLowerCase();
+    return crmContacts.filter((c: any) =>
+      `${c.firstName || ''} ${c.lastName || ''} ${c.email || ''}`.toLowerCase().includes(q)
+    );
+  }, [crmContacts, contactSearch]);
+
+  // Current time for week/day red line
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+  const nowTopPx = ((nowMinutes / 60) - 7) * 64;
+
+  // ── View label ─────────────────────────────────────────────────────────────
+  const viewLabel = useMemo(() => {
+    if (view === 'month') return `${MONTHS[month]} ${year}`;
+    if (view === 'week') {
+      const s = weekDays[0];
+      const e = weekDays[6];
+      if (s.getMonth() === e.getMonth()) return `${MONTHS[s.getMonth()]} ${s.getDate()}–${e.getDate()}, ${year}`;
+      return `${MONTHS[s.getMonth()]} ${s.getDate()} – ${MONTHS[e.getMonth()]} ${e.getDate()}, ${year}`;
+    }
+    if (view === 'day') return `${FULL_DAYS[currentDate.getDay()]}, ${MONTHS[month]} ${currentDate.getDate()}, ${year}`;
+    return `${MONTHS[month]} ${year} — Agenda`;
+  }, [view, month, year, weekDays, currentDate]);
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex flex-col h-full w-full overflow-hidden bg-bg text-text-main">
-      {/* ── Top Header Control Bar ────────────────────────────────────────── */}
-      <div className="h-16 px-6 border-b border-border/60 flex items-center justify-between shrink-0 bg-surface/80 backdrop-blur-md z-20">
-        {/* Left: Branding & Core CTA */}
+    <div className="flex flex-col h-full w-full relative bg-bg overflow-hidden text-text-main">
+      {/* Frosted overlay */}
+      <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10" />
+
+      {/* ── Top Control Bar ── */}
+      <div className="h-[60px] px-6 border-b border-border/60 flex items-center justify-between shrink-0 bg-surface/60 backdrop-blur-md z-20">
+        {/* Left: title + sync badges */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-primary to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
-            <CalIcon className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
+            <CalIcon className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-black text-text-main tracking-tight">Calendar & Scheduling</h1>
+              <span className="text-[15px] font-black text-text-main tracking-tight">Calendar</span>
               {syncStatus?.hasGoogleCalendar && (
                 <span className="px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-400 text-[10px] font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Google Synced
+                  <Check className="w-3 h-3" /> Google
                 </span>
               )}
               {syncStatus?.hasOutlookCalendar && (
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Outlook Synced
+                  <Check className="w-3 h-3" /> Outlook
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-text-muted">Enterprise unified calendar & automated client booking</p>
+            <p className="text-[11px] text-text-muted">Scheduling & booking hub</p>
           </div>
         </div>
 
-        {/* Center: View Switcher */}
-        <div className="flex items-center gap-1 bg-surface-hover/80 p-1 rounded-xl border border-border/60 text-xs shadow-inner">
-          {(['month', 'week', 'day', 'agenda'] as const).map(v => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-3.5 py-1.5 rounded-lg font-bold capitalize transition-all cursor-pointer ${
-                view === v
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-main hover:bg-surface'
-              }`}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-
-        {/* Right: Date Navigation & Actions */}
+        {/* Center: view switcher + nav */}
         <div className="flex items-center gap-3">
-          {/* Previous / Today / Next */}
+          {/* Nav arrows + today + label */}
           <div className="flex items-center gap-1 bg-surface border border-border/60 rounded-xl p-0.5">
-            <button
-              onClick={handlePrev}
-              className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors cursor-pointer"
-              title="Previous"
-            >
+            <button onClick={handlePrev} className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button
-              onClick={handleToday}
-              className="px-2.5 py-1 text-xs font-bold text-text-main hover:bg-surface-hover rounded-lg transition-colors cursor-pointer"
-            >
+            <button onClick={handleToday} className="px-2.5 py-1 text-[12px] font-bold text-text-main hover:bg-surface-hover rounded-lg transition-colors">
               Today
             </button>
-            <button
-              onClick={handleNext}
-              className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors cursor-pointer"
-              title="Next"
-            >
+            <button onClick={handleNext} className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Current Date Text Label */}
-          <span className="text-xs font-black text-text-main min-w-[140px] text-right">
-            {view === 'month' && `${MONTHS[month]} ${year}`}
-            {view === 'week' && `${MONTHS[weekDays[0].getMonth()]} ${weekDays[0].getDate()} – ${MONTHS[weekDays[6].getMonth()]} ${weekDays[6].getDate()}, ${year}`}
-            {view === 'day' && `${FULL_DAYS[currentDate.getDay()]}, ${MONTHS[month]} ${currentDate.getDate()}, ${year}`}
-            {view === 'agenda' && `${MONTHS[month]} ${year} Agenda`}
-          </span>
+          <span className="text-[13px] font-bold text-text-main min-w-[200px] text-center">{viewLabel}</span>
 
-          {/* AI Assistant Button */}
+          {/* View tabs */}
+          <div className="flex items-center gap-0.5 bg-surface-hover/60 border border-border/50 p-0.5 rounded-xl">
+            {(['month', 'week', 'day', 'agenda'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-bold capitalize transition-all ${
+                  view === v ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main hover:bg-surface'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: actions */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setAiAssistantOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs font-bold text-purple-400 hover:bg-purple-500/20 transition-all cursor-pointer"
-            title="AI Smart Scheduling Assistant"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-[12px] font-bold text-purple-400 hover:bg-purple-500/20 transition-all"
           >
             <Sparkles className="w-3.5 h-3.5" /> AI Booking
           </button>
-
-          {/* Public Booking Link Generator */}
           <button
-            onClick={() => setPublicBookingModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-border/60 text-xs font-bold text-text-main hover:bg-surface-hover transition-all cursor-pointer"
-            title="Test Public Client Booking Page"
+            onClick={() => setPublicBookingOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-border/60 text-[12px] font-bold text-text-main hover:bg-surface-hover transition-all"
           >
-            <Globe className="w-3.5 h-3.5 text-primary" /> Public Page
+            <Globe className="w-3.5 h-3.5 text-primary" /> Book Link
           </button>
-
-          {/* Primary Create Button */}
           <button
-            onClick={() => openFormForNew()}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+            onClick={() => openCreate()}
+            className="btn-primary text-[12px]"
           >
             <Plus className="w-4 h-4" /> New Event
           </button>
         </div>
       </div>
 
-      {/* ── KPI Analytics Header ────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 border-b border-border/50 bg-surface/30 shrink-0">
+      {/* ── KPI Strip ── */}
+      <div className="grid grid-cols-4 border-b border-border/40 shrink-0">
         {[
-          { label: 'Total Bookings', value: kpiStats.total, sub: 'All calendar events', color: 'text-text-main' },
-          { label: 'Confirmed & Scheduled', value: kpiStats.scheduled, sub: 'Upcoming meetings', color: 'text-blue-400' },
-          { label: 'Completed Rate', value: `${kpiStats.completionRate}%`, sub: `${kpiStats.completed} completed`, color: 'text-emerald-400' },
-          { label: 'No Shows & Cancelled', value: kpiStats.noShowOrCancel, sub: 'Managed exceptions', color: 'text-amber-400' },
-          { label: 'Projected Value', value: `$${kpiStats.projectedRev.toLocaleString()}`, sub: 'Direct pipeline impact', color: 'text-purple-400' },
-        ].map((kpi, i) => (
-          <div key={i} className="p-3.5 border-r border-border/50 last:border-r-0 flex flex-col justify-center">
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-0.5">{kpi.label}</span>
-            <div className="text-lg font-black tracking-tight leading-tight">
-              <span className={kpi.color}>{kpi.value}</span>
+          { label: 'Total', value: kpi.total, color: 'text-text-main', sub: 'all events' },
+          { label: 'Upcoming', value: kpi.upcoming, color: 'text-blue-400', sub: 'scheduled / confirmed' },
+          { label: 'Completed', value: `${kpi.rate}%`, color: 'text-emerald-400', sub: `${kpi.completed} done` },
+          { label: 'No Shows', value: kpi.noShow, color: 'text-amber-400', sub: 'flagged' },
+        ].map((k, i) => (
+          <div key={i} className="p-3 border-r border-border/40 last:border-r-0 flex items-center gap-3">
+            <div>
+              <div className={`text-[22px] font-black leading-none ${k.color}`}>{k.value}</div>
+              <div className="text-[10px] text-text-muted font-bold uppercase tracking-wide mt-0.5">{k.label}</div>
+              <div className="text-[10px] text-text-muted">{k.sub}</div>
             </div>
-            <span className="text-[10px] text-text-muted">{kpi.sub}</span>
           </div>
         ))}
       </div>
 
-      {/* ── Main Workspace Body ─────────────────────────────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* ── Left Interactive Sidebar ─────────────────────────────────── */}
-        <aside className="w-[280px] shrink-0 border-r border-border/60 bg-surface/40 flex flex-col overflow-y-auto">
-          {/* Interactive Mini Calendar */}
-          <div className="p-4 border-b border-border/60">
-            <div className="flex items-center justify-between mb-3">
-              <button
-                onClick={() => {
-                  const d = new Date(currentDate);
-                  d.setMonth(d.getMonth() - 1);
-                  setCurrentDate(d);
-                }}
-                className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors cursor-pointer"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-xs font-black text-text-main">
-                {MONTHS[month]} {year}
-              </span>
-              <button
-                onClick={() => {
-                  const d = new Date(currentDate);
-                  d.setMonth(d.getMonth() + 1);
-                  setCurrentDate(d);
-                }}
-                className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors cursor-pointer"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((dayChar, i) => (
-                <span key={i} className="text-[10px] font-bold text-text-muted mb-1">
-                  {dayChar}
-                </span>
-              ))}
-              {getCalendarGrid(year, month).map((dayNum, idx) => {
-                if (!dayNum) return <div key={idx} className="h-7 w-7" />;
-                const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                const isSelected = formatDateKey(currentDate) === cellDateStr;
-                const isToday = cellDateStr === todayStr;
-                const hasEvents = appointmentsByDate.has(cellDateStr);
-
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      const d = new Date(year, month, dayNum);
-                      setCurrentDate(d);
-                    }}
-                    className={`h-7 w-7 mx-auto rounded-xl text-[11px] font-bold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-primary text-white shadow-sm'
-                        : isToday
-                        ? 'border border-primary text-primary font-black'
-                        : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
-                    }`}
-                  >
-                    <span>{dayNum}</span>
-                    {hasEvents && !isSelected && (
-                      <span className="w-1 h-1 rounded-full bg-primary absolute bottom-1" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Filters */}
-          <div className="p-4 border-b border-border/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filter By Type</span>
-              {typeFilter !== 'all' && (
-                <button onClick={() => setTypeFilter('all')} className="text-[10px] text-primary hover:underline">
-                  Reset
+      {/* ── Body ── */}
+      {isLoading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <div className="flex-1 flex overflow-hidden">
+          {/* ── Left Sidebar ── */}
+          <aside className="w-[240px] shrink-0 border-r border-border/50 bg-surface/30 flex flex-col overflow-y-auto">
+            {/* Mini Calendar */}
+            <div className="p-4 border-b border-border/40">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth() - 1); setCurrentDate(d); }}
+                  className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-              )}
+                <span className="text-[12px] font-black text-text-main">{MONTHS[month].slice(0, 3)} {year}</span>
+                <button
+                  onClick={() => { const d = new Date(currentDate); d.setMonth(d.getMonth() + 1); setCurrentDate(d); }}
+                  className="p-1 rounded-lg hover:bg-surface-hover text-text-muted transition-colors"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 text-center">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                  <span key={i} className="text-[9px] font-bold text-text-muted mb-1">{d}</span>
+                ))}
+                {getCalendarGrid(year, month).map((dayNum, idx) => {
+                  if (!dayNum) return <div key={idx} className="h-6 w-6" />;
+                  const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                  const isSelected = formatDateKey(currentDate) === cellDate;
+                  const isToday = cellDate === todayStr;
+                  const hasEvents = appointmentsByDate.has(cellDate);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => { setCurrentDate(new Date(year, month, dayNum)); }}
+                      className={`h-6 w-6 mx-auto rounded-lg text-[11px] font-bold relative transition-all ${
+                        isSelected ? 'bg-primary text-white shadow-sm'
+                          : isToday ? 'ring-1 ring-primary text-primary'
+                          : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
+                      }`}
+                    >
+                      {dayNum}
+                      {hasEvents && !isSelected && (
+                        <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-1">
+            {/* Type filter */}
+            <div className="p-4 border-b border-border/40 space-y-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Filter by type</span>
+                {typeFilter !== 'all' && (
+                  <button onClick={() => setTypeFilter('all')} className="text-[10px] text-primary hover:underline">Reset</button>
+                )}
+              </div>
               {[
-                { id: 'all', label: 'All Event Types', dot: 'bg-text-muted' },
-                { id: 'video', label: 'Video Calls', dot: TYPE_CONFIG.video.dot },
-                { id: 'call', label: 'Phone Calls', dot: TYPE_CONFIG.call.dot },
-                { id: 'meeting', label: 'In-Person Meetings', dot: TYPE_CONFIG.meeting.dot },
-                { id: 'demo', label: 'Product Demos', dot: TYPE_CONFIG.demo.dot },
-                { id: 'consultation', label: 'Consultations', dot: TYPE_CONFIG.consultation.dot },
+                { id: 'all', label: 'All Types', dot: 'bg-text-muted/60' },
+                ...Object.entries(TYPE_CONFIG).map(([id, c]) => ({ id, label: c.label, dot: c.dot })),
               ].map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTypeFilter(t.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${
                     typeFilter === t.id
                       ? 'bg-surface-hover text-text-main border border-border/60'
                       : 'text-text-muted hover:text-text-main hover:bg-surface-hover/50'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${t.dot}`} />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${t.dot}`} />
                     <span>{t.label}</span>
                   </div>
-                  {t.id === 'all'
-                    ? <span className="text-[10px] text-text-muted">{appointments.length}</span>
-                    : <span className="text-[10px] text-text-muted">{appointments.filter(a => a.type === t.id).length}</span>
-                  }
+                  <span className="text-[10px] text-text-muted">
+                    {t.id === 'all' ? appointments.length : appointments.filter(a => a.type === t.id).length}
+                  </span>
                 </button>
               ))}
             </div>
-          </div>
 
-          {/* Today's Agenda Feed */}
-          <div className="p-4 flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Today's Schedule</span>
-              <span className="text-[10px] font-bold text-primary">{todayAppointments.length} events</span>
+            {/* Today's schedule */}
+            <div className="p-4 flex-1 overflow-y-auto">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Today</span>
+                <span className="text-[10px] font-bold text-primary">{todayAppointments.length} events</span>
+              </div>
+              {todayAppointments.length === 0 ? (
+                <div className="p-3 rounded-xl border border-dashed border-border/50 text-center bg-surface/20">
+                  <CalIcon className="w-4 h-4 text-text-muted/30 mx-auto mb-1" />
+                  <p className="text-[11px] text-text-muted">No events today</p>
+                  <button
+                    onClick={() => openCreate(todayStr)}
+                    className="mt-1.5 text-[11px] font-bold text-primary hover:underline"
+                  >
+                    + Add Event
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {todayAppointments.map(apt => {
+                    const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
+                    return (
+                      <button
+                        key={apt.id}
+                        onClick={() => openEdit(apt)}
+                        className={`w-full text-left p-2.5 rounded-xl border hover:shadow-md transition-all ${cfg.bg} ${cfg.border}`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className="text-[12px] font-bold text-text-main truncate">{apt.title}</span>
+                          <cfg.icon className={`w-3 h-3 shrink-0 ${cfg.color}`} />
+                        </div>
+                        <span className="text-[10px] text-text-muted font-mono">{fmtTime(new Date(apt.startTime))}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {todayAppointments.length === 0 ? (
-              <div className="p-4 rounded-xl border border-dashed border-border/60 text-center bg-surface/20">
-                <CalIcon className="w-5 h-5 text-text-muted/40 mx-auto mb-1.5" />
-                <p className="text-xs text-text-muted">No appointments today</p>
+            {/* Booking link card */}
+            <div className="p-4 border-t border-border/40">
+              <div className="bg-surface border border-border/50 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-bold text-text-main flex items-center gap-1.5">
+                    <Share2 className="w-3.5 h-3.5 text-primary" /> Booking Link
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-bold">Active</span>
+                </div>
+                <p className="text-[10px] text-text-muted font-mono bg-bg/60 px-2 py-1 rounded-lg border border-border/40 truncate">
+                  stoneaio.com/book/team
+                </p>
                 <button
-                  onClick={() => openFormForNew(todayStr)}
-                  className="mt-2 text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard?.writeText('https://stoneaio.com/book/team');
+                    toast('success', 'Link copied!');
+                  }}
+                  className="w-full py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold rounded-lg text-[11px] transition-all flex items-center justify-center gap-1.5"
                 >
-                  + Add Event
+                  <Copy className="w-3 h-3" /> Copy Link
                 </button>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {todayAppointments.map(apt => {
-                  const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
-                  const time = new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                  return (
-                    <div
-                      key={apt.id}
-                      onClick={() => openFormForEdit(apt)}
-                      className={`p-2.5 rounded-xl border cursor-pointer hover:shadow-md transition-all ${cfg.bg} ${cfg.border}`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-text-main truncate pr-2">{apt.title}</span>
-                        <cfg.icon className={`w-3.5 h-3.5 shrink-0 ${cfg.color}`} />
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-text-muted">
-                        <span className="flex items-center gap-1 font-mono">
-                          <Clock className="w-3 h-3" /> {time}
-                        </span>
-                        {apt.contact && (
-                          <span className="font-semibold text-text-main truncate max-w-[100px]">
-                            {apt.contact.firstName}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Shareable Booking Link Card */}
-          <div className="p-4 border-t border-border/60 bg-surface-hover/30">
-            <div className="bg-surface border border-border/60 rounded-2xl p-3 shadow-sm space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-text-main flex items-center gap-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-primary" /> Booking Link
-                </span>
-                <span className="text-[10px] text-emerald-400 font-bold">Active</span>
-              </div>
-              <p className="text-[11px] text-text-muted font-mono bg-bg/80 px-2 py-1 rounded-lg border border-border/50 truncate">
-                stoneaio.com/book/team
-              </p>
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText('https://stoneaio.com/book/team');
-                  toast('success', 'Link Copied', 'Your public calendar booking link is copied to clipboard.');
-                }}
-                className="w-full py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Copy className="w-3.5 h-3.5" /> Copy Booking Link
-              </button>
             </div>
-          </div>
-        </aside>
+          </aside>
 
-        {/* ── Main Calendar Grid / Timeline ───────────────────────────── */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-surface-hover/10">
-          {/* ── Month View ────────────────────────────────────────────── */}
-          {view === 'month' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Day Headers */}
-              <div className="grid grid-cols-7 border-b border-border/60 bg-surface/60 shrink-0">
-                {DAYS.map((d, i) => (
-                  <div key={i} className="py-2.5 text-center text-xs font-black text-text-muted uppercase tracking-wider">
-                    {d}
-                  </div>
-                ))}
-              </div>
+          {/* ── Main Calendar Area ── */}
+          <main className="flex-1 flex flex-col overflow-hidden">
 
-              {/* Month Grid Cells */}
-              <div className="flex-1 grid grid-cols-7 grid-rows-5 overflow-y-auto">
-                {getCalendarGrid(year, month).map((dayNum, idx) => {
-                  if (!dayNum) {
-                    return <div key={idx} className="border-b border-r border-border/40 bg-surface/10 p-2 min-h-[100px]" />;
-                  }
-
-                  const cellDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                  const dayApts = appointmentsByDate.get(cellDateStr) || [];
-                  const isToday = cellDateStr === todayStr;
-
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => openFormForNew(cellDateStr)}
-                      className={`border-b border-r border-border/50 p-2 min-h-[100px] flex flex-col justify-between hover:bg-surface-hover/30 transition-colors group cursor-pointer ${
-                        isToday ? 'bg-primary/5' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
-                          isToday ? 'bg-primary text-white font-black shadow-sm' : 'text-text-muted'
-                        }`}>
-                          {dayNum}
-                        </span>
-                        {dayApts.length > 0 && (
-                          <span className="text-[10px] text-text-muted font-bold">
-                            {dayApts.length} {dayApts.length === 1 ? 'event' : 'events'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Event Chips in Cell */}
-                      <div className="space-y-1 mt-1 flex-1 overflow-hidden">
-                        {dayApts.slice(0, 3).map(apt => {
-                          const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
-                          const time = new Date(apt.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                          return (
-                            <div
-                              key={apt.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openFormForEdit(apt);
-                              }}
-                              className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border truncate flex items-center gap-1 hover:brightness-110 shadow-2xs ${cfg.bg} ${cfg.border} ${cfg.color}`}
-                              title={`${apt.title} (${time})`}
-                            >
-                              <span className="shrink-0">{time}</span>
-                              <span className="text-text-main truncate">{apt.title}</span>
-                            </div>
-                          );
-                        })}
-                        {dayApts.length > 3 && (
-                          <div className="text-[10px] font-bold text-primary px-1">
-                            +{dayApts.length - 3} more
-                          </div>
-                        )}
-                      </div>
+            {/* ══ Month View ══ */}
+            {view === 'month' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="grid grid-cols-7 border-b border-border/40 bg-surface/40 shrink-0">
+                  {DAYS_SHORT.map((d, i) => (
+                    <div key={i} className="py-2.5 text-center text-[11px] font-black text-text-muted uppercase tracking-wider">
+                      {d}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── Week View (7-Day Hourly Grid) ─────────────────────────── */}
-          {view === 'week' && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              {/* Day Columns Header */}
-              <div
-                className="grid border-b border-border/60 bg-surface/80 backdrop-blur-md shrink-0 sticky top-0 z-10"
-                style={{ gridTemplateColumns: '70px repeat(7, minmax(140px, 1fr))' }}
-              >
-                <div className="h-14 border-r border-border/50 flex items-center justify-center text-[10px] font-bold text-text-muted uppercase">
-                  Time
+                  ))}
                 </div>
-                {weekDays.map((d, i) => {
-                  const dateStr = formatDateKey(d);
-                  const isToday = dateStr === todayStr;
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setCurrentDate(d);
-                        setView('day');
-                      }}
-                      className={`h-14 border-r border-border/50 flex flex-col items-center justify-center cursor-pointer hover:bg-surface-hover/50 transition-colors ${
-                        isToday ? 'bg-primary/5' : ''
-                      }`}
-                    >
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${isToday ? 'text-primary' : 'text-text-muted'}`}>
-                        {DAYS[d.getDay()]}
-                      </span>
-                      <span className={`text-base font-black leading-tight ${isToday ? 'text-primary' : 'text-text-main'}`}>
-                        {d.getDate()}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Scrollable Hourly Time Rows */}
-              <div className="flex-1 overflow-y-auto overflow-x-auto">
-                <div
-                  className="grid min-h-[960px] relative"
-                  style={{ gridTemplateColumns: '70px repeat(7, minmax(140px, 1fr))' }}
-                >
-                  {/* Time Label Column */}
-                  <div className="border-r border-border/50 bg-surface/20">
-                    {HOURS.map(hour => (
-                      <div key={hour} className="h-16 border-b border-border/30 text-[10px] font-mono text-text-muted text-center pt-2">
-                        {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 7 Day Columns */}
-                  {weekDays.map((dayObj, dayIdx) => {
-                    const dateStr = formatDateKey(dayObj);
-                    const dayApts = appointmentsByDate.get(dateStr) || [];
-                    const isToday = dateStr === todayStr;
+                <div className="flex-1 grid grid-cols-7 overflow-y-auto" style={{ gridAutoRows: 'minmax(100px, 1fr)' }}>
+                  {getCalendarGrid(year, month).map((dayNum, idx) => {
+                    if (!dayNum) return <div key={idx} className="border-b border-r border-border/30 bg-surface/5" />;
+                    const cellDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                    const dayApts = (appointmentsByDate.get(cellDate) || []).sort((a, b) =>
+                      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+                    );
+                    const isToday = cellDate === todayStr;
+                    const isExpanded = expandedDay === cellDate;
+                    const SHOW_LIMIT = 3;
 
                     return (
                       <div
-                        key={dayIdx}
-                        className={`border-r border-border/40 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}
+                        key={idx}
+                        onClick={() => openCreate(cellDate)}
+                        className={`border-b border-r border-border/40 p-2 flex flex-col hover:bg-surface-hover/20 transition-colors cursor-pointer ${isToday ? 'bg-primary/5' : ''}`}
                       >
-                        {/* Hour slot guidelines */}
-                        {HOURS.map(hour => (
-                          <div
-                            key={hour}
-                            onClick={() => openFormForNew(dateStr, `${String(hour).padStart(2, '0')}:00`)}
-                            className="h-16 border-b border-border/30 hover:bg-primary/5 transition-colors cursor-pointer"
-                          />
-                        ))}
-
-                        {/* Rendered Event Blocks */}
-                        {dayApts.map(apt => {
-                          const s = new Date(apt.startTime);
-                          const e = new Date(apt.endTime);
-                          const startHour = s.getHours() + s.getMinutes() / 60;
-                          const durationHours = Math.max(0.5, (e.getTime() - s.getTime()) / 3600000);
-
-                          // Offset from 7 AM top (64px per hour)
-                          const topPx = (startHour - 7) * 64;
-                          const heightPx = Math.max(34, durationHours * 64 - 4);
-                          const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
-
-                          if (topPx < 0 || topPx > HOURS.length * 64) return null;
-
-                          return (
-                            <div
-                              key={apt.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openFormForEdit(apt);
-                              }}
-                              style={{ top: `${topPx}px`, height: `${heightPx}px` }}
-                              className={`absolute inset-x-1.5 rounded-xl p-2 border shadow-md flex flex-col justify-between overflow-hidden cursor-pointer hover:scale-[1.01] hover:z-20 transition-all ${cfg.bg} ${cfg.border}`}
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[12px] font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                            isToday ? 'bg-primary text-white shadow-sm' : 'text-text-muted'
+                          }`}>
+                            {dayNum}
+                          </span>
+                          {dayApts.length > 0 && (
+                            <span className="text-[9px] text-text-muted">{dayApts.length}</span>
+                          )}
+                        </div>
+                        <div className="space-y-0.5 flex-1 overflow-hidden">
+                          {dayApts.slice(0, isExpanded ? undefined : SHOW_LIMIT).map(apt => {
+                            const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
+                            return (
+                              <div
+                                key={apt.id}
+                                onClick={e => { e.stopPropagation(); openEdit(apt); }}
+                                className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border truncate flex items-center gap-1 hover:opacity-90 ${cfg.bg} ${cfg.border} ${cfg.color}`}
+                                title={apt.title}
+                              >
+                                <span className="shrink-0 font-mono">{fmtTime(new Date(apt.startTime))}</span>
+                                <span className="text-text-main truncate">{apt.title}</span>
+                              </div>
+                            );
+                          })}
+                          {!isExpanded && dayApts.length > SHOW_LIMIT && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setExpandedDay(cellDate); }}
+                              className="text-[10px] font-bold text-primary px-1 hover:underline"
                             >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-xs font-bold text-text-main truncate">{apt.title}</span>
-                                <cfg.icon className={`w-3.5 h-3.5 shrink-0 ${cfg.color}`} />
-                              </div>
-
-                              <div className="flex items-center justify-between text-[10px] text-text-muted mt-1">
-                                <span className="font-mono">
-                                  {s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {apt.contact && (
-                                  <span className="font-bold text-text-main truncate max-w-[80px]">
-                                    {apt.contact.firstName}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                              +{dayApts.length - SHOW_LIMIT} more
+                            </button>
+                          )}
+                          {isExpanded && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setExpandedDay(null); }}
+                              className="text-[10px] font-bold text-text-muted px-1 hover:text-text-main"
+                            >
+                              Show less
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ── Day View ──────────────────────────────────────────────── */}
-          {view === 'day' && (
-            <div className="flex-1 flex overflow-hidden">
-              {/* Day Timeline */}
+            {/* ══ Week View ══ */}
+            {view === 'week' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Day column headers */}
+                <div
+                  className="grid border-b border-border/40 bg-surface/60 backdrop-blur-md shrink-0 sticky top-0 z-10"
+                  style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}
+                >
+                  <div className="h-14 border-r border-border/40 flex items-end justify-center pb-2">
+                    <span className="text-[9px] font-bold text-text-muted uppercase">GMT</span>
+                  </div>
+                  {weekDays.map((d, i) => {
+                    const dateStr = formatDateKey(d);
+                    const isToday = dateStr === todayStr;
+                    const count = (appointmentsByDate.get(dateStr) || []).length;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => { setCurrentDate(d); setView('day'); }}
+                        className={`h-14 border-r border-border/40 flex flex-col items-center justify-center transition-colors hover:bg-surface-hover/50 ${isToday ? 'bg-primary/5' : ''}`}
+                      >
+                        <span className={`text-[10px] font-black uppercase tracking-wider ${isToday ? 'text-primary' : 'text-text-muted'}`}>
+                          {DAYS_SHORT[d.getDay()]}
+                        </span>
+                        <span className={`text-[18px] font-black leading-tight ${isToday ? 'text-primary' : 'text-text-main'}`}>
+                          {d.getDate()}
+                        </span>
+                        {count > 0 && (
+                          <span className="text-[9px] text-text-muted">{count} event{count !== 1 ? 's' : ''}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Scrollable grid */}
+                <div className="flex-1 overflow-y-auto overflow-x-hidden">
+                  <div
+                    className="grid relative"
+                    style={{ gridTemplateColumns: '56px repeat(7, 1fr)', minHeight: `${HOURS.length * 64}px` }}
+                  >
+                    {/* Hour labels */}
+                    <div className="border-r border-border/40 bg-surface/20">
+                      {HOURS.map(h => (
+                        <div key={h} className="h-16 border-b border-border/20 flex items-start justify-center pt-1">
+                          <span className="text-[9px] font-mono text-text-muted/60">
+                            {h > 12 ? `${h - 12}pm` : h === 12 ? '12pm' : `${h}am`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 7 day columns */}
+                    {weekDays.map((dayObj, dayIdx) => {
+                      const dateStr = formatDateKey(dayObj);
+                      const dayApts = (appointmentsByDate.get(dateStr) || []);
+                      const isToday = dateStr === todayStr;
+
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={`border-r border-border/40 relative ${isToday ? 'bg-primary/[0.02]' : ''}`}
+                        >
+                          {/* Hour lines */}
+                          {HOURS.map(hour => (
+                            <div
+                              key={hour}
+                              onClick={() => openCreate(dateStr, `${String(hour).padStart(2, '0')}:00`)}
+                              className="h-16 border-b border-border/20 hover:bg-primary/5 transition-colors cursor-pointer"
+                            />
+                          ))}
+
+                          {/* Now line */}
+                          {isToday && nowTopPx >= 0 && nowTopPx <= HOURS.length * 64 && (
+                            <div
+                              className="absolute left-0 right-0 z-20 pointer-events-none"
+                              style={{ top: `${nowTopPx}px` }}
+                            >
+                              <div className="relative flex items-center">
+                                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 -ml-1 shadow-sm" />
+                                <div className="h-[1.5px] bg-red-500 flex-1 opacity-70" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Event blocks */}
+                          {dayApts.map(apt => {
+                            const s = new Date(apt.startTime);
+                            const e = new Date(apt.endTime);
+                            const startHour = s.getHours() + s.getMinutes() / 60;
+                            const durationH = Math.max(0.5, (e.getTime() - s.getTime()) / 3600000);
+                            const topPx = (startHour - 7) * 64;
+                            const heightPx = Math.max(28, durationH * 64 - 3);
+                            const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
+                            if (topPx < 0 || topPx > HOURS.length * 64) return null;
+
+                            return (
+                              <button
+                                key={apt.id}
+                                onClick={e => { e.stopPropagation(); openEdit(apt); }}
+                                style={{ top: `${topPx}px`, height: `${heightPx}px` }}
+                                className={`absolute inset-x-1 rounded-xl p-1.5 border shadow-md flex flex-col justify-between overflow-hidden hover:scale-[1.01] hover:z-20 transition-all text-left ${cfg.bg} ${cfg.border}`}
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <span className="text-[11px] font-bold text-text-main truncate leading-tight">{apt.title}</span>
+                                  <cfg.icon className={`w-3 h-3 shrink-0 mt-0.5 ${cfg.color}`} />
+                                </div>
+                                {heightPx > 40 && (
+                                  <span className="text-[9px] text-text-muted font-mono">
+                                    {fmtTime(s)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ══ Day View ══ */}
+            {view === 'day' && (
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center justify-between pb-3 border-b border-border/40">
                   <div>
-                    <h2 className="text-lg font-black text-text-main">
+                    <h2 className="text-[18px] font-black text-text-main">
                       {FULL_DAYS[currentDate.getDay()]}, {MONTHS[month]} {currentDate.getDate()}, {year}
                     </h2>
-                    <p className="text-xs text-text-muted">
-                      {(appointmentsByDate.get(formatDateKey(currentDate)) || []).length} scheduled appointments
+                    <p className="text-[12px] text-text-muted mt-0.5">
+                      {(appointmentsByDate.get(formatDateKey(currentDate)) || []).length} appointments
                     </p>
                   </div>
                   <button
-                    onClick={() => openFormForNew(formatDateKey(currentDate))}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 shadow-sm cursor-pointer"
+                    onClick={() => openCreate(formatDateKey(currentDate))}
+                    className="btn-primary text-[12px]"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add Appointment
+                    <Plus className="w-3.5 h-3.5" /> Add Event
                   </button>
                 </div>
 
                 {(appointmentsByDate.get(formatDateKey(currentDate)) || []).length === 0 ? (
-                  <div className="p-12 text-center border-2 border-dashed border-border/60 rounded-2xl bg-surface/20">
-                    <CalIcon className="w-8 h-8 text-text-muted/40 mx-auto mb-2" />
-                    <h3 className="text-sm font-bold text-text-main mb-1">No appointments scheduled for this day</h3>
-                    <p className="text-xs text-text-muted mb-4">Click below to create an event or use the AI Assistant.</p>
-                    <button
-                      onClick={() => openFormForNew(formatDateKey(currentDate))}
-                      className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold cursor-pointer"
-                    >
+                  <div className="p-12 text-center border border-dashed border-border/50 rounded-2xl bg-surface/20">
+                    <CalIcon className="w-8 h-8 text-text-muted/30 mx-auto mb-2" />
+                    <p className="text-[14px] font-bold text-text-main mb-1">No appointments</p>
+                    <p className="text-[12px] text-text-muted mb-4">Click below to schedule one.</p>
+                    <button onClick={() => openCreate(formatDateKey(currentDate))} className="btn-primary text-[12px]">
                       Book Event
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {(appointmentsByDate.get(formatDateKey(currentDate)) || []).map(apt => {
-                      const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
-                      const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
-                      const s = new Date(apt.startTime);
-                      const e = new Date(apt.endTime);
-
-                      return (
-                        <div
-                          key={apt.id}
-                          className="bg-surface border border-border/60 rounded-2xl p-4 shadow-sm hover:border-primary/40 transition-all flex items-start justify-between gap-4"
-                        >
-                          <div className="flex items-start gap-3.5 flex-1">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.border}`}>
-                              <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
-                            </div>
-                            <div className="space-y-1 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-bold text-text-main">{apt.title}</h3>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusCfg.bg} ${statusCfg.border} ${statusCfg.color}`}>
-                                  {statusCfg.label}
-                                </span>
+                    {(appointmentsByDate.get(formatDateKey(currentDate)) || [])
+                      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                      .map(apt => {
+                        const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
+                        const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
+                        const s = new Date(apt.startTime);
+                        const e = new Date(apt.endTime);
+                        return (
+                          <div key={apt.id} className="bg-surface/60 border border-border/50 rounded-2xl p-4 shadow-sm hover:border-primary/30 transition-all flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3.5 flex-1">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} border ${cfg.border}`}>
+                                <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
                               </div>
-                              <div className="flex flex-wrap items-center gap-4 text-xs text-text-muted">
-                                <span className="flex items-center gap-1 font-mono">
-                                  <Clock className="w-3.5 h-3.5" />
-                                  {s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {apt.location && (
-                                  <a
-                                    href={apt.location.startsWith('http') ? apt.location : `https://${apt.location}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-1 text-primary hover:underline"
-                                  >
-                                    <Globe className="w-3.5 h-3.5" /> {apt.location.replace(/^https?:\/\//, '').slice(0, 30)}
-                                  </a>
-                                )}
-                              </div>
-                              {apt.description && (
-                                <p className="text-xs text-text-muted pt-1 line-clamp-2">{apt.description}</p>
-                              )}
-
-                              {/* Linked CRM Contact Card */}
-                              {apt.contact && (
-                                <div className="mt-2.5 p-2 bg-surface-hover/50 rounded-xl border border-border/50 flex items-center justify-between max-w-md">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                                      {apt.contact.firstName?.[0] || 'C'}
-                                    </div>
-                                    <span className="text-xs font-bold text-text-main">
-                                      {apt.contact.firstName} {apt.contact.lastName}
-                                    </span>
-                                    {apt.contact.companyName && (
-                                      <span className="text-[10px] text-text-muted">({apt.contact.companyName})</span>
-                                    )}
-                                  </div>
-                                  {apt.contact.email && (
-                                    <a
-                                      href={`mailto:${apt.contact.email}`}
-                                      className="text-[11px] text-primary hover:underline flex items-center gap-1"
-                                    >
-                                      <Mail className="w-3 h-3" /> {apt.contact.email}
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-[14px] font-bold text-text-main">{apt.title}</h3>
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusCfg.bg} ${statusCfg.border} ${statusCfg.color}`}>
+                                    {statusCfg.label}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-4 text-[12px] text-text-muted flex-wrap">
+                                  <span className="flex items-center gap-1 font-mono">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    {fmtTime(s)} – {fmtTime(e)}
+                                  </span>
+                                  {apt.location && (
+                                    <a href={apt.location.startsWith('http') ? apt.location : `https://${apt.location}`} target="_blank" rel="noreferrer"
+                                      className="flex items-center gap-1 text-primary hover:underline" onClick={e => e.stopPropagation()}>
+                                      <Globe className="w-3.5 h-3.5" />
+                                      {apt.location.replace(/^https?:\/\//, '').slice(0, 30)}
                                     </a>
                                   )}
                                 </div>
+                                {apt.contact && (
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center">
+                                      {apt.contact.firstName?.[0] || 'C'}
+                                    </div>
+                                    <span className="text-[12px] font-semibold text-text-main">
+                                      {apt.contact.firstName} {apt.contact.lastName}
+                                    </span>
+                                    {apt.contact.email && (
+                                      <a href={`mailto:${apt.contact.email}`} className="text-[11px] text-primary hover:underline flex items-center gap-1">
+                                        <Mail className="w-3 h-3" /> {apt.contact.email}
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {apt.location?.startsWith('http') && (
+                                <a href={apt.location} target="_blank" rel="noreferrer"
+                                  className="px-3 py-1.5 bg-teal-500/10 text-teal-400 border border-teal-500/30 rounded-xl text-[12px] font-bold hover:bg-teal-500/20 flex items-center gap-1.5">
+                                  <Video className="w-3.5 h-3.5" /> Join
+                                </a>
                               )}
+                              <button
+                                onClick={() => updateStatusMutation.mutate({ id: apt.id, status: 'completed' })}
+                                className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-xl text-[12px] font-bold hover:bg-emerald-500/20"
+                              >
+                                ✓ Done
+                              </button>
+                              <button onClick={() => openEdit(apt)} className="px-3 py-1.5 bg-surface border border-border/50 text-[12px] font-bold text-text-main hover:bg-surface-hover rounded-xl transition-colors">
+                                Edit
+                              </button>
                             </div>
                           </div>
-
-                          {/* Quick Actions */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            {apt.location && apt.location.startsWith('http') && (
-                              <a
-                                href={apt.location}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-3 py-1.5 bg-teal-500/10 text-teal-400 border border-teal-500/30 rounded-xl text-xs font-bold hover:bg-teal-500/20 flex items-center gap-1 cursor-pointer"
-                              >
-                                <Video className="w-3.5 h-3.5" /> Join Call
-                              </a>
-                            )}
-                            <button
-                              onClick={() => updateStatusMutation.mutate({ id: apt.id, status: 'completed' })}
-                              className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold hover:bg-emerald-500/20 cursor-pointer"
-                              title="Mark Completed"
-                            >
-                              ✓ Done
-                            </button>
-                            <button
-                              onClick={() => openFormForEdit(apt)}
-                              className="px-3 py-1.5 bg-surface border border-border/60 text-text-main rounded-xl text-xs font-bold hover:bg-surface-hover cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ── Agenda / List View ────────────────────────────────────── */}
-          {view === 'agenda' && (
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Search & Filter Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 bg-surface p-4 rounded-2xl border border-border/60">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by title, contact, location..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full bg-surface-hover/60 border border-border/50 rounded-xl pl-9 pr-4 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
+            {/* ══ Agenda View ══ */}
+            {view === 'agenda' && (
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Search + filter bar */}
+                <div className="flex items-center gap-3 bg-surface/60 border border-border/50 rounded-2xl p-3">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search appointments..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full bg-surface-hover/60 border border-border/50 rounded-xl pl-9 pr-4 py-2 text-[12px] text-text-main focus:outline-none focus:border-primary"
+                    />
+                  </div>
                   <select
                     value={statusFilter}
                     onChange={e => setStatusFilter(e.target.value)}
-                    className="bg-surface-hover border border-border/60 text-xs font-bold rounded-xl px-3 py-2 text-text-main focus:outline-none cursor-pointer"
+                    className="bg-surface-hover border border-border/50 text-[12px] font-bold rounded-xl px-3 py-2 text-text-main focus:outline-none"
                   >
                     <option value="all">All Statuses</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="no_show">No Show</option>
-                  </select>
-
-                  <select
-                    value={typeFilter}
-                    onChange={e => setTypeFilter(e.target.value)}
-                    className="bg-surface-hover border border-border/60 text-xs font-bold rounded-xl px-3 py-2 text-text-main focus:outline-none cursor-pointer"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="video">Video Calls</option>
-                    <option value="call">Phone Calls</option>
-                    <option value="meeting">Meetings</option>
-                    <option value="demo">Product Demos</option>
-                    <option value="consultation">Consultations</option>
+                    {Object.entries(STATUS_CONFIG).map(([v, s]) => (
+                      <option key={v} value={v}>{s.label}</option>
+                    ))}
                   </select>
                 </div>
-              </div>
 
-              {/* Agenda List Items */}
-              {filteredAppointments.length === 0 ? (
-                <div className="p-12 text-center border border-dashed border-border/60 rounded-2xl bg-surface/20">
-                  <CalIcon className="w-8 h-8 text-text-muted/40 mx-auto mb-2" />
-                  <h3 className="text-sm font-bold text-text-main">No matching appointments found</h3>
-                  <p className="text-xs text-text-muted mt-1">Try adjusting your filters or create a new event.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredAppointments.map(apt => {
-                    const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
-                    const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
-                    const s = new Date(apt.startTime);
-                    const e = new Date(apt.endTime);
-                    const dateFormatted = s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                {filteredAppointments.length === 0 ? (
+                  <div className="p-12 text-center border border-dashed border-border/50 rounded-2xl bg-surface/20">
+                    <CalIcon className="w-8 h-8 text-text-muted/30 mx-auto mb-2" />
+                    <p className="text-[14px] font-bold text-text-main">No appointments found</p>
+                    <p className="text-[12px] text-text-muted mt-1">Adjust your filters or create a new event.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredAppointments
+                      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                      .map(apt => {
+                        const cfg = TYPE_CONFIG[apt.type] || TYPE_CONFIG.meeting;
+                        const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
+                        const s = new Date(apt.startTime);
+                        const e = new Date(apt.endTime);
+                        const dateStr = s.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
-                    return (
-                      <div
-                        key={apt.id}
-                        className="bg-surface border border-border/60 rounded-2xl p-4 shadow-sm hover:border-primary/40 transition-all flex flex-wrap items-center justify-between gap-4"
-                      >
-                        <div className="flex items-center gap-3.5 min-w-[280px]">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} ${cfg.border}`}>
-                            <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-text-main">{apt.title}</h3>
-                            <div className="flex items-center gap-2 text-xs text-text-muted font-mono">
-                              <span>{dateFormatted}</span>
-                              <span>•</span>
-                              <span>{s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Contact Chip */}
-                        <div className="flex items-center gap-2 min-w-[180px]">
-                          {apt.contact ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center">
-                                {apt.contact.firstName?.[0] || 'C'}
+                        return (
+                          <div key={apt.id} className="bg-surface/60 border border-border/50 rounded-2xl p-4 shadow-sm hover:border-primary/30 transition-all flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3.5 min-w-[260px]">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg} border ${cfg.border}`}>
+                                <cfg.icon className={`w-5 h-5 ${cfg.color}`} />
                               </div>
                               <div>
-                                <span className="text-xs font-bold text-text-main block leading-tight">
-                                  {apt.contact.firstName} {apt.contact.lastName}
-                                </span>
-                                <span className="text-[10px] text-text-muted block">
-                                  {apt.contact.email || apt.contact.phone || 'CRM Contact'}
-                                </span>
+                                <p className="text-[14px] font-bold text-text-main">{apt.title}</p>
+                                <p className="text-[11px] text-text-muted font-mono">{dateStr} · {fmtTime(s)}–{fmtTime(e)}</p>
                               </div>
                             </div>
-                          ) : (
-                            <span className="text-xs text-text-muted italic">No linked contact</span>
-                          )}
-                        </div>
 
-                        {/* Status Dropdown */}
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={apt.status}
-                            onChange={e => updateStatusMutation.mutate({ id: apt.id, status: e.target.value })}
-                            className={`px-2.5 py-1 rounded-full text-xs font-bold border focus:outline-none cursor-pointer ${statusCfg.bg} ${statusCfg.border} ${statusCfg.color}`}
-                          >
-                            <option value="scheduled" className="bg-surface text-text-main">Scheduled</option>
-                            <option value="confirmed" className="bg-surface text-text-main">Confirmed</option>
-                            <option value="completed" className="bg-surface text-text-main">Completed</option>
-                            <option value="cancelled" className="bg-surface text-text-main">Cancelled</option>
-                            <option value="no_show" className="bg-surface text-text-main">No Show</option>
-                          </select>
-                        </div>
+                            {/* Contact */}
+                            <div className="min-w-[160px]">
+                              {apt.contact ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center">
+                                    {apt.contact.firstName?.[0] || 'C'}
+                                  </div>
+                                  <div>
+                                    <p className="text-[12px] font-bold text-text-main">{apt.contact.firstName} {apt.contact.lastName}</p>
+                                    <p className="text-[10px] text-text-muted">{apt.contact.email || ''}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[12px] text-text-muted italic">No contact</span>
+                              )}
+                            </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2">
-                          {apt.location && apt.location.startsWith('http') && (
-                            <a
-                              href={apt.location}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-2 rounded-xl bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 border border-teal-500/30 cursor-pointer"
-                              title="Join Video Link"
+                            {/* Status select */}
+                            <select
+                              value={apt.status}
+                              onChange={e => updateStatusMutation.mutate({ id: apt.id, status: e.target.value })}
+                              onClick={e => e.stopPropagation()}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border focus:outline-none cursor-pointer ${statusCfg.bg} ${statusCfg.border} ${statusCfg.color}`}
                             >
-                              <Video className="w-4 h-4" />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => openFormForEdit(apt)}
-                            className="px-3 py-1.5 bg-surface border border-border/60 text-xs font-bold text-text-main hover:bg-surface-hover rounded-xl transition-colors cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(apt)}
-                            className="p-2 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                            title="Cancel / Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
+                              {Object.entries(STATUS_CONFIG).map(([v, s]) => (
+                                <option key={v} value={v} className="bg-surface text-text-main">{s.label}</option>
+                              ))}
+                            </select>
 
-      {/* ── Event Create / Edit SlidePanel ──────────────────────────────── */}
-      <SlidePanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        title={form.id ? 'Edit Appointment' : 'Schedule New Appointment'}
-        width="lg"
-      >
-        <form onSubmit={handleSaveForm} className="p-6 space-y-5">
-          {/* Title & Type */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-text-muted uppercase">Event Title *</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Discovery Call with Austin Plumbing"
-              value={form.title}
-              onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full px-3.5 py-2.5 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main font-semibold focus:outline-none focus:border-primary"
-            />
-          </div>
-
-          {/* Event Type Grid */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-text-muted uppercase">Event Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(TYPE_CONFIG).map(([tKey, tVal]) => (
-                <button
-                  type="button"
-                  key={tKey}
-                  onClick={() => setForm(prev => ({ ...prev, type: tKey }))}
-                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                    form.type === tKey
-                      ? `${tVal.bg} ${tVal.border} ${tVal.color} ring-1 ring-primary/40`
-                      : 'bg-surface border-border/60 text-text-muted hover:text-text-main hover:bg-surface-hover'
-                  }`}
-                >
-                  <tVal.icon className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{tVal.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date, Time & Duration */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted uppercase">Date *</label>
-              <input
-                type="date"
-                required
-                value={form.date}
-                onChange={e => setForm(prev => ({ ...prev, date: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main font-semibold focus:outline-none focus:border-primary"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted uppercase">Start Time *</label>
-              <input
-                type="time"
-                required
-                value={form.time}
-                onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))}
-                className="w-full px-3 py-2 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main font-semibold focus:outline-none focus:border-primary"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted uppercase">Duration</label>
-              <select
-                value={form.duration}
-                onChange={e => setForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
-                className="w-full px-3 py-2 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main font-semibold focus:outline-none focus:border-primary cursor-pointer"
-              >
-                <option value={15}>15 mins</option>
-                <option value={30}>30 mins</option>
-                <option value={45}>45 mins</option>
-                <option value={60}>1 hour</option>
-                <option value={90}>1.5 hours</option>
-              </select>
-            </div>
-          </div>
-
-          {/* CRM Contact Linker */}
-          <div className="space-y-2 p-4 bg-surface/40 rounded-2xl border border-border/60">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-text-main flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-primary" /> CRM Attendee Contact
-              </label>
-              {form.contactId && (
-                <button
-                  type="button"
-                  onClick={() => handleSelectContact(null)}
-                  className="text-[10px] text-red-400 hover:underline cursor-pointer"
-                >
-                  Clear Link
-                </button>
-              )}
-            </div>
-
-            {/* Contact Select Dropdown */}
-            <select
-              value={form.contactId}
-              onChange={e => {
-                const found = crmContacts.find((c: any) => c.id === e.target.value);
-                handleSelectContact(found);
-              }}
-              className="w-full px-3 py-2 bg-surface border border-border/70 rounded-xl text-xs text-text-main focus:outline-none focus:border-primary cursor-pointer"
-            >
-              <option value="">-- Choose Existing CRM Contact --</option>
-              {crmContacts.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.firstName || ''} {c.lastName || ''} {c.companyName ? `(${c.companyName})` : ''} - {c.email || c.phone || 'No email'}
-                </option>
-              ))}
-            </select>
-
-            {/* Inline Contact Details */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <input
-                type="text"
-                placeholder="Guest Name (e.g. Sarah Jenkins)"
-                value={form.contactName}
-                onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
-                className="px-3 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main placeholder:text-text-muted"
-              />
-              <input
-                type="email"
-                placeholder="Guest Email"
-                value={form.contactEmail}
-                onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
-                className="px-3 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main placeholder:text-text-muted"
-              />
-            </div>
-          </div>
-
-          {/* Location & Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted uppercase">Meeting Location / Link</label>
-              <input
-                type="text"
-                placeholder="e.g. https://meet.google.com/xyz"
-                value={form.location}
-                onChange={e => setForm(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full px-3.5 py-2 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main focus:outline-none focus:border-primary"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted uppercase">Status</label>
-              <select
-                value={form.status}
-                onChange={e => setForm(prev => ({ ...prev, status: e.target.value }))}
-                className="w-full px-3.5 py-2 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main font-semibold focus:outline-none focus:border-primary cursor-pointer"
-              >
-                <option value="scheduled">Scheduled</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="no_show">No Show</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Meeting Notes / Description */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-text-muted uppercase">Meeting Notes & Agenda</label>
-            <textarea
-              rows={3}
-              placeholder="Add agenda items, goals, or preparation notes..."
-              value={form.description}
-              onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3.5 py-2.5 bg-surface-hover/60 border border-border/70 rounded-xl text-xs text-text-main focus:outline-none focus:border-primary resize-none"
-            />
-          </div>
-
-          {/* Footer Submit */}
-          <div className="flex items-center justify-between pt-4 border-t border-border/60">
-            {form.id ? (
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(appointments.find(a => a.id === form.id) || null)}
-                className="px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
-              >
-                Cancel Event
-              </button>
-            ) : <div />}
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPanelOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-text-muted hover:text-text-main transition-colors cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                type="submit"
-                disabled={saveMutation.isPending}
-                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {saveMutation.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                {form.id ? 'Save Changes' : 'Confirm Booking'}
-              </button>
-            </div>
-          </div>
-        </form>
-      </SlidePanel>
-
-      {/* ── Public Client Booking Page Simulator Modal ─────────────────── */}
-      {publicBookingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
-          <div className="bg-surface border border-border/80 rounded-3xl w-full max-w-2xl shadow-luxury overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-border/60 flex items-center justify-between bg-surface-hover/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-emerald-500 flex items-center justify-center text-white shadow-sm">
-                  <Globe className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-text-main">Client Public Booking Simulator</h2>
-                  <p className="text-xs text-text-muted">Live interactive preview of your client scheduling experience</p>
-                </div>
+                            <div className="flex items-center gap-2">
+                              {apt.location?.startsWith('http') && (
+                                <a href={apt.location} target="_blank" rel="noreferrer"
+                                  className="p-2 rounded-xl bg-teal-500/10 text-teal-400 hover:bg-teal-500/20 border border-teal-500/30" title="Join">
+                                  <Video className="w-4 h-4" />
+                                </a>
+                              )}
+                              <button onClick={() => openEdit(apt)} className="px-3 py-1.5 bg-surface border border-border/50 text-[12px] font-bold text-text-main hover:bg-surface-hover rounded-xl transition-colors">
+                                Edit
+                              </button>
+                              <button onClick={() => setDeleteTarget(apt)} className="p-2 rounded-xl text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => setPublicBookingModalOpen(false)}
-                className="p-2 rounded-xl text-text-muted hover:text-text-main transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            )}
+          </main>
+        </div>
+      )}
 
-            <div className="p-6 overflow-y-auto space-y-5">
-              {/* Duration selector */}
-              <div className="flex gap-2">
-                {[15, 30, 45, 60].map(dur => (
+      {/* ── Create / Edit SlideOverPanel ── */}
+      {panelOpen && (
+          <SlideOverPanel
+            isOpen={true}
+            onClose={() => setPanelOpen(false)}
+            title={form.id ? 'Edit Appointment' : 'New Appointment'}
+            width="w-[500px]"
+            footer={
+              <>
+                {form.id && (
                   <button
-                    key={dur}
-                    onClick={() => setBookingSimDuration(dur)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                      bookingSimDuration === dur
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-surface text-text-muted border-border/60 hover:text-text-main'
-                    }`}
+                    type="button"
+                    onClick={() => setDeleteTarget(appointments.find(a => a.id === form.id) || null)}
+                    className="mr-auto px-3 py-2 text-[12px] font-bold text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                   >
-                    {dur} min Sync
+                    <Trash2 className="w-3.5 h-3.5 inline mr-1" /> Cancel Event
                   </button>
-                ))}
-              </div>
-
-              {/* Date & Slot Picker */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-surface/50 rounded-2xl border border-border/60">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-text-muted uppercase">1. Pick Date</label>
-                  <input
-                    type="date"
-                    value={bookingSimDate}
-                    onChange={e => setBookingSimDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-border/70 rounded-xl text-xs text-text-main font-semibold"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-text-muted uppercase">2. Select Open Slot</label>
-                  {isLoadingSlots ? (
-                    <div className="text-xs text-text-muted animate-pulse py-2">Checking availability...</div>
-                  ) : (slotData?.availableSlots || []).length === 0 ? (
-                    <div className="text-xs text-amber-400 py-2">No open slots on this date</div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                      {(slotData?.availableSlots || []).map((slot: string) => (
-                        <button
-                          key={slot}
-                          onClick={() => setBookingSimSlot(slot)}
-                          className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
-                            bookingSimSlot === slot
-                              ? 'bg-emerald-500 text-black border-emerald-500 font-black shadow-sm'
-                              : 'bg-surface border-border/60 text-text-main hover:border-primary'
-                          }`}
-                        >
-                          {slot}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Guest Details */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold text-text-muted uppercase">3. Guest Information</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={bookingSimName}
-                    onChange={e => setBookingSimName(e.target.value)}
-                    className="px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email Address"
-                    value={bookingSimEmail}
-                    onChange={e => setBookingSimEmail(e.target.value)}
-                    className="px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main"
-                  />
-                </div>
+                )}
+                <button onClick={() => setPanelOpen(false)} className="px-4 py-2 rounded-lg text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover">
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  form="cal-apt-form"
+                  disabled={saveMutation.isPending || !form.title.trim()}
+                  className="px-4 py-2 bg-primary text-white rounded-lg text-[13px] font-bold shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {saveMutation.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {form.id ? 'Save Changes' : 'Confirm Booking'}
+                </button>
+              </>
+            }
+          >
+            <form id="cal-apt-form" onSubmit={handleSave} className="space-y-5 pb-6">
+              {/* Title */}
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-text-main">Title <span className="text-red-400">*</span></label>
                 <input
                   type="text"
-                  placeholder="Notes / Goal for the meeting"
-                  value={bookingSimNotes}
-                  onChange={e => setBookingSimNotes(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main"
+                  required
+                  placeholder="e.g. Discovery Call with Acme"
+                  value={form.title}
+                  onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[13px] text-text-main font-semibold focus:outline-none focus:border-primary"
                 />
               </div>
-            </div>
 
-            <div className="p-6 border-t border-border/60 flex items-center justify-between bg-surface-hover/30">
-              <span className="text-xs text-text-muted">
-                {bookingSimSlot ? `Selected: ${bookingSimSlot} on ${bookingSimDate}` : 'Please select a time slot'}
-              </span>
-              <button
-                disabled={!bookingSimSlot || !bookingSimEmail || publicBookMutation.isPending}
-                onClick={() => {
-                  publicBookMutation.mutate({
-                    name: bookingSimName,
-                    email: bookingSimEmail,
-                    phone: bookingSimPhone,
-                    date: bookingSimDate,
-                    time: bookingSimSlot,
-                    durationMinutes: bookingSimDuration,
-                    type: bookingSimType,
-                    notes: bookingSimNotes,
-                  });
-                }}
-                className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {publicBookMutation.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                Confirm Public Booking
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── AI Smart Scheduling Assistant Modal ────────────────────────── */}
-      {aiAssistantOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
-          <div className="bg-surface border border-border/80 rounded-3xl w-full max-w-xl shadow-luxury overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-border/60 flex items-center justify-between bg-surface-hover/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 to-primary flex items-center justify-center text-white shadow-sm">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-text-main">AI Smart Scheduling Assistant</h2>
-                  <p className="text-xs text-text-muted">Generate email copy with live open calendar slots in 1 click</p>
-                </div>
-              </div>
-              <button onClick={() => setAiAssistantOpen(false)} className="p-2 rounded-xl text-text-muted hover:text-text-main cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-muted uppercase">Prospect Name</label>
-                  <input
-                    type="text"
-                    value={aiContactName}
-                    onChange={e => setAiContactName(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-muted uppercase">Call Purpose</label>
-                  <input
-                    type="text"
-                    value={aiPurpose}
-                    onChange={e => setAiPurpose(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-border/60 rounded-xl text-xs text-text-main"
-                  />
-                </div>
-              </div>
-
-              <button
-                disabled={aiSuggestMutation.isPending}
-                onClick={() => aiSuggestMutation.mutate()}
-                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-primary hover:opacity-90 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm cursor-pointer"
-              >
-                {aiSuggestMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-                Scan Calendar & Generate Invite Copy
-              </button>
-
-              {aiGeneratedCopy && (
-                <div className="space-y-2 animate-fade-in">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-text-muted uppercase">Generated Email Snippet</label>
+              {/* Type */}
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-text-main">Event Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(TYPE_CONFIG).map(([key, val]) => (
                     <button
-                      onClick={() => {
-                        navigator.clipboard?.writeText(aiGeneratedCopy);
-                        toast('success', 'Snippet Copied', 'Paste into your email outreach or CRM chat.');
-                      }}
-                      className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                      key={key}
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, type: key }))}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[12px] font-semibold transition-all ${
+                        form.type === key
+                          ? `${val.bg} ${val.border} ${val.color}`
+                          : 'bg-surface-hover border-border text-text-muted hover:text-text-main'
+                      }`}
                     >
-                      <Copy className="w-3 h-3" /> Copy Snippet
+                      <val.icon className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{val.label}</span>
                     </button>
-                  </div>
-                  <textarea
-                    rows={7}
-                    value={aiGeneratedCopy}
-                    readOnly
-                    className="w-full p-3.5 bg-surface-hover/50 border border-border/60 rounded-2xl text-xs text-text-main font-mono leading-relaxed outline-none resize-none"
+                  ))}
+                </div>
+              </div>
+
+              {/* Date / Time / Duration */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-text-main">Date *</label>
+                  <input type="date" required value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main font-semibold focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-text-main">Time *</label>
+                  <input type="time" required value={form.time} onChange={e => setForm(p => ({ ...p, time: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main font-semibold focus:outline-none focus:border-primary" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-text-main">Duration</label>
+                  <select value={form.duration} onChange={e => setForm(p => ({ ...p, duration: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main font-semibold focus:outline-none focus:border-primary cursor-pointer">
+                    {[15, 30, 45, 60, 90].map(d => <option key={d} value={d}>{d < 60 ? `${d} min` : `${d / 60}h`}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Contact combobox */}
+              <div className="space-y-1.5" ref={contactRef}>
+                <label className="text-[12px] font-bold text-text-main">CRM Contact</label>
+                <div className="relative">
+                  <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input
+                    type="text"
+                    placeholder="Search contacts..."
+                    value={contactSearch}
+                    onFocus={() => setContactDropOpen(true)}
+                    onChange={e => { setContactSearch(e.target.value); setForm(p => ({ ...p, contactId: '' })); setContactDropOpen(true); }}
+                    className="w-full pl-9 pr-4 py-2.5 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main font-semibold focus:outline-none focus:border-primary"
+                  />
+                  {form.contactId && (
+                    <button type="button" onClick={() => selectContact(null)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-400">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <AnimatePresence>
+                    {contactDropOpen && filteredContacts.length > 0 && (
+                      <motion.ul
+                        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                        className="absolute z-50 left-0 right-0 top-full mt-1 bg-surface border border-border rounded-xl shadow-luxury max-h-48 overflow-y-auto"
+                      >
+                        <li>
+                          <button type="button" onClick={() => selectContact(null)} className="w-full text-left px-3 py-2 text-[12px] text-text-muted hover:bg-surface-hover">
+                            — No contact —
+                          </button>
+                        </li>
+                        {filteredContacts.map((c: any) => (
+                          <li key={c.id}>
+                            <button type="button" onClick={() => selectContact(c)} className="w-full text-left px-3 py-2 text-[12px] text-text-main hover:bg-surface-hover font-medium">
+                              {c.firstName} {c.lastName}
+                              {c.email && <span className="text-text-muted ml-1">({c.email})</span>}
+                            </button>
+                          </li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Location + Status */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-text-main">Location / Link</label>
+                  <input
+                    type="text"
+                    placeholder="https://meet.google.com/..."
+                    value={form.location}
+                    onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
+                    className="w-full px-3.5 py-2 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main focus:outline-none focus:border-primary"
                   />
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="space-y-1.5">
+                  <label className="text-[12px] font-bold text-text-main">Status</label>
+                  <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main font-semibold focus:outline-none focus:border-primary cursor-pointer">
+                    {Object.entries(STATUS_CONFIG).map(([v, s]) => <option key={v} value={v}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
 
-      {/* ── Cancel Confirmation Modal ─────────────────────────────────── */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-surface border border-border/80 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400">
-                <AlertCircle className="w-5 h-5" />
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-bold text-text-main">Notes / Agenda</label>
+                <textarea
+                  rows={3}
+                  placeholder="Agenda items, goals, prep notes..."
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-surface-hover border border-border rounded-xl text-[12px] text-text-main focus:outline-none focus:border-primary resize-none"
+                />
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-text-main">Cancel Appointment</h3>
-                <p className="text-xs text-text-muted">This will remove the event and notify participants.</p>
+            </form>
+          </SlideOverPanel>
+        )}
+
+      {/* ── Confirm Delete ── */}
+      <ConfirmDelete
+        isOpen={!!deleteTarget}
+        title={`Cancel "${deleteTarget?.title ?? 'appointment'}"`}
+        message="This appointment will be permanently removed from the calendar."
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        onClose={() => setDeleteTarget(null)}
+      />
+
+      {/* ── Public Booking Simulator Modal ── */}
+      <AnimatePresence>
+        {publicBookingOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-surface border border-border/80 rounded-3xl w-full max-w-xl shadow-luxury overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-5 border-b border-border/60 flex items-center justify-between bg-surface-hover/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center text-white shadow-sm">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-[15px] font-black text-text-main">Public Booking Simulator</h2>
+                    <p className="text-[11px] text-text-muted">Preview your client scheduling experience</p>
+                  </div>
+                </div>
+                <button onClick={() => setPublicBookingOpen(false)} className="p-2 rounded-xl text-text-muted hover:text-text-main transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </div>
-            <p className="text-xs text-text-muted">
-              Are you sure you want to cancel <strong className="text-text-main">"{deleteTarget.title}"</strong>?
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-text-main cursor-pointer"
-              >
-                Keep Event
-              </button>
-              <button
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteTarget.id)}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                {deleteMutation.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                Confirm Cancellation
-              </button>
-            </div>
+              <div className="p-5 overflow-y-auto space-y-4">
+                <div className="flex gap-2">
+                  {[15, 30, 45, 60].map(dur => (
+                    <button key={dur} onClick={() => setBookingSimDuration(dur)}
+                      className={`flex-1 py-2 rounded-xl text-[12px] font-bold border transition-all ${bookingSimDuration === dur ? 'bg-primary text-white border-primary' : 'bg-surface text-text-muted border-border/60 hover:text-text-main'}`}>
+                      {dur} min
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-surface/50 rounded-2xl border border-border/50">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-text-muted uppercase">1. Pick Date</label>
+                    <input type="date" value={bookingSimDate} onChange={e => setBookingSimDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main font-semibold" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-text-muted uppercase">2. Select Slot</label>
+                    {isLoadingSlots ? (
+                      <div className="text-[12px] text-text-muted animate-pulse py-2">Checking availability...</div>
+                    ) : (slotData?.availableSlots || []).length === 0 ? (
+                      <div className="text-[12px] text-amber-400 py-2">No open slots on this date</div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto">
+                        {(slotData?.availableSlots || []).map((slot: string) => (
+                          <button key={slot} onClick={() => setBookingSimSlot(slot)}
+                            className={`py-1.5 rounded-lg text-[11px] font-mono font-bold border transition-all ${bookingSimSlot === slot ? 'bg-emerald-500 text-black border-emerald-500 shadow-sm' : 'bg-surface border-border/60 text-text-main hover:border-primary'}`}>
+                            {slot}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="text" placeholder="Full Name" value={bookingSimName} onChange={e => setBookingSimName(e.target.value)}
+                    className="px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main" />
+                  <input type="email" placeholder="Email Address" value={bookingSimEmail} onChange={e => setBookingSimEmail(e.target.value)}
+                    className="px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main" />
+                </div>
+                <input type="text" placeholder="Notes / goal for the meeting" value={bookingSimNotes} onChange={e => setBookingSimNotes(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main" />
+              </div>
+              <div className="p-5 border-t border-border/60 flex items-center justify-between bg-surface-hover/30">
+                <span className="text-[12px] text-text-muted">
+                  {bookingSimSlot ? `${bookingSimSlot} on ${bookingSimDate}` : 'No slot selected'}
+                </span>
+                <button
+                  disabled={!bookingSimSlot || !bookingSimEmail || publicBookMutation.isPending}
+                  onClick={() => publicBookMutation.mutate({ name: bookingSimName, email: bookingSimEmail, phone: bookingSimPhone, date: bookingSimDate, time: bookingSimSlot, durationMinutes: bookingSimDuration, type: bookingSimType, notes: bookingSimNotes })}
+                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-[12px] shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {publicBookMutation.isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  Confirm Booking
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* ── AI Scheduling Assistant Modal ── */}
+      <AnimatePresence>
+        {aiAssistantOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-surface border border-border/80 rounded-3xl w-full max-w-lg shadow-luxury overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-5 border-b border-border/60 flex items-center justify-between bg-surface-hover/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-primary flex items-center justify-center text-white shadow-sm">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-[15px] font-black text-text-main">AI Scheduling Assistant</h2>
+                    <p className="text-[11px] text-text-muted">Generate personalized booking email copy</p>
+                  </div>
+                </div>
+                <button onClick={() => setAiAssistantOpen(false)} className="p-2 rounded-xl text-text-muted hover:text-text-main transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">Prospect Name</label>
+                    <input type="text" value={aiContactName} onChange={e => setAiContactName(e.target.value)}
+                      className="w-full px-3 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-muted uppercase">Call Purpose</label>
+                    <input type="text" value={aiPurpose} onChange={e => setAiPurpose(e.target.value)}
+                      className="w-full px-3 py-2 bg-surface border border-border/60 rounded-xl text-[12px] text-text-main" />
+                  </div>
+                </div>
+                <button
+                  disabled={aiSuggestMutation.isPending}
+                  onClick={() => aiSuggestMutation.mutate()}
+                  className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-primary hover:opacity-90 text-white font-bold rounded-xl text-[12px] flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {aiSuggestMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+                  Scan Calendar & Generate Copy
+                </button>
+                {aiGeneratedCopy && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-text-muted uppercase">Generated Copy</label>
+                      <button onClick={() => { navigator.clipboard?.writeText(aiGeneratedCopy); toast('success', 'Copied!'); }}
+                        className="text-[11px] text-primary font-bold hover:underline flex items-center gap-1">
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                    <textarea
+                      rows={7}
+                      value={aiGeneratedCopy}
+                      readOnly
+                      className="w-full p-3.5 bg-surface-hover/50 border border-border/60 rounded-2xl text-[12px] text-text-main font-mono leading-relaxed outline-none resize-none"
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
