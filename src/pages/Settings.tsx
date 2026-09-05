@@ -6,8 +6,9 @@ import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
   Plug, Globe, Phone, Mail, Copy, Eye, EyeOff, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
-  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink
+  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard
 } from 'lucide-react';
+import Billing from './Billing';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../lib/apiClient';
@@ -15,6 +16,7 @@ import { channelConnectionsApi } from '../lib/api/conversations';
 
 const TABS = [
   { id: 'general', label: 'General', icon: Building2 },
+  { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'integrations', label: 'Integrations', icon: Plug },
   { id: 'api', label: 'API & Webhooks', icon: Code },
@@ -232,6 +234,7 @@ export default function SettingsPage() {
   const isConnected = (id: string) => savedKeys.some((k: any) => k.provider.startsWith(id));
 
   const tabContent: Record<string, React.ReactNode> = {
+    billing: <Billing />,
     general: (
       <div className="space-y-6">
         <div>
@@ -815,11 +818,18 @@ export default function SettingsPage() {
             {TABS.map(tab => {
               const Icon = tab.icon;
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[13px] transition-all text-left ${activeTab === tab.id
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSearchParams({ tab: tab.id }, { replace: true });
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[13px] transition-all text-left ${
+                    activeTab === tab.id
                       ? 'bg-primary/10 text-primary font-semibold border border-primary/20'
                       : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
-                    }`}>
+                  }`}
+                >
                   <Icon className="w-4 h-4 shrink-0" />
                   {tab.label}
                 </button>
@@ -829,8 +839,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-[680px]">
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
+          <div className={activeTab === 'billing' ? 'w-full max-w-6xl mx-auto' : 'max-w-[680px]'}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

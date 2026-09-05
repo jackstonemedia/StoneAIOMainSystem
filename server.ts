@@ -23,7 +23,7 @@ import opportunitiesRouter from './api/routes/opportunities.routes.js';
 import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
-import billingRouter       from './api/routes/billing.routes.js';
+import billingRouter, { stripeWebhookHandler } from './api/routes/billing.routes.js';
 import workflowRouter      from './api/routes/workflows.routes.js';
 import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
@@ -189,6 +189,14 @@ async function startServer() {
     resendWebhookHandler,
   );
 
+  // ── Stripe webhook — MUST be before resolveWorkspace (no JWT from Stripe) ──
+  app.post(
+    ['/api/webhooks/stripe', '/api/stripe/webhook'],
+    webhookLimiter,
+    express.raw({ type: 'application/json' }),
+    stripeWebhookHandler,
+  );
+
   // ── Public unsubscribe pages (no JWT) ────────────────────────────────────────
   app.get('/unsubscribe/:token', handleUnsubscribeGet);
   app.post('/unsubscribe/:token', handleUnsubscribePost);
@@ -216,6 +224,7 @@ async function startServer() {
   app.use('/api/business',       businessRouter);
   app.use('/api/settings',       settingsRouter);
   app.use('/api/notifications',  notificationsRouter);
+  app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);

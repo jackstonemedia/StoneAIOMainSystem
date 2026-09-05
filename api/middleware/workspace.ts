@@ -93,12 +93,12 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
             create: { clerkId: userId },
           });
 
-          // 2. Create default workspace for the user
+          // 2. Create default workspace for the user (starts on Free plan)
           const workspace = await tx.workspace.create({
             data: {
               name: 'My Stone AIO Workspace',
               ownerId: userId,
-              plan: 'pro',
+              plan: 'free',
             },
           });
 

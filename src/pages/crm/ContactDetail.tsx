@@ -411,8 +411,48 @@ export default function ContactDetail() {
                 </div>
               )}
             </div>
+
+            {/* DND / Compliance Flags */}
+            <div className="space-y-3 pt-5 border-t border-border/50 mt-6">
+              <div className="flex items-center gap-2 text-white mb-2">
+                <Lock className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-[13px] font-bold">Do Not Disturb</span>
+              </div>
+
+              {[
+                {
+                  key: 'smsOptOut',
+                  label: 'SMS Opted Out',
+                  description: 'Will not receive SMS messages (TCPA)',
+                  value: !!(contact as any).smsOptOut,
+                },
+                {
+                  key: 'emailUnsubscribed',
+                  label: 'Email Unsubscribed',
+                  description: 'Will not receive emails (CAN-SPAM)',
+                  value: !!(contact as any).emailUnsubscribed,
+                },
+              ].map(flag => (
+                <div key={flag.key} className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className={`text-[12px] font-semibold ${flag.value ? 'text-red-400' : 'text-text-muted'}`}>{flag.label}</p>
+                    <p className="text-[10px] text-text-muted/70">{flag.description}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateContact.mutate({ [flag.key]: !flag.value })}
+                    className={`relative w-10 h-5 rounded-full transition-all shrink-0 ${flag.value ? 'bg-red-500' : 'bg-border'}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${flag.value ? 'left-5' : 'left-0.5'}`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
           </form>
         </div>
+
 
         {/* Column 2: Messaging / Center Area */}
         <div className="flex-1 flex flex-col bg-[#1B1D22] border-r border-border relative min-w-[400px]">

@@ -649,7 +649,7 @@ export default function Contacts() {
 
       {/* Footer Paginator */}
       <div 
-        className="pr-8 pl-0 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
+        className="px-8 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-10 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
         style={{ 
           background: 'var(--sidebar-bg)', 
           borderColor: 'var(--sidebar-border)',
@@ -668,7 +668,7 @@ export default function Contacts() {
       >
         <div className="flex items-center gap-2">
           <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4" /> Advanced filters
+            <Filter className="w-4 h-4 text-white" /> Advanced filters
           </button>
           <div className="relative">
             <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">

@@ -37,7 +37,9 @@ const BusinessLayout      = lazy(() => import('./pages/business/BusinessLayout')
 const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboard'));
 const DashboardPage       = lazy(() => import('./pages/Dashboard'));
 
-const Calendar            = lazy(() => import('./pages/business/Calendar'));
+// Modular Calendar module
+const CalendarLayout          = lazy(() => import('./pages/business/calendar/CalendarLayout'));
+const CalendarSchedulePage    = lazy(() => import('./pages/business/calendar/CalendarSchedulePage'));
 
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
 
@@ -46,6 +48,7 @@ const ConversationsTab    = lazy(() => import('./pages/business/inbox/Conversati
 const ManualActionsTab    = lazy(() => import('./pages/business/inbox/ManualActionsTab'));
 const SnippetsTab         = lazy(() => import('./pages/business/inbox/SnippetsTab'));
 const TriggerLinksTab     = lazy(() => import('./pages/business/inbox/TriggerLinksTab'));
+const Reputation          = lazy(() => import('./pages/business/Reputation'));
 
 // Conversations module (unified inbox — Email + SMS)
 const ConvLayout        = lazy(() => import('./pages/conversations/ConversationsLayout'));
@@ -186,14 +189,20 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
 
 
-            {/* Business Hub */}
+            {/* Calendar Route Aliases */}
+            <Route path="/calendar" element={<Navigate to="/business/calendar" replace />} />
+            <Route path="/calendar/*" element={<Navigate to="/business/calendar" replace />} />
+
+            {/* Business Hub & Calendar */}
+            <Route path="/business/calendar" element={<ErrorBoundary><Protect withAuth={withAuth}><CalendarLayout /></Protect></ErrorBoundary>}>
+              <Route index element={<ErrorBoundary><CalendarSchedulePage /></ErrorBoundary>} />
+              <Route path="*" element={<Navigate to="/business/calendar" replace />} />
+            </Route>
+
             <Route path="/business" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<ErrorBoundary><BusinessDashboard /></ErrorBoundary>} />
-
-              <Route path="calendar"    element={<ErrorBoundary><Calendar /></ErrorBoundary>} />
-
               <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-
+              <Route path="reputation"  element={<ErrorBoundary><Reputation /></ErrorBoundary>} />
             </Route>
 
             {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
@@ -224,9 +233,10 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/opportunities/settings/tags"      element={<Navigate to="/crm/opportunities/settings/tags" replace />} />
 
             {/* Shared */}
-            <Route path="/marketplace" element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
-            <Route path="/billing"     element={<ErrorBoundary><Protect withAuth={withAuth}><Billing /></Protect></ErrorBoundary>} />
-            <Route path="/settings"    element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
+            <Route path="/marketplace"       element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
+            <Route path="/billing"           element={<Navigate to="/settings?tab=billing" replace />} />
+            <Route path="/settings/billing"  element={<Navigate to="/settings?tab=billing" replace />} />
+            <Route path="/settings"          element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
 
             {/* Lead Studio */}
             <Route path="/leads" element={<ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary>} />

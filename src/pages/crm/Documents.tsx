@@ -120,7 +120,7 @@ export default function Documents() {
             />
           </div>
 
-          <button onClick={() => createDoc.mutate()} disabled={createDoc.isPending} className="btn-primary">
+          <button onClick={() => createDoc.mutate()} disabled={createDoc.isPending} className="btn-secondary">
             <Plus className="w-4 h-4" /> New Document
           </button>
         </div>

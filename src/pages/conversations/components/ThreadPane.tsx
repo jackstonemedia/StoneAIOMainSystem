@@ -5,7 +5,7 @@ import {
   Link as LinkIcon, List, Loader2, CheckCheck, Check, AlertTriangle,
   RotateCcw, ChevronDown, ChevronUp, ExternalLink,
   MoreHorizontal, Archive, Trash2, Ban, Download,
-  Clock,
+  Clock, EyeOff, Eye,
 } from 'lucide-react';
 import { format, addHours, addDays, nextMonday } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -164,12 +164,12 @@ function MessageBubble({
   return (
     <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} mb-4 group`}>
       {!isOutbound && (
-        <div className="w-7 h-7 rounded-full bg-surface-hover border border-border flex items-center justify-center mr-2.5 mt-1 shrink-0 text-[10px] font-bold text-text-main shadow-xs">
+        <div className="w-6 h-6 rounded-full bg-surface-hover border border-border flex items-center justify-center mr-2 mt-1 shrink-0 text-[10px] font-bold text-text-main shadow-xs">
           {(msg.sender ?? '?')[0]?.toUpperCase()}
         </div>
       )}
-      <div className="max-w-[70%]">
-        <div className={`px-4 py-2.5 text-[13px] leading-relaxed rounded-2xl shadow-sm ${
+      <div className="max-w-[75%]">
+        <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl shadow-sm ${
           isOutbound
             ? 'bg-primary text-white rounded-tr-none'
             : 'bg-surface border border-border text-text-main rounded-tl-none'
@@ -220,8 +220,7 @@ function TemplatePicker({ channel, onInsert, onClose }: { channel: string; onIns
   );
 }
 
-// ── SMS Composer ──────────────────────────────────────────────────────────────
-function SmsComposer({ conversationId, onSent }: { conversationId: string; onSent?: () => void }) {
+function SmsComposer({ conversationId, onSent, onMinimize }: { conversationId: string; onSent?: () => void; onMinimize?: () => void }) {
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
@@ -247,6 +246,19 @@ function SmsComposer({ conversationId, onSent }: { conversationId: string; onSen
   return (
     <div className="shrink-0 p-4 bg-surface/90 border-t border-border/50 backdrop-blur-md relative">
       <div className="rounded-xl border border-border bg-surface shadow-xs overflow-visible relative">
+        {onMinimize && (
+          <div className="flex items-center justify-between px-3 pt-2 pb-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">SMS Reply</span>
+            <button
+              type="button"
+              onClick={onMinimize}
+              className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
+              title="Hide reply bar to see messages better"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {showTemplates && (
           <TemplatePicker channel="sms" onInsert={(body) => setText(body)} onClose={() => setShowTemplates(false)} />
         )}
@@ -290,7 +302,7 @@ function SmsComposer({ conversationId, onSent }: { conversationId: string; onSen
 }
 
 // ── Email Composer ────────────────────────────────────────────────────────────
-function EmailComposer({ conversationId, subject: defaultSubject, onSent }: { conversationId: string; subject: string; onSent?: () => void }) {
+function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMinimize }: { conversationId: string; subject: string; onSent?: () => void; onMinimize?: () => void }) {
   const qc = useQueryClient();
   const [body, setBody] = useState('');
   const [subject, setSubject] = useState(defaultSubject ? `Re: ${defaultSubject}` : '');
@@ -354,6 +366,16 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent }: { co
             className="flex-1 bg-transparent text-[13px] text-text-main placeholder:text-text-muted focus:outline-none"
             placeholder="Subject"
           />
+          {onMinimize && (
+            <button
+              type="button"
+              onClick={onMinimize}
+              className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
+              title="Hide reply bar to see emails better"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* CC / BCC */}
@@ -472,6 +494,7 @@ export default function ThreadPane() {
   const [showStatus, setShowStatus] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [isComposerHidden, setIsComposerHidden] = useState(false);
 
   const { data: conv, isLoading: convLoading } = useQuery({
     queryKey: queryKeys.conversations.detail(selectedId!),
@@ -515,10 +538,7 @@ export default function ThreadPane() {
   // Empty state
   if (!selectedId) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-surface/20 text-center p-8">
-        <div className="w-16 h-16 rounded-2xl bg-surface border border-border shadow-sm flex items-center justify-center mb-4">
-          <MessageSquare className="w-8 h-8 text-text-muted/60" />
-        </div>
+      <div className="flex-1 flex flex-col items-center justify-center bg-transparent text-center p-8">
         <h3 className="text-base font-bold text-text-main mb-1">No conversation selected</h3>
         <p className="text-sm text-text-muted">Choose a conversation from the list to view messages.</p>
       </div>
@@ -543,15 +563,15 @@ export default function ThreadPane() {
     );
   }
 
-  const contact = conv.contact;
+  const contact = conv?.contact;
   const displayName = contact
     ? `${contact.firstName ?? ''} ${contact.lastName ?? ''}`.trim() || contact.email || 'Unknown'
-    : conv.subject || 'Unknown';
+    : conv?.subject || 'Unknown';
   const crmContactId = contact?.id;
 
-  const channelId = conv.channel;
+  const channelId = conv?.channel;
   const identifier =
-    conv.channel === 'sms'
+    conv?.channel === 'sms'
       ? (conv as any).twilioPhoneNumber ?? contact?.phone ?? ''
       : contact?.email ?? '';
 
@@ -595,90 +615,115 @@ export default function ThreadPane() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Toggle Composer / Hide Message Bar button */}
+            <button
+              onClick={() => setIsComposerHidden(p => !p)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface border border-border hover:border-primary/40 text-text-muted hover:text-text-main text-[12px] font-semibold rounded-lg transition-colors shadow-xs"
+              title={isComposerHidden ? "Show message bar" : "Hide message bar to see emails better"}
+            >
+              {isComposerHidden ? (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">Show Message Bar</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Hide Message Bar</span>
+                </>
+              )}
+            </button>
+
             {/* Status selector */}
             <div className="relative">
               <button
-                onClick={() => setShowStatus(p => !p)}
+                onClick={() => { setShowStatus(p => !p); setShowActions(false); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border hover:border-primary/40 text-text-main text-[12px] font-semibold rounded-lg transition-colors shadow-xs"
               >
                 {conv.status.charAt(0).toUpperCase() + conv.status.slice(1)}
                 <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
               </button>
               {showStatus && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-40 bg-surface border border-border shadow-luxury ring-1 ring-white/5 rounded-xl overflow-hidden">
-                  {STATUS_OPTIONS.map(o => (
-                    <button
-                      key={o.value}
-                      onClick={() => { patch.mutate({ status: o.value as any }); setShowStatus(false); }}
-                      className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center justify-between"
-                    >
-                      {o.label}
-                      {conv.status === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
-                    </button>
-                  ))}
-                  <div className="border-t border-border">
-                    <div className="relative">
-                      <button onClick={() => setShowSnooze(p => !p)} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5" /> Snooze…
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => { setShowStatus(false); setShowSnooze(false); }} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-44 bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
+                    {STATUS_OPTIONS.map(o => (
+                      <button
+                        key={o.value}
+                        onClick={() => { patch.mutate({ status: o.value as any }); setShowStatus(false); }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center justify-between"
+                      >
+                        {o.label}
+                        {conv.status === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
                       </button>
-                      {showSnooze && (
-                        <SnoozeMenu onPick={(until) => {
-                          patch.mutate({ status: 'snoozed', snoozedUntil: until });
-                          setShowSnooze(false);
-                          setShowStatus(false);
-                        }} />
-                      )}
+                    ))}
+                    <div className="border-t border-border">
+                      <div className="relative">
+                        <button onClick={() => setShowSnooze(p => !p)} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5" /> Snooze…
+                        </button>
+                        {showSnooze && (
+                          <SnoozeMenu onPick={(until) => {
+                            patch.mutate({ status: 'snoozed', snoozedUntil: until });
+                            setShowSnooze(false);
+                            setShowStatus(false);
+                          }} />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
 
             {/* Overflow actions menu */}
             <div className="relative">
               <button
-                onClick={() => setShowActions(p => !p)}
+                onClick={() => { setShowActions(p => !p); setShowStatus(false); }}
                 className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
               {showActions && (
-                <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-surface border border-border shadow-luxury ring-1 ring-white/5 rounded-xl overflow-hidden">
-                  <button onClick={() => { patch.mutate({ status: 'archived' }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
-                    <Archive className="w-4 h-4" /> Archive
-                  </button>
-                  <button onClick={() => { patch.mutate({ isBlocked: true }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
-                    <Ban className="w-4 h-4" /> Block contact
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const data = await conversationsApi.export(selectedId!);
-                      const url = URL.createObjectURL(new Blob([data], { type: 'text/plain' }));
-                      const a = document.createElement('a'); a.href = url; a.download = `conversation-${selectedId}.txt`; a.click();
-                      setShowActions(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5"
-                  >
-                    <Download className="w-4 h-4" /> Export thread
-                  </button>
-                  <div className="border-t border-border">
-                    <button
-                      onClick={() => {
-                        if (confirm('Delete this conversation permanently?')) { del.mutate(); setShowActions(false); }
-                      }}
-                      className="w-full text-left px-4 py-2.5 text-[13px] text-red-400 hover:bg-surface-hover hover:text-red-300 transition-colors flex items-center gap-2.5"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-52 bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
+                    <button onClick={() => { patch.mutate({ status: 'archived' }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
+                      <Archive className="w-4 h-4" /> Archive
                     </button>
+                    <button onClick={() => { patch.mutate({ isBlocked: true }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
+                      <Ban className="w-4 h-4" /> Block contact
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const data = await conversationsApi.export(selectedId!);
+                        const url = URL.createObjectURL(new Blob([data], { type: 'text/plain' }));
+                        const a = document.createElement('a'); a.href = url; a.download = `conversation-${selectedId}.txt`; a.click();
+                        setShowActions(false);
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5"
+                    >
+                      <Download className="w-4 h-4" /> Export thread
+                    </button>
+                    <div className="border-t border-border">
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this conversation permanently?')) { del.mutate(); setShowActions(false); }
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-red-400 hover:bg-surface-hover hover:text-red-300 transition-colors flex items-center gap-2.5"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>
         </div>
 
         {/* ── Message timeline ── */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <p className="text-sm text-text-muted">No messages yet. Send the first one below.</p>
@@ -697,11 +742,26 @@ export default function ThreadPane() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* ── Composer ── */}
-        {conv.channel === 'email' ? (
-          <EmailComposer conversationId={conv.id} subject={conv.subject ?? ''} />
+        {/* ── Composer / Collapsible Message Bar ── */}
+        {isComposerHidden ? (
+          <div className="shrink-0 px-6 py-2.5 bg-surface/90 border-t border-border/50 backdrop-blur-md flex items-center justify-between z-10 transition-all">
+            <span className="text-[12px] text-text-muted italic flex items-center gap-2">
+              <EyeOff className="w-3.5 h-3.5 text-text-muted/70" />
+              Message bar hidden — email reading view expanded
+            </span>
+            <button
+              onClick={() => setIsComposerHidden(false)}
+              className="btn-secondary text-[12px] py-1 px-3 flex items-center gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5 text-primary" /> Show Reply Box
+            </button>
+          </div>
         ) : (
-          <SmsComposer conversationId={conv.id} />
+          conv.channel === 'email' ? (
+            <EmailComposer conversationId={conv.id} subject={conv.subject ?? ''} onMinimize={() => setIsComposerHidden(true)} />
+          ) : (
+            <SmsComposer conversationId={conv.id} onMinimize={() => setIsComposerHidden(true)} />
+          )
         )}
       </div>
 

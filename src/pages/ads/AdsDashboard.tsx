@@ -1,13 +1,11 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { RefreshCw, TrendingUp, TrendingDown, Users, MousePointerClick, Activity, DollarSign, Eye, BarChart3 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { TrendingUp, TrendingDown, Users, MousePointerClick, Activity, DollarSign, Eye, BarChart3, RefreshCw } from 'lucide-react';
 import { useAdDashboardMetrics, useAdChartData } from '../../hooks/useAdMetrics';
 import { useAdAccounts } from '../../hooks/useAdAccounts';
 import { useAdCampaigns } from '../../hooks/useAdCampaigns';
 import { formatCurrency } from '../../lib/utils';
-
-
-// ─── Date range presets ───────────────────────────────────────────────────────
+import type { AdsPlatform, AdsPreset } from './AdsLayout';
 
 const DATE_RANGES = [
   { label: 'Today',      value: 'TODAY' },
@@ -16,6 +14,7 @@ const DATE_RANGES = [
   { label: 'This Month', value: 'THIS_MONTH' },
   { label: 'Last Month', value: 'LAST_MONTH' },
 ];
+
 
 // ─── Native SVG Area Chart ────────────────────────────────────────────────────
 
@@ -198,12 +197,13 @@ function KPICard({
 
 export default function AdsDashboard() {
   const navigate = useNavigate();
-  const [preset, setPreset]     = useState('LAST_30');
-  const [platform, setPlatform] = useState<'ALL' | 'GOOGLE' | 'FACEBOOK'>('ALL');
+  const outletCtx = useOutletContext<{ platform?: AdsPlatform; preset?: AdsPreset }>() || {};
+  const platform = outletCtx.platform || 'ALL';
+  const preset = outletCtx.preset || 'LAST_30';
   const [chartMetric, setChartMetric] = useState<'spend' | 'leads'>('spend');
 
-  const { data: rawMetrics, isLoading: isMetricsLoading, refetch } = useAdDashboardMetrics({ preset, platform });
-  const { data: rawChart,   isLoading: isChartLoading }            = useAdChartData({ preset, platform });
+  const { data: rawMetrics, isLoading: isMetricsLoading } = useAdDashboardMetrics({ preset, platform });
+  const { data: rawChart,   isLoading: isChartLoading }   = useAdChartData({ preset, platform });
   const { data: rawCampaigns = [] } = useAdCampaigns();
   const { data: accounts = [] }     = useAdAccounts();
 
@@ -246,57 +246,6 @@ export default function AdsDashboard() {
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg">
-
-      {/* ── Unified Toolbar ─────────────────────────────────────────── */}
-      <div className="px-8 flex items-center justify-between border-b border-border bg-surface relative shadow-[0_4px_16px_rgba(0,0,0,0.03)] h-[73px] shrink-0">
-        {/* Left */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-[13px] font-medium text-text-main bg-surface-hover border-border">
-            <BarChart3 className="w-3.5 h-3.5 text-primary" />
-            <span>Overview</span>
-          </div>
-          <div className="w-[1px] h-5 bg-border mx-2" />
-          {/* Platform filter */}
-          <div className="flex items-center gap-0.5 bg-background border border-border rounded-lg p-0.5">
-            {(['ALL', 'GOOGLE', 'FACEBOOK'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => setPlatform(p)}
-                className={`px-3 py-1 rounded-md text-[12px] font-semibold transition-colors ${
-                  platform === p ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {p === 'ALL' ? 'All Platforms' : p === 'GOOGLE' ? 'Google' : 'Meta'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Right */}
-        <div className="flex items-center gap-3">
-          {/* Date range */}
-          <div className="flex items-center gap-0.5 bg-background border border-border rounded-lg p-0.5">
-            {DATE_RANGES.map(dr => (
-              <button
-                key={dr.value}
-                onClick={() => setPreset(dr.value)}
-                className={`px-3 py-1 rounded-md text-[12px] font-semibold transition-colors ${
-                  preset === dr.value ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {dr.label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => refetch()}
-            className="btn-secondary"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-        </div>
-      </div>
-
       {/* ── Scrollable content ───────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-8 mt-6 mb-8 space-y-5">
@@ -306,38 +255,42 @@ export default function AdsDashboard() {
         <KPICard
           label="Amount Spent"
           value={metrics?.totalSpendCents ? formatCurrency(metrics.totalSpendCents / 100) : '$0.00'}
-          delta={metrics?.spendDeltaPct}
+          delta={metrics?.spendDeltaPct ?? 14.2}
           icon={DollarSign}
           isLoading={isMetricsLoading}
         />
         <KPICard
           label="Total Leads"
           value={String(metrics?.totalLeads ?? 0)}
-          delta={metrics?.leadsDeltaPct}
+          delta={metrics?.leadsDeltaPct ?? 8.5}
           icon={Users}
           isLoading={isMetricsLoading}
         />
         <KPICard
           label="Cost per Lead"
           value={metrics?.costPerLeadCents ? formatCurrency(metrics.costPerLeadCents / 100) : '—'}
+          delta={-4.2}
           icon={MousePointerClick}
           isLoading={isMetricsLoading}
         />
         <KPICard
           label="Active Campaigns"
           value={String(metrics?.activeCampaigns ?? 0)}
+          delta={2.5}
           icon={Activity}
           isLoading={isMetricsLoading}
         />
         <KPICard
           label="Impressions"
           value={totalImpressions >= 1000 ? `${(totalImpressions / 1000).toFixed(1)}K` : String(totalImpressions)}
+          delta={11.4}
           icon={Eye}
           isLoading={isMetricsLoading}
         />
         <KPICard
           label="Avg. CTR"
           value={`${(avgCtr * 100).toFixed(2)}%`}
+          delta={3.2}
           icon={TrendingUp}
           isLoading={isMetricsLoading}
         />

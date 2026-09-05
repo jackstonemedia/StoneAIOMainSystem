@@ -9,7 +9,7 @@ import {
   LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
   AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone,
-  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen
+  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen, CreditCard
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
@@ -76,12 +76,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           name: 'Conversations',
           path: '/conversations',      
           icon: MessageSquare,
-          subItems: [
-            { name: 'Inbox', path: '/conversations' },
-            { name: 'Channels', path: '/conversations/settings/channels' },
-            { name: 'Templates', path: '/conversations/settings/templates' },
-            { name: 'Tags', path: '/conversations/settings/tags' },
-          ]
         },
         { 
           name: 'Ad Manager',   
@@ -93,7 +87,18 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Reports', path: '/ads/reports' }
           ]
         },
-        { name: 'Calendar',     path: '/business/calendar',  icon: Calendar },
+        { 
+          name: 'Calendar',     
+          path: '/business/calendar',    
+          icon: Calendar,
+          subItems: [
+            { name: 'Schedule',      path: '/business/calendar' },
+            { name: 'Appointments',  path: '/business/calendar/appointments' },
+            { name: 'Booking Links', path: '/business/calendar/booking-links' },
+            { name: 'Availability',  path: '/business/calendar/availability' },
+            { name: 'Integrations & Sync', path: '/business/calendar/settings' },
+          ]
+        },
         { 
           name: 'Email Marketing',
           path: '/email-marketing/campaigns',
@@ -106,8 +111,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Analytics',   path: '/email-marketing/analytics' },
           ]
         },
-        { name: 'Lead Studio',  path: '/leads',              icon: Megaphone },
-        { name: 'AI SDR Agents', path: '/sdr',               icon: Target },
       ]
     },
     {
@@ -380,6 +383,13 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                   style={{ color: 'var(--sidebar-text-muted)' }}
                 >
                   <List className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Smart Lists
+                </button>
+                <button
+                  onClick={() => { setProfileMenuOpen(false); navigate('/settings?tab=billing'); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--sidebar-active)]"
+                  style={{ color: 'var(--sidebar-text-muted)' }}
+                >
+                  <CreditCard className="w-[14px] h-[14px] shrink-0" strokeWidth={2} /> Billing & Plans
                 </button>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/settings'); }}

@@ -562,7 +562,7 @@ export default function CrmTasks() {
             />
           </div>
 
-          <button onClick={openCreate} className="btn-primary">
+          <button onClick={openCreate} className="btn-secondary">
             <Plus className="w-4 h-4" /> New Task
           </button>
 
@@ -913,7 +913,7 @@ export default function CrmTasks() {
       >
         <div className="flex items-center gap-2">
           <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4 text-primary" /> Advanced filters
+            <Filter className="w-4 h-4 text-white" /> Advanced filters
           </button>
 
           {/* Sort dropdown */}
@@ -969,19 +969,14 @@ export default function CrmTasks() {
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-[13px] font-medium text-text-muted">
-            {processedTasks.length === 0
-              ? '0 Tasks'
-              : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, processedTasks.length)} of ${processedTasks.length} Tasks`}
-          </span>
-
           {/* Page size selector */}
           <div className="relative">
             <button
               onClick={() => setPageSizeDropdownOpen(!pageSizeDropdownOpen)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+              className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main text-[12px]"
             >
-              {pageSize} / page <ChevronDown className="w-3 h-3" />
+              <span>{pageSize} / page</span>
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
             </button>
             <AnimatePresence>
               {pageSizeDropdownOpen && (
@@ -991,17 +986,18 @@ export default function CrmTasks() {
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 4 }}
-                    className="absolute right-0 bottom-full mb-1 w-[100px] bg-surface border border-border rounded-lg shadow-luxury py-1 z-50"
+                    className="absolute right-0 bottom-full mb-1 w-32 bg-surface border border-border rounded-lg shadow-xl py-1 z-50"
                   >
-                    {[20, 50, 100].map(size => (
+                    {[10, 20, 30, 50].map(size => (
                       <button
                         key={size}
                         onClick={() => { setPageSize(size); setPage(1); setPageSizeDropdownOpen(false); }}
-                        className={`w-full px-3 py-1.5 text-[12px] font-medium text-left hover:bg-surface-hover transition-colors ${
-                          pageSize === size ? 'text-primary' : 'text-text-muted'
+                        className={`w-full px-3 py-1.5 text-[12px] font-semibold text-left flex items-center justify-between hover:bg-surface-hover transition-colors ${
+                          pageSize === size ? 'bg-primary/10 text-primary font-bold' : 'text-text-main'
                         }`}
                       >
-                        {size} / page
+                        <span>{size} tasks</span>
+                        {pageSize === size && <Check className="w-3.5 h-3.5 text-primary" />}
                       </button>
                     ))}
                   </motion.div>

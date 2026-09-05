@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import { ReactNode } from 'react';
 
 export interface SlideOverPanelProps {
-  isOpen: boolean;
+  isOpen?: boolean;
+  open?: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
@@ -11,19 +12,21 @@ export interface SlideOverPanelProps {
   width?: string;
 }
 
-export function SlideOverPanel({ isOpen, onClose, title, children, footer, width = 'w-[400px]' }: SlideOverPanelProps) {
+export function SlideOverPanel({ isOpen, open, onClose, title, children, footer, width = 'w-[420px] sm:w-[480px]' }: SlideOverPanelProps) {
+  const visible = Boolean(isOpen ?? open);
+
   return (
     <AnimatePresence>
-      {isOpen && (
+      {visible && (
         <>
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[998]"
             onClick={onClose} 
           />
           <motion.div 
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className={`fixed right-0 top-0 bottom-0 ${width} bg-surface shadow-2xl z-50 flex flex-col`}
+            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+            className={`fixed right-0 top-0 bottom-0 ${width} max-w-[95vw] bg-surface border-l border-border shadow-2xl z-[999] flex flex-col`}
           >
             <div className="px-6 py-5 flex items-center justify-between bg-surface-hover/50 shrink-0">
               <h2 className="text-[16px] font-bold text-text-main">{title}</h2>

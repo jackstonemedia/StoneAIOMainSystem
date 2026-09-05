@@ -232,7 +232,7 @@ export default function Companies() {
             <Download className="w-4 h-4" /> Export
           </button>
 
-          <button onClick={() => setPanelOpen('new_company')} className="btn-primary">
+          <button onClick={() => setPanelOpen('new_company')} className="btn-secondary">
             <Plus className="w-4 h-4" /> Add Account
           </button>
 
@@ -450,7 +450,7 @@ export default function Companies() {
       >
         <div className="flex items-center gap-2">
           <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4 text-primary" /> Advanced filters
+            <Filter className="w-4 h-4 text-white" /> Advanced filters
           </button>
 
           <div className="relative">
@@ -508,12 +508,6 @@ export default function Companies() {
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="text-[13px] font-medium text-text-muted">
-            {processedCompanies.length === 0
-              ? '0 Accounts'
-              : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, processedCompanies.length)} of ${processedCompanies.length} Accounts`}
-          </span>
-
           {/* Rows per page */}
           <div className="relative">
             <button
@@ -528,7 +522,7 @@ export default function Companies() {
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setPageSizeDropdownOpen(false)} />
                 <div className="absolute bottom-full mb-1 right-0 w-32 bg-surface border border-border rounded-lg shadow-xl py-1 z-30">
-                  {[10, 20, 50].map(sz => (
+                  {[10, 20, 30, 50].map(sz => (
                     <button
                       key={sz}
                       onClick={() => {

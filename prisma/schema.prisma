@@ -13,6 +13,11 @@ model Workspace {
   name              String
   ownerId           String             @map("owner_id")
   plan              String             @default("free")
+  stripeCustomerId       String?            @map("stripe_customer_id")
+  stripeSubscriptionId   String?            @map("stripe_subscription_id")
+  subscriptionStatus     String?            @default("inactive") @map("subscription_status")
+  creditsUsed            Int                @default(0) @map("credits_used")
+  creditsLimit           Int                @default(500) @map("credits_limit")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]

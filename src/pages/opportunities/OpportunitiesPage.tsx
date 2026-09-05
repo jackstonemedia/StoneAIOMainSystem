@@ -485,13 +485,13 @@ export default function OpportunitiesPage() {
   const dealsByStage = useMemo(() => {
     const map: Record<string, Opportunity[]> = {};
     for (const s of stages) map[s.id] = [];
-    for (const opp of opportunities) {
+    for (const opp of paginatedOpportunities) {
       const sId = opp.pipelineStageId || (stages[0]?.id);
       if (!map[sId]) map[sId] = [];
       map[sId].push(opp);
     }
     return map;
-  }, [stages, opportunities]);
+  }, [stages, paginatedOpportunities]);
 
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden z-0 bg-bg">
@@ -1511,54 +1511,81 @@ export default function OpportunitiesPage() {
 
         {/* Right side: Page Size & Pagination Controls */}
         <div className="flex items-center gap-4">
+          {/* Rows per page selector */}
           <div className="relative">
-            <button 
-              onClick={() => setPageSizeDropdownOpen(!pageSizeDropdownOpen)} 
-              className="btn-secondary"
+            <button
+              onClick={() => setPageSizeDropdownOpen(!pageSizeDropdownOpen)}
+              className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main text-[12px]"
+              title="Rows per page"
             >
               <span>{pageSize} / page</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
             </button>
-            <AnimatePresence>
-              {pageSizeDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setPageSizeDropdownOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute right-0 bottom-full mb-2 w-28 bg-surface border border-border rounded-xl shadow-luxury overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    {[10, 20, 50, 100].map(sz => (
-                      <button 
-                        key={sz}
-                        onClick={() => { setPageSize(sz); setPage(1); setPageSizeDropdownOpen(false); }}
-                        className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center justify-between hover:bg-surface-hover ${pageSize === sz ? 'text-primary' : 'text-text-muted'}`}
-                      >
-                        {sz} / page {pageSize === sz && <Check className="w-3 h-3 text-primary" />}
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+
+            {pageSizeDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setPageSizeDropdownOpen(false)} />
+                <div className="absolute bottom-full mb-1 right-0 w-32 bg-surface border border-border rounded-lg shadow-xl py-1 z-30">
+                  {[10, 20, 30, 50].map(sz => (
+                    <button
+                      key={sz}
+                      onClick={() => {
+                        setPageSize(sz);
+                        setPage(1);
+                        setPageSizeDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between ${
+                        pageSize === sz ? 'bg-primary/10 text-primary font-bold' : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <span>{sz} deals</span>
+                      {pageSize === sz && <Check className="w-3.5 h-3.5 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button 
-              disabled={page <= 1} 
+          {/* Page buttons */}
+          <div className="flex items-center gap-1.5 font-semibold">
+            <button
+              disabled={page <= 1}
               onClick={() => setPage(p => Math.max(1, p - 1))}
-              className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold disabled:opacity-40 disabled:hover:bg-transparent hover:bg-surface transition-colors cursor-pointer text-text-muted hover:text-text-main"
+              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Prev
             </button>
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs bg-primary text-white shadow-sm">
-              {page}
-            </span>
-            <button 
-              disabled={page >= totalPages} 
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc: (number | string)[], p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) => (
+                typeof p === 'number' ? (
+                  <button
+                    key={idx}
+                    onClick={() => setPage(p)}
+                    className={`min-w-[28px] h-7 px-2 rounded-[6px] text-[12px] font-bold transition-all ${
+                      page === p
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-border text-text-muted hover:text-text-main hover:bg-surface-hover'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ) : (
+                  <span key={idx} className="px-1 text-[12px] text-text-muted">...</span>
+                )
+              ))}
+
+            <button
+              disabled={page >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold disabled:opacity-40 disabled:hover:bg-transparent hover:bg-surface transition-colors cursor-pointer text-text-muted hover:text-text-main"
+              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Next
             </button>

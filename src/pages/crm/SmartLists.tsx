@@ -189,7 +189,7 @@ export default function SmartLists() {
               className="pl-9 pr-4 py-1.5 w-[220px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
             />
           </div>
-          <button onClick={() => { resetPanel(); setPanelOpen(true); }} className="btn-primary">
+          <button onClick={() => { resetPanel(); setPanelOpen(true); }} className="btn-secondary">
             <Plus className="w-4 h-4" /> Create Smart List
           </button>
         </div>
