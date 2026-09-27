@@ -12,11 +12,12 @@ export function blockJsonToGrapesjs(blockJson: BlockJson | Record<string, any> |
     return { html: '' };
   }
 
-  if (blockJson.html) {
-    return { html: blockJson.html };
+  const directHtml = (blockJson as any)?.html || (blockJson as any)?.body;
+  if (directHtml) {
+    return { html: directHtml };
   }
 
-  const blocks: EmailBlock[] = Array.isArray(blockJson.blocks) ? blockJson.blocks : [];
+  const blocks: EmailBlock[] = Array.isArray((blockJson as any)?.blocks) ? (blockJson as any).blocks : [];
   if (blocks.length === 0) {
     return { html: '' };
   }
