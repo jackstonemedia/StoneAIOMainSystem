@@ -16,6 +16,7 @@ import {
   Users, Plus, Upload, Download, Trash2, X, Check,
   ChevronRight, Shield, Filter, Loader2, AlertCircle,
   List, Search, Sparkles, RefreshCw, Send, Eye,
+  Globe, Copy, CheckCircle2, Clock,
 } from 'lucide-react';
 
 const api = {
@@ -39,9 +40,13 @@ const api = {
     apiClient.delete(`/email-marketing/suppression/${encodeURIComponent(email)}`),
   getSmartLists: () => apiClient.get('/crm/smart-lists').then(r => r.data),
   syncSmartList: (id: string) => apiClient.post(`/email-marketing/smart-lists/${id}/sync`).then(r => r.data),
+  getDomains: () => apiClient.get('/email-marketing/domains').then(r => r.data),
+  createDomain: (domain: string) => apiClient.post('/email-marketing/domains', { domain }).then(r => r.data),
+  verifyDomain: (id: string) => apiClient.post(`/email-marketing/domains/${id}/verify`).then(r => r.data),
+  deleteDomain: (id: string) => apiClient.delete(`/email-marketing/domains/${id}`),
 };
 
-type Tab = 'lists' | 'smart-lists' | 'segments' | 'suppression';
+type Tab = 'lists' | 'smart-lists' | 'segments' | 'suppression' | 'domains';
 
 export default function ListsAndSegments() {
   const qc = useQueryClient();
@@ -58,6 +63,10 @@ export default function ListsAndSegments() {
   const [suppressEmail, setSuppressEmail] = useState('');
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [viewingSmartList, setViewingSmartList] = useState<{ id: string; name: string } | null>(null);
+  const [showNewDomainModal, setShowNewDomainModal] = useState(false);
+  const [newDomainName, setNewDomainName] = useState('');
+  const [viewingDomainDns, setViewingDomainDns] = useState<any | null>(null);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
 
   // Queries
   const { data: lists = [], isLoading: listsLoading } = useQuery({
@@ -80,7 +89,49 @@ export default function ListsAndSegments() {
     queryFn: () => api.getSuppression(1),
   });
 
+  const { data: domains = [], isLoading: domainsLoading } = useQuery({
+    queryKey: ['email-marketing', 'domains'],
+    queryFn: api.getDomains,
+  });
+
   // Mutations
+  const createDomainMutation = useMutation({
+    mutationFn: () => api.createDomain(newDomainName),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'domains'] });
+      setShowNewDomainModal(false);
+      setNewDomainName('');
+      setViewingDomainDns(data);
+      toast('success', 'Domain Added', 'Add the generated SPF/DKIM records to your DNS host.');
+    },
+    onError: (err: any) => {
+      toast('error', 'Failed to Add Domain', err?.response?.data?.error || err.message);
+    },
+  });
+
+  const verifyDomainMutation = useMutation({
+    mutationFn: (id: string) => api.verifyDomain(id),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'domains'] });
+      if (data.status === 'VERIFIED') {
+        toast('success', 'Domain Verified', 'Domain DKIM and SPF records are verified.');
+      } else {
+        toast('info', 'Verification Checked', 'DNS records are still propagating. Please verify again shortly.');
+      }
+    },
+    onError: (err: any) => {
+      toast('error', 'Verification Failed', err?.response?.data?.error || err.message);
+    },
+  });
+
+  const deleteDomainMutation = useMutation({
+    mutationFn: (id: string) => api.deleteDomain(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'domains'] });
+      toast('success', 'Domain Removed');
+    },
+  });
+
   const createListMutation = useMutation({
     mutationFn: () => api.createList({ name: newListName }),
     onSuccess: () => {
@@ -157,12 +208,21 @@ export default function ListsAndSegments() {
             />
           </div>
           
-          <button 
-            onClick={() => setShowNewListModal(true)} 
-            className="btn-secondary"
-          >
-            <Plus className="w-4 h-4" /> New List
-          </button>
+          {tab === 'domains' ? (
+            <button 
+              onClick={() => setShowNewDomainModal(true)} 
+              className="btn-secondary"
+            >
+              <Plus className="w-4 h-4" /> Add Domain
+            </button>
+          ) : (
+            <button 
+              onClick={() => setShowNewListModal(true)} 
+              className="btn-secondary"
+            >
+              <Plus className="w-4 h-4" /> New List
+            </button>
+          )}
         </div>
       </HeaderPortal>
 
@@ -175,6 +235,7 @@ export default function ListsAndSegments() {
               { key: 'lists', label: 'Email Lists', icon: List, count: lists.length },
               { key: 'segments', label: 'Dynamic Segments', icon: Filter, count: segments.length },
               { key: 'suppression', label: 'Suppression List', icon: Shield, count: suppression?.total ?? 0 },
+              { key: 'domains', label: 'Sending Domains', icon: Globe, count: domains.length },
             ].map(t => {
               const Icon = t.icon;
               const isSelected = tab === t.key;
@@ -354,6 +415,69 @@ export default function ListsAndSegments() {
                 </td>
               </tr>
             ))}
+
+            {/* ── Domains Tab ── */}
+            {tab === 'domains' && domains.map((d: any, idx: number) => {
+              const isVerified = d.status === 'VERIFIED';
+              const isFailed = d.status === 'FAILED';
+              const records = Array.isArray(d.dnsRecords) ? d.dnsRecords : [];
+              return (
+                <tr key={d.id} className="border-b border-border/50 text-[13px] hover:bg-surface-hover/30 transition-colors">
+                  <td className="p-3 text-center text-text-muted opacity-60">{idx + 1}</td>
+                  <td className="p-3 font-semibold text-text-main flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-primary shrink-0" />
+                    <span>{d.domain}</span>
+                  </td>
+                  <td className="p-3 text-text-muted">
+                    <button
+                      onClick={() => setViewingDomainDns(d)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-surface-hover text-text-main hover:bg-primary/10 hover:text-primary transition-colors border border-border/60"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>{records.length} DNS Records</span>
+                    </button>
+                  </td>
+                  <td className="p-3">
+                    {isVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle2 className="w-3 h-3" /> Verified
+                      </span>
+                    ) : isFailed ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                        <AlertCircle className="w-3 h-3" /> Failed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Clock className="w-3 h-3" /> Pending Verification
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3 text-[11px] text-text-muted opacity-60">
+                    {d.verifiedAt ? `Verified ${new Date(d.verifiedAt).toLocaleDateString()}` : new Date(d.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="p-3 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => verifyDomainMutation.mutate(d.id)}
+                        disabled={verifyDomainMutation.isPending}
+                        title="Check DNS Verification"
+                        className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-md text-xs font-semibold flex items-center gap-1 transition-colors border border-primary/20"
+                      >
+                        {verifyDomainMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                        <span>Check DNS</span>
+                      </button>
+                      <button
+                        onClick={() => deleteDomainMutation.mutate(d.id)}
+                        className="p-1.5 text-text-muted hover:text-red-400 rounded-md transition-colors"
+                        title="Delete Domain"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -375,6 +499,7 @@ export default function ListsAndSegments() {
               { id: 'lists', label: `Workspace Lists (${lists.length})` },
               { id: 'segments', label: `Segments (${segments.length})` },
               { id: 'suppression', label: 'Suppression List' },
+              { id: 'domains', label: `Sending Domains (${domains.length})` },
             ].map((t) => (
               <button
                 key={t.id}
@@ -421,6 +546,139 @@ export default function ListsAndSegments() {
                 className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-interactive"
               >
                 Create List
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Sending Domain Modal */}
+      {showNewDomainModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border/60 rounded-2xl w-full max-w-md p-6 shadow-luxury space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-text-main text-base">Add Sending Domain</h3>
+              </div>
+              <button onClick={() => setShowNewDomainModal(false)} className="text-text-muted hover:text-text-main">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-text-muted leading-relaxed">
+              Connect your company domain (e.g. <span className="font-mono text-primary font-semibold">mybrand.com</span>) to send marketing emails with verified DKIM and SPF protection.
+            </p>
+            <div>
+              <label className="block text-[11px] font-bold text-text-muted uppercase mb-1">Domain Name</label>
+              <input
+                value={newDomainName}
+                onChange={e => setNewDomainName(e.target.value)}
+                placeholder="acme.com"
+                className="w-full bg-surface border border-border/60 rounded-xl px-4 py-2.5 text-sm text-text-main focus:outline-none focus:border-primary font-mono"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setShowNewDomainModal(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => createDomainMutation.mutate()}
+                disabled={!newDomainName.trim() || createDomainMutation.isPending}
+                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-xs font-bold shadow-interactive flex items-center gap-1.5 transition-all"
+              >
+                {createDomainMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                Add Domain
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View DNS Records Modal */}
+      {viewingDomainDns && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-surface border border-border/60 rounded-2xl w-full max-w-2xl p-6 shadow-luxury space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary" />
+                <div>
+                  <h3 className="font-bold text-text-main text-base flex items-center gap-2">
+                    <span>DNS Configuration for</span>
+                    <span className="font-mono text-primary">{viewingDomainDns.domain}</span>
+                  </h3>
+                  <p className="text-[11px] text-text-muted">
+                    Add these DNS records at your DNS host (Cloudflare, GoDaddy, Route53, Namecheap) to verify domain ownership.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setViewingDomainDns(null)} className="text-text-muted hover:text-text-main">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {(Array.isArray(viewingDomainDns.dnsRecords) && viewingDomainDns.dnsRecords.length > 0) ? (
+                viewingDomainDns.dnsRecords.map((rec: any, i: number) => {
+                  const recordType = rec.record || rec.type || 'TXT';
+                  const recordName = rec.name || '@';
+                  const recordValue = rec.value || '';
+                  const isCopied = copiedValue === `${i}-${recordValue}`;
+                  return (
+                    <div key={i} className="bg-surface-hover/70 border border-border/60 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                            {recordType}
+                          </span>
+                          <span className="text-xs font-semibold text-text-main">{rec.record || 'DNS Record'}</span>
+                        </div>
+                        <span className="text-[11px] text-text-muted capitalize">Status: {rec.status || 'pending'}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        <div className="bg-bg/60 p-2 rounded-lg border border-border/40">
+                          <div className="text-[10px] uppercase font-bold text-text-muted mb-0.5">Host / Name</div>
+                          <div className="font-mono text-[11px] text-text-main truncate select-all">{recordName}</div>
+                        </div>
+
+                        <div className="bg-bg/60 p-2 rounded-lg border border-border/40 flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] uppercase font-bold text-text-muted mb-0.5">Value / Target</div>
+                            <div className="font-mono text-[11px] text-text-main truncate select-all">{recordValue}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(recordValue);
+                              setCopiedValue(`${i}-${recordValue}`);
+                              setTimeout(() => setCopiedValue(null), 2000);
+                            }}
+                            className="p-1.5 hover:bg-surface rounded-md text-text-muted hover:text-text-main transition-colors shrink-0"
+                            title="Copy Value"
+                          >
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-text-muted text-xs">
+                  No DNS records found. Click Check DNS to refresh status from Resend.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-border/50 shrink-0">
+              <button
+                onClick={() => verifyDomainMutation.mutate(viewingDomainDns.id)}
+                disabled={verifyDomainMutation.isPending}
+                className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                {verifyDomainMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Check DNS Verification
+              </button>
+              <button onClick={() => setViewingDomainDns(null)} className="btn-secondary">
+                Done
               </button>
             </div>
           </div>

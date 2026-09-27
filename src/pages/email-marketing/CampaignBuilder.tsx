@@ -56,7 +56,9 @@ export interface ThrottleConfig {
 
 export interface SenderConfig {
   fromName: string;
+  fromEmail?: string;
   replyTo: string;
+  sendingDomainId?: string;
 }
 
 // ── Pre-built Sequence Templates ──────────────────────────────────────────────
@@ -371,6 +373,10 @@ export default function CampaignBuilder() {
   const { data: lists = [] } = useQuery({ queryKey: ['email-marketing', 'lists'], queryFn: fetchLists });
   const { data: segments = [] } = useQuery({ queryKey: ['email-marketing', 'segments'], queryFn: fetchSegments });
   const { data: smartLists = [] } = useQuery({ queryKey: ['crm', 'smart-lists'], queryFn: fetchSmartLists });
+  const { data: sendingDomains = [] } = useQuery({
+    queryKey: ['email-marketing', 'domains'],
+    queryFn: () => apiClient.get('/email-marketing/domains').then(r => r.data),
+  });
 
   // Pre-fill smartListId from query params
   useEffect(() => {
@@ -852,6 +858,16 @@ export default function CampaignBuilder() {
   const handleConfirmSendOrSchedule = async () => {
     try {
       setErrorMsg('');
+
+      // Block sending from an unverified domain
+      if (sender.sendingDomainId) {
+        const chosenDom = sendingDomains.find((d: any) => d.id === sender.sendingDomainId);
+        if (chosenDom && chosenDom.status !== 'VERIFIED') {
+          toast('error', 'Unverified Domain Blocked', `Cannot launch campaign: "${chosenDom.domain}" is not verified. Please verify DNS records first in Audience → Sending Domains.`);
+          return;
+        }
+      }
+
       setIsSendingOrScheduling(true);
 
       const currentId = await saveMutation.mutateAsync();
@@ -1824,6 +1840,65 @@ export default function CampaignBuilder() {
                       />
                     </div>
                   )}
+                  {/* Sending Domain Selection */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-text-muted uppercase">Sending Domain</label>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/email-marketing/audience')}
+                        className="text-[10px] text-primary hover:underline font-semibold"
+                      >
+                        Manage Domains &rarr;
+                      </button>
+                    </div>
+
+                    {sendingDomains.length > 0 ? (
+                      <select
+                        value={sender.sendingDomainId || ''}
+                        onChange={e => {
+                          const domId = e.target.value;
+                          const selectedDom = sendingDomains.find((d: any) => d.id === domId);
+                          setSender({
+                            ...sender,
+                            sendingDomainId: domId,
+                            fromEmail: selectedDom ? `outreach@${selectedDom.domain}` : '',
+                          });
+                        }}
+                        className="w-full bg-surface-hover border border-border/60 rounded-xl px-3.5 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
+                      >
+                        <option value="">Default Platform Sender (outreach@stoneaio.com)</option>
+                        {sendingDomains.map((d: any) => (
+                          <option key={d.id} value={d.id}>
+                            {d.domain} ({d.status === 'VERIFIED' ? '✓ Verified' : '⚠ ' + d.status})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
+                        <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>No custom sending domains</span>
+                        </div>
+                        <p className="text-[11px] text-text-muted">
+                          Emails will send from the default shared sender until you add and verify a domain in Audience → Sending Domains.
+                        </p>
+                      </div>
+                    )}
+
+                    {(() => {
+                      const selectedDom = sendingDomains.find((d: any) => d.id === sender.sendingDomainId);
+                      if (selectedDom && selectedDom.status !== 'VERIFIED') {
+                        return (
+                          <div className="mt-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                            <span className="font-bold">⚠️ Unverified Domain:</span> This domain is pending DNS verification. Sending is blocked until SPF/DKIM are verified in Audience.
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold text-text-muted uppercase mb-1">Reply-To Address (Optional)</label>
                     <input
