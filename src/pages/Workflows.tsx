@@ -52,6 +52,7 @@ export default function Workflows() {
           <p className="text-sm text-text-muted mt-1">Build event-driven sequences and autonomous agents to run your business.</p>
         </div>
         <button
+          data-tour="automations-create-btn"
           onClick={async () => {
             try {
               const wf: any = await createWorkflow.mutateAsync({ name: 'Untitled Workflow' });
@@ -125,7 +126,7 @@ export default function Workflows() {
           </div>
 
           {/* Table */}
-          <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
+          <div data-tour="automations-list" className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border bg-bg/50">

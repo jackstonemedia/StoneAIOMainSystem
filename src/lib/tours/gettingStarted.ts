@@ -1,0 +1,58 @@
+import type { GettingStartedMilestone } from './types';
+
+export const GETTING_STARTED_MILESTONES: GettingStartedMilestone[] = [
+  {
+    id: 'setup-crm',
+    title: 'Explore CRM & Contacts',
+    description: 'Learn how to filter stages, manage contacts, and track deal pipelines.',
+    section: 'CRM',
+    route: '/crm/contacts',
+    tourKey: 'crm',
+    icon: 'Users',
+  },
+  {
+    id: 'setup-automations',
+    title: 'Automate Business Workflows',
+    description: 'Discover visual automations, triggers, and AI agent actions.',
+    section: 'Automations',
+    route: '/automations',
+    tourKey: 'automations',
+    icon: 'Zap',
+  },
+  {
+    id: 'setup-email-marketing',
+    title: 'Launch Email Campaigns',
+    description: 'Design responsive templates and send targeted newsletters with analytics.',
+    section: 'Email Marketing',
+    route: '/email-marketing/campaigns',
+    tourKey: 'email-marketing',
+    icon: 'MailOpen',
+  },
+  {
+    id: 'setup-conversations',
+    title: 'Unified Inbox & AI Copilot',
+    description: 'Manage omnichannel threads across SMS, Email, and Webchat with AI drafts.',
+    section: 'Conversations',
+    route: '/conversations',
+    tourKey: 'conversations',
+    icon: 'MessageSquare',
+  },
+  {
+    id: 'setup-ads',
+    title: 'Ad Manager & Lead Sync',
+    description: 'Generate AI ad copy, monitor ROAS, and capture incoming leads automatically.',
+    section: 'Ad Manager',
+    route: '/ads/overview',
+    tourKey: 'ads',
+    icon: 'Megaphone',
+  },
+  {
+    id: 'setup-business',
+    title: 'Business Hub & Scheduling',
+    description: 'Set up your calendar availability, booking links, and appointment sync.',
+    section: 'Business',
+    route: '/business/calendar',
+    tourKey: 'business',
+    icon: 'Calendar',
+  },
+];

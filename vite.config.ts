@@ -28,6 +28,7 @@ export default defineConfig(({mode: _mode}) => {
       ],
     },
     optimizeDeps: {
+      holdUntilCrawlEnd: true,
       force: false, // set to true temporarily to bust cache if hooks crash
       entries: ['./index.html', './src/main.tsx'],
       include: [
@@ -71,6 +72,8 @@ export default defineConfig(({mode: _mode}) => {
       cspNonce: undefined,
     },
     server: {
+      host: true,
+      port: 5173,
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
         '/api': {

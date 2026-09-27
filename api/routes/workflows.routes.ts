@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../../infrastructure/database/client.js';
 import { nodeRegistry } from '../services/workflow-engine/node-runner.js';
+import { encryptJson } from '../services/channels/encryption.js';
 
 const router = Router();
 
@@ -198,18 +199,11 @@ router.post('/credentials', async (req, res) => {
   try {
     const { name, type, data } = req.body;
     
-    // Encrypt data
-    if (!process.env.ENCRYPTION_KEY && !process.env.CHANNEL_ENCRYPTION_KEY) {
+    if (!process.env.CHANNEL_ENCRYPTION_KEY) {
       return res.status(500).json({ error: 'No encryption key configured. Set CHANNEL_ENCRYPTION_KEY in your environment.' });
     }
-    const rawKey = (process.env.CHANNEL_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY)!;
-    const algorithm = 'aes-256-cbc';
-    const key = Buffer.from(rawKey.substring(0, 32));
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const encryptedData = `${iv.toString('hex')}:${encrypted}`;
+
+    const encryptedData = encryptJson(data || {});
     
     const cred = await db.workflowCredential.create({
       data: {

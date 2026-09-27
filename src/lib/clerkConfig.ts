@@ -7,5 +7,4 @@ export const CLERK_PUBLISHABLE_KEY =
   'pk_test_c3VyZS1zcGFuaWVsLTg3LmNsZXJrLmFjY291bnRzLmRldiQ';
 
 export const IS_DEV_AUTH_BYPASS =
-  viteEnv.VITE_DEV_AUTH_BYPASS === 'true' ||
-  false; // never bypass in production
+  Boolean(viteEnv.DEV && viteEnv.VITE_DEV_AUTH_BYPASS === 'true');

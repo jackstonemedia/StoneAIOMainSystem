@@ -155,6 +155,7 @@ export default function Automations() {
               <p className="text-xs text-text-muted mt-0.5">{isLoading ? 'Loading...' : `${filtered.length} workflow${filtered.length !== 1 ? 's' : ''}`}</p>
             </div>
             <button onClick={() => setShowNewModal(true)}
+              data-tour="automations-create-btn"
               className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-colors">
               <Plus className="w-4 h-4" />
               New Automation
@@ -176,7 +177,7 @@ export default function Automations() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" data-tour="automations-list">
           {isLoading ? (
             <div className="flex items-center justify-center h-32"><Loader2 className="w-5 h-5 animate-spin text-text-muted" /></div>
           ) : filtered.length === 0 ? (

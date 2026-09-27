@@ -1,7 +1,24 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { db } from '../../infrastructure/database/client.js';
 import Stripe from 'stripe';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
+import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
+import { validate } from '../middleware/validate.js';
+
+const createCheckoutSchema = {
+  body: z.object({
+    planId: z.string().min(1, 'planId is required'),
+    returnUrl: z.string().url().optional(),
+  }),
+};
+
+const createPaymentIntentSchema = {
+  body: z.object({
+    amount: z.coerce.number().positive('Amount must be greater than 0'),
+    dealId: z.string().min(1, 'dealId is required'),
+  }),
+};
 
 const router = Router();
 
@@ -23,7 +40,7 @@ export const PLAN_CONFIGS: Record<string, { name: string; amount: number; credit
 };
 
 // ── 1. Create Checkout Session for Subscriptions ────────────────────────────
-router.post('/billing/create-checkout-session', async (req: Request, res: Response) => {
+router.post('/billing/create-checkout-session', validate(createCheckoutSchema), async (req: Request, res: Response) => {
   try {
     const { planId, returnUrl } = req.body;
     const workspaceId = (req as any).workspaceId || 'default';
@@ -285,7 +302,7 @@ router.get('/billing/invoices', async (req: Request, res: Response) => {
 });
 
 // ── 5. CRM Client Invoicing (Deals/Opportunities) ────────────────────────────
-router.post('/stripe/create-payment-intent', async (req: Request, res: Response) => {
+router.post('/stripe/create-payment-intent', validate(createPaymentIntentSchema), async (req: Request, res: Response) => {
   try {
     const { amount, dealId } = req.body;
     if (!amount) return res.status(400).json({ error: 'Amount is required' });
@@ -376,6 +393,15 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
 
   if (!event) {
     return res.status(400).send('Invalid event payload');
+  }
+
+  // P1.2: Check idempotency to prevent duplicate processing on retried webhooks
+  if (event.id) {
+    const isNew = await claimWebhookEvent('stripe', event.id, { type: event.type });
+    if (!isNew) {
+      console.log(`[Stripe Webhook] Duplicate event ${event.id} (${event.type}) ignored.`);
+      return res.json({ received: true, duplicate: true });
+    }
   }
 
   try {

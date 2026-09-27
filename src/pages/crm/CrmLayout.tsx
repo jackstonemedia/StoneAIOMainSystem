@@ -4,8 +4,11 @@ import { Settings, Search, Bell, Command, Bot, X } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../components/ui/NotificationPanel';
+import { TourLauncher } from '../../components/tour/TourLauncher';
+import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function CrmLayout() {
+  useAutoLaunchTour('crm');
   const [isAIOpen, setIsAIOpen] = React.useState(false);
   const [isNotifOpen, setIsNotifOpen] = React.useState(false);
   const location = useLocation();
@@ -59,7 +62,10 @@ export default function CrmLayout() {
         </div>
 
         {/* Portal Target for Page-Specific Header Actions */}
-        <div id="crm-header-actions" className="flex items-center gap-3 pb-3 min-h-[44px]"></div>
+        <div className="flex items-center gap-3 pb-3 min-h-[44px]">
+          <div id="crm-header-actions" className="flex items-center gap-3"></div>
+          <TourLauncher />
+        </div>
       </div>
 
       {/* Page Content */}

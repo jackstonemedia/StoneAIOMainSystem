@@ -270,7 +270,7 @@ export default function ConversationListPane() {
 
   return (
     <>
-      <div className="w-[360px] shrink-0 border-r border-border/60 bg-surface/85 flex flex-col h-full font-inter overflow-hidden backdrop-blur-md z-10">
+      <div data-tour="inbox-conversation-list" className="w-[360px] shrink-0 border-r border-border/60 bg-surface/85 flex flex-col h-full font-inter overflow-hidden backdrop-blur-md z-10">
         {/* ── Header ──────────────────────────────── */}
         <div className="shrink-0 border-b border-border/50 bg-surface/90 backdrop-blur-sm">
           {/* Title row */}

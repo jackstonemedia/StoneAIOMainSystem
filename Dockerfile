@@ -42,7 +42,6 @@ COPY packages ./packages
 RUN npm install --no-save tsx
 
 EXPOSE 4000
-
 ENV NODE_ENV=production
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx server.ts"]

@@ -428,7 +428,7 @@ export default function Contacts() {
               <div className="w-[1px] h-5 bg-border ml-1"></div>
             </div>
           )}
-          <div className="relative shadow-sm rounded-full flex items-center mr-2">
+          <div className="relative shadow-sm rounded-full flex items-center mr-2" data-tour="crm-search-filter">
             <Search className="w-4 h-4 absolute left-3 text-text-muted" />
             <input 
               type="text" 
@@ -443,7 +443,7 @@ export default function Contacts() {
             <Download className="w-4 h-4" /> Import
           </button>
           
-          <div className="relative flex items-center gap-1">
+          <div className="relative flex items-center gap-1" data-tour="crm-add-contact">
             <button 
               onClick={() => setPanelOpen('new_contact')} 
               className="btn-secondary"
@@ -466,7 +466,7 @@ export default function Contacts() {
       </HeaderPortal>
 
       {/* Content Rendering */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
+      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10" data-tour="crm-contacts-table">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>

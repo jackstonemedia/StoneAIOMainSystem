@@ -26,6 +26,8 @@ export type StoneAIOEvent =
   | 'agent.call_ended'
   | 'payment.received'
   | 'payment.failed'
+  | 'subscription.activated'
+  | 'subscription.canceled'
   | 'sequence.enrolled'
   | 'sequence.completed'
   | 'task.created'

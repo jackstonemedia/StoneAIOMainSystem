@@ -1,36 +1,16 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation, NavLink } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
-import BusinessOnboarding from './BusinessOnboarding';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-
-const ONBOARDING_KEY = 'stone-aio-business-onboarded';
-
+import { TourLauncher } from '../../components/tour/TourLauncher';
+import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function BusinessLayout() {
+  useAutoLaunchTour('business');
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
   const [isAIOpen, setIsAIOpen] = useState(false);
-
-  const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(ONBOARDING_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const completeOnboarding = () => {
-    try {
-      localStorage.setItem(ONBOARDING_KEY, 'true');
-    } catch {}
-    setHasOnboarded(true);
-  };
-
-  if (!hasOnboarded) {
-    return <BusinessOnboarding onComplete={completeOnboarding} />;
-  }
 
 
   return (
@@ -82,6 +62,7 @@ export default function BusinessLayout() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3 pb-3">
+          <TourLauncher />
           <button
             onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
             className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"

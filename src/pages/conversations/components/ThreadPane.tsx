@@ -743,26 +743,28 @@ export default function ThreadPane() {
         </div>
 
         {/* ── Composer / Collapsible Message Bar ── */}
-        {isComposerHidden ? (
-          <div className="shrink-0 px-6 py-2.5 bg-surface/90 border-t border-border/50 backdrop-blur-md flex items-center justify-between z-10 transition-all">
-            <span className="text-[12px] text-text-muted italic flex items-center gap-2">
-              <EyeOff className="w-3.5 h-3.5 text-text-muted/70" />
-              Message bar hidden — email reading view expanded
-            </span>
-            <button
-              onClick={() => setIsComposerHidden(false)}
-              className="btn-secondary text-[12px] py-1 px-3 flex items-center gap-1.5"
-            >
-              <Eye className="w-3.5 h-3.5 text-primary" /> Show Reply Box
-            </button>
-          </div>
-        ) : (
-          conv.channel === 'email' ? (
-            <EmailComposer conversationId={conv.id} subject={conv.subject ?? ''} onMinimize={() => setIsComposerHidden(true)} />
+        <div data-tour="inbox-composer" className="shrink-0">
+          {isComposerHidden ? (
+            <div className="px-6 py-2.5 bg-surface/90 border-t border-border/50 backdrop-blur-md flex items-center justify-between z-10 transition-all">
+              <span className="text-[12px] text-text-muted italic flex items-center gap-2">
+                <EyeOff className="w-3.5 h-3.5 text-text-muted/70" />
+                Message bar hidden — email reading view expanded
+              </span>
+              <button
+                onClick={() => setIsComposerHidden(false)}
+                className="btn-secondary text-[12px] py-1 px-3 flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5 text-primary" /> Show Reply Box
+              </button>
+            </div>
           ) : (
-            <SmsComposer conversationId={conv.id} onMinimize={() => setIsComposerHidden(true)} />
-          )
-        )}
+            conv.channel === 'email' ? (
+              <EmailComposer conversationId={conv.id} subject={conv.subject ?? ''} onMinimize={() => setIsComposerHidden(true)} />
+            ) : (
+              <SmsComposer conversationId={conv.id} onMinimize={() => setIsComposerHidden(true)} />
+            )
+          )}
+        </div>
       </div>
 
       {/* ── Right info panel ── */}

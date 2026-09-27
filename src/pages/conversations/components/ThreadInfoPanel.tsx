@@ -259,7 +259,7 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
   const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'urgent'] as const;
 
   return (
-    <div className="w-[340px] shrink-0 border-l border-border/60 bg-surface/85 flex flex-col h-full font-inter overflow-hidden backdrop-blur-md">
+    <div data-tour="inbox-copilot-panel" className="w-[340px] shrink-0 border-l border-border/60 bg-surface/85 flex flex-col h-full font-inter overflow-hidden backdrop-blur-md">
       {/* Tabs matching CRM sub-panels */}
       <div className="flex p-2 gap-1 bg-surface/60 border-b border-border/50 shrink-0">
         <button

@@ -54,4 +54,57 @@ describe('Multi-Tenant Hardening — workspace resolution (#5)', () => {
     expect(finalWorkspaceId).toBe('ws-tenant-A');
     expect(finalWorkspaceId).not.toBe(req.body.workspaceId);
   });
+
+  it('strictly rejects dev-bypass in production when CLERK_SECRET_KEY is missing', async () => {
+    const req: any = {
+      path: '/api/crm/contacts',
+      headers: {},
+      query: {},
+    };
+    const res: any = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const next = vi.fn();
+
+    process.env.NODE_ENV = 'production';
+    delete process.env.CLERK_SECRET_KEY;
+
+    await resolveWorkspace(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(String) }));
+    expect(req.userId).toBeUndefined();
+
+    // Reset env
+    process.env.NODE_ENV = 'test';
+  });
+
+  it('strictly rejects unauthenticated requests in production when token is missing', async () => {
+    const req: any = {
+      path: '/api/crm/contacts',
+      headers: {},
+      query: {},
+    };
+    const res: any = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    const next = vi.fn();
+
+    process.env.NODE_ENV = 'production';
+    process.env.CLERK_SECRET_KEY = 'sk_test_mock_clerk_key';
+
+    await resolveWorkspace(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Missing or invalid Authorization header' });
+    expect(req.userId).toBeUndefined();
+
+    // Reset env
+    process.env.NODE_ENV = 'test';
+    delete process.env.CLERK_SECRET_KEY;
+  });
 });

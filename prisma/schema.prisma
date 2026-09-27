@@ -354,12 +354,28 @@ model WorkspaceMember {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  clerkId   String   @unique @map("clerk_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                 String                   @id @default(uuid())
+  clerkId            String                   @unique @map("clerk_id")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  onboardingProgress UserOnboardingProgress[]
 
   @@map("users")
+}
+
+model UserOnboardingProgress {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  tourKey     String    @map("tour_key")
+  status      String    @default("not_started") // not_started | in_progress | completed | skipped
+  stepIndex   Int       @default(0) @map("step_index")
+  completedAt DateTime? @map("completed_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tourKey])
+  @@map("user_onboarding_progress")
 }
 
 model Agent {
@@ -1899,5 +1915,18 @@ model SdrLeadDossier {
   @@index([agentId])
   @@index([status])
   @@map("sdr_lead_dossiers")
+}
+
+model ProcessedWebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String   // 'stripe' | 'twilio' | 'meta' | 'resend' | 'outlook'
+  eventId     String   @map("event_id")
+  status      String   @default("processed") // 'processed' | 'failed'
+  metaJson    String?  @map("meta_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, eventId])
+  @@index([provider, eventId])
+  @@map("processed_webhook_events")
 }
 

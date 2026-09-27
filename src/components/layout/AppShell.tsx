@@ -10,6 +10,7 @@ import CommandPalette from '../ui/CommandPalette';
 import NotificationPanel from '../ui/NotificationPanel';
 import AIAssistant from '../ai/AIAssistant';
 import { ToastProvider } from '../ui/Toast';
+import { TourProvider } from '../tour/TourProvider';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -36,10 +37,11 @@ export default function AppShell() {
   const content = (
     <ToastProvider>
       <ThemeProvider>
-        <div
-          className="flex h-screen overflow-hidden relative"
-          style={{ background: 'var(--bg)' }}
-        >
+        <TourProvider>
+          <div
+            className="flex h-screen overflow-hidden relative"
+            style={{ background: 'var(--bg)' }}
+          >
           {/* Mobile Header */}
           <div
             className="md:hidden h-[52px] flex items-center px-4 justify-between shrink-0 absolute top-0 left-0 right-0 z-40 border-b"
@@ -104,6 +106,7 @@ export default function AppShell() {
 
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
+        </TourProvider>
       </ThemeProvider>
     </ToastProvider>
   );

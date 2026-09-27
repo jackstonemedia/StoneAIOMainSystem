@@ -171,11 +171,31 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
       return location.pathname.startsWith(itemPath);
     })();
 
+    const getTourAttr = (name: string) => {
+      switch (name) {
+        case 'CRM': return 'crm-smart-views';
+        case 'Smart Lists': return 'crm-smart-views';
+        case 'Opportunities': return 'crm-pipeline-switch';
+        case 'Workflows': return 'automations-list';
+        case 'Runs': return 'automations-runs-tab';
+        case 'Connections': return 'automations-connections-tab';
+        case 'Templates': return 'email-templates-tab';
+        case 'Audience': return 'email-audience-tab';
+        case 'Analytics': return 'email-analytics-tab';
+        case 'Schedule': return 'business-schedule-view';
+        case 'Booking Links': return 'business-booking-links';
+        case 'Availability': return 'business-availability-tab';
+        case 'Integrations & Sync': return 'business-calendar-settings';
+        default: return undefined;
+      }
+    };
+
     if (collapsed) {
       return (
         <NavLink
           ref={itemRef}
           to={item.path}
+          data-tour={getTourAttr(item.name)}
           onClick={(e) => {
             if (item.subItems) {
               if (isActive) {
@@ -206,6 +226,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         <NavLink
           ref={itemRef}
           to={item.path}
+          data-tour={getTourAttr(item.name)}
           onClick={(e) => {
             if (item.subItems) {
               if (isActive) {
@@ -253,6 +274,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                 <NavLink 
                   key={sub.path} 
                   to={sub.path}
+                  data-tour={getTourAttr(sub.name)}
                   onClick={() => setIsOpen(false)}
                   className={({ isActive }) => `
                     flex items-center px-4 py-2 mx-2 mb-[6px] rounded-lg text-[13px] transition-colors

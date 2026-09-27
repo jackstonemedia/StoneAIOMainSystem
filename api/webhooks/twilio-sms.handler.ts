@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import twilio from 'twilio';
 import { db } from '../../infrastructure/database/client.js';
+import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
 
 export async function twilioSmsHandler(req: Request, res: Response): Promise<void> {
   // Twilio POSTs application/x-www-form-urlencoded — parsed by the urlencoded middleware
@@ -47,6 +48,16 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
   if (!workspaceId) {
     console.warn(`[Twilio] Received SMS to unknown number ${toNumber} — no matching connection`);
     return;
+  }
+
+  // P1.2: Check idempotency to prevent duplicate message storage on retried webhooks
+  const messageSid: string = req.body?.MessageSid ?? '';
+  if (messageSid) {
+    const isNew = await claimWebhookEvent('twilio', messageSid, { from: fromNumber, to: toNumber });
+    if (!isNew) {
+      console.log(`[Twilio] Duplicate MessageSid ${messageSid} ignored.`);
+      return;
+    }
   }
 
   try {

@@ -27,7 +27,11 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
 
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
-      if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[resolveWorkspace] ❌ FATAL: CLERK_SECRET_KEY is missing in production.');
+        return res.status(500).json({ error: 'Server authentication configuration error' });
+      }
+      console.log(`[resolveWorkspace] ⚠️ WARNING: CLERK_SECRET_KEY is MISSING. Using dev bypass.`);
       req.userId = 'test_user_new';
       // We fall through to check for workspace membership even in dev mode
       // so we can test the auto-provisioning logic.
@@ -43,13 +47,12 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
         : queryToken;
 
       if (!rawToken) {
-        // In non-production, fall back to dev bypass even if CLERK_SECRET_KEY is set.
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[resolveWorkspace] Dev mode & no token. Falling back to dev bypass user.');
-          req.userId = 'test_user_new';
-        } else {
+        // In non-production, fall back to dev bypass if no token is provided.
+        if (process.env.NODE_ENV === 'production') {
           return res.status(401).json({ error: 'Missing or invalid Authorization header' });
         }
+        console.log('[resolveWorkspace] Dev mode & no token. Falling back to dev bypass user.');
+        req.userId = 'test_user_new';
       } else {
         const token = rawToken;
 

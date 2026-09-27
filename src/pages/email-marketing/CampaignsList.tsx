@@ -337,6 +337,7 @@ export default function CampaignsList() {
           {/* New Campaign Button */}
           <button
             onClick={() => navigate('/email-marketing/campaigns/new')}
+            data-tour="email-create-campaign"
             className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />

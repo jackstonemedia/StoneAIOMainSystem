@@ -12,6 +12,7 @@
 import 'dotenv/config';
 console.log('>>> [server.ts] Loading modules (structured copilot intake v2)...');
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -24,6 +25,7 @@ import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter, { stripeWebhookHandler } from './api/routes/billing.routes.js';
+import onboardingRouter from './api/routes/onboarding.routes.js';
 import workflowRouter      from './api/routes/workflows.routes.js';
 import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
@@ -100,6 +102,36 @@ async function startServer() {
       },
     } : false,
   }));
+  // ── CORS configuration ───────────────────────────────────────────────────
+  const allowedOrigins = [
+    env.VITE_APP_URL,
+    env.PUBLIC_APP_URL,
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:4000',
+    ...(env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : []),
+  ].filter(Boolean) as string[];
+
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server webhooks)
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.some(allowed => origin.endsWith(allowed.replace(/^https?:\/\//, '')))
+      ) {
+        return callback(null, true);
+      }
+      if (env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-workspace-id', 'x-requested-with'],
+  }));
+
   app.use(compression());
   app.use(express.json());
 
@@ -118,18 +150,34 @@ async function startServer() {
   const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
   app.use('/api', apiLimiter);
 
-  // ── Health ───────────────────────────────────────────────────────────────
+  // ── Health Endpoints ──────────────────────────────────────────────────────
+  // 1. General health check (returns HTTP 200 for Railway deployment checks)
   app.get('/api/health', async (_req, res) => {
     try {
       await db.$queryRaw`SELECT 1`;
       const aiReady = !!(process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY);
-      res.json({ status: 'ok', db: true, ai: aiReady });
+      res.json({ status: 'ok', db: true, ai: aiReady, timestamp: new Date().toISOString() });
     } catch (e) {
-      console.error(e);
+      console.error('[HealthCheck] DB check failed:', e);
       const aiReady = !!(process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY);
-      // Always return 200 so Railway healthcheck passes even if DB is degraded
-      res.status(200).json({ status: 'degraded', db: false, ai: aiReady, error: String(e) });
+      res.status(200).json({ status: 'degraded', db: false, ai: aiReady, error: String(e), timestamp: new Date().toISOString() });
     }
+  });
+
+  // 2. Readiness check for external uptime & alerting monitors (returns HTTP 503 on DB outage)
+  app.get('/api/health/ready', async (_req, res) => {
+    try {
+      await db.$queryRaw`SELECT 1`;
+      const aiReady = !!(process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY);
+      res.status(200).json({ status: 'ready', db: true, ai: aiReady, timestamp: new Date().toISOString() });
+    } catch (e) {
+      res.status(503).json({ status: 'unready', db: false, error: String(e), timestamp: new Date().toISOString() });
+    }
+  });
+
+  // 3. Liveness check (process responsiveness)
+  app.get('/api/health/live', (_req, res) => {
+    res.status(200).json({ status: 'alive', uptime: process.uptime() });
   });
 
 
@@ -226,6 +274,7 @@ async function startServer() {
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
+  app.use('/api',                onboardingRouter); // onboarding progress routes
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);

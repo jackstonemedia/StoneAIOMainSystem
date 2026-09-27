@@ -287,10 +287,13 @@ function createDefaultSeedAppointments(): Appointment[] {
   const y = now.getFullYear();
   const m = now.getMonth();
   const d = now.getDate();
+  const nowIso = now.toISOString();
 
   return [
     {
       id: 'apt-seed-1',
+      workspaceId: 'default',
+      contactId: 'c1',
       title: 'Enterprise Architecture Sync',
       type: 'demo',
       location: 'Google Meet',
@@ -298,10 +301,14 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d, 10, 45).toISOString(),
       description: 'Review system requirements and enterprise data migration pipelines with engineering team.',
       status: 'confirmed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c1', firstName: 'Sarah', lastName: 'Jenkins', email: 'sarah.j@acmecorp.com' } as any,
     },
     {
       id: 'apt-seed-2',
+      workspaceId: 'default',
+      contactId: 'c2',
       title: 'Q3 Product Strategy & Roadmap',
       type: 'meeting',
       location: 'Zoom Conference',
@@ -309,10 +316,14 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d, 15, 0).toISOString(),
       description: 'Discuss executive roadmap initiatives and deliverables for the upcoming quarter.',
       status: 'confirmed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c2', firstName: 'David', lastName: 'Chen', email: 'david.chen@horizon.io' } as any,
     },
     {
       id: 'apt-seed-3',
+      workspaceId: 'default',
+      contactId: 'c3',
       title: 'Client Onboarding & Training',
       type: 'video',
       location: 'Microsoft Teams',
@@ -320,10 +331,14 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d + 1, 12, 15).toISOString(),
       description: 'Walkthrough of workspace configuration, permissions, and AI agent setup.',
       status: 'confirmed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c3', firstName: 'Elena', lastName: 'Rostova', email: 'elena@novatech.com' } as any,
     },
     {
       id: 'apt-seed-4',
+      workspaceId: 'default',
+      contactId: 'c4',
       title: 'Inbound Growth Discovery',
       type: 'calls',
       location: 'Direct Phone (+1 555-0192)',
@@ -331,10 +346,14 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d + 2, 9, 30).toISOString(),
       description: 'Initial discovery call to evaluate custom automation workflows.',
       status: 'confirmed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c4', firstName: 'Marcus', lastName: 'Vance', email: 'marcus@vancemedia.com' } as any,
     },
     {
       id: 'apt-seed-5',
+      workspaceId: 'default',
+      contactId: 'c5',
       title: 'Weekly Sprint Retrospective',
       type: 'tasks',
       location: 'Internal Workspace Room A',
@@ -342,10 +361,14 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d + 3, 17, 0).toISOString(),
       description: 'Review completed sprint tickets, velocity metrics, and blockers.',
       status: 'confirmed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c5', firstName: 'Team', lastName: 'Engineering', email: 'dev@stoneaio.com' } as any,
     },
     {
       id: 'apt-seed-6',
+      workspaceId: 'default',
+      contactId: 'c6',
       title: 'Consulting Advisory Session',
       type: 'consultation',
       location: 'Google Meet',
@@ -353,6 +376,8 @@ function createDefaultSeedAppointments(): Appointment[] {
       endTime: new Date(y, m, d - 1, 14, 0).toISOString(),
       description: 'Strategic review of AI pipeline deployments.',
       status: 'completed',
+      createdAt: nowIso,
+      updatedAt: nowIso,
       contact: { id: 'c6', firstName: 'Amanda', lastName: 'Bates', email: 'amanda@apexcap.com' } as any,
     },
   ];
@@ -814,7 +839,7 @@ export default function CalendarSchedulePage() {
       <div className="px-6 sm:px-8 pt-5 pb-3 flex flex-wrap items-center justify-between gap-4 shrink-0 border-b border-border/40">
         
         {/* Left: View Switcher Tabs matching CRM Smart Tabs */}
-        <div className="flex items-center gap-1 bg-surface-hover/70 border border-border/60 rounded-lg p-1">
+        <div data-tour="business-schedule-view" className="flex items-center gap-1 bg-surface-hover/70 border border-border/60 rounded-lg p-1">
           {[
             { id: 'month', label: 'Month', icon: CalendarDays },
             { id: 'week', label: 'Week', icon: CalendarRange },
@@ -1912,11 +1937,11 @@ export default function CalendarSchedulePage() {
 
       {/* Delete Confirmation Modal */}
       <ConfirmDelete
-        open={Boolean(deleteTarget)}
+        isOpen={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget?.id && deleteMutation.mutate(deleteTarget.id)}
         title="Delete Appointment"
-        description="Are you sure you want to delete this appointment from the calendar?"
+        message="Are you sure you want to delete this appointment from the calendar?"
       />
     </div>
   );

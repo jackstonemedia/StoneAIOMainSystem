@@ -8,6 +8,7 @@ import { Request, Response } from 'express';
 import { verifyFacebookWebhookSignature } from '../services/ads/facebook-ads.service.js';
 import { ingestFacebookLead } from '../services/ads/ads-lead.service.js';
 import { db } from '../../infrastructure/database/client.js';
+import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
 
 // GET — Facebook verification challenge
 export function facebookLeadsWebhookVerify(req: Request, res: Response) {
@@ -54,6 +55,13 @@ async function processLeadEvent(req: Request) {
 
       const value = change.value;
       if (!value?.leadgen_id || !value?.ad_id || !value?.campaign_id) continue;
+
+      // P1.2: Check idempotency to prevent duplicate lead ingestion
+      const isNew = await claimWebhookEvent('meta', value.leadgen_id, { campaign_id: value.campaign_id, ad_id: value.ad_id });
+      if (!isNew) {
+        console.log(`[FacebookLeadsWebhook] Duplicate leadgen_id ${value.leadgen_id} ignored.`);
+        continue;
+      }
 
       // Resolve workspace from the ad account that owns this campaign
       const campaign = await db.adCampaign.findFirst({

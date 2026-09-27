@@ -251,7 +251,7 @@ export default function AdsDashboard() {
         <div className="mx-8 mt-6 mb-8 space-y-5">
 
       {/* ── KPI Cards ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div data-tour="ads-metrics-overview" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <KPICard
           label="Amount Spent"
           value={metrics?.totalSpendCents ? formatCurrency(metrics.totalSpendCents / 100) : '$0.00'}
@@ -343,7 +343,7 @@ export default function AdsDashboard() {
         </div>
 
         {/* Platform split */}
-        <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
+        <div data-tour="ads-leads-sync" className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
           <div className="px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md shrink-0">
             <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Platform Split</h3>
             <p className="text-[12px] text-text-muted mt-0.5">Spend distribution</p>
@@ -394,7 +394,7 @@ export default function AdsDashboard() {
       </div>
 
       {/* ── Active campaigns strip ──────────────────────────────────── */}
-      <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden">
+      <div data-tour="ads-create-campaign" className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md">
           <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Active Campaigns</h3>
           <button
