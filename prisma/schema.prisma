@@ -93,6 +93,7 @@ model Workspace {
   emailAutomationEnrollments  AutomationEnrollment[]
   emailEvents                 EmailEvent[]
   emailSuppressionEntries     SuppressionEntry[]
+  sendingDomains              SendingDomain[]
   aiActions                   AIAction[]
   sdrAgents                   AutonomousSdrAgent[]
 
@@ -1928,5 +1929,27 @@ model ProcessedWebhookEvent {
   @@unique([provider, eventId])
   @@index([provider, eventId])
   @@map("processed_webhook_events")
+}
+
+enum SendingDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+model SendingDomain {
+  id             String              @id @default(uuid())
+  workspaceId    String              @map("workspace_id")
+  domain         String
+  resendDomainId String              @map("resend_domain_id")
+  status         SendingDomainStatus @default(PENDING)
+  region         String?
+  dnsRecords     Json                @map("dns_records") // SPF TXT, DKIM CNAME/TXT, MX — as returned by Resend
+  createdAt      DateTime            @default(now()) @map("created_at")
+  verifiedAt     DateTime?           @map("verified_at")
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("sending_domains")
 }
 
