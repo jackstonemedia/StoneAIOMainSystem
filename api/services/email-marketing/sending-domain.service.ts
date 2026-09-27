@@ -45,7 +45,7 @@ export async function createSendingDomain(
       resendDomainId,
       status: SendingDomainStatus.PENDING,
       region: region || null,
-      dnsRecords,
+      dnsRecords: (dnsRecords as any) ?? [],
     },
   });
 }
@@ -67,7 +67,7 @@ export async function verifySendingDomain(workspaceId: string, id: string) {
   }
 
   let newStatus: SendingDomainStatus = SendingDomainStatus.PENDING;
-  let records = record.dnsRecords;
+  let records: any = record.dnsRecords;
   let verifiedAt = record.verifiedAt;
 
   if (resend && record.resendDomainId && !record.resendDomainId.startsWith('mock_')) {
@@ -94,7 +94,7 @@ export async function verifySendingDomain(workspaceId: string, id: string) {
     where: { id },
     data: {
       status: newStatus,
-      dnsRecords: records,
+      dnsRecords: (records as any) ?? [],
       verifiedAt,
     },
   });

@@ -18,7 +18,7 @@
 import type { Request, Response } from 'express';
 import { db } from '../../infrastructure/database/client.js';
 import { env } from '../../infrastructure/config/env.js';
-import { EmailEventType, SubscriptionStatus } from '@prisma/client';
+import { EmailEventType, SubscriptionStatus, SendingDomainStatus } from '@prisma/client';
 import { addToSuppressionList, unsubscribeByEmail } from '../services/email-marketing/audience.service.js';
 import crypto from 'crypto';
 
@@ -119,8 +119,58 @@ export async function resendWebhookHandler(req: Request, res: Response): Promise
   });
 }
 
+export async function handleDomainUpdatedWebhook(payload: any): Promise<boolean> {
+  const domainId = payload?.data?.id;
+  const statusStr = payload?.data?.status?.toLowerCase();
+  const records = payload?.data?.records;
+
+  if (!domainId) {
+    return false;
+  }
+
+  const sendingDomain = await db.sendingDomain.findFirst({
+    where: { resendDomainId: domainId },
+  });
+
+  if (!sendingDomain) {
+    console.warn(`[ResendWebhook] No SendingDomain found for Resend domain ID: ${domainId}`);
+    return false;
+  }
+
+  let status: SendingDomainStatus = sendingDomain.status;
+  let verifiedAt = sendingDomain.verifiedAt;
+
+  if (statusStr === 'verified') {
+    status = SendingDomainStatus.VERIFIED;
+    verifiedAt = verifiedAt || new Date();
+  } else if (statusStr === 'failed') {
+    status = SendingDomainStatus.FAILED;
+  } else if (statusStr === 'pending' || statusStr === 'not_started') {
+    status = SendingDomainStatus.PENDING;
+  }
+
+  await db.sendingDomain.update({
+    where: { id: sendingDomain.id },
+    data: {
+      status,
+      dnsRecords: records !== undefined ? records : sendingDomain.dnsRecords,
+      verifiedAt,
+    },
+  });
+
+  console.log(`[ResendWebhook] Updated domain ${sendingDomain.domain} status to ${status}`);
+  return true;
+}
+
 async function processResendEvent(payload: any): Promise<void> {
   const resendEventType: string = payload?.type;
+
+  // ── Handle Resend Domain Updates ─────────────────────────────────────────
+  if (resendEventType === 'domain.updated') {
+    await handleDomainUpdatedWebhook(payload);
+    return;
+  }
+
   const emailId: string = payload?.data?.email_id;
   const toEmail: string = payload?.data?.to?.[0] || payload?.data?.to;
 

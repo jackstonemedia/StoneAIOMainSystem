@@ -74,6 +74,12 @@ import {
   markContactReplied,
   processDripSequences,
 } from '../services/email-marketing/sequence-scheduler.service.js';
+import {
+  createSendingDomain,
+  getSendingDomains,
+  verifySendingDomain,
+  deleteSendingDomain,
+} from '../services/email-marketing/sending-domain.service.js';
 import emailCopilotRouter from './email-copilot.routes.js';
 
 // Background runner: check for due scheduled campaigns & drip sequence follow-ups
@@ -628,6 +634,37 @@ export async function handleTrackOpen(req: Request, res: Response): Promise<void
 // Attach track routes to router as well
 router.get('/track/click', handleTrackClick);
 router.get('/track/open', handleTrackOpen);
+
+// ── Sending Domains ─────────────────────────────────────────────────────────
+
+router.get('/domains', asyncHandler(async (req, res) => {
+  const wid = getWid(req);
+  const domains = await getSendingDomains(wid);
+  res.json(domains);
+}));
+
+router.post('/domains', asyncHandler(async (req, res) => {
+  const wid = getWid(req);
+  const { domain, region } = req.body;
+  if (!domain || typeof domain !== 'string') {
+    res.status(400).json({ error: 'Valid domain is required' });
+    return;
+  }
+  const result = await createSendingDomain(wid, domain, region);
+  res.status(201).json(result);
+}));
+
+router.post('/domains/:id/verify', asyncHandler(async (req, res) => {
+  const wid = getWid(req);
+  const result = await verifySendingDomain(wid, req.params.id);
+  res.json(result);
+}));
+
+router.delete('/domains/:id', asyncHandler(async (req, res) => {
+  const wid = getWid(req);
+  await deleteSendingDomain(wid, req.params.id);
+  res.json({ success: true });
+}));
 
 // ── Unsubscribe (public routes — no resolveWorkspace) ────────────────────────
 export async function handleUnsubscribeGet(req: Request, res: Response): Promise<void> {
