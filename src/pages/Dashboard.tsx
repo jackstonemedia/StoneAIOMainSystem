@@ -15,8 +15,6 @@ import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
 import { AddWidgetModal } from '../components/dashboard/AddWidgetModal';
 import { DashboardGrid } from '../components/dashboard/DashboardGrid';
-import { GettingStartedHub } from '../components/dashboard/GettingStartedHub';
-import { TourLauncher } from '../components/tour/TourLauncher';
 import CRMAIAssistant from '../components/crm/CRMAIAssistant';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
@@ -351,8 +349,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <TourLauncher />
-
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ['dashboard_metrics'] })}
             className="btn-secondary"
@@ -403,8 +399,6 @@ export default function Dashboard() {
       {/* ── Scrollable Content Area ─────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-8 mt-6 mb-8 space-y-5">
-          {/* ── Getting Started Hub Checklist ── */}
-          <GettingStartedHub />
 
           {/* ── 6 KPI Cards Grid matching Ad Manager ────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -12,8 +12,6 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 
 import { opportunitiesApi } from '../../lib/api/opportunities';
 import { useToast } from '../../components/ui/Toast';
-import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import { formatCurrency } from '../../lib/utils';
 
 // Modals & Drawers
 import { CreateOpportunityModal } from './components/CreateOpportunityModal';
@@ -65,11 +63,6 @@ export default function OpportunitiesPage() {
   const [sortBy, setSortBy] = useState<string>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Pagination states matching Contacts
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(20);
-  const [pageSizeDropdownOpen, setPageSizeDropdownOpen] = useState(false);
-
   // Filters State
   const [filters, setFilters] = useState<FilterState>({
     stages: [],
@@ -92,12 +85,9 @@ export default function OpportunitiesPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showSavedViewsModal, setShowSavedViewsModal] = useState(false);
   const [showCustomizeCardModal, setShowCustomizeCardModal] = useState(false);
-
-  // Unified Dropdown State (only 1 menu open at a time)
-  const [openDropdown, setOpenDropdown] = useState<'pipeline' | 'sort' | 'overflow' | null>(null);
-  const toggleDropdown = (menu: 'pipeline' | 'sort' | 'overflow') => {
-    setOpenDropdown(curr => (curr === menu ? null : menu));
-  };
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
+  const [showPipelineSwitcher, setShowPipelineSwitcher] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
   // Stage transition prompt states
   const [requiredFieldsDeal, setRequiredFieldsDeal] = useState<Opportunity | null>(null);
@@ -415,22 +405,6 @@ export default function OpportunitiesPage() {
     }
   };
 
-  const toggleSelectRow = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectStageGroup = (stageDeals: Opportunity[]) => {
-    const stageDealIds = stageDeals.map(d => d.id);
-    const allSelected = stageDealIds.length > 0 && stageDealIds.every(id => selectedIds.includes(id));
-    if (allSelected) {
-      setSelectedIds(prev => prev.filter(id => !stageDealIds.includes(id)));
-    } else {
-      setSelectedIds(prev => Array.from(new Set([...prev, ...stageDealIds])));
-    }
-  };
-
   // ── Bulk Actions ─────────────────────────────────────────────────────────────
   const handleBulkAction = async (action: string, payload?: any) => {
     if (selectedIds.length === 0) return;
@@ -467,297 +441,330 @@ export default function OpportunitiesPage() {
     }
   };
 
-  const totalOpportunities = opportunities.length;
-  const totalPages = Math.max(1, Math.ceil(totalOpportunities / pageSize));
-  const paginatedOpportunities = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return opportunities.slice(start, start + pageSize);
-  }, [opportunities, page, pageSize]);
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedOpportunities.length && paginatedOpportunities.length > 0) {
-      setSelectedIds([]);
+  const toggleSelectStageGroup = (stageDeals: Opportunity[]) => {
+    const stageDealIds = stageDeals.map(d => d.id);
+    const allSelected = stageDealIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !stageDealIds.includes(id)));
     } else {
-      setSelectedIds(paginatedOpportunities.map(d => d.id));
+      setSelectedIds(prev => Array.from(new Set([...prev, ...stageDealIds])));
     }
   };
 
+  const toggleCollapseStage = (stageId: string) => {
+    setCollapsedStageIds(prev =>
+      prev.includes(stageId) ? prev.filter(id => id !== stageId) : [...prev, stageId]
+    );
+  };
+
+  // Group deals by stage for Kanban and Grouped List
   const dealsByStage = useMemo(() => {
     const map: Record<string, Opportunity[]> = {};
     for (const s of stages) map[s.id] = [];
-    for (const opp of paginatedOpportunities) {
+    for (const opp of opportunities) {
       const sId = opp.pipelineStageId || (stages[0]?.id);
       if (!map[sId]) map[sId] = [];
       map[sId].push(opp);
     }
     return map;
-  }, [stages, paginatedOpportunities]);
+  }, [stages, opportunities]);
 
   return (
-    <div className="flex flex-col h-full w-full relative overflow-hidden z-0 bg-bg">
-      {/* Full-tab frosted glass overlay */}
-      <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10"></div>
+    <div className="h-full flex flex-col bg-bg overflow-hidden relative">
+      {/* ── Header Bar ───────────────────────────────────────────────────────── */}
+      <header className="px-6 py-3.5 border-b border-border bg-surface shrink-0 flex items-center justify-between gap-4 z-20">
+        {/* Left: Title + Pipeline Switcher */}
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-[18px] font-bold text-text-main shrink-0">Opportunities</h1>
 
-      {/* ── Top Header Actions via HeaderPortal matching Contacts ────────────── */}
-      <HeaderPortal>
-        <div className="flex items-center gap-3">
           {/* Pipeline Switcher Dropdown */}
           <div className="relative">
             <button
-              type="button"
-              onClick={() => toggleDropdown('pipeline')}
-              className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover hover:bg-surface border border-border rounded-full text-[13px] font-semibold text-text-main transition-colors cursor-pointer"
+              onClick={() => setShowPipelineSwitcher(o => !o)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[13px] font-semibold text-text-main transition-colors"
             >
               <span>{activePipeline?.name || 'Sales Pipeline'}</span>
               <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
             </button>
 
             <AnimatePresence>
-              {openDropdown === 'pipeline' && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute top-full left-0 mt-1 z-50 bg-surface border border-border/50 rounded-2xl shadow-luxury p-1.5 min-w-[220px] max-h-72 overflow-y-auto ring-1 ring-white/5"
-                  >
-                    <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5 border-b border-border/50">
-                      Select Pipeline
+              {showPipelineSwitcher && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute top-full left-0 mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[220px] max-h-72 overflow-y-auto"
+                >
+                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5">
+                    Select Pipeline
+                  </div>
+                  {pipelines.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setActivePipelineId(p.id);
+                        setShowPipelineSwitcher(false);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors ${
+                        activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{p.name}</span>
+                        {p.isDefault && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-text-muted font-bold">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      {activePipeline?.id === p.id && <Check className="w-4 h-4" />}
                     </div>
-                    <div className="py-1">
-                      {pipelines.map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            setActivePipelineId(p.id);
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors text-left ${
-                            activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>{p.name}</span>
-                            {p.isDefault && (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${activePipeline?.id === p.id ? 'bg-white/20 text-white' : 'bg-black/20 text-text-muted'}`}>
-                                Default
-                              </span>
-                            )}
-                          </div>
-                          {activePipeline?.id === p.id && <Check className="w-4 h-4 text-white" />}
-                        </button>
-                      ))}
-                    </div>
+                  ))}
 
-                    <div className="pt-1 mt-1 border-t border-border/50 flex items-center justify-between gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpenDropdown(null);
-                          setShowNewPipelineModal(true);
-                        }}
-                        className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-white" />
-                        <span>+ New Pipeline</span>
-                      </button>
-                      <Link
-                        to="/opportunities/settings/pipelines"
-                        onClick={() => setOpenDropdown(null)}
-                        className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                        title="Pipeline Settings"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </motion.div>
-                </>
+                  <div className="pt-1 mt-1 border-t border-border flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPipelineSwitcher(false);
+                        setShowNewPipelineModal(true);
+                      }}
+                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <span>+ New Pipeline</span>
+                    </button>
+                    <Link
+                      to="/opportunities/settings/pipelines"
+                      onClick={() => setShowPipelineSwitcher(false)}
+                      className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      title="Pipeline Settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
+        </div>
 
-          {/* Search Input */}
-          <div className="relative shadow-sm rounded-full flex items-center mr-2">
-            <Search className="w-4 h-4 absolute left-3 text-text-muted" />
+        {/* Center/Right Actions */}
+        <div className="flex items-center gap-2.5">
+          {/* Live Search */}
+          <div className="relative w-56 md:w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-text-muted" />
             <input
               type="text"
-              placeholder="Search Opportunities"
+              placeholder="Search opportunity or contact..."
               value={searchQuery}
-              onChange={e => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              className="pl-9 pr-4 py-1.5 w-[200px] border border-border bg-surface-hover text-text-main rounded-full text-[13px] hover:border-primary/50 focus:outline-none focus:border-primary transition-all placeholder:text-text-muted"
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 bg-surface-hover/50 border border-border rounded-xl text-[12px] text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 text-text-muted hover:text-text-main"
+                className="absolute right-2.5 top-2 text-text-muted hover:text-text-main"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          {/* Import Button */}
+          {/* View Toggle Segmented Control: Board / List */}
+          <div className="flex items-center p-1 bg-surface-hover/60 border border-border rounded-xl">
+            <button
+              onClick={() => setViewMode('board')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'board' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+              }`}
+              title="Board View (Kanban)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Board</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === 'list' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+              }`}
+              title="Grouped List View"
+            >
+              <ListIcon className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+          </div>
+
+          {/* Filter Button */}
           <button
-            onClick={() => setShowImportModal(true)}
-            className="btn-secondary"
+            onClick={() => setShowFilterDrawer(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
+              activeFiltersCount > 0
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'bg-surface-hover/60 border-border text-text-muted hover:text-text-main'
+            }`}
           >
-            <Download className="w-4 h-4" /> Import
+            <Filter className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Filter</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
           </button>
 
-          {/* + Add Opportunity Button */}
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(o => !o)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[12px] font-semibold text-text-muted hover:text-text-main transition-colors"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Sort</span>
+            </button>
+
+            <AnimatePresence>
+              {showSortMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute right-0 top-full mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[190px]"
+                >
+                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1">
+                    Sort Opportunities
+                  </div>
+                  {[
+                    { id: 'value_desc', label: 'Value (High to Low)', field: 'amount', order: 'desc' },
+                    { id: 'value_asc', label: 'Value (Low to High)', field: 'amount', order: 'asc' },
+                    { id: 'created_desc', label: 'Created Date (Newest)', field: 'createdAt', order: 'desc' },
+                    { id: 'created_asc', label: 'Created Date (Oldest)', field: 'createdAt', order: 'asc' },
+                    { id: 'close_asc', label: 'Close Date (Earliest)', field: 'closeDate', order: 'asc' },
+                    { id: 'updated_desc', label: 'Last Updated', field: 'updatedAt', order: 'desc' },
+                    { id: 'name_asc', label: 'Alphabetical (A–Z)', field: 'title', order: 'asc' },
+                  ].map(opt => {
+                    const isSelected = sortBy === opt.field && sortOrder === opt.order;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setSortBy(opt.field);
+                          setSortOrder(opt.order as any);
+                          setShowSortMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 rounded-xl text-[12px] flex items-center justify-between transition-colors ${
+                          isSelected ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Import / Export Buttons */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors hidden sm:flex items-center"
+            title="Import Opportunities"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={handleExportAll}
+            className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors hidden sm:flex items-center"
+            title="Export CSV"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          {/* + New Opportunity Primary Button */}
           <button
             onClick={() => {
               setCreateStageTargetId(undefined);
               setShowCreateModal(true);
             }}
-            className="btn-secondary"
+            className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
           >
-            <Plus className="w-4 h-4" /> Add Opportunity
+            <Plus className="w-4 h-4" />
+            <span>New Opportunity</span>
           </button>
 
-          <div className="w-[1px] h-5 bg-border mx-1" />
-
-          {/* Manage fields */}
-          <div className="relative flex items-center gap-2">
+          {/* Overflow Menu ("...") */}
+          <div className="relative">
             <button
-              onClick={() => toggleDropdown('overflow')}
-              className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--sidebar-text-muted)] hover:text-white transition-colors ml-1"
+              onClick={() => setShowOverflowMenu(o => !o)}
+              className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors"
             >
-              <Settings className="w-4 h-4" /> Manage fields
+              <MoreVertical className="w-4 h-4" />
             </button>
 
             <AnimatePresence>
-              {openDropdown === 'overflow' && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute right-0 top-full mt-1 z-50 bg-surface border border-border/50 shadow-luxury rounded-2xl p-1.5 min-w-[200px] ring-1 ring-white/5"
+              {showOverflowMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute right-0 top-full mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[200px]"
+                >
+                  <Link
+                    to="/opportunities/settings/pipelines"
+                    onClick={() => setShowOverflowMenu(false)}
+                    className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
                   >
-                    <Link
-                      to="/opportunities/settings/pipelines"
-                      onClick={() => setOpenDropdown(null)}
-                      className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <Sliders className="w-4 h-4 text-text-muted" /> Manage Pipelines
-                    </Link>
-                    <Link
-                      to="/opportunities/settings/fields"
-                      onClick={() => setOpenDropdown(null)}
-                      className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <Layers className="w-4 h-4 text-text-muted" /> Manage Custom Fields
-                    </Link>
-                    <Link
-                      to="/opportunities/settings/tags"
-                      onClick={() => setOpenDropdown(null)}
-                      className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <TagIcon className="w-4 h-4 text-text-muted" /> Manage Tags
-                    </Link>
-                    <div className="h-[1px] bg-border/50 my-1" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSavedViewsModal(true);
-                        setOpenDropdown(null);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <Bookmark className="w-4 h-4 text-text-muted" /> Saved Views
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCustomizeCardModal(true);
-                        setOpenDropdown(null);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <LayoutGrid className="w-4 h-4 text-text-muted" /> Customize Cards
-                    </button>
-                  </motion.div>
-                </>
+                    <Sliders className="w-4 h-4 text-text-muted" /> Manage Pipelines
+                  </Link>
+                  <Link
+                    to="/opportunities/settings/fields"
+                    onClick={() => setShowOverflowMenu(false)}
+                    className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    <Layers className="w-4 h-4 text-text-muted" /> Manage Custom Fields
+                  </Link>
+                  <Link
+                    to="/opportunities/settings/tags"
+                    onClick={() => setShowOverflowMenu(false)}
+                    className="px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    <TagIcon className="w-4 h-4 text-text-muted" /> Manage Tags
+                  </Link>
+                  <div className="h-[1px] bg-border my-1" />
+                  <button
+                    onClick={() => {
+                      setShowSavedViewsModal(true);
+                      setShowOverflowMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    <Bookmark className="w-4 h-4 text-text-muted" /> Saved Views
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCustomizeCardModal(true);
+                      setShowOverflowMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-[12px] font-medium text-text-main hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                  >
+                    <LayoutGrid className="w-4 h-4 text-text-muted" /> Customize Cards
+                  </button>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
         </div>
-      </HeaderPortal>
+      </header>
 
-      {/* ── Bulk Actions Context Bar matching Contacts ─────────────────────── */}
-      <AnimatePresence mode="wait" initial={false}>
-        {selectedIds.length > 0 && (
-          <motion.div
-            key="bulk-toolbar"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 73 }}
-            exit={{ opacity: 0, height: 0 }}
-            className="px-8 flex items-center justify-between border-b border-border bg-surface-hover/50 relative shadow-sm w-full overflow-hidden shrink-0 z-10"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-[6px]">
-                  <CheckSquare className="w-4 h-4 text-primary" />
-                  <span className="text-[13px] font-bold text-primary">{selectedIds.length} Selected</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds([])}
-                  className="text-[12px] font-medium text-text-muted hover:text-text-main transition-colors"
-                >
-                  Clear selection
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <select
-                  onChange={e => {
-                    if (e.target.value) {
-                      handleBulkAction('stage', { stageId: e.target.value });
-                      e.target.value = '';
-                    }
-                  }}
-                  defaultValue=""
-                  className="px-3 py-2 bg-surface-hover border border-border rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm cursor-pointer"
-                >
-                  <option value="" disabled>Move to Stage...</option>
-                  {stages.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-
-                <button
-                  type="button"
-                  onClick={() => handleBulkAction('export')}
-                  className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm"
-                >
-                  <Download className="w-4 h-4" /> Export
-                </button>
-
-                <div className="w-[1px] h-6 bg-border mx-1" />
-
-                <button
-                  type="button"
-                  onClick={() => handleBulkAction('delete')}
-                  className="flex items-center gap-2 px-4 py-2 border border-red-500/30 bg-red-500/10 rounded-[8px] text-[13px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors shadow-sm"
-                >
-                  <Trash2 className="w-4 h-4" /> Delete
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Main View Content (Directly inside frosted glass panel matching Contacts) ── */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
+      {/* ── Main View Container ──────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-hidden flex flex-col relative">
         {loadingOpps || loadingPipelines ? (
           <div className="flex-1 flex items-center justify-center p-12">
             <div className="flex flex-col items-center gap-3">
@@ -778,7 +785,6 @@ export default function OpportunitiesPage() {
               </p>
             </div>
             <button
-              type="button"
               onClick={() => setIsAddingNewStage(true)}
               className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl inline-flex items-center gap-2 shadow-sm transition-all"
             >
@@ -786,8 +792,8 @@ export default function OpportunitiesPage() {
             </button>
           </div>
         ) : viewMode === 'board' ? (
-          /* ── Board (Kanban) View inside Frosted Glass Panel ── */
-          <div className="flex-1 min-h-0 h-full overflow-x-auto overflow-y-hidden p-6">
+          /* ── Board (Kanban) View with Add Stage on Right ─────────────────────── */
+          <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable droppableId="board-all-stages" direction="horizontal" type="STAGE">
                 {(stageDroppableProvided) => (
@@ -809,19 +815,20 @@ export default function OpportunitiesPage() {
                                 ref={stageDraggableProvided.innerRef}
                                 {...stageDraggablePropsWithoutStyle}
                                 style={stageStyle as React.CSSProperties}
-                                className={`w-80 h-full flex flex-col bg-[#252830]/25 hover:bg-[#252830]/38 backdrop-blur-[12px] rounded-2xl overflow-hidden shadow-xs shrink-0 select-none transition-all ${
+                                className={`w-80 h-full flex flex-col bg-surface/60 border rounded-2xl overflow-hidden shadow-xs shrink-0 select-none transition-all ${
                                   stageSnapshot.isDragging
-                                    ? 'ring-2 ring-primary shadow-2xl scale-[1.02] bg-[#252830]/70 z-50 opacity-95 rotate-[0.5deg]'
-                                    : ''
+                                    ? 'ring-2 ring-primary shadow-2xl scale-[1.02] bg-surface z-50 opacity-95 rotate-[0.5deg]'
+                                    : 'border-border'
                                 }`}
                               >
                                 {/* Column Header (Stage Drag Handle) */}
                                 <div
                                   {...stageDraggableProvided.dragHandleProps}
-                                  className="p-3.5 bg-[#252830]/35 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing hover:bg-[#252830]/55 transition-colors"
+                                  className="p-3.5 border-b border-border bg-surface/80 flex items-center justify-between shrink-0 cursor-grab active:cursor-grabbing hover:bg-surface-hover/50 transition-colors"
                                 >
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
                                     <GripVertical className="w-3.5 h-3.5 text-text-muted hover:text-text-main shrink-0 opacity-60" />
+                                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
                                     {editingStageId === stage.id ? (
                                       <input
                                         autoFocus
@@ -843,7 +850,7 @@ export default function OpportunitiesPage() {
                                             setEditingStageId(null);
                                           }
                                         }}
-                                        className="text-[13px] font-bold bg-[#1C1E24] border border-primary rounded px-1 py-0.5 focus:outline-none w-28 text-text-main"
+                                        className="text-[13px] font-bold bg-surface border border-primary rounded px-1 py-0.5 focus:outline-none w-28 text-text-main"
                                       />
                                     ) : (
                                       <h3
@@ -857,8 +864,8 @@ export default function OpportunitiesPage() {
                                         {stage.name}
                                       </h3>
                                     )}
-                                    <span className="text-[12px] text-text-muted font-mono font-medium ml-1">
-                                      ({stageDeals.length})
+                                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-surface-hover border border-border text-text-muted font-mono font-semibold">
+                                      {stageDeals.length}
                                     </span>
                                   </div>
 
@@ -871,7 +878,7 @@ export default function OpportunitiesPage() {
                                         setCreateStageTargetId(stage.id);
                                         setShowCreateModal(true);
                                       }}
-                                      className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors"
+                                      className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
                                       title={`Add opportunity to ${stage.name}`}
                                     >
                                       <Plus className="w-3.5 h-3.5" />
@@ -901,21 +908,21 @@ export default function OpportunitiesPage() {
                                       ref={provided.innerRef}
                                       {...provided.droppableProps}
                                       className={`flex-1 overflow-y-auto p-3 space-y-2.5 transition-colors ${
-                                        snapshot.isDraggingOver ? 'bg-white/5' : ''
+                                        snapshot.isDraggingOver ? 'bg-primary/5' : ''
                                       }`}
                                     >
                                       {stageDeals.length === 0 ? (
-                                        <div className="h-32 bg-[#1C1E24]/60 rounded-xl flex flex-col items-center justify-center text-center p-4">
-                                          <span className="text-[11px] text-text-muted">No opportunities in this stage</span>
+                                        <div className="h-32 border-2 border-dashed border-border/50 rounded-xl flex flex-col items-center justify-center text-center p-4">
+                                          <span className="text-[11px] text-slate-300">No opportunities in this stage</span>
                                           <button
                                             onClick={() => {
                                               setCreateStageTargetId(stage.id);
                                               setShowCreateModal(true);
                                             }}
-                                            className="mt-2 text-xs font-semibold text-text-main bg-[#1C1E24] hover:bg-[#252830] border border-[#353942] px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                                            className="mt-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
                                           >
-                                            <Plus className="w-3.5 h-3.5 text-text-muted" />
-                                            <span>Quick Add</span>
+                                            <Plus className="w-3.5 h-3.5 text-white" />
+                                            <span className="text-white">Quick Add</span>
                                           </button>
                                         </div>
                                       ) : (
@@ -947,111 +954,114 @@ export default function OpportunitiesPage() {
                     })}
                     {stageDroppableProvided.placeholder}
 
-                    {/* Add Stage Column (Same color as stage columns but frosted glass lower opacity) */}
-                    <div className="w-80 h-full shrink-0 flex flex-col bg-[#252830]/15 hover:bg-[#252830]/30 backdrop-blur-[16px] rounded-2xl overflow-hidden shadow-xs transition-all">
-                      {isAddingNewStage ? (
-                        <div className="flex flex-col h-full bg-[#252830]/90 backdrop-blur-[20px]">
-                          <div className="p-3.5 bg-[#252830] flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-[13px] font-bold text-text-main">New Stage</h3>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setIsAddingNewStage(false);
-                                setNewStageName('');
+                {/* ── Add Stage Column (Same size as other columns) ─────────────── */}
+                <div className="w-80 h-full shrink-0 flex flex-col bg-surface/40 hover:bg-surface/60 border-2 border-dashed border-border/80 hover:border-primary/50 rounded-2xl overflow-hidden shadow-xs transition-all">
+                  {isAddingNewStage ? (
+                    <div className="flex flex-col h-full bg-surface">
+                      {/* Column Header */}
+                      <div className="p-3.5 border-b border-border bg-surface/90 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: newStageColor }} />
+                          <h3 className="text-[13px] font-bold text-text-main">New Stage</h3>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setIsAddingNewStage(false);
+                            setNewStageName('');
+                          }}
+                          className="text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-hover"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Column Body */}
+                      <div className="p-4 flex-1 flex flex-col justify-between overflow-y-auto">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                              Stage Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Under Review, Qualified..."
+                              value={newStageName}
+                              onChange={e => setNewStageName(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && newStageName.trim()) handleCreateNewStage();
+                                if (e.key === 'Escape') setIsAddingNewStage(false);
                               }}
-                              className="text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-white/5"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
+                              autoFocus
+                              className="w-full px-3.5 py-2.5 bg-surface-hover/70 border border-border rounded-xl text-[13px] text-text-main focus:outline-none focus:border-primary shadow-inner"
+                            />
                           </div>
 
-                          <div className="p-4 flex-1 flex flex-col justify-between overflow-y-auto">
-                            <div className="space-y-4">
-                              <div>
-                                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
-                                  Stage Name
-                                </label>
-                                <input
-                                  type="text"
-                                  placeholder="e.g. Under Review, Qualified..."
-                                  value={newStageName}
-                                  onChange={e => setNewStageName(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter' && newStageName.trim()) handleCreateNewStage();
-                                    if (e.key === 'Escape') setIsAddingNewStage(false);
-                                  }}
-                                  autoFocus
-                                  className="w-full px-3.5 py-2.5 bg-[#1C1E24]/60 border border-[#353942] rounded-xl text-[13px] text-text-main focus:outline-none focus:border-primary shadow-inner"
+                          <div>
+                            <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                              Stage Color
+                            </label>
+                            <div className="grid grid-cols-7 gap-2 p-2.5 bg-surface-hover/40 rounded-xl border border-border/50">
+                              {STAGE_COLOR_PALETTE.map(c => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => setNewStageColor(c)}
+                                  className={`w-6 h-6 rounded-full transition-transform mx-auto ${
+                                    newStageColor === c ? 'scale-125 ring-2 ring-white shadow-xs' : 'hover:scale-110'
+                                  }`}
+                                  style={{ backgroundColor: c }}
                                 />
-                              </div>
-
-                              <div>
-                                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
-                                  Stage Color
-                                </label>
-                                <div className="grid grid-cols-7 gap-2 p-2.5 bg-[#1C1E24]/60 rounded-xl border border-[#353942]">
-                                  {STAGE_COLOR_PALETTE.map(c => (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      onClick={() => setNewStageColor(c)}
-                                      className={`w-6 h-6 rounded-full transition-transform mx-auto ${
-                                        newStageColor === c ? 'scale-125 ring-2 ring-white shadow-xs' : 'hover:scale-110'
-                                      }`}
-                                      style={{ backgroundColor: c }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setIsAddingNewStage(false);
-                                  setNewStageName('');
-                                }}
-                                className="px-3.5 py-2 text-xs text-text-muted hover:text-text-main font-semibold rounded-xl"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleCreateNewStage}
-                                disabled={!newStageName.trim() || createStageMut.isPending}
-                                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm flex items-center gap-1.5"
-                              >
-                                <Plus className="w-3.5 h-3.5 text-white" />
-                                <span>{createStageMut.isPending ? 'Creating...' : 'Create Stage'}</span>
-                              </button>
+                              ))}
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => setIsAddingNewStage(true)}
-                          className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-text-main transition-all group cursor-pointer"
-                        >
-                          <div className="w-12 h-12 rounded-2xl bg-[#1C1E24]/60 group-hover:bg-primary text-text-main group-hover:text-white flex items-center justify-center transition-all shadow-xs group-hover:scale-110 border border-[#353942]">
-                            <Plus className="w-6 h-6" />
-                          </div>
-                          <div className="text-center">
-                            <span className="text-[14px] font-bold block text-text-main">Add Stage</span>
-                            <span className="text-[11px] text-text-muted mt-0.5 block">Create a new pipeline column</span>
-                          </div>
-                        </button>
-                      )}
+
+                        <div className="flex items-center justify-end gap-2 pt-4 border-t border-border/50">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingNewStage(false);
+                              setNewStageName('');
+                            }}
+                            className="px-3.5 py-2 text-xs text-text-muted hover:text-text-main font-semibold rounded-xl"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCreateNewStage}
+                            disabled={!newStageName.trim() || createStageMut.isPending}
+                            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-white" />
+                            <span>{createStageMut.isPending ? 'Creating...' : 'Create Stage'}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  ) : (
+                      <button
+                        onClick={() => setIsAddingNewStage(true)}
+                        className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-white transition-all group cursor-pointer"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-surface-hover group-hover:bg-primary text-white flex items-center justify-center transition-all shadow-xs group-hover:scale-110">
+                          <Plus className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-center">
+                          <span className="text-[14px] font-bold block text-white">Add Stage</span>
+                          <span className="text-[11px] text-slate-300 mt-0.5 block">Create a new pipeline column</span>
+                        </div>
+                      </button>
+                    )}
                   </div>
-                )}
-              </Droppable>
-            </DragDropContext>
-          </div>
-        ) : (
-          /* ── Monday.com-styled Grouped Stages List View (inside frosted glass panel) ── */
-          <div className="flex-1 min-h-0 overflow-y-auto p-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </div>
+      ) : (
+          /* ── Monday.com-styled Grouped Stages List View ────────── */
+          <div className="flex-1 overflow-y-auto p-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <DragDropContext onDragEnd={handleDragEnd}>
               <div className="space-y-8 max-w-7xl mx-auto pb-16">
                 {stages.map(stage => {
@@ -1061,7 +1071,7 @@ export default function OpportunitiesPage() {
 
                   return (
                     <div key={stage.id} className="flex flex-col space-y-2.5">
-                      {/* Stage Group Header */}
+                      {/* Stage Group Header (Monday.com style) */}
                       <div className="flex items-center justify-between px-1">
                         <div className="flex items-center gap-2.5">
                           <button
@@ -1073,7 +1083,8 @@ export default function OpportunitiesPage() {
                                   : [...prev, stage.id]
                               )
                             }
-                            className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                            className="p-1 rounded-lg hover:bg-surface-hover transition-colors"
+                            style={{ color: stage.color }}
                           >
                             {isCollapsed ? (
                               <ChevronRight className="w-4 h-4" />
@@ -1082,7 +1093,7 @@ export default function OpportunitiesPage() {
                             )}
                           </button>
 
-                          {/* Stage Title with Inline Rename */}
+                          {/* Stage Title in Stage Color with Inline Rename */}
                           {editingStageId === stage.id ? (
                             <input
                               autoFocus
@@ -1109,12 +1120,14 @@ export default function OpportunitiesPage() {
                                   setEditingStageId(null);
                                 }
                               }}
-                              className="text-[16px] font-bold bg-surface border border-primary rounded-lg px-2 py-0.5 focus:outline-none text-text-main"
+                              className="text-[16px] font-bold bg-surface border border-primary rounded-lg px-2 py-0.5 focus:outline-none"
+                              style={{ color: stage.color }}
                             />
                           ) : (
                             <h3
                               onClick={() => setEditingStageId(stage.id)}
-                              className="text-[16px] font-bold cursor-pointer hover:opacity-80 flex items-center gap-2 transition-opacity text-text-main"
+                              className="text-[16px] font-bold cursor-pointer hover:opacity-80 flex items-center gap-2 transition-opacity"
+                              style={{ color: stage.color }}
                               title="Click to rename stage"
                             >
                               <span>{stage.name}</span>
@@ -1123,9 +1136,59 @@ export default function OpportunitiesPage() {
                           )}
 
                           {/* Deals Count Badge */}
-                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-surface text-text-muted font-bold font-mono">
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-surface border border-border text-slate-200 font-bold font-mono">
                             {stageDeals.length} Deals
                           </span>
+
+                          {/* Stage Color Swatch Button */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveColorPickerStageId(
+                                  activeColorPickerStageId === stage.id ? null : stage.id
+                                )
+                              }
+                              className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-xs cursor-pointer hover:scale-125 transition-transform"
+                              style={{ backgroundColor: stage.color }}
+                              title="Change stage color"
+                            />
+
+                            {/* Color Popover */}
+                            <AnimatePresence>
+                              {activeColorPickerStageId === stage.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setActiveColorPickerStageId(null)}
+                                  />
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="absolute left-0 top-full mt-2 bg-surface border border-border shadow-2xl rounded-2xl p-3 z-50 w-[210px]"
+                                  >
+                                    <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
+                                      Stage Color
+                                    </div>
+                                    <div className="grid grid-cols-5 gap-2">
+                                      {STAGE_COLOR_PALETTE.map(color => (
+                                        <button
+                                          key={color}
+                                          type="button"
+                                          onClick={() => {
+                                            updateStageMut.mutate({ id: stage.id, data: { color } });
+                                          }}
+                                          className="w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform border border-black/20"
+                                          style={{ backgroundColor: color }}
+                                        />
+                                      ))}
+                                    </div>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
 
                         {/* Stage Actions */}
@@ -1157,13 +1220,18 @@ export default function OpportunitiesPage() {
                         </div>
                       </div>
 
-                      {/* Table Container */}
+                      {/* Monday.com Styled Table Container */}
                       {!isCollapsed && (
-                        <div className="bg-[#252830]/25 backdrop-blur-[12px] rounded-2xl overflow-hidden shadow-xs">
+                        <div className="bg-surface/70 border border-border rounded-2xl overflow-hidden shadow-xs">
                           <table className="w-full text-left border-collapse text-[13px]">
-                            <thead className="bg-[#252830]/35 text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                            <thead className="border-b border-border bg-surface-hover/30 text-[11px] font-bold text-slate-300 uppercase tracking-wider">
                               <tr>
-                                <th className="py-3 px-3 w-8 text-center"></th>
+                                <th className="py-3 px-3 w-8 text-center relative">
+                                  <div
+                                    className="w-[4px] absolute left-0 top-0 bottom-0"
+                                    style={{ backgroundColor: stage.color }}
+                                  />
+                                </th>
                                 <th className="py-3 px-3 w-10 text-center">
                                   <input
                                     type="checkbox"
@@ -1175,14 +1243,14 @@ export default function OpportunitiesPage() {
                                     className="w-3.5 h-3.5 rounded text-primary"
                                   />
                                 </th>
-                                <th className="py-3 px-4 font-semibold text-text-main min-w-[200px]">Deal</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted text-center min-w-[130px]">Activities</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted text-center min-w-[130px]">Stage</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted text-center min-w-[100px]">Owner</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted text-center min-w-[110px]">Deal Value</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted min-w-[140px]">Contacts</th>
-                                <th className="py-3 px-4 font-semibold text-text-muted min-w-[140px]">Accounts</th>
-                                <th className="py-3 px-3 text-right w-12 text-text-muted"></th>
+                                <th className="py-3 px-4 font-semibold text-white min-w-[200px]">Deal</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 text-center min-w-[130px]">Activities</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 text-center min-w-[130px]">Stage</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 text-center min-w-[100px]">Owner</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 text-center min-w-[110px]">Deal Value</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 min-w-[140px]">Contacts</th>
+                                <th className="py-3 px-4 font-semibold text-slate-300 min-w-[140px]">Accounts</th>
+                                <th className="py-3 px-3 text-right w-12 text-slate-300"></th>
                               </tr>
                             </thead>
 
@@ -1191,8 +1259,8 @@ export default function OpportunitiesPage() {
                                 <tbody
                                   ref={provided.innerRef}
                                   {...provided.droppableProps}
-                                  className={`divide-y divide-white/5 transition-colors ${
-                                    snapshot.isDraggingOver ? 'bg-white/5' : ''
+                                  className={`divide-y divide-border/50 transition-colors ${
+                                    snapshot.isDraggingOver ? 'bg-primary/5' : ''
                                   }`}
                                 >
                                   {stageDeals.map((deal, index) => {
@@ -1209,17 +1277,21 @@ export default function OpportunitiesPage() {
                                               onClick={() => navigate(`/opportunities/${deal.id}`)}
                                               className={`group/row cursor-pointer select-none transition-colors ${
                                                 dragSnapshot.isDragging
-                                                  ? 'bg-[#1C1E24] shadow-2xl ring-2 ring-primary z-50'
+                                                  ? 'bg-surface shadow-2xl ring-2 ring-primary z-50'
                                                   : isSelected
                                                   ? 'bg-primary/10'
-                                                  : 'bg-[#1C1E24]/60 hover:bg-[#1C1E24]/90'
+                                                  : 'hover:bg-surface-hover/60'
                                               }`}
                                             >
-                                              {/* Drag Handle */}
+                                              {/* Left Stage Color Strip + Drag Handle */}
                                               <td
-                                                className="py-3 px-3 text-center"
+                                                className="py-3 px-3 text-center relative"
                                                 onClick={e => e.stopPropagation()}
                                               >
+                                                <div
+                                                  className="w-[px] absolute left-0 top-0 bottom-0"
+                                                  style={{ backgroundColor: stage.color }}
+                                                />
                                                 <div
                                                   {...drag.dragHandleProps}
                                                   className="flex items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover/row:opacity-70 hover:opacity-100 p-0.5"
@@ -1239,13 +1311,13 @@ export default function OpportunitiesPage() {
                                               </td>
 
                                               {/* Deal Title + Sparkle */}
-                                              <td className="py-3 px-4 font-bold text-text-main">
+                                              <td className="py-3 px-4 font-bold text-white">
                                                 <div className="flex items-center gap-2">
-                                                  <span className="text-text-main hover:text-primary transition-colors text-[13.5px]">
+                                                  <span className="text-white hover:text-primary transition-colors text-[13.5px]">
                                                     {deal.title}
                                                   </span>
                                                   <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                                                    <span className="p-1 rounded-md text-text-muted hover:text-primary hover:bg-white/5" title="AI Summary">
+                                                    <span className="p-1 rounded-md text-text-muted hover:text-primary hover:bg-surface-hover" title="AI Summary">
                                                       <Sparkles className="w-3.5 h-3.5" />
                                                     </span>
                                                   </div>
@@ -1254,17 +1326,20 @@ export default function OpportunitiesPage() {
 
                                               {/* Activities Timeline Mini-Bar */}
                                               <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
-                                                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#1C1E24]/60 border border-[#353942]">
+                                                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-hover/40 border border-border/50">
                                                   <span className="w-2.5 h-2.5 rounded-xs bg-emerald-400" title="Completed activities" />
                                                   <span className="w-2.5 h-2.5 rounded-xs bg-primary" title="Upcoming activities" />
-                                                  <span className="w-2.5 h-2.5 rounded-xs bg-white/10" />
-                                                  <span className="w-2.5 h-2.5 rounded-xs bg-white/10" />
+                                                  <span className="w-2.5 h-2.5 rounded-xs bg-surface-hover" />
+                                                  <span className="w-2.5 h-2.5 rounded-xs bg-surface-hover" />
                                                 </div>
                                               </td>
 
-                                              {/* Stage Pill */}
+                                              {/* Stage Pill (Monday.com Full-Color Block) */}
                                               <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
-                                                <div className="bg-[#1C1E24]/80 text-text-main border border-[#353942] text-xs font-semibold py-1.5 px-3 rounded-lg text-center shadow-xs inline-block min-w-[100px] cursor-default">
+                                                <div
+                                                  style={{ backgroundColor: stage.color }}
+                                                  className="text-white text-xs font-bold py-1.5 px-3 rounded-lg text-center shadow-xs inline-block min-w-[100px] cursor-default"
+                                                >
                                                   {stage.name}
                                                 </div>
                                               </td>
@@ -1272,40 +1347,40 @@ export default function OpportunitiesPage() {
                                               {/* Owner Avatar */}
                                               <td className="py-3 px-4 text-center" onClick={e => e.stopPropagation()}>
                                                 <div className="inline-flex items-center justify-center">
-                                                  <div className="w-7 h-7 rounded-full bg-[#1C1E24]/60 border border-[#353942] text-text-main text-xs font-bold flex items-center justify-center shadow-xs" title={deal.ownerId || 'Unassigned'}>
+                                                  <div className="w-7 h-7 rounded-full bg-surface-hover border border-border text-slate-200 text-xs font-bold flex items-center justify-center shadow-xs" title={deal.ownerId || 'Unassigned'}>
                                                     {deal.ownerId ? deal.ownerId[0].toUpperCase() : <User className="w-3.5 h-3.5 text-text-muted" />}
                                                   </div>
                                                 </div>
                                               </td>
 
                                               {/* Deal Value */}
-                                              <td className="py-3 px-4 text-center font-bold font-mono text-text-main text-[13.5px]">
-                                                {formatCurrency(deal.amount || 0)}
+                                              <td className="py-3 px-4 text-center font-bold font-mono text-white text-[13.5px]">
+                                                ${deal.amount.toLocaleString()}
                                               </td>
 
                                               {/* Contacts Pill */}
                                               <td className="py-3 px-4 text-xs" onClick={e => e.stopPropagation()}>
                                                 {deal.contact ? (
-                                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1C1E24]/60 border border-[#353942] text-text-main font-medium">
+                                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-hover/60 border border-border text-white font-medium">
                                                     <User className="w-3.5 h-3.5 text-primary" />
                                                     <span>{deal.contact.firstName} {deal.contact.lastName || ''}</span>
                                                   </div>
                                                 ) : (
-                                                  <span className="text-text-muted">—</span>
+                                                  <span className="text-slate-500">—</span>
                                                 )}
                                               </td>
 
                                               {/* Accounts / Company Pill */}
                                               <td className="py-3 px-4 text-xs" onClick={e => e.stopPropagation()}>
                                                 {deal.company ? (
-                                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1C1E24]/60 border border-[#353942] text-text-main font-medium">
+                                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-hover/60 border border-border text-slate-200 font-medium">
                                                     <Building2 className="w-3.5 h-3.5 text-text-muted" />
                                                     <span>{deal.company.name}</span>
                                                   </div>
                                                 ) : deal.source ? (
-                                                  <span className="text-text-muted">{deal.source}</span>
+                                                  <span className="text-slate-400">{deal.source}</span>
                                                 ) : (
-                                                  <span className="text-text-muted">—</span>
+                                                  <span className="text-slate-500">—</span>
                                                 )}
                                               </td>
 
@@ -1313,7 +1388,7 @@ export default function OpportunitiesPage() {
                                               <td className="py-3 px-3 text-right" onClick={e => e.stopPropagation()}>
                                                 <button
                                                   onClick={() => navigate(`/opportunities/${deal.id}`)}
-                                                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover opacity-0 group-hover/row:opacity-100 transition-opacity"
                                                 >
                                                   <ArrowRight className="w-4 h-4" />
                                                 </button>
@@ -1326,20 +1401,25 @@ export default function OpportunitiesPage() {
                                   })}
                                   {provided.placeholder}
 
-                                  {/* Inline + Add Deal Row */}
+                                  {/* Inline + Add Deal Row (Monday.com style) */}
                                   <tr
                                     onClick={() => {
                                       setCreateStageTargetId(stage.id);
                                       setShowCreateModal(true);
                                     }}
-                                    className="hover:bg-[#1E2026]/50 cursor-pointer text-xs font-semibold text-text-muted hover:text-text-main transition-colors"
+                                    className="hover:bg-surface-hover/40 cursor-pointer border-t border-border/50 text-xs font-semibold text-text-muted hover:text-white transition-colors"
                                   >
-                                    <td className="py-2.5 px-3 text-center"></td>
+                                    <td className="py-2.5 px-3 text-center relative">
+                                      <div
+                                        className="w-[4px] absolute left-0 top-0 bottom-0 opacity-40"
+                                        style={{ backgroundColor: stage.color }}
+                                      />
+                                    </td>
                                     <td className="py-2.5 px-3"></td>
                                     <td colSpan={8} className="py-2.5 px-4">
                                       <div className="flex items-center gap-2">
-                                        <Plus className="w-3.5 h-3.5 text-text-muted" />
-                                        <span className="text-text-muted hover:text-text-main font-medium">+ Add deal</span>
+                                        <Plus className="w-3.5 h-3.5 text-white" />
+                                        <span className="text-slate-300 hover:text-white font-medium">+ Add deal</span>
                                       </div>
                                     </td>
                                   </tr>
@@ -1348,20 +1428,24 @@ export default function OpportunitiesPage() {
                             </Droppable>
                           </table>
 
-                          {/* Group Summary Footer Row */}
-                          <div className="bg-[#252830]/35 px-4 py-2.5 flex items-center justify-between text-xs">
+                          {/* Group Summary Footer Row (Monday.com style) */}
+                          <div className="bg-surface/90 border-t border-border px-4 py-2.5 flex items-center justify-between text-xs">
                             <div className="flex items-center gap-3">
-                              <span className="text-text-muted font-medium">
+                              <div
+                                className="h-2 w-28 rounded-full shadow-xs"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                              <span className="text-slate-400 font-medium">
                                 {stageDeals.length} opportunity{stageDeals.length === 1 ? '' : 'ies'}
                               </span>
                             </div>
 
                             <div className="flex items-center gap-6">
                               <div className="text-right">
-                                <div className="text-[13px] font-bold font-mono text-text-main">
-                                  {formatCurrency(stageTotal)}
+                                <div className="text-[13px] font-bold font-mono text-white">
+                                  ${stageTotal.toLocaleString()}
                                 </div>
-                                <div className="text-[9px] text-text-muted uppercase font-bold tracking-wider">
+                                <div className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">
                                   sum
                                 </div>
                               </div>
@@ -1390,207 +1474,62 @@ export default function OpportunitiesPage() {
             </DragDropContext>
           </div>
         )}
-      </div>
 
-      {/* ── Footer Paginator Toolbar matching Contacts design ── */}
-      <div 
-        className="pr-8 pl-8 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-20 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
-        style={{ 
-          background: 'var(--sidebar-bg)', 
-          borderColor: 'var(--sidebar-border)',
-          color: 'var(--sidebar-text-main)',
-          '--text-main': '#ffffff',
-          '--text-muted': '#94a3b8',
-          '--border': 'rgba(255,255,255,0.15)',
-          '--surface': 'rgba(255,255,255,0.1)',
-          '--surface-hover': 'rgba(255,255,255,0.16)',
-          '--bg': 'var(--sidebar-bg)',
-          '--btn-bg': 'var(--primary)',
-          '--btn-hover': 'var(--primary-hover)',
-          '--btn-text': '#ffffff',
-          '--btn-border': 'transparent'
-        } as React.CSSProperties}
-      >
-        <div className="flex items-center gap-2">
-          {/* Advanced Filters Button */}
-          <button
-            onClick={() => {
-              setOpenDropdown(null);
-              setShowFilterDrawer(true);
-            }}
-            className="btn-secondary"
-          >
-            <Filter className="w-4 h-4" />
-            <span>Advanced filters</span>
-            {activeFiltersCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
-
-          {/* Sort Dropdown (Opens upward from bottom left) */}
-          <div className="relative">
-            <button
-              onClick={() => toggleDropdown('sort')}
-              className="btn-secondary"
+        {/* ── Bulk Action Bar ─────────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {selectedIds.length > 0 && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface border border-primary/40 rounded-2xl shadow-2xl px-6 py-3 flex items-center gap-4 text-xs font-semibold text-text-main backdrop-blur-md"
             >
-              <ChevronDown className={`w-4 h-4 transition-transform ${openDropdown === 'sort' ? 'rotate-180' : ''}`} />
-              <span>Sort</span>
-            </button>
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary text-white text-[11px] font-bold flex items-center justify-center">
+                  {selectedIds.length}
+                </span>
+                <span>Selected</span>
+              </div>
 
-            <AnimatePresence>
-              {openDropdown === 'sort' && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdown(null)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 bottom-full mb-2 w-[210px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-4 py-1.5 border-b border-border/50">
-                      Sort Opportunities
-                    </div>
-                    {[
-                      { id: 'value_desc', label: 'Value (High to Low)', field: 'amount', order: 'desc' },
-                      { id: 'value_asc', label: 'Value (Low to High)', field: 'amount', order: 'asc' },
-                      { id: 'created_desc', label: 'Newest First', field: 'createdAt', order: 'desc' },
-                      { id: 'created_asc', label: 'Oldest First', field: 'createdAt', order: 'asc' },
-                      { id: 'close_asc', label: 'Close Date (Earliest)', field: 'closeDate', order: 'asc' },
-                      { id: 'updated_desc', label: 'Last Updated', field: 'updatedAt', order: 'desc' },
-                      { id: 'name_asc', label: 'Name (A–Z)', field: 'title', order: 'asc' },
-                    ].map(opt => {
-                      const isSelected = sortBy === opt.field && sortOrder === opt.order;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            setSortBy(opt.field);
-                            setSortOrder(opt.order as any);
-                            setOpenDropdown(null);
-                          }}
-                          className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
-                            isSelected
-                              ? 'bg-primary/10 text-primary font-bold'
-                              : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-                          }`}
-                        >
-                          <span>{opt.label}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+              <div className="h-4 w-[1px] bg-border" />
 
-          {/* View Mode Toggle: List / Board */}
-          <div className="flex items-center bg-surface border border-border rounded-lg p-0.5 ml-2">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'}`}
-              title="List View"
-            >
-              <ListIcon className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('board')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'}`}
-              title="Board View"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+              {/* Move Stage in Bulk */}
+              <select
+                onChange={e => {
+                  if (e.target.value) handleBulkAction('change_stage', { stageId: e.target.value });
+                }}
+                defaultValue=""
+                className="px-3 py-1.5 bg-surface-hover border border-border rounded-xl text-xs text-text-main"
+              >
+                <option value="" disabled>Change Stage...</option>
+                {stages.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
 
-        {/* Right side: Page Size & Pagination Controls */}
-        <div className="flex items-center gap-4">
-          {/* Rows per page selector */}
-          <div className="relative">
-            <button
-              onClick={() => setPageSizeDropdownOpen(!pageSizeDropdownOpen)}
-              className="flex items-center gap-1.5 border border-border rounded-lg px-2.5 py-1.5 cursor-pointer font-semibold hover:border-primary/50 transition-colors bg-bg text-text-main text-[12px]"
-              title="Rows per page"
-            >
-              <span>{pageSize} / page</span>
-              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-            </button>
+              <button
+                onClick={() => handleBulkAction('export')}
+                className="px-3 py-1.5 bg-surface-hover hover:bg-surface-hover/80 border border-border rounded-xl flex items-center gap-1.5 text-text-main"
+              >
+                <Download className="w-3.5 h-3.5" /> Export Selected
+              </button>
 
-            {pageSizeDropdownOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setPageSizeDropdownOpen(false)} />
-                <div className="absolute bottom-full mb-1 right-0 w-32 bg-surface border border-border rounded-lg shadow-xl py-1 z-30">
-                  {[10, 20, 30, 50].map(sz => (
-                    <button
-                      key={sz}
-                      onClick={() => {
-                        setPageSize(sz);
-                        setPage(1);
-                        setPageSizeDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center justify-between ${
-                        pageSize === sz ? 'bg-primary/10 text-primary font-bold' : 'text-text-main hover:bg-surface-hover'
-                      }`}
-                    >
-                      <span>{sz} deals</span>
-                      {pageSize === sz && <Check className="w-3.5 h-3.5 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+              <button
+                onClick={() => handleBulkAction('delete')}
+                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+              </button>
 
-          {/* Page buttons */}
-          <div className="flex items-center gap-1.5 font-semibold">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Prev
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce((acc: (number | string)[], p, idx, arr) => {
-                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((p, idx) => (
-                typeof p === 'number' ? (
-                  <button
-                    key={idx}
-                    onClick={() => setPage(p)}
-                    className={`min-w-[28px] h-7 px-2 rounded-[6px] text-[12px] font-bold transition-all ${
-                      page === p
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'border border-border text-text-muted hover:text-text-main hover:bg-surface-hover'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ) : (
-                  <span key={idx} className="px-1 text-[12px] text-text-muted">...</span>
-                )
-              ))}
-
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              className="px-2.5 py-1 rounded-[6px] border border-border text-[12px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+              <button
+                onClick={() => setSelectedIds([])}
+                className="text-text-muted hover:text-text-main p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Modals & Drawers ─────────────────────────────────────────────────── */}
@@ -1941,10 +1880,10 @@ function KanbanCard({
             {...provided.dragHandleProps}
             style={style as React.CSSProperties}
             onClick={onNavigate}
-            className={`group rounded-2xl p-4 border select-none cursor-pointer relative shadow-xs transition-all ${
+            className={`group rounded-2xl p-4 border select-none cursor-pointer relative ${
               snapshot.isDragging
-                ? 'bg-[#1C1E24] ring-2 ring-primary shadow-2xl scale-[1.02] z-50 opacity-95'
-                : 'bg-[#1C1E24]/60 hover:bg-[#1C1E24]/90 backdrop-blur-sm border-[#353942] hover:border-primary/50'
+                ? 'bg-surface/95 ring-2 ring-primary shadow-2xl scale-[1.02] z-50'
+                : 'bg-surface/70 hover:bg-surface border-border hover:border-primary/40 hover:shadow-md transition-colors'
             }`}
           >
             {/* Card Top Row: Name + Hover Menu */}
@@ -1956,7 +1895,7 @@ function KanbanCard({
               <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => setMenuOpen(o => !o)}
-                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <MoreVertical className="w-3.5 h-3.5" />
                 </button>
@@ -1967,14 +1906,14 @@ function KanbanCard({
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="absolute right-0 top-full mt-1 z-50 bg-[#1C1E24] border border-[#353942] rounded-xl shadow-xl p-1 min-w-[140px]"
+                      className="absolute right-0 top-full mt-1 z-50 bg-surface border border-border rounded-xl shadow-xl p-1 min-w-[140px]"
                     >
                       <button
                         onClick={() => {
                           setMenuOpen(false);
                           onNavigate();
                         }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-text-main hover:bg-[#252830] rounded-lg flex items-center gap-2"
+                        className="w-full text-left px-3 py-1.5 text-xs text-text-main hover:bg-surface-hover rounded-lg flex items-center gap-2"
                       >
                         <Edit2 className="w-3 h-3" /> View / Edit
                       </button>
@@ -1996,7 +1935,7 @@ function KanbanCard({
                       >
                         <XCircle className="w-3 h-3" /> Mark Lost
                       </button>
-                      <div className="h-[1px] bg-[#353942] my-1" />
+                      <div className="h-[1px] bg-border my-1" />
                       <button
                         onClick={() => {
                           setMenuOpen(false);
@@ -2021,13 +1960,11 @@ function KanbanCard({
 
             {/* Contact Row */}
             {cardConfig.showContact && deal.contact && (
-              <div className="flex items-center gap-2 mt-2 text-xs">
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-[#1C1E24]/60 border border-[#353942] text-text-main font-medium">
-                  <div className="w-4 h-4 rounded-full bg-primary/20 text-primary font-bold text-[9px] flex items-center justify-center shrink-0">
-                    {deal.contact.firstName[0]}
-                  </div>
-                  <span className="truncate">{deal.contact.firstName} {deal.contact.lastName || ''}</span>
+              <div className="flex items-center gap-2 mt-2 text-xs text-text-muted">
+                <div className="w-5 h-5 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
+                  {deal.contact.firstName[0]}
                 </div>
+                <span className="truncate">{deal.contact.firstName} {deal.contact.lastName || ''}</span>
               </div>
             )}
 
@@ -2037,7 +1974,7 @@ function KanbanCard({
                 {deal.tags.slice(0, 3).map((tag, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-0.5 rounded-md bg-[#1C1E24]/60 border border-[#353942] text-[10px] text-text-muted font-medium"
+                    className="px-2 py-0.5 rounded-md bg-surface-hover/80 border border-border text-[10px] text-text-muted font-medium"
                   >
                     {tag}
                   </span>
@@ -2050,13 +1987,13 @@ function KanbanCard({
 
             {/* Custom Field Chips */}
             {cardConfig.showCustomFields && cardConfig.visibleCustomFieldIds && cardConfig.visibleCustomFieldIds.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-[#353942]/60">
+              <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/40">
                 {cardConfig.visibleCustomFieldIds.map(fId => {
                   const val = deal.customFields?.[fId];
                   if (!val) return null;
                   const def = customFields.find(f => f.id === fId);
                   return (
-                    <span key={fId} className="px-2 py-0.5 rounded bg-[#1C1E24]/60 border border-primary/30 text-[10px] text-text-muted">
+                    <span key={fId} className="px-2 py-0.5 rounded bg-primary/10 border border-primary/20 text-[10px] text-text-muted">
                       <strong className="text-text-main">{def?.label || fId}:</strong> {String(val)}
                     </span>
                   );
@@ -2065,13 +2002,13 @@ function KanbanCard({
             )}
 
             {/* Card Footer: Days in Stage + Owner Avatar */}
-            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#353942]/60 text-[11px] text-text-muted">
+            <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40 text-[11px] text-text-muted">
               {cardConfig.showDaysInStage && (
                 <span
                   className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                     isStale
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'bg-[#1C1E24]/60 text-text-muted border border-[#353942]'
+                      : 'bg-surface-hover text-text-muted'
                   }`}
                   title={`In stage for ${deal.daysInStage} days`}
                 >
