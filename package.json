@@ -60,6 +60,8 @@
     "express-rate-limit": "^8.5.2",
     "file-saver": "^2.0.5",
     "googleapis": "^172.0.0",
+    "grapesjs": "^0.23.6",
+    "grapesjs-preset-newsletter": "^1.0.2",
     "helmet": "^8.2.0",
     "ioredis": "^5.11.1",
     "lucide-react": "^0.546.0",
