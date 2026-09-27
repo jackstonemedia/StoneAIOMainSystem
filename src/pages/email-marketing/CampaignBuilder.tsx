@@ -24,6 +24,7 @@ import {
 import { useAI } from '../../lib/useAI';
 import { ABTestConfig } from '../../types/emailCampaign';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
+import { EmailBuilderCanvas } from '../../components/email-marketing/EmailBuilderCanvas';
 import {
   analyzeEmailDeliverability,
   type SpamCheckResult,
@@ -1527,25 +1528,24 @@ export default function CampaignBuilder() {
                     </button>
                   </div>
                 </div>
-                <textarea
-                  ref={activeTextareaRef}
-                  value={
+                <EmailBuilderCanvas
+                  key={`${campaignType}-${activeStepIndex}-${activeVariant}`}
+                  initialContent={
                     abTestEnabled
                       ? (activeVariant === 'A' ? (campaignType === 'drip' ? (dripSteps[activeStepIndex]?.body || '') : bodyHtml) : bodyHtmlB)
                       : (campaignType === 'drip' ? (dripSteps[activeStepIndex]?.body || '') : bodyHtml)
                   }
-                  onChange={e => {
+                  onChange={(html) => {
                     if (abTestEnabled && activeVariant === 'B') {
-                      setBodyHtmlB(e.target.value);
+                      setBodyHtmlB(html);
                     } else if (campaignType === 'drip') {
-                      updateActiveStep({ body: e.target.value });
+                      updateActiveStep({ body: html });
                     } else {
-                      setBodyHtml(e.target.value);
+                      setBodyHtml(html);
                     }
                   }}
-                  rows={14}
-                  placeholder={`Hi {{first_name}},\n\nWrite your email message naturally here. Paragraphs and line breaks will format cleanly for your recipients.\n\nBest,\n{{name}}`}
-                  className="w-full flex-1 bg-surface border border-border/60 rounded-xl p-4 text-[14px] text-text-main focus:outline-none focus:border-primary font-sans leading-relaxed resize-none shadow-inner"
+                  height="520px"
+                  placeholder="Hi {{first_name}},\n\nWrite your email message naturally here or drag in blocks. Paragraphs and styling format cleanly for your recipients.\n\nBest,\n{{name}}"
                 />
               </div>
             </div>

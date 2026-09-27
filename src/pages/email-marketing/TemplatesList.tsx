@@ -17,6 +17,7 @@ import {
   Eye, AlertCircle, Search, ChevronRight, Check, ChevronDown,
   LayoutGrid, List as ListIcon
 } from 'lucide-react';
+import { EmailBuilderCanvas } from '../../components/email-marketing/EmailBuilderCanvas';
 
 const STARTER_TEMPLATES = [
   {
@@ -130,6 +131,7 @@ export default function TemplatesList() {
       const payload = {
         name: templateData.name || 'Untitled Template',
         blockJson: {
+          ...(templateData.blockJson || {}),
           subject: templateData.subject || '',
           html: templateData.html || '',
         },
@@ -662,19 +664,20 @@ export default function TemplatesList() {
               )}
 
               {/* Main Content Pane */}
-              <div className="flex-1 bg-surface/40 border border-border/50 rounded-xl overflow-hidden flex flex-col shadow-card">
+              <div className="flex-1 bg-surface/40 border border-border/50 rounded-xl overflow-hidden flex flex-col shadow-card min-h-[480px]">
                 {editorTab === 'edit' ? (
-                  <textarea
-                    value={editingTemplate.html || ''}
-                    onChange={e => setEditingTemplate({ ...editingTemplate, html: e.target.value })}
-                    placeholder="Write HTML or plain text template body here…"
-                    className="w-full flex-1 bg-surface text-text-main font-mono text-[13px] p-4 focus:outline-none resize-none leading-relaxed shadow-inner"
+                  <EmailBuilderCanvas
+                    initialContent={editingTemplate.blockJson || editingTemplate.html || ''}
+                    onChange={(html, blockJson) =>
+                      setEditingTemplate((prev: any) => ({ ...prev, html, blockJson }))
+                    }
+                    height="480px"
                   />
                 ) : (
                   <iframe
                     srcDoc={editingTemplate.html || '<p style="color:#6b7280;padding:20px;">No HTML content yet</p>'}
                     title="Template Live Preview"
-                    className="w-full flex-1 bg-white border-0"
+                    className="w-full flex-1 bg-white border-0 min-h-[480px]"
                   />
                 )}
               </div>
