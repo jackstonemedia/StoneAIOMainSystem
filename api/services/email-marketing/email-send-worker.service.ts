@@ -316,15 +316,9 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
   }
 
   // ── 5. Send via Gmail Channel ──────────────────────────────────────────
-  let gmailConn = await db.channelConnection.findFirst({
+  const gmailConn = await db.channelConnection.findFirst({
     where: { workspaceId, provider: 'gmail', isActive: true },
   }).catch(() => null);
-
-  if (!gmailConn) {
-    gmailConn = await db.channelConnection.findFirst({
-      where: { provider: 'gmail', isActive: true },
-    }).catch(() => null);
-  }
 
   if (gmailConn) {
     try {

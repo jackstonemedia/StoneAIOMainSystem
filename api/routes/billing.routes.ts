@@ -43,7 +43,10 @@ export const PLAN_CONFIGS: Record<string, { name: string; amount: number; credit
 router.post('/billing/create-checkout-session', validate(createCheckoutSchema), async (req: Request, res: Response) => {
   try {
     const { planId, returnUrl } = req.body;
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace context required' });
+    }
     
     if (!planId || !PLAN_CONFIGS[planId.toLowerCase()]) {
       return res.status(400).json({ error: `Invalid plan ID: ${planId}. Supported: basic, pro, ultra.` });
@@ -110,14 +113,21 @@ router.post('/billing/create-checkout-session', validate(createCheckoutSchema), 
 router.post('/billing/verify-session', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.body;
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
     if (!sessionId) return res.status(400).json({ error: 'Session ID is required' });
 
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
+    // Verify session belongs to authenticated workspace
+    const sessionWorkspaceId = session.client_reference_id || session.metadata?.workspaceId;
+    if (sessionWorkspaceId && sessionWorkspaceId !== workspaceId) {
+      return res.status(403).json({ error: 'Forbidden: Checkout session belongs to a different workspace.' });
+    }
+
     if (session.payment_status === 'paid' || session.status === 'complete') {
-      const targetWsId = session.client_reference_id || session.metadata?.workspaceId || workspaceId;
+      const targetWsId = sessionWorkspaceId || workspaceId;
       const planId = session.metadata?.planId?.toLowerCase() || 'pro';
       const planConfig = PLAN_CONFIGS[planId] || { name: 'Pro Plan', creditsLimit: 25000 };
 
@@ -159,9 +169,14 @@ router.post('/billing/verify-session', async (req: Request, res: Response) => {
 
 // ── 3. Dev / Sandbox Plan Switcher ───────────────────────────────────────────
 router.post('/billing/dev-set-plan', async (req: Request, res: Response) => {
+  // Hard-blocked in production and disabled unless explicit dev bypass flag is set
+  if (process.env.NODE_ENV === 'production' || process.env.ENABLE_DEV_BILLING_BYPASS !== 'true') {
+    return res.status(403).json({ error: 'Forbidden: dev plan switching is disabled.' });
+  }
   try {
     const { planId } = req.body;
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
     const normalizedPlan = planId?.toLowerCase() || 'free';
 
     const planConfig = PLAN_CONFIGS[normalizedPlan] || { name: 'Free Plan', creditsLimit: 500 };
@@ -185,7 +200,8 @@ router.post('/billing/dev-set-plan', async (req: Request, res: Response) => {
 // ── 4. Create Stripe Customer Portal Session ─────────────────────────────────
 router.post('/billing/create-portal-session', async (req: Request, res: Response) => {
   try {
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
     const stripe = getStripe();
 
     let customerId: string | null = null;
@@ -220,7 +236,8 @@ router.post('/billing/create-portal-session', async (req: Request, res: Response
 // ── 5. Subscription Status & Credits ─────────────────────────────────────────
 router.get('/billing/subscription-status', async (req: Request, res: Response) => {
   try {
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
     const ws = await (db as any).workspace.findUnique({ where: { id: workspaceId } });
 
     let activeSubscription: any = null;
@@ -273,7 +290,8 @@ router.get('/billing/subscription-status', async (req: Request, res: Response) =
 // ── 4. Invoices List ─────────────────────────────────────────────────────────
 router.get('/billing/invoices', async (req: Request, res: Response) => {
   try {
-    const workspaceId = (req as any).workspaceId || 'default';
+    const workspaceId = (req as any).workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
     const ws = await (db as any).workspace.findUnique({ where: { id: workspaceId } });
 
     if (!ws?.stripeCustomerId || !process.env.STRIPE_SECRET_KEY) {
@@ -494,15 +512,19 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
 
         const customerId = invoice.customer as string;
         const ws = customerId ? await (db as any).workspace.findFirst({ where: { stripeCustomerId: customerId } }) : null;
-        const workspaceId = invoice.metadata?.workspaceId || ws?.id || 'default';
+        const workspaceId = invoice.metadata?.workspaceId || ws?.id;
 
-        await emitTrigger(workspaceId, 'payment.received', {
-          invoiceId: invoice.id,
-          amount: (invoice.amount_paid || 0) / 100,
-          currency: invoice.currency,
-          customerId,
-          paidAt: new Date().toISOString(),
-        }).catch(console.error);
+        if (workspaceId) {
+          await emitTrigger(workspaceId, 'payment.received', {
+            invoiceId: invoice.id,
+            amount: (invoice.amount_paid || 0) / 100,
+            currency: invoice.currency,
+            customerId,
+            paidAt: new Date().toISOString(),
+          }).catch(console.error);
+        } else {
+          console.warn('[Stripe Webhook] payment.received: No workspace found for customer:', customerId);
+        }
         break;
       }
 
@@ -510,13 +532,17 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         const invoice = event.data.object as Stripe.Invoice;
         const customerId = invoice.customer as string;
         const ws = customerId ? await (db as any).workspace.findFirst({ where: { stripeCustomerId: customerId } }) : null;
-        const workspaceId = invoice.metadata?.workspaceId || ws?.id || 'default';
+        const workspaceId = invoice.metadata?.workspaceId || ws?.id;
 
-        await emitTrigger(workspaceId, 'payment.failed', {
-          invoiceId: invoice.id,
-          amount: (invoice.amount_due || 0) / 100,
-          customerId,
-        }).catch(console.error);
+        if (workspaceId) {
+          await emitTrigger(workspaceId, 'payment.failed', {
+            invoiceId: invoice.id,
+            amount: (invoice.amount_due || 0) / 100,
+            customerId,
+          }).catch(console.error);
+        } else {
+          console.warn('[Stripe Webhook] payment.failed: No workspace found for customer:', customerId);
+        }
         break;
       }
 

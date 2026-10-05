@@ -12,7 +12,10 @@ const router = Router();
 
 // ── POST /api/email-marketing/ai-copilot/chat ─────────────────────────────────
 router.post('/chat', async (req: Request, res: Response) => {
-  const workspaceId = (req as any).workspaceId || 'default-workspace';
+  const workspaceId = (req as any).workspaceId;
+  if (!workspaceId) {
+    return res.status(401).json({ error: 'Workspace context required' });
+  }
   const { message, chatHistory, currentDraft } = req.body as {
     message?: string;
     chatHistory?: Array<{ role: 'user' | 'model'; content: string }>;
@@ -55,7 +58,10 @@ router.post('/chat', async (req: Request, res: Response) => {
 
 // ── GET /api/email-marketing/ai-copilot/insights ──────────────────────────────
 router.get('/insights', async (req: Request, res: Response) => {
-  const workspaceId = (req as any).workspaceId || 'default-workspace';
+  const workspaceId = (req as any).workspaceId;
+  if (!workspaceId) {
+    return res.status(401).json({ error: 'Workspace context required' });
+  }
   try {
     const performance = await getWorkspaceHistoricalPerformance(workspaceId);
     return res.json(performance);
