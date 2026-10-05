@@ -17,7 +17,6 @@ import {
   Eye, AlertCircle, Search, ChevronRight, Check, ChevronDown,
   LayoutGrid, List as ListIcon
 } from 'lucide-react';
-import { EmailBuilderCanvas } from '../../components/email-marketing/EmailBuilderCanvas';
 
 const STARTER_TEMPLATES = [
   {
@@ -664,20 +663,19 @@ export default function TemplatesList() {
               )}
 
               {/* Main Content Pane */}
-              <div className="flex-1 bg-surface/40 border border-border/50 rounded-xl overflow-hidden flex flex-col shadow-card min-h-[480px]">
+              <div className="flex-1 bg-surface/40 border border-border/50 rounded-xl overflow-hidden flex flex-col shadow-card">
                 {editorTab === 'edit' ? (
-                  <EmailBuilderCanvas
-                    initialContent={editingTemplate.blockJson || editingTemplate.html || ''}
-                    onChange={(html, blockJson) =>
-                      setEditingTemplate((prev: any) => ({ ...prev, html, blockJson }))
-                    }
-                    height="480px"
+                  <textarea
+                    value={editingTemplate.html || ''}
+                    onChange={e => setEditingTemplate({ ...editingTemplate, html: e.target.value })}
+                    placeholder="Write HTML or plain text template body here…"
+                    className="w-full flex-1 bg-surface text-text-main font-mono text-[13px] p-4 focus:outline-none resize-none leading-relaxed shadow-inner"
                   />
                 ) : (
                   <iframe
                     srcDoc={editingTemplate.html || '<p style="color:#6b7280;padding:20px;">No HTML content yet</p>'}
                     title="Template Live Preview"
-                    className="w-full flex-1 bg-white border-0 min-h-[480px]"
+                    className="w-full flex-1 bg-white border-0"
                   />
                 )}
               </div>

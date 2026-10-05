@@ -24,7 +24,6 @@ import {
 import { useAI } from '../../lib/useAI';
 import { ABTestConfig } from '../../types/emailCampaign';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
-import { EmailBuilderCanvas } from '../../components/email-marketing/EmailBuilderCanvas';
 import {
   analyzeEmailDeliverability,
   type SpamCheckResult,
@@ -1544,24 +1543,25 @@ export default function CampaignBuilder() {
                     </button>
                   </div>
                 </div>
-                <EmailBuilderCanvas
-                  key={`${campaignType}-${activeStepIndex}-${activeVariant}`}
-                  initialContent={
+                <textarea
+                  ref={activeTextareaRef}
+                  value={
                     abTestEnabled
                       ? (activeVariant === 'A' ? (campaignType === 'drip' ? (dripSteps[activeStepIndex]?.body || '') : bodyHtml) : bodyHtmlB)
                       : (campaignType === 'drip' ? (dripSteps[activeStepIndex]?.body || '') : bodyHtml)
                   }
-                  onChange={(html) => {
+                  onChange={e => {
                     if (abTestEnabled && activeVariant === 'B') {
-                      setBodyHtmlB(html);
+                      setBodyHtmlB(e.target.value);
                     } else if (campaignType === 'drip') {
-                      updateActiveStep({ body: html });
+                      updateActiveStep({ body: e.target.value });
                     } else {
-                      setBodyHtml(html);
+                      setBodyHtml(e.target.value);
                     }
                   }}
-                  height="520px"
-                  placeholder="Hi {{first_name}},\n\nWrite your email message naturally here or drag in blocks. Paragraphs and styling format cleanly for your recipients.\n\nBest,\n{{name}}"
+                  rows={16}
+                  placeholder={`Hi {{first_name}},\n\nWrite your email message naturally here. Paragraphs and line breaks will format cleanly for your recipients.\n\nBest,\n{{name}}`}
+                  className="w-full flex-1 bg-surface border border-border/60 rounded-xl p-4 text-[14px] text-text-main focus:outline-none focus:border-primary font-sans leading-relaxed resize-none shadow-inner"
                 />
               </div>
             </div>
