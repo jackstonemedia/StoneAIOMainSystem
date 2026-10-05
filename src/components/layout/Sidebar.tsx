@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
+import { FEATURES } from '../../config/features';
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -77,7 +78,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           path: '/conversations',      
           icon: MessageSquare,
         },
-        { 
+        ...(FEATURES.ads ? [{ 
           name: 'Ad Manager',   
           path: '/ads/overview',       
           icon: Megaphone,
@@ -86,7 +87,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Campaigns', path: '/ads/campaigns' },
             { name: 'Reports', path: '/ads/reports' }
           ]
-        },
+        }] : []),
         { 
           name: 'Calendar',     
           path: '/business/calendar',    

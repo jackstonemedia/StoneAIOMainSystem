@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuthTokenProvider } from './lib/AuthTokenProvider';
 import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
+import { FEATURES } from './config/features';
 
 // Layout (keep eager — needed immediately on every route)
 import AppShell from './components/layout/AppShell';
@@ -162,7 +163,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             />
             <Route
               path="/sdr"
-              element={<ErrorBoundary><Protect withAuth={withAuth}><AutonomousSdrDashboard /></Protect></ErrorBoundary>}
+              element={FEATURES.sdr ? <ErrorBoundary><Protect withAuth={withAuth}><AutonomousSdrDashboard /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
             />
             <Route path="/workflows"          element={<Navigate to="/automations" replace />} />
             <Route path="/automations/:id"      element={<ErrorBoundary><Protect withAuth={withAuth}><WorkflowBuilder /></Protect></ErrorBoundary>} />
@@ -202,7 +203,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/business" element={<ErrorBoundary><Protect withAuth={withAuth}><BusinessLayout /></Protect></ErrorBoundary>}>
               <Route index          element={<ErrorBoundary><BusinessDashboard /></ErrorBoundary>} />
               <Route path="analytics"   element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
-              <Route path="reputation"  element={<ErrorBoundary><Reputation /></ErrorBoundary>} />
+              <Route path="reputation"  element={FEATURES.reputation ? <ErrorBoundary><Reputation /></ErrorBoundary> : <Navigate to="/business" replace />} />
             </Route>
 
             {/* CRM — canonical location: /crm/* (removed from /business nesting) */}
@@ -233,13 +234,13 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/opportunities/settings/tags"      element={<Navigate to="/crm/opportunities/settings/tags" replace />} />
 
             {/* Shared */}
-            <Route path="/marketplace"       element={<ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary>} />
+            <Route path="/marketplace"       element={FEATURES.marketplace ? <ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />} />
             <Route path="/billing"           element={<Navigate to="/settings?tab=billing" replace />} />
             <Route path="/settings/billing"  element={<Navigate to="/settings?tab=billing" replace />} />
             <Route path="/settings"          element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
 
             {/* Lead Studio */}
-            <Route path="/leads" element={<ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary>} />
+            <Route path="/leads" element={FEATURES.leads ? <ErrorBoundary><Protect withAuth={withAuth}><LeadStudio /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />} />
 
             {/* Email Marketing */}
             <Route path="/email-marketing" element={<ErrorBoundary><Protect withAuth={withAuth}><EmailMarketingLayout /></Protect></ErrorBoundary>}>
@@ -256,20 +257,9 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="analytics" element={<ErrorBoundary><CampaignAnalytics /></ErrorBoundary>} />
             </Route>
 
-            {/* Inbox */}
-            <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><InboxLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<ErrorBoundary><InboxView /></ErrorBoundary>} />
-              <Route path="reports" element={<ErrorBoundary><InboxReports /></ErrorBoundary>} />
-              <Route path="contacts" element={<ErrorBoundary><InboxContacts /></ErrorBoundary>} />
-              <Route path="help-center" element={<ErrorBoundary><InboxHelpCenter /></ErrorBoundary>} />
-              <Route path="settings" element={<ErrorBoundary><InboxSettings /></ErrorBoundary>}>
-                <Route index element={<Navigate to="channels" replace />} />
-                <Route path="channels" element={<ErrorBoundary><InboxChannels /></ErrorBoundary>} />
-                <Route path="teams" element={<ErrorBoundary><InboxTeams /></ErrorBoundary>} />
-                <Route path="labels" element={<ErrorBoundary><InboxLabels /></ErrorBoundary>} />
-                <Route path="canned-responses" element={<ErrorBoundary><InboxCannedResponses /></ErrorBoundary>} />
-              </Route>
-            </Route>
+            {/* Canonicalize Inbox -> Conversations */}
+            <Route path="/inbox" element={<Navigate to="/conversations" replace />} />
+            <Route path="/inbox/*" element={<Navigate to="/conversations" replace />} />
 
             {/* Conversations (unified inbox — Email + SMS) */}
             <Route path="/conversations" element={<ErrorBoundary><Protect withAuth={withAuth}><ConvLayout /></Protect></ErrorBoundary>}>
@@ -283,23 +273,29 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               </Route>
             </Route>
 
-            {/* Ad Manager */}
-            <Route path="/ads" element={<ErrorBoundary><Protect withAuth={withAuth}><AdsLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<Navigate to="overview" replace />} />
-              <Route path="overview"   element={<ErrorBoundary><AdsDashboard /></ErrorBoundary>} />
-              <Route path="campaigns"  element={<ErrorBoundary><AdsCampaigns /></ErrorBoundary>} />
-              <Route path="campaigns/:id" element={<ErrorBoundary><CampaignDetail /></ErrorBoundary>} />
-              <Route path="reports"    element={<ErrorBoundary><AdsReports /></ErrorBoundary>} />
-              <Route path="settings"   element={<ErrorBoundary><AdsSettings /></ErrorBoundary>} />
-            </Route>
+            {/* Ad Manager (Parked) */}
+            {FEATURES.ads && (
+              <Route path="/ads" element={<ErrorBoundary><Protect withAuth={withAuth}><AdsLayout /></Protect></ErrorBoundary>}>
+                <Route index element={<Navigate to="overview" replace />} />
+                <Route path="overview"   element={<ErrorBoundary><AdsDashboard /></ErrorBoundary>} />
+                <Route path="campaigns"  element={<ErrorBoundary><AdsCampaigns /></ErrorBoundary>} />
+                <Route path="campaigns/:id" element={<ErrorBoundary><CampaignDetail /></ErrorBoundary>} />
+                <Route path="reports"    element={<ErrorBoundary><AdsReports /></ErrorBoundary>} />
+                <Route path="settings"   element={<ErrorBoundary><AdsSettings /></ErrorBoundary>} />
+              </Route>
+            )}
 
         </Route>  {/* AppShell */}
 
 
         {/* ── Fullscreen Ad Campaign Routes (no sidebar) ──────────────── */}
-        <Route path="/ads/campaigns/new"     element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignTypePickerPage /></Protect></ErrorBoundary>} />
-        <Route path="/ads/campaigns/new/:type" element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
-        <Route path="/ads/campaigns/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
+        {FEATURES.ads && (
+          <>
+            <Route path="/ads/campaigns/new"     element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignTypePickerPage /></Protect></ErrorBoundary>} />
+            <Route path="/ads/campaigns/new/:type" element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
+            <Route path="/ads/campaigns/:id/edit"  element={<ErrorBoundary><Protect withAuth={withAuth}><CampaignBuilder /></Protect></ErrorBoundary>} />
+          </>
+        )}
 
         {/* Redirect unknown routes */}
           {withAuth ? (

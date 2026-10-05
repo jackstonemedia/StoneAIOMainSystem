@@ -73,6 +73,7 @@ import cron from 'node-cron';
 // ── Infrastructure ────────────────────────────────────────────────────────────
 import { db }  from './infrastructure/database/client.js';
 import { env } from './infrastructure/config/env.js';
+import { FEATURES } from './infrastructure/config/features.js';
 
 // ── Native Engine Services ──────────────────────────────────────────────────
 import { schedulerService } from './api/services/workflow-engine/scheduler.service.js';
@@ -262,7 +263,7 @@ async function startServer() {
   app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
   app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
-  app.use('/api/agents',         aiLimiter, agentsRouter);
+  if (FEATURES.agents) app.use('/api/agents',         aiLimiter, agentsRouter);
   app.use('/api/integrations',   integrationsRouter);
   app.use('/api/releases',       releasesRouter);
 
@@ -278,14 +279,14 @@ async function startServer() {
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);
-  app.use('/api/ads',            adsRouter);
-  app.use('/api/leads',          leadsRouter);
+  if (FEATURES.ads)   app.use('/api/ads',            adsRouter);
+  if (FEATURES.leads) app.use('/api/leads',          leadsRouter);
   app.use('/api/inbox',          resolveWorkspace, inboxRouter);
   app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);
-  app.use('/api/sdr',            sdrRouter);
+  if (FEATURES.sdr)   app.use('/api/sdr',            sdrRouter);
 
   // ── Dev seed ─────────────────────────────────────────────────────────────
   if (env.NODE_ENV !== 'production') {
@@ -356,19 +357,23 @@ async function startServer() {
     }
 
 
-    // ── Ad Manager Jobs ───────────────────────────────────────────────────
-    try {
-      startAdsMetricsSyncJob();
-      startGoogleLeadPollJob();
-    } catch (e: any) {
-      console.error('❌ Failed to initialize Ad Manager jobs:', e.message);
+    // ── Ad Manager Jobs (Parked) ──────────────────────────────────────────
+    if (FEATURES.ads) {
+      try {
+        startAdsMetricsSyncJob();
+        startGoogleLeadPollJob();
+      } catch (e: any) {
+        console.error('❌ Failed to initialize Ad Manager jobs:', e.message);
+      }
     }
 
-    // ── Lead Studio Worker ────────────────────────────────────────────────
-    try {
-      startLeadWorker();
-    } catch (e: any) {
-      console.error('❌ Failed to initialize Lead Studio worker:', e.message);
+    // ── Lead Studio Worker (Parked) ───────────────────────────────────────
+    if (FEATURES.leads) {
+      try {
+        startLeadWorker();
+      } catch (e: any) {
+        console.error('❌ Failed to initialize Lead Studio worker:', e.message);
+      }
     }
 
     // ── Email Marketing Send Worker ───────────────────────────────────────
