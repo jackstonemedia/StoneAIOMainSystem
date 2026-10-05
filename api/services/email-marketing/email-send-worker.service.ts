@@ -23,6 +23,7 @@ import { db } from '../../../infrastructure/database/client.js';
 import { env } from '../../../infrastructure/config/env.js';
 import { isEmailSuppressed } from './audience.service.js';
 import { EmailEventType, SubscriptionStatus } from '@prisma/client';
+import { createUnsubscribeToken, createClickTrackingSignature } from '../../lib/crypto-tokens.js';
 
 // ── Queue setup ───────────────────────────────────────────────────────────────
 
@@ -240,6 +241,8 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     const businessName = (contact as any).company?.name || (contact as any).businessName || '';
     const phone = contact.phone || '';
 
+    const unsubscribeUrl = buildUnsubscribeUrl(workspaceId, contactId);
+
     emailHtml = rawBody
       .replace(/\{\{first_name\}\}/gi, firstName)
       .replace(/\{\{firstName\}\}/gi, firstName)
@@ -251,7 +254,9 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       .replace(/\{\{business_name\}\}/gi, businessName)
       .replace(/\{\{businessName\}\}/gi, businessName)
       .replace(/\{\{company\}\}/gi, businessName)
-      .replace(/\{\{phone\}\}/gi, phone);
+      .replace(/\{\{phone\}\}/gi, phone)
+      .replace(/\{\{unsubscribe_url\}\}/gi, unsubscribeUrl)
+      .replace(/\{\{unsubscribe\}\}/gi, unsubscribeUrl);
 
     emailSubject = emailSubject
       .replace(/\{\{first_name\}\}/gi, firstName)
@@ -268,6 +273,15 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
 
     if (!emailHtml.includes('<') || !emailHtml.includes('>')) {
       emailHtml = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; color: #111827; line-height: 1.6;">${emailHtml.replace(/\n/g, '<br/>')}</div>`;
+    }
+
+    if (type === 'CAMPAIGN' && !emailHtml.includes(unsubscribeUrl)) {
+      const footer = `<p style="font-size: 12px; color: #9ca3af; margin-top: 24px;"><a href="${unsubscribeUrl}" style="color: #9ca3af; text-decoration: underline;">Unsubscribe</a></p>`;
+      if (emailHtml.includes('</body>')) {
+        emailHtml = emailHtml.replace('</body>', `${footer}</body>`);
+      } else {
+        emailHtml = `${emailHtml}${footer}`;
+      }
     }
   } else {
     // Automation step email — subject and HTML passed directly
@@ -300,7 +314,8 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       }
 
       const encodedUrl = encodeURIComponent(href);
-      const trackingUrl = `${baseUrl}/api/email-marketing/track/click?url=${encodedUrl}&w=${encodeURIComponent(workspaceId)}&c=${encodeURIComponent(contactId)}&cmp=${encodeURIComponent(campaignId || '')}&ae=${encodeURIComponent(automationEnrollmentId || '')}`;
+      const sig = createClickTrackingSignature({ url: href, workspaceId, contactId });
+      const trackingUrl = `${baseUrl}/api/email-marketing/track/click?url=${encodedUrl}&w=${encodeURIComponent(workspaceId)}&c=${encodeURIComponent(contactId)}&cmp=${encodeURIComponent(campaignId || '')}&ae=${encodeURIComponent(automationEnrollmentId || '')}&sig=${encodeURIComponent(sig)}`;
       return `<a href="${trackingUrl}"${rest}>`;
     });
 
@@ -388,12 +403,9 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
   }
 }
 
-// ── Helper functions ──────────────────────────────────────────────────────────
-
-function buildUnsubscribeUrl(workspaceId: string, contactId: string): string {
-  const baseUrl = env.VITE_APP_URL || 'http://localhost:3000';
-  // Simple signed URL — in production you'd sign this with HMAC
-  const token = Buffer.from(`${workspaceId}:${contactId}`).toString('base64url');
+export function buildUnsubscribeUrl(workspaceId: string, contactId: string): string {
+  const baseUrl = env.PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || env.VITE_APP_URL || 'http://localhost:4000';
+  const token = createUnsubscribeToken(workspaceId, contactId);
   return `${baseUrl}/unsubscribe/${token}`;
 }
 

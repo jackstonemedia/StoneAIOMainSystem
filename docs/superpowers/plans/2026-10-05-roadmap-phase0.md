@@ -54,10 +54,10 @@
 - Modify: `api/routes/email-copilot.routes.ts`
 - Test: `api/services/email-marketing/__tests__/email-send-worker-security.test.ts`
 
-- [ ] **Step 1: Write test verifying that `email-send-worker` strictly fails if workspace has no active Gmail connection, never borrowing another workspace's connection**
-- [ ] **Step 2: Remove lines 323–327 in `email-send-worker.service.ts` (cross-workspace fallback)**
-- [ ] **Step 3: Remove all `'default'` / `'default-workspace'` fallbacks in `billing.routes.ts` and `email-copilot.routes.ts`**
-- [ ] **Step 4: Run tests to ensure pass**
+- [x] **Step 1: Write test verifying that `email-send-worker` strictly fails if workspace has no active Gmail connection, never borrowing another workspace's connection**
+- [x] **Step 2: Remove lines 323–327 in `email-send-worker.service.ts` (cross-workspace fallback)**
+- [x] **Step 3: Remove all `'default'` / `'default-workspace'` fallbacks in `billing.routes.ts` and `email-copilot.routes.ts`**
+- [x] **Step 4: Run tests to ensure pass**
 
 ---
 
@@ -70,12 +70,12 @@
 - Test: `api/lib/__tests__/crypto-tokens.test.ts`
 - Test: `api/routes/__tests__/tracking-security.test.ts`
 
-- [ ] **Step 1: Write unit tests for HMAC token generation and verification**
-- [ ] **Step 2: Implement HMAC token signing & verification in `api/lib/crypto-tokens.ts` using `CHANNEL_ENCRYPTION_KEY`**
-- [ ] **Step 3: Update `buildUnsubscribeUrl` in `email-send-worker.service.ts` to emit HMAC-signed tokens**
-- [ ] **Step 4: Update `handleUnsubscribeGet` and `handleUnsubscribePost` to verify HMAC signature before processing unsubscribe**
-- [ ] **Step 5: Add URL allow-list validation in `handleTrackClick` to prevent open redirects (only HTTP/HTTPS to known/verified domains or relative paths)**
-- [ ] **Step 6: Run tests to verify token forgery and open redirect protection**
+- [x] **Step 1: Write unit tests for HMAC token generation and verification**
+- [x] **Step 2: Implement HMAC token signing & verification in `api/lib/crypto-tokens.ts` using `CHANNEL_ENCRYPTION_KEY`**
+- [x] **Step 3: Update `buildUnsubscribeUrl` in `email-send-worker.service.ts` to emit HMAC-signed tokens**
+- [x] **Step 4: Update `handleUnsubscribeGet` and `handleUnsubscribePost` to verify HMAC signature before processing unsubscribe**
+- [x] **Step 5: Add URL allow-list validation in `handleTrackClick` to prevent open redirects (only HTTP/HTTPS to known/verified domains or relative paths)**
+- [x] **Step 6: Run tests to verify token forgery and open redirect protection**
 
 ---
 
@@ -85,10 +85,10 @@
 - Modify: `api/routes/billing.routes.ts`
 - Test: `api/routes/__tests__/billing-security.test.ts`
 
-- [ ] **Step 1: Write test verifying `/api/billing/dev-set-plan` returns 404/403 in production and requires dev authorization**
-- [ ] **Step 2: Guard `/billing/dev-set-plan` so it is completely disabled in production (`NODE_ENV === 'production'`) and requires `ENABLE_DEV_BILLING_BYPASS === 'true'` in local dev**
-- [ ] **Step 3: Refactor `/billing/verify-session` to retrieve the Stripe session via Stripe API directly, verify workspace ownership from metadata, and remove client-controlled plan writing**
-- [ ] **Step 4: Run billing test suite**
+- [x] **Step 1: Write test verifying `/api/billing/dev-set-plan` returns 404/403 in production and requires dev authorization**
+- [x] **Step 2: Guard `/billing/dev-set-plan` so it is completely disabled in production (`NODE_ENV === 'production'`) and requires `ENABLE_DEV_BILLING_BYPASS === 'true'` in local dev**
+- [x] **Step 3: Refactor `/billing/verify-session` to retrieve the Stripe session via Stripe API directly, verify workspace ownership from metadata, and remove client-controlled plan writing**
+- [x] **Step 4: Run billing test suite**
 
 ---
 

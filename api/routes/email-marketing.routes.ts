@@ -89,6 +89,12 @@ setInterval(() => {
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';
+import {
+  verifyUnsubscribeToken,
+  verifyClickTrackingSignature,
+  isSafeRedirectUrl,
+} from '../lib/crypto-tokens.js';
+import { env } from '../../infrastructure/config/env.js';
 
 const router = Router();
 
@@ -488,9 +494,41 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
   const contactId = typeof req.query.c === 'string' ? req.query.c : '';
   const campaignId = typeof req.query.cmp === 'string' && req.query.cmp ? req.query.cmp : null;
   const automationEnrollmentId = typeof req.query.ae === 'string' && req.query.ae ? req.query.ae : null;
+  const sig = typeof req.query.sig === 'string' ? req.query.sig : '';
 
-  // Safe redirect destination
-  const safeUrl = (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) ? targetUrl : '/';
+  // 1. Destination URL syntax & protocol validation
+  if (!targetUrl || !isSafeRedirectUrl(targetUrl)) {
+    res.status(400).json({ error: 'Invalid redirect destination' });
+    return;
+  }
+
+  // 2. Open redirect defense:
+  // External URLs must carry a valid HMAC signature matching the send context,
+  // or match the configured application domain.
+  const isRelative = targetUrl.startsWith('/') && !targetUrl.startsWith('//');
+  let isAllowed = isRelative;
+
+  if (!isAllowed) {
+    if (sig && workspaceId && contactId) {
+      isAllowed = verifyClickTrackingSignature({ url: targetUrl, workspaceId, contactId }, sig);
+    }
+    if (!isAllowed) {
+      const appUrl = env.PUBLIC_APP_URL || env.VITE_APP_URL;
+      let appHost: string | null = null;
+      try {
+        if (appUrl) appHost = new URL(appUrl).hostname;
+      } catch {}
+      const allowedHosts = appHost ? [appHost, 'localhost'] : ['localhost'];
+      isAllowed = isSafeRedirectUrl(targetUrl, allowedHosts);
+    }
+
+    if (!isAllowed) {
+      res.status(400).json({ error: 'Untrusted or unsigned redirect URL' });
+      return;
+    }
+  }
+
+  const safeUrl = targetUrl;
 
   try {
     const { db } = await import('../../infrastructure/database/client.js');
@@ -670,9 +708,18 @@ router.delete('/domains/:id', asyncHandler(async (req, res) => {
 export async function handleUnsubscribeGet(req: Request, res: Response): Promise<void> {
   try {
     const { token } = req.params;
-    const decoded = Buffer.from(token, 'base64url').toString('utf8');
-    const [workspaceId, contactId] = decoded.split(':');
-    if (!workspaceId || !contactId) { res.status(400).send('Invalid unsubscribe link'); return; }
+    if (!token) {
+      res.status(400).send('Invalid unsubscribe link');
+      return;
+    }
+
+    const verified = verifyUnsubscribeToken(token);
+    if (!verified) {
+      res.status(400).send('Invalid or expired unsubscribe link');
+      return;
+    }
+
+    const { workspaceId, contactId } = verified;
 
     const contact = await import('../../infrastructure/database/client.js').then(m =>
       m.db.contact.findFirst({ where: { id: contactId, workspaceId }, select: { email: true } })
