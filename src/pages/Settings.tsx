@@ -13,10 +13,12 @@ import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../lib/apiClient';
 import { channelConnectionsApi } from '../lib/api/conversations';
+import { OutreachMailboxesSettings } from '../components/settings/OutreachMailboxesSettings';
 
 const TABS = [
   { id: 'general', label: 'General', icon: Building2 },
   { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
+  { id: 'outreach', label: 'Email Outreach', icon: Mail },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'integrations', label: 'Integrations', icon: Plug },
   { id: 'api', label: 'API & Webhooks', icon: Code },
@@ -37,17 +39,6 @@ const INTEGRATIONS = [
       { key: 'twilio_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxx', type: 'text' },
       { key: 'twilio_token', label: 'Auth Token', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
       { key: 'twilio_from', label: 'From Number', placeholder: '+1 (555) 000-0000', type: 'text' },
-    ],
-  },
-  {
-    id: 'resend',
-    label: 'Resend',
-    desc: 'Transactional and campaign email delivery',
-    icon: Mail,
-    color: 'text-blue-400',
-    bg: 'bg-blue-400/10',
-    fields: [
-      { key: 'resend', label: 'API Key', placeholder: 're_xxxxxxxxxxxxxxxxxxxx', type: 'password' },
     ],
   },
   {
@@ -235,6 +226,7 @@ export default function SettingsPage() {
 
   const tabContent: Record<string, React.ReactNode> = {
     billing: <Billing />,
+    outreach: <OutreachMailboxesSettings />,
     general: (
       <div className="space-y-6">
         <div>
@@ -840,7 +832,7 @@ export default function SettingsPage() {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 sm:p-8">
-          <div className={activeTab === 'billing' ? 'w-full max-w-6xl mx-auto' : 'max-w-[680px]'}>
+          <div className={activeTab === 'billing' || activeTab === 'outreach' ? 'w-full max-w-5xl mx-auto' : 'max-w-[680px]'}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}

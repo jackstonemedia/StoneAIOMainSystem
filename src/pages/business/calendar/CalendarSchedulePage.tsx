@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, ChevronRight, Plus, Video, Phone, Users, Clock, Calendar as CalIcon,
@@ -419,8 +420,30 @@ export default function CalendarSchedulePage() {
   const qc = useQueryClient();
 
   // ── State ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramView = searchParams.get('view') as CalendarViewType | null;
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [view, setView] = useState<CalendarViewType>('month');
+  const [view, setView] = useState<CalendarViewType>(() => {
+    if (paramView && ['month', 'week', 'day', 'agenda', 'year'].includes(paramView)) {
+      return paramView;
+    }
+    return 'month';
+  });
+
+  useEffect(() => {
+    const pv = searchParams.get('view') as CalendarViewType | null;
+    if (pv && ['month', 'week', 'day', 'agenda', 'year'].includes(pv) && pv !== view) {
+      setView(pv);
+    }
+  }, [searchParams, view]);
+
+  const handleSetView = (nextView: CalendarViewType) => {
+    setView(nextView);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('view', nextView);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   
   // Local modifications state: tracks in-place edits, creations, and deletions
@@ -852,7 +875,7 @@ export default function CalendarSchedulePage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setView(tab.id as any)}
+                onClick={() => handleSetView(tab.id as any)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[13px] font-semibold transition-all ${
                   isActive
                     ? 'bg-surface text-text-main shadow-xs border border-border/60'

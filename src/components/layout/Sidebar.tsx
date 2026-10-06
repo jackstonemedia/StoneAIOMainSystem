@@ -93,11 +93,9 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           path: '/business/calendar',    
           icon: Calendar,
           subItems: [
-            { name: 'Schedule',      path: '/business/calendar' },
-            { name: 'Appointments',  path: '/business/calendar/appointments' },
-            { name: 'Booking Links', path: '/business/calendar/booking-links' },
-            { name: 'Availability',  path: '/business/calendar/availability' },
-            { name: 'Integrations & Sync', path: '/business/calendar/settings' },
+            { name: 'Schedule',      path: '/business/calendar?view=month' },
+            { name: 'Appointments',  path: '/business/calendar?view=agenda' },
+            { name: 'Sync & Channels', path: '/settings?tab=outreach' },
           ]
         },
         { 
@@ -106,6 +104,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           icon: MailOpen,
           subItems: [
             { name: 'Campaigns',   path: '/email-marketing/campaigns' },
+            { name: 'Outreach Mailboxes', path: '/settings?tab=outreach' },
             { name: 'Automations', path: '/email-marketing/automations' },
             { name: 'Audience',    path: '/email-marketing/audience' },
             { name: 'Templates',   path: '/email-marketing/templates' },

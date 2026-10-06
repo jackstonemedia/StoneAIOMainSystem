@@ -167,6 +167,11 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
             {/* Calendar Route Aliases */}
             <Route path="/calendar" element={<Navigate to="/business/calendar" replace />} />
+            <Route path="/calendar/appointments" element={<Navigate to="/business/calendar?view=agenda" replace />} />
+            <Route path="/business/calendar/appointments" element={<Navigate to="/business/calendar?view=agenda" replace />} />
+            <Route path="/business/calendar/booking-links" element={<Navigate to="/business/calendar?view=agenda" replace />} />
+            <Route path="/business/calendar/availability" element={<Navigate to="/business/calendar?view=agenda" replace />} />
+            <Route path="/business/calendar/settings" element={<Navigate to="/settings?tab=outreach" replace />} />
             <Route path="/calendar/*" element={<Navigate to="/business/calendar" replace />} />
 
             {/* Business Hub & Calendar */}

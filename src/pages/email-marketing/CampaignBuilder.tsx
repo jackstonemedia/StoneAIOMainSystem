@@ -372,9 +372,9 @@ export default function CampaignBuilder() {
   const { data: lists = [] } = useQuery({ queryKey: ['email-marketing', 'lists'], queryFn: fetchLists });
   const { data: segments = [] } = useQuery({ queryKey: ['email-marketing', 'segments'], queryFn: fetchSegments });
   const { data: smartLists = [] } = useQuery({ queryKey: ['crm', 'smart-lists'], queryFn: fetchSmartLists });
-  const { data: sendingDomains = [] } = useQuery({
-    queryKey: ['email-marketing', 'domains'],
-    queryFn: () => apiClient.get('/email-marketing/domains').then(r => r.data),
+  const { data: outreachCapacity } = useQuery({
+    queryKey: ['email-marketing', 'outreach-capacity'],
+    queryFn: () => apiClient.get('/email-marketing/outreach/capacity').then(r => r.data),
   });
 
   // Pre-fill smartListId from query params
@@ -564,14 +564,35 @@ export default function CampaignBuilder() {
   // ── Variable Inserter ───────────────────────────────────────────────────────
 
   const insertVariable = (varTag: string) => {
-    if (abTestEnabled && activeVariant === 'B') {
-      setBodyHtmlB(prev => prev + ' ' + varTag);
-    } else if (campaignType === 'drip') {
-      const currentBody = dripSteps[activeStepIndex]?.body || '';
-      updateActiveStep({ body: currentBody + ' ' + varTag });
-    } else {
-      setBodyHtml(prev => prev + ' ' + varTag);
+    const textarea = activeTextareaRef.current;
+    if (!textarea) {
+      if (abTestEnabled && activeVariant === 'B') {
+        setBodyHtmlB(prev => prev + ' ' + varTag);
+      } else if (campaignType === 'drip') {
+        const currentBody = dripSteps[activeStepIndex]?.body || '';
+        updateActiveStep({ body: currentBody + ' ' + varTag });
+      } else {
+        setBodyHtml(prev => prev + ' ' + varTag);
+      }
+      return;
     }
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const currentVal = textarea.value;
+    const nextVal = currentVal.substring(0, start) + varTag + currentVal.substring(end);
+
+    if (abTestEnabled && activeVariant === 'B') {
+      setBodyHtmlB(nextVal);
+    } else if (campaignType === 'drip') {
+      updateActiveStep({ body: nextVal });
+    } else {
+      setBodyHtml(nextVal);
+    }
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + varTag.length, start + varTag.length);
+    }, 0);
   };
 
   // ── AI Variant B Generator ──────────────────────────────────────────────────
@@ -858,13 +879,10 @@ export default function CampaignBuilder() {
     try {
       setErrorMsg('');
 
-      // Block sending from an unverified domain
-      if (sender.sendingDomainId) {
-        const chosenDom = sendingDomains.find((d: any) => d.id === sender.sendingDomainId);
-        if (chosenDom && chosenDom.status !== 'VERIFIED') {
-          toast('error', 'Unverified Domain Blocked', `Cannot launch campaign: "${chosenDom.domain}" is not verified. Please verify DNS records first in Audience → Sending Domains.`);
-          return;
-        }
+      // Verify active outreach mailboxes are available
+      if (!outreachCapacity || outreachCapacity.activeMailboxesCount === 0) {
+        toast('error', 'No Active Mailbox Connected', 'Please connect a Google Workspace or Outlook inbox in Settings → Email Outreach before launching campaigns.');
+        return;
       }
 
       setIsSendingOrScheduling(true);
@@ -1543,6 +1561,23 @@ export default function CampaignBuilder() {
                     </button>
                   </div>
                 </div>
+
+                {/* Dynamic Merge Variable Toolbar */}
+                <div className="flex items-center gap-1.5 flex-wrap py-2 px-2.5 bg-surface-hover/40 rounded-xl border border-border/50">
+                  <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider mr-1">Insert Variable:</span>
+                  {MERGE_TAGS.map(m => (
+                    <button
+                      key={m.tag}
+                      type="button"
+                      onClick={() => insertVariable(m.tag)}
+                      className="px-2 py-0.5 rounded-md bg-surface hover:bg-primary/10 border border-border/60 hover:border-primary/40 text-[11px] font-mono text-text-main hover:text-primary transition-all cursor-pointer shadow-2xs"
+                      title={`Insert ${m.label}`}
+                    >
+                      {m.tag}
+                    </button>
+                  ))}
+                </div>
+
                 <textarea
                   ref={activeTextareaRef}
                   value={
@@ -1840,63 +1875,63 @@ export default function CampaignBuilder() {
                       />
                     </div>
                   )}
-                  {/* Sending Domain Selection */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-bold text-text-muted uppercase">Sending Domain</label>
+                  {/* Native Outreach Mailbox Pool Status */}
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-surface-hover/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Mail className="w-4 h-4 text-primary" />
+                        <span className="text-[11px] font-bold text-text-main uppercase tracking-wider">Outreach Mailbox Pool</span>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => navigate('/email-marketing/audience')}
+                        onClick={() => navigate('/settings?tab=outreach')}
                         className="text-[10px] text-primary hover:underline font-semibold"
                       >
-                        Manage Domains &rarr;
+                        Manage Inboxes &rarr;
                       </button>
                     </div>
 
-                    {sendingDomains.length > 0 ? (
-                      <select
-                        value={sender.sendingDomainId || ''}
-                        onChange={e => {
-                          const domId = e.target.value;
-                          const selectedDom = sendingDomains.find((d: any) => d.id === domId);
-                          setSender({
-                            ...sender,
-                            sendingDomainId: domId,
-                            fromEmail: selectedDom ? `outreach@${selectedDom.domain}` : '',
-                          });
-                        }}
-                        className="w-full bg-surface-hover border border-border/60 rounded-xl px-3.5 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
-                      >
-                        <option value="">Default Platform Sender (outreach@stoneaio.com)</option>
-                        {sendingDomains.map((d: any) => (
-                          <option key={d.id} value={d.id}>
-                            {d.domain} ({d.status === 'VERIFIED' ? '✓ Verified' : '⚠ ' + d.status})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
-                        <div className="flex items-center gap-1.5 font-bold mb-0.5">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          <span>No custom sending domains</span>
+                    {outreachCapacity && outreachCapacity.activeMailboxesCount > 0 ? (
+                      <div className="space-y-2">
+                        <div className="p-2.5 rounded-lg bg-surface border border-border/60 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-text-main flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              {outreachCapacity.activeMailboxesCount} Connected {outreachCapacity.activeMailboxesCount === 1 ? 'Inbox' : 'Inboxes'}
+                            </span>
+                            <span className="font-semibold text-emerald-400 text-[11px]">
+                              {outreachCapacity.totalCapacity} sends/day
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-text-muted truncate">
+                            Rotation active: {outreachCapacity.mailboxes?.map((m: any) => m.email).filter(Boolean).join(', ')}
+                          </div>
                         </div>
-                        <p className="text-[11px] text-text-muted">
-                          Emails will send from the default shared sender until you add and verify a domain in Audience → Sending Domains.
+                        <div className="text-[10px] text-text-muted flex items-center gap-1.5 flex-wrap">
+                          <span>Safe 40/day limit</span>
+                          <span>•</span>
+                          <span>90–180s human pacing</span>
+                          <span>•</span>
+                          <span>Stop-on-reply</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                          <AlertCircle className="w-3.5 h-3.5" /> No Connected Mailboxes
+                        </div>
+                        <p className="text-[11px] text-text-muted leading-relaxed">
+                          Connect your Google Workspace or Outlook inbox in Settings to send authentic campaigns from your domain.
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/settings?tab=outreach')}
+                          className="w-full px-3 py-1.5 bg-primary text-white text-[11px] font-bold rounded-lg hover:opacity-90 transition-opacity"
+                        >
+                          Connect Mailbox in Settings
+                        </button>
                       </div>
                     )}
-
-                    {(() => {
-                      const selectedDom = sendingDomains.find((d: any) => d.id === sender.sendingDomainId);
-                      if (selectedDom && selectedDom.status !== 'VERIFIED') {
-                        return (
-                          <div className="mt-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                            <span className="font-bold">⚠️ Unverified Domain:</span> This domain is pending DNS verification. Sending is blocked until SPF/DKIM are verified in Audience.
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
                   </div>
 
                   <div>
@@ -2190,6 +2225,64 @@ export default function CampaignBuilder() {
                   )}
                 </div>
 
+                {/* Multi-Day Delivery Schedule Projection */}
+                {(() => {
+                  const audienceCount = typeof targetRecipientCount === 'number'
+                    ? targetRecipientCount
+                    : (selectedSmartList?.contactCount || 1);
+                  const capacityNum = outreachCapacity?.totalCapacity || 40;
+                  const estimatedDays = Math.max(1, Math.ceil(audienceCount / capacityNum));
+                  const activeMailboxes = outreachCapacity?.activeMailboxesCount || 0;
+
+                  return (
+                    <div className="space-y-2">
+                      {activeMailboxes === 0 ? (
+                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-2">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                            <AlertCircle className="w-3.5 h-3.5" /> No Active Outreach Mailbox
+                          </div>
+                          <p className="text-[11px] text-text-muted leading-relaxed">
+                            You must connect at least one Google Workspace or Outlook inbox in Settings → Email Outreach before launching.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSendModal(false);
+                              navigate('/settings?tab=outreach');
+                            }}
+                            className="w-full px-3 py-1.5 bg-primary text-white text-[11px] font-bold rounded-lg hover:opacity-90 transition-opacity"
+                          >
+                            Connect Outreach Mailbox in Settings
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                          <div className="flex items-center justify-between text-xs font-bold text-text-main">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-primary" /> Multi-Day Schedule Projection
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20">
+                              {estimatedDays} {estimatedDays === 1 ? 'Business Day' : 'Business Days'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-muted leading-relaxed">
+                            {audienceCount > capacityNum
+                              ? `${audienceCount} contacts will send over ${estimatedDays} business days (${capacityNum}/day limit across your ${activeMailboxes} active inbox${activeMailboxes === 1 ? '' : 'es'}).`
+                              : `${audienceCount} contacts will send within today's remaining capacity across your ${activeMailboxes} active inbox${activeMailboxes === 1 ? '' : 'es'}.`}
+                          </p>
+                          <div className="text-[10px] text-text-muted flex items-center gap-2 pt-1.5 border-t border-border/40 flex-wrap">
+                            <span>90–180s human pacing</span>
+                            <span>•</span>
+                            <span>Mon–Fri 9am–5pm</span>
+                            <span>•</span>
+                            <span className="text-emerald-400 font-medium">Stops automatically on reply</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="space-y-2">
                   <label className="block text-[11px] font-bold text-text-muted uppercase">Sending Schedule</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -2238,7 +2331,7 @@ export default function CampaignBuilder() {
                 </button>
                 <button
                   onClick={handleConfirmSendOrSchedule}
-                  disabled={isSendingOrScheduling}
+                  disabled={isSendingOrScheduling || (!outreachCapacity || outreachCapacity.activeMailboxesCount === 0)}
                   className="px-5 py-2 bg-primary hover:bg-primary-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-interactive transition-all"
                 >
                   {isSendingOrScheduling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}

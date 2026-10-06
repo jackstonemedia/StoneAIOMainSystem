@@ -384,8 +384,8 @@ const commEmail: WorkflowNodeDefinition = {
   colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
   outputs: [],
   configFields: [
-    { key: 'provider', label: 'Provider', type: 'select', default: 'sendgrid', options: [
-      { label: 'SendGrid', value: 'sendgrid' }, { label: 'Resend', value: 'resend' }, { label: 'SMTP', value: 'smtp' }
+    { key: 'provider', label: 'Provider', type: 'select', default: 'workspace_mailbox', options: [
+      { label: 'Workspace Mailbox (Gmail / Outlook)', value: 'workspace_mailbox' }, { label: 'Custom SMTP', value: 'smtp' }
     ] },
     { key: 'to', label: 'To', type: 'template', default: '{{input.email}}', required: true, placeholder: '{{contact.email}}' },
     { key: 'subject', label: 'Subject', type: 'template', default: '', required: true, placeholder: 'Your order #{{input.orderId}} is confirmed' },

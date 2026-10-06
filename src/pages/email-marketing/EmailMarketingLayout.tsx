@@ -8,6 +8,7 @@ import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 const NAV_TABS = [
   { name: 'Campaigns',   path: '/email-marketing/campaigns',   icon: Mail },
+  { name: 'Mailboxes',   path: '/settings?tab=outreach',       icon: Users },
   { name: 'Automations', path: '/email-marketing/automations', icon: Zap },
   { name: 'Audience',    path: '/email-marketing/audience',    icon: Users },
   { name: 'Templates',   path: '/email-marketing/templates',   icon: FileText },

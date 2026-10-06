@@ -67,7 +67,15 @@ export interface ChannelConnection {
   email: string | null;
   twilioPhoneNumber: string | null;
   isActive: boolean;
-  status?: 'healthy' | 'expired' | 'disconnected';
+  status?: 'ACTIVE' | 'WARMUP' | 'PAUSED' | 'DISCONNECTED' | 'ERROR' | 'healthy' | 'expired' | 'disconnected';
+  dailySendLimit?: number;
+  sentTodayCount?: number;
+  lastSentAt?: string | null;
+  lastResetAt?: string | null;
+  consecutiveBounces?: number;
+  minDelaySeconds?: number;
+  maxDelaySeconds?: number;
+  warmupDay?: number;
   createdAt: string;
   updatedAt?: string;
   // Configuration options
