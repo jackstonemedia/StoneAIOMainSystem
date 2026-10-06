@@ -209,11 +209,23 @@ router.post('/conversations/:id/messages', async (req, res) => {
         });
         const activeChannel = msgChannel ?? convo?.channel;
 
-        if (activeChannel === 'email' || activeChannel === 'gmail') {
-          // ── Gmail outbound ────────────────────────────────────────────────
-          const conn = await db.channelConnection.findFirst({
-            where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
-          });
+        if (activeChannel === 'email' || activeChannel === 'gmail' || activeChannel === 'outlook') {
+          // ── Email outbound (Gmail or Outlook) ─────────────────────────────
+          let conn = convo?.channelConnectionId
+            ? await db.channelConnection.findFirst({
+                where: { id: convo.channelConnectionId, workspaceId: req.workspaceId, isActive: true },
+              })
+            : null;
+
+          if (!conn) {
+            conn = await db.channelConnection.findFirst({
+              where: {
+                workspaceId: req.workspaceId,
+                provider: { in: ['gmail', 'outlook'] },
+                isActive: true,
+              },
+            });
+          }
 
           const recipientEmail = msgTo || convo?.contact?.email;
           const emailSubject = msgSubject || convo?.subject || '(no subject)';
@@ -221,9 +233,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
           if (!conn) {
             await db.conversationMessage.update({
               where: { id: msg.id },
-              data: { status: 'failed', errorMsg: 'No active Gmail connection found. Please connect your Gmail in Settings.' },
+              data: { status: 'failed', errorMsg: 'No active Gmail or Outlook connection found. Please connect your inbox in Settings.' },
             }).catch(() => null);
-            return res.status(400).json({ error: 'No active Gmail account connected. Please connect Gmail in Settings > Integrations.' });
+            return res.status(400).json({ error: 'No active Gmail or Outlook account connected. Please connect an inbox in Settings > Email Outreach.' });
           }
 
           if (!recipientEmail) {
@@ -244,27 +256,47 @@ router.post('/conversations/:id/messages', async (req, res) => {
           }).catch(() => null);
 
           try {
-            const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
-            const sent = await sendGmailMessage(
-              conn.id, recipientEmail, emailSubject, msgBody,
-              convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
-            );
-            if (sent) {
-              await db.conversationMessage.update({
-                where: { id: msg.id },
-                data: { status: 'delivered', externalId: sent.messageId },
-              }).catch(() => null);
-              if (!convo?.externalId && sent.threadId) {
-                await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
+            if (conn.provider === 'outlook') {
+              const { sendOutlookMessage } = await import('../services/channels/outlook.service.js');
+              const sent = await sendOutlookMessage(
+                conn.id,
+                recipientEmail,
+                emailSubject,
+                msgHtmlBody ?? msgBody.replace(/\n/g, '<br/>'),
+                convo?.externalId ?? undefined,
+              );
+              if (sent) {
+                await db.conversationMessage.update({
+                  where: { id: msg.id },
+                  data: { status: 'delivered', externalId: sent.conversationId || undefined },
+                }).catch(() => null);
+                if (!convo?.externalId && sent.conversationId) {
+                  await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.conversationId } }).catch(() => null);
+                }
+              }
+            } else {
+              const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+              const sent = await sendGmailMessage(
+                conn.id, recipientEmail, emailSubject, msgBody,
+                convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
+              );
+              if (sent) {
+                await db.conversationMessage.update({
+                  where: { id: msg.id },
+                  data: { status: 'delivered', externalId: sent.messageId },
+                }).catch(() => null);
+                if (!convo?.externalId && sent.threadId) {
+                  await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
+                }
               }
             }
           } catch (err: any) {
-            console.error('[Outbound Gmail] ❌ Failed to send:', err.message);
+            console.error(`[Outbound Email via ${conn.provider}] ❌ Failed to send:`, err.message);
             await db.conversationMessage.update({
               where: { id: msg.id },
               data: { status: 'failed', errorMsg: err.message },
             }).catch(() => null);
-            return res.status(400).json({ error: `Gmail sending failed: ${err.message}` });
+            return res.status(400).json({ error: `Email sending failed: ${err.message}` });
           }
         } else if (activeChannel === 'sms') {
           // ── SMS / Twilio outbound ─────────────────────────────────────────
