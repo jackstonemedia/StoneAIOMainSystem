@@ -79,53 +79,57 @@ export const communicationSendEmail: NodeImplementation = {
     if (!subject) throw new Error('Subject is required.');
     if (!body) throw new Error('Body is required.');
 
-    // ── 1. Try Gmail channel connection ─────────────────────────────────────
-    const gmailConn = await db.channelConnection.findFirst({
-      where: { workspaceId: context.workspaceId, provider: 'gmail', isActive: true },
-    }).catch(() => null);
+    // ── 1. Select available mailbox from pool (Gmail or Outlook) with safe daily limits ──
+    const { selectNextMailbox, recordSendSuccess, recordSendAuthError } = await import(
+      '../../email-marketing/mailbox-pool.service.js'
+    );
+    const mailbox = await selectNextMailbox(context.workspaceId);
 
-    if (gmailConn) {
+    if (!mailbox) {
+      throw new Error(
+        'No available outreach mailboxes (Gmail or Outlook) in this workspace. All daily send limits may be reached or no inboxes are connected. Check Settings → Email Outreach.'
+      );
+    }
+
+    const plainText = html ? stripHtml(body) : body;
+    const htmlBody  = html ? body : undefined;
+
+    if (mailbox.provider === 'gmail') {
       try {
-        const plainText = html ? stripHtml(body) : body;
-        const htmlBody  = html ? body : undefined;
-
         const result = await sendGmailMessage(
-          gmailConn.id,
+          mailbox.id,
           to,
           subject,
           plainText,
-          undefined,  // threadId — not applicable for outbound automation emails
+          undefined,
           htmlBody,
           fromName,
         );
-
-        // Write to contact timeline
+        await recordSendSuccess(mailbox.id);
         await writeContactEmailEvent(context.workspaceId, to, subject, body);
-
         return {
-          output: [
-            {
-              json: {
-                messageId: result.messageId,
-                threadId: result.threadId ?? null,
-                to,
-                subject,
-                provider: 'gmail',
-              },
-            },
-          ],
+          output: [{ json: { messageId: result.messageId, threadId: result.threadId ?? null, to, subject, provider: 'gmail', from: mailbox.email } }],
         };
-      } catch (gmailErr: any) {
-        // Gmail is connected but sending failed — surface the real error
-        // instead of silently falling through to Resend.
-        throw new Error(
-          `Gmail send failed: ${gmailErr?.message ?? String(gmailErr)}. ` +
-          `Check that your Gmail connection is active and has send permissions (Settings → Channels).`
-        );
+      } catch (err: any) {
+        await recordSendAuthError(mailbox.id, err);
+        throw new Error(`Gmail send failed via ${mailbox.email}: ${err?.message ?? String(err)}`);
+      }
+    } else if (mailbox.provider === 'outlook') {
+      try {
+        const { sendOutlookEmail } = await import('../../channels/outlook.service.js');
+        await sendOutlookEmail(mailbox.id, to, subject, plainText);
+        await recordSendSuccess(mailbox.id);
+        await writeContactEmailEvent(context.workspaceId, to, subject, body);
+        return {
+          output: [{ json: { messageId: null, to, subject, provider: 'outlook', from: mailbox.email } }],
+        };
+      } catch (err: any) {
+        await recordSendAuthError(mailbox.id, err);
+        throw new Error(`Outlook send failed via ${mailbox.email}: ${err?.message ?? String(err)}`);
       }
     }
 
-    throw new Error('No active Gmail connection found for this workspace. Please connect Gmail in Settings → Channels.');
+    throw new Error(`Unsupported mailbox provider: ${(mailbox as any).provider}`);
   },
 };
 

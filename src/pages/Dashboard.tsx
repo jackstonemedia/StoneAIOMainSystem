@@ -216,6 +216,18 @@ export default function Dashboard() {
     },
   });
 
+  const { data: outreachCapacity } = useQuery({
+    queryKey: ['email-marketing', 'outreach-capacity'],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get('/email-marketing/outreach/capacity');
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+  });
+
   // KPI Calculations
   const m = metrics as any;
   const wonRevenue = metrics?.revenue?.current ?? m?.revenue_won ?? m?.opportunity_metrics?.won_revenue ?? 48500;
@@ -445,6 +457,50 @@ export default function Dashboard() {
               isLoading={isMetricsLoading}
             />
           </div>
+
+          {/* ── Native Outreach Engine Live Capacity Pulse ─────────── */}
+          {outreachCapacity && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface/50 border border-border/60 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-text-main">Native Outreach Engine</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      outreachCapacity.activeMailboxesCount > 0
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    }`}>
+                      {outreachCapacity.activeMailboxesCount > 0
+                        ? `${outreachCapacity.activeMailboxesCount} Inboxes Active`
+                        : 'No Inboxes Connected'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-text-muted mt-0.5">
+                    {outreachCapacity.activeMailboxesCount > 0
+                      ? `${outreachCapacity.totalSentToday} / ${outreachCapacity.totalCapacity} emails sent today (${outreachCapacity.remainingCapacity} remaining) • 90–180s human pacing active`
+                      : 'Connect your Google Workspace or Outlook inbox in Settings to launch cold campaigns.'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => navigate('/email-marketing/campaigns/new')}
+                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors shadow-xs"
+                >
+                  New Campaign
+                </button>
+                <button
+                  onClick={() => navigate('/settings?tab=outreach')}
+                  className="px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover text-text-main rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Manage Inboxes
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Main Chart + Pipeline Funnel Split ─────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">

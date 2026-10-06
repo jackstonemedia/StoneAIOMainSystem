@@ -16,6 +16,10 @@ interface ActivityTimelineProps {
 
 const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   email:   { icon: Mail,            color: 'text-sky-400',    bg: 'bg-sky-500/15 border-sky-500/30' },
+  email_sent: { icon: Mail,         color: 'text-sky-400',    bg: 'bg-sky-500/15 border-sky-500/30' },
+  email_opened: { icon: Mail,       color: 'text-purple-400', bg: 'bg-purple-500/15 border-purple-500/30' },
+  email_clicked: { icon: Mail,      color: 'text-blue-400',   bg: 'bg-blue-500/15 border-blue-500/30' },
+  email_replied: { icon: Sparkles,  color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/30' },
   call:    { icon: Phone,           color: 'text-green-400',  bg: 'bg-green-500/15 border-green-500/30' },
   meeting: { icon: CalendarDays,    color: 'text-text-muted', bg: 'bg-primary/100/15 border-primary/30' },
   note:    { icon: FileText,        color: 'text-text-muted',  bg: 'bg-primary/100/15 border-primary/30' },
