@@ -72,6 +72,8 @@ export async function sendGmailMessage(
   threadId?: string,
   htmlBody?: string,
   fromName?: string,
+  inReplyTo?: string,
+  references?: string,
 ): Promise<{ messageId: string; threadId: string }> {
   const { gmail, conn } = await getAuthenticatedGmail(connectionId);
 
@@ -96,6 +98,8 @@ export async function sendGmailMessage(
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
+    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo.startsWith('<') ? inReplyTo : `<${inReplyTo}>`}`] : []),
+    ...(references ? [`References: ${references.startsWith('<') ? references : `<${references}>`}`] : []),
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
     `--${boundary}`,

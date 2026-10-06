@@ -573,7 +573,9 @@ export default function CalendarSchedulePage() {
     mutationFn: async (id: string) => {
       try {
         await apiClient.delete(`/business/appointments/${id}`);
-      } catch {}
+      } catch {
+        // ignore delete failure in optimistic cleanup
+      }
       return id;
     },
     onSuccess: (deletedId) => {
@@ -851,6 +853,19 @@ export default function CalendarSchedulePage() {
               </span>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const url = `${window.location.origin}/book/default`;
+              navigator.clipboard.writeText(url);
+              toast('success', 'Booking link copied!', url);
+            }}
+            className="btn-secondary flex items-center gap-1.5 text-xs"
+            title="Copy Public Booking Page Link"
+          >
+            <LinkIcon className="w-3.5 h-3.5 text-primary" /> Booking Link
+          </button>
 
           <button onClick={() => openCreateAppointment()} className="btn-secondary">
             <Plus className="w-4 h-4" /> Add Event

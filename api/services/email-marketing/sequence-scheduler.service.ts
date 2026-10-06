@@ -199,6 +199,33 @@ export async function processDripSequences(): Promise<{ processed: number; advan
       const timeElapsedMs = now.getTime() - lastSentTime;
 
       if (timeElapsedMs >= requiredWaitMs) {
+        // Find previous messageId/threadId to thread follow-up
+        const lastContactEvent = await db.contactEvent.findFirst({
+          where: {
+            contactId: recipient.contactId,
+            type: 'email',
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        let prevThreadId: string | undefined = recipient.resendMessageId || undefined;
+        let prevMessageId: string | undefined = recipient.resendMessageId || undefined;
+
+        if (lastContactEvent?.metadataJson) {
+          try {
+            const meta = JSON.parse(lastContactEvent.metadataJson);
+            if (meta.campaignId === campaign.id) {
+              if (meta.threadId) prevThreadId = meta.threadId;
+              if (meta.messageId) prevMessageId = meta.messageId;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        const stepSubject = nextStep.subject || (campaign.subject ? (campaign.subject.toLowerCase().startsWith('re:') ? campaign.subject : `Re: ${campaign.subject}`) : 'Follow-up');
+        const stepBody = nextStep.body || nextStep.html || nextStep.text || '';
+
         // Send next step follow-up email!
         console.log(`[SequenceScheduler] Sending Step ${nextStepIndex + 1} of campaign "${campaign.name}" to ${recipient.contact.email}`);
 
@@ -208,7 +235,12 @@ export async function processDripSequences(): Promise<{ processed: number; advan
           campaignRecipientId: recipient.id,
           contactId: recipient.contactId,
           type: 'CAMPAIGN',
-          subject: nextStep.subject || `Follow-up on ${campaign.subject}`,
+          subject: stepSubject,
+          overrideBody: stepBody,
+          stepIndex: nextStepIndex,
+          threadId: prevThreadId,
+          inReplyTo: prevMessageId,
+          references: prevMessageId,
         });
 
         if (result.ok) {

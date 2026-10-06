@@ -44,6 +44,7 @@ import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webh
 import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
+import publicBookingRouter from './api/routes/public-booking.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
@@ -253,6 +254,9 @@ async function startServer() {
   // ── Public email open & click tracking (no JWT) ──────────────────────────────
   app.get('/api/email-marketing/track/click', handleTrackClick);
   app.get('/api/email-marketing/track/open', handleTrackOpen);
+
+  // ── Public calendar booking & ICS downloads (no JWT) ──────────────────────────
+  app.use('/api/public/calendar', publicBookingRouter);
 
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);

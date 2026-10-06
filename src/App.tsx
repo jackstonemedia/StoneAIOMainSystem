@@ -20,6 +20,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import SSOCallback from './pages/SSOCallback';
 import Onboarding from './pages/Onboarding';
+const PublicBookingPage   = lazy(() => import('./pages/public/PublicBookingPage'));
 
 // CRM / Automations
 const Workflows          = lazy(() => import('./pages/Workflows'));
@@ -134,6 +135,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route path="/signup"     element={withAuth ? <Signup /> : <Navigate to="/crm" replace />} />
           <Route path="/sso-callback" element={withAuth ? <SSOCallback /> : <Navigate to="/crm" replace />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/book/:slug" element={<PublicBookingPage />} />
+          <Route path="/book"       element={<PublicBookingPage />} />
 
           {/* ── Protected shell ────────────────────────────────────────────── */}
           <Route element={<AppShell />}>

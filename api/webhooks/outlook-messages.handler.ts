@@ -82,6 +82,22 @@ export async function outlookWebhookHandler(req: Request, res: Response): Promis
 
       const { publishConversationEvent } = await import('../services/channels/realtime.service.js');
       await publishConversationEvent(conn.workspaceId, { type: 'new_message', conversationId: convo.id });
+
+      // ── Stop-on-Reply Hook ────────────────────────────────────────────────
+      try {
+        const { handleInboundLeadReply } = await import('../services/email-marketing/stop-on-reply.service.js');
+        await handleInboundLeadReply({
+          workspaceId: conn.workspaceId,
+          senderEmail: from,
+          subject,
+          bodySnippet: body.replace(/<[^>]*>?/gm, '').slice(0, 500),
+          messageId: externalId,
+          threadId,
+          receivedAt: new Date(),
+        });
+      } catch (replyErr) {
+        console.warn('[Outlook Webhook] Stop-on-reply handler error (non-fatal):', replyErr);
+      }
     } catch (err) {
       console.error('[Outlook Webhook] Error:', err);
     }

@@ -68,6 +68,12 @@ export interface EmailSendJobData {
   subject?: string;
   fromName?: string;
   fromEmail?: string;
+  overrideBody?: string;
+  overrideHtml?: string;
+  stepIndex?: number;
+  threadId?: string;
+  inReplyTo?: string;
+  references?: string;
 }
 
 export async function processEmailSendJobDirectly(data: EmailSendJobData): Promise<{ ok: boolean; error?: string }> {
@@ -110,6 +116,12 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     subject: overrideSubject,
     fromName,
     fromEmail,
+    overrideBody,
+    overrideHtml,
+    stepIndex,
+    threadId,
+    inReplyTo,
+    references,
   } = job.data;
 
   // ── 1. Workspace tombstone guard ──────────────────────────────────────────
@@ -180,7 +192,13 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     let rawBody = '';
     bj = campaign.blockJson as any;
 
-    if (isAbTest && variant === 'B') {
+    if (overrideHtml) {
+      rawBody = overrideHtml;
+      emailSubject = overrideSubject || campaign.subject;
+    } else if (overrideBody) {
+      rawBody = overrideBody;
+      emailSubject = overrideSubject || campaign.subject;
+    } else if (isAbTest && variant === 'B') {
       if (abConfig.bodyHtmlB && abConfig.bodyHtmlB.trim()) {
         rawBody = abConfig.bodyHtmlB;
       } else if (typeof bj === 'string') {
@@ -287,7 +305,7 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     }
   } else {
     // Automation step email — subject and HTML passed directly
-    emailHtml = '<p>Automation email content unavailable</p>';
+    emailHtml = overrideHtml || overrideBody || '<p>Automation email content unavailable</p>';
     emailSubject = overrideSubject || 'Message from Stone AIO';
   }
 
@@ -354,6 +372,7 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
           contact.email,
           emailSubject,
           emailHtml,
+          threadId,
         );
         messageId = result.conversationId || null;
       } else {
@@ -363,9 +382,11 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
           contact.email,
           emailSubject,
           plainText,
-          undefined,
+          threadId,
           emailHtml,
           sendFromName,
+          inReplyTo,
+          references,
         );
         messageId = result.messageId || null;
       }
@@ -385,17 +406,20 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       });
 
       try {
+        const stepLabel = stepIndex !== undefined ? ` Step ${stepIndex + 1}` : '';
         await db.contactEvent.create({
           data: {
             contactId,
             type: 'email',
-            title: `Campaign: ${emailSubject}`,
+            title: `Campaign${stepLabel}: ${emailSubject}`,
             content: emailHtml,
             metadataJson: JSON.stringify({
               campaignId,
               provider: mailbox.provider,
               mailboxEmail: mailbox.email,
               messageId,
+              threadId: threadId || messageId,
+              stepIndex,
             }),
           },
         });
