@@ -381,15 +381,9 @@ router.post('/campaigns/:campaignId/send-test', asyncHandler(async (req, res) =>
   const workspaceId = getWid(req);
 
   const { db } = await import('../../infrastructure/database/client.js');
-  let gmailConn = await db.channelConnection.findFirst({
+  const gmailConn = await db.channelConnection.findFirst({
     where: { workspaceId, provider: 'gmail', isActive: true },
   }).catch(() => null);
-
-  if (!gmailConn) {
-    gmailConn = await db.channelConnection.findFirst({
-      where: { provider: 'gmail', isActive: true },
-    }).catch(() => null);
-  }
 
   if (gmailConn) {
     const { sendGmailMessage } = await import('../services/channels/gmail.service.js');

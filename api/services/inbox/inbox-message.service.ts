@@ -64,14 +64,9 @@ export async function createMessage(workspaceId: string, conversationId: string,
         if (recipientEmail) {
           try {
             // Find the workspace's active Gmail channel connection
-            let gmailConn = await db.channelConnection.findFirst({
+            const gmailConn = await db.channelConnection.findFirst({
               where: { workspaceId, provider: 'gmail', isActive: true },
             });
-            if (!gmailConn) {
-              gmailConn = await db.channelConnection.findFirst({
-                where: { provider: 'gmail', isActive: true },
-              });
-            }
 
             if (gmailConn) {
               const { sendGmailMessage } = await import('../channels/gmail.service.js');

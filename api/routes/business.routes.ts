@@ -211,14 +211,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
         if (activeChannel === 'email' || activeChannel === 'gmail') {
           // ── Gmail outbound ────────────────────────────────────────────────
-          let conn = await db.channelConnection.findFirst({
+          const conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
           });
-          if (!conn) {
-            conn = await db.channelConnection.findFirst({
-              where: { provider: 'gmail', isActive: true },
-            });
-          }
 
           const recipientEmail = msgTo || convo?.contact?.email;
           const emailSubject = msgSubject || convo?.subject || '(no subject)';
@@ -273,14 +268,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
           }
         } else if (activeChannel === 'sms') {
           // ── SMS / Twilio outbound ─────────────────────────────────────────
-          let conn = await db.channelConnection.findFirst({
+          const conn = await db.channelConnection.findFirst({
             where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
           });
-          if (!conn) {
-            conn = await db.channelConnection.findFirst({
-              where: { provider: 'twilio', isActive: true },
-            });
-          }
           if (conn && convo?.contact?.phone) {
             const { decryptJson } = await import('../services/channels/encryption.js');
             const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };

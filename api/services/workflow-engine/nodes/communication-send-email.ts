@@ -80,15 +80,9 @@ export const communicationSendEmail: NodeImplementation = {
     if (!body) throw new Error('Body is required.');
 
     // ── 1. Try Gmail channel connection ─────────────────────────────────────
-    let gmailConn = await db.channelConnection.findFirst({
+    const gmailConn = await db.channelConnection.findFirst({
       where: { workspaceId: context.workspaceId, provider: 'gmail', isActive: true },
     }).catch(() => null);
-
-    if (!gmailConn) {
-      gmailConn = await db.channelConnection.findFirst({
-        where: { provider: 'gmail', isActive: true },
-      }).catch(() => null);
-    }
 
     if (gmailConn) {
       try {

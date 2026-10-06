@@ -58,14 +58,9 @@ router.post('/email', async (req, res) => {
       return res.status(400).json({ error: 'Contact not found or missing email address' });
     }
 
-    let gmailConn = await db.channelConnection.findFirst({
+    const gmailConn = await db.channelConnection.findFirst({
       where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
     });
-    if (!gmailConn) {
-      gmailConn = await db.channelConnection.findFirst({
-        where: { provider: 'gmail', isActive: true },
-      });
-    }
 
     if (!gmailConn) {
       return res.status(400).json({ error: 'No active Gmail connection found. Please connect your Gmail in Settings.' });
