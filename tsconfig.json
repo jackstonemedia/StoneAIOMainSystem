@@ -27,5 +27,5 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "exclude": ["node_modules", "dist", "tmp", "tmp_everything_claude_code"]
+  "exclude": ["node_modules", "dist", "tmp", "tmp_everything_claude_code", "src/pages/_archived"]
 }

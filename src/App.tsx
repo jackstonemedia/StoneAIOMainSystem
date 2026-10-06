@@ -43,12 +43,6 @@ const CalendarLayout          = lazy(() => import('./pages/business/calendar/Cal
 const CalendarSchedulePage    = lazy(() => import('./pages/business/calendar/CalendarSchedulePage'));
 
 const Analytics           = lazy(() => import('./pages/business/Analytics'));
-
-const ConversationsLayout = lazy(() => import('./pages/business/inbox/ConversationsLayout'));
-const ConversationsTab    = lazy(() => import('./pages/business/inbox/ConversationsTab'));
-const ManualActionsTab    = lazy(() => import('./pages/business/inbox/ManualActionsTab'));
-const SnippetsTab         = lazy(() => import('./pages/business/inbox/SnippetsTab'));
-const TriggerLinksTab     = lazy(() => import('./pages/business/inbox/TriggerLinksTab'));
 const Reputation          = lazy(() => import('./pages/business/Reputation'));
 
 // Conversations module (unified inbox — Email + SMS)
@@ -101,18 +95,6 @@ const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/Campaign
 
 // Autonomous AI SDR
 const AutonomousSdrDashboard = lazy(() => import('./pages/sdr/AutonomousSdrDashboard'));
-
-// Inbox
-const InboxLayout            = lazy(() => import('./pages/inbox/InboxLayout'));
-const InboxView              = lazy(() => import('./pages/inbox/InboxView'));
-const InboxReports           = lazy(() => import('./pages/inbox/InboxReports'));
-const InboxContacts          = lazy(() => import('./pages/inbox/InboxContacts'));
-const InboxHelpCenter        = lazy(() => import('./pages/inbox/InboxHelpCenter'));
-const InboxSettings          = lazy(() => import('./pages/inbox/settings/InboxSettings'));
-const InboxChannels          = lazy(() => import('./pages/inbox/settings/InboxChannels'));
-const InboxTeams             = lazy(() => import('./pages/inbox/settings/InboxTeams'));
-const InboxLabels            = lazy(() => import('./pages/inbox/settings/InboxLabels'));
-const InboxCannedResponses   = lazy(() => import('./pages/inbox/settings/InboxCannedResponses'));
 
 // ── App config ────────────────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -179,14 +161,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="settings" element={<ErrorBoundary><AutomationsSettings /></ErrorBoundary>} />
             </Route>
 
-            {/* Inbox (Business Hub) */}
-            <Route path="/inbox" element={<ErrorBoundary><Protect withAuth={withAuth}><ConversationsLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<Navigate to="chat" replace />} />
-              <Route path="chat"           element={<ErrorBoundary><ConversationsTab /></ErrorBoundary>} />
-              <Route path="manual-actions" element={<ErrorBoundary><ManualActionsTab /></ErrorBoundary>} />
-              <Route path="snippets"       element={<ErrorBoundary><SnippetsTab /></ErrorBoundary>} />
-              <Route path="trigger-links"  element={<ErrorBoundary><TriggerLinksTab /></ErrorBoundary>} />
-            </Route>
+
 
 
 

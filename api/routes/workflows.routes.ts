@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db } from '../../infrastructure/database/client.js';
 import { nodeRegistry } from '../services/workflow-engine/node-runner.js';
 import { encryptJson } from '../services/channels/encryption.js';
+import { scopedFindOrThrow } from '../middleware/tenant-guard.js';
 
 const router = Router();
 
@@ -294,10 +295,9 @@ router.post('/templates/:templateId/install', async (req, res) => {
 // POST /api/workflows/from-template/:templateId
 router.post('/from-template/:templateId', async (req, res) => {
   try {
-    const template = await db.workflow.findUnique({
-      where: { id: req.params.templateId }
+    const template = await scopedFindOrThrow(db.workflow, req.params.templateId, req.workspaceId!, {
+      errorMessage: 'Template not found',
     });
-    if (!template) return res.status(404).json({ error: 'Template not found' });
     
     const tplDef = await db.nativeWorkflowDefinition.findUnique({
       where: { workflowId: template.id }
@@ -322,9 +322,12 @@ router.post('/from-template/:templateId', async (req, res) => {
         }
       });
     }
-    
+
     res.json(workflow);
-  } catch (e: any) { res.status(500).json({ error: e.message }); }
+  } catch (e: any) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
 });
 // GET /api/workflows/:id/runs — Run history for a specific workflow
 router.get('/:id/runs', async (req, res) => {
@@ -507,6 +510,7 @@ router.patch('/:id/folder', async (req, res) => {
 // GET /api/workflows/:id/definition — Native workflow definition
 router.get('/:id/definition', async (req, res) => {
   try {
+    await scopedFindOrThrow(db.workflow, req.params.id, req.workspaceId!);
     let def = await db.nativeWorkflowDefinition.findUnique({
       where: { workflowId: req.params.id }
     });
@@ -526,6 +530,7 @@ router.get('/:id/definition', async (req, res) => {
       edges: JSON.parse(def.edgesJson)
     });
   } catch (e: any) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
 });
@@ -705,6 +710,7 @@ router.post('/:id/pause-native', async (req, res) => {
 // POST /api/workflows/:id/test-native
 router.post('/:id/test-native', async (req, res) => {
   try {
+    await scopedFindOrThrow(db.workflow, req.params.id, req.workspaceId!);
     const { queueService } = await import('../services/workflow-engine/queue.service.js');
     
     // Auto-generate mock trigger data if none provided
@@ -744,6 +750,7 @@ router.post('/:id/test-native', async (req, res) => {
     // result is already { runId: string } — return it directly
     res.json(result);
   } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
 });
@@ -751,6 +758,7 @@ router.post('/:id/test-native', async (req, res) => {
 // POST /api/workflows/:id/test-node
 router.post('/:id/test-node', async (req, res) => {
   try {
+    await scopedFindOrThrow(db.workflow, req.params.id, req.workspaceId!);
     const { engineService } = await import('../services/workflow-engine/engine.service.js');
     const { nodeId, inputItems } = req.body;
     
@@ -773,6 +781,7 @@ router.post('/:id/test-node', async (req, res) => {
     
     res.json({ output, duration: Date.now() - start });
   } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
 });

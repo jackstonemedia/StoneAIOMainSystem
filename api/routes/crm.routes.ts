@@ -14,6 +14,7 @@ import {
 import { validate } from '../middleware/validate.js';
 import * as crm from '../services/crm.service.js';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
+import { scopedFindOrThrow, findScopedStageOrThrow } from '../middleware/tenant-guard.js';
 
 const router = Router();
 
@@ -244,25 +245,57 @@ router.delete('/pipelines/:id', async (req, res) => {
 router.post('/pipelines/:id/stages', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
+    await scopedFindOrThrow(db.pipeline, req.params.id, req.workspaceId!);
+    const { name, color, order, probability } = req.body;
     res.json(await db.pipelineStage.create({
-      data: { pipelineId: req.params.id, name: req.body.name, color: req.body.color ?? '#cbd5e1', order: req.body.order ?? 0, probability: req.body.probability ?? 0 },
+      data: {
+        pipelineId: req.params.id,
+        name: name || 'New Stage',
+        color: color ?? '#cbd5e1',
+        order: typeof order === 'number' ? order : 0,
+        probability: typeof probability === 'number' ? probability : 0,
+      },
     }));
-  } catch (e) { dbErr(res, e); }
+  } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
+    dbErr(res, e);
+  }
 });
 
 router.put('/pipelines/:pipelineId/stages/:stageId', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.pipelineStage.update({ where: { id: req.params.stageId }, data: req.body }));
-  } catch (e) { dbErr(res, e); }
+    await findScopedStageOrThrow(req.params.stageId, req.workspaceId!);
+    const { name, color, order, probability, isWon, isLost, requiredFieldsJson } = req.body;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (color !== undefined) updateData.color = color;
+    if (order !== undefined) updateData.order = order;
+    if (probability !== undefined) updateData.probability = probability;
+    if (isWon !== undefined) updateData.isWon = Boolean(isWon);
+    if (isLost !== undefined) updateData.isLost = Boolean(isLost);
+    if (requiredFieldsJson !== undefined) updateData.requiredFieldsJson = requiredFieldsJson;
+
+    res.json(await db.pipelineStage.update({
+      where: { id: req.params.stageId },
+      data: updateData,
+    }));
+  } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
+    dbErr(res, e);
+  }
 });
 
 router.delete('/pipelines/:pipelineId/stages/:stageId', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
+    await findScopedStageOrThrow(req.params.stageId, req.workspaceId!);
     await db.pipelineStage.delete({ where: { id: req.params.stageId } });
     res.json({ success: true });
-  } catch (e) { dbErr(res, e); }
+  } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
+    dbErr(res, e);
+  }
 });
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
@@ -306,7 +339,20 @@ router.get('/activities', async (req, res) => {
 router.post('/activities', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.activity.create({ data: { ...req.body, workspaceId: req.workspaceId } }));
+    const { dealId, contactId, companyId, type, title, notes, duration, outcome } = req.body;
+    res.json(await db.activity.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        dealId: dealId || null,
+        contactId: contactId || null,
+        companyId: companyId || null,
+        type: type || 'note',
+        title: title || 'Activity',
+        notes: notes || null,
+        duration: typeof duration === 'number' ? duration : null,
+        outcome: outcome || null,
+      },
+    }));
   } catch (e) { dbErr(res, e); }
 });
 
@@ -323,14 +369,40 @@ router.get('/custom-fields', async (req, res) => {
 router.post('/custom-fields', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.customField.create({ data: { ...req.body, workspaceId: req.workspaceId } }));
+    const { entityType, label, type, optionsJson, required, order, pipelineId, scope } = req.body;
+    res.json(await db.customField.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        entityType: entityType || 'contact',
+        label: label || 'Custom Field',
+        type: type || 'text',
+        optionsJson: typeof optionsJson === 'string' ? optionsJson : JSON.stringify(optionsJson || []),
+        required: Boolean(required),
+        order: typeof order === 'number' ? order : 0,
+        pipelineId: pipelineId || null,
+        scope: scope || 'all',
+      },
+    }));
   } catch (e) { dbErr(res, e); }
 });
 
 router.put('/custom-fields/:id', async (req, res) => {
   try {
     const { db } = await import('../../infrastructure/database/client.js');
-    res.json(await db.customField.update({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: req.body }));
+    const { label, type, optionsJson, required, order, pipelineId, scope } = req.body;
+    const updateData: any = {};
+    if (label !== undefined) updateData.label = label;
+    if (type !== undefined) updateData.type = type;
+    if (optionsJson !== undefined) updateData.optionsJson = typeof optionsJson === 'string' ? optionsJson : JSON.stringify(optionsJson);
+    if (required !== undefined) updateData.required = Boolean(required);
+    if (order !== undefined) updateData.order = Number(order);
+    if (pipelineId !== undefined) updateData.pipelineId = pipelineId;
+    if (scope !== undefined) updateData.scope = scope;
+
+    res.json(await db.customField.update({
+      where: { id: req.params.id, workspaceId: req.workspaceId },
+      data: updateData,
+    }));
   } catch (e) { dbErr(res, e); }
 });
 

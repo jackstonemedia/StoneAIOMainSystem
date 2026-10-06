@@ -19,12 +19,17 @@ const mockWorkspaceFindUnique = vi.fn().mockResolvedValue({
 
 const mockSessionRetrieve = vi.fn();
 
+const mockMemberFindFirst = vi.fn().mockResolvedValue({ role: 'admin' });
+
 vi.mock('../../../infrastructure/database/client.js', () => ({
   db: {
     workspace: {
       findUnique: (...args: any[]) => mockWorkspaceFindUnique(...args),
       findFirst: (...args: any[]) => mockWorkspaceFindUnique(...args),
       update: (...args: any[]) => mockWorkspaceUpdate(...args),
+    },
+    workspaceMember: {
+      findFirst: (...args: any[]) => mockMemberFindFirst(...args),
     },
     user: {
       findUnique: vi.fn().mockResolvedValue(null),
@@ -44,11 +49,13 @@ vi.mock('stripe', () => {
   };
 });
 
-function createApp(workspaceId: string = 'ws-test') {
+function createApp(workspaceId: string = 'ws-test', userRole: string = 'admin') {
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => {
     (req as any).workspaceId = workspaceId;
+    (req as any).userId = 'user-admin';
+    (req as any).userRole = userRole;
     next();
   });
   app.use('/api', billingRouter);
@@ -174,6 +181,20 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
           }),
         })
       );
+    });
+
+    it('rejects member without admin or owner role from managing billing plans', async () => {
+      process.env.NODE_ENV = 'development';
+      process.env.ENABLE_DEV_BILLING_BYPASS = 'true';
+      const app = createApp('ws-test', 'member');
+
+      const res = await request(app)
+        .post('/api/billing/dev-set-plan')
+        .send({ planId: 'scale' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain('Forbidden — insufficient permissions');
+      expect(mockWorkspaceUpdate).not.toHaveBeenCalled();
     });
   });
 });

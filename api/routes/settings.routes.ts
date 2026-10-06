@@ -13,7 +13,7 @@ router.get('/workspace', async (req, res) => {
   } catch (e) { res.json({ id: req.workspaceId, name: 'Stone AIO', plan: 'pro' }); }
 });
 
-router.put('/workspace', async (req, res) => {
+router.put('/workspace', requireRole('admin', 'owner'), async (req, res) => {
   try {
     const { name } = req.body;
     let ws = await db.workspace.findUnique({ where: { id: req.workspaceId } });

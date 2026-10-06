@@ -62,14 +62,14 @@ export const ROUTES = {
   },
 
   INBOX: {
-    ROOT: '/inbox',
-    CONVERSATION: (id: string) => `/inbox/conversations/${id}`,
-    REPORTS: '/inbox/reports',
+    ROOT: '/conversations',
+    CONVERSATION: (id: string) => `/conversations/${id}`,
+    REPORTS: '/conversations',
     SETTINGS: {
-      CHANNELS: '/inbox/settings/channels',
-      TEAMS: '/inbox/settings/teams',
-      LABELS: '/inbox/settings/labels',
-      CANNED: '/inbox/settings/canned-responses',
+      CHANNELS: '/conversations/settings/channels',
+      TEAMS: '/conversations/settings',
+      LABELS: '/conversations/settings/tags',
+      CANNED: '/conversations/settings/templates',
     },
   },
 } as const;

@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
 import { validate } from '../middleware/validate.js';
+import { requireRole } from '../middleware/tenant-guard.js';
 
 const createCheckoutSchema = {
   body: z.object({
@@ -40,7 +41,7 @@ export const PLAN_CONFIGS: Record<string, { name: string; amount: number; credit
 };
 
 // ── 1. Create Checkout Session for Subscriptions ────────────────────────────
-router.post('/billing/create-checkout-session', validate(createCheckoutSchema), async (req: Request, res: Response) => {
+router.post('/billing/create-checkout-session', requireRole('admin', 'owner'), validate(createCheckoutSchema), async (req: Request, res: Response) => {
   try {
     const { planId, returnUrl } = req.body;
     const workspaceId = (req as any).workspaceId;
@@ -168,7 +169,7 @@ router.post('/billing/verify-session', async (req: Request, res: Response) => {
 });
 
 // ── 3. Dev / Sandbox Plan Switcher ───────────────────────────────────────────
-router.post('/billing/dev-set-plan', async (req: Request, res: Response) => {
+router.post('/billing/dev-set-plan', requireRole('admin', 'owner'), async (req: Request, res: Response) => {
   // Hard-blocked in production and disabled unless explicit dev bypass flag is set
   if (process.env.NODE_ENV === 'production' || process.env.ENABLE_DEV_BILLING_BYPASS !== 'true') {
     return res.status(403).json({ error: 'Forbidden: dev plan switching is disabled.' });
@@ -198,7 +199,7 @@ router.post('/billing/dev-set-plan', async (req: Request, res: Response) => {
 });
 
 // ── 4. Create Stripe Customer Portal Session ─────────────────────────────────
-router.post('/billing/create-portal-session', async (req: Request, res: Response) => {
+router.post('/billing/create-portal-session', requireRole('admin', 'owner'), async (req: Request, res: Response) => {
   try {
     const workspaceId = (req as any).workspaceId;
     if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });

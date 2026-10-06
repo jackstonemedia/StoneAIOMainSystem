@@ -16,6 +16,8 @@ import {
   SavedViewSchema,
 } from '../schemas/opportunities.schema.js';
 import { validate } from '../middleware/validate.js';
+import { db } from '../../infrastructure/database/client.js';
+import { scopedFindOrThrow, findScopedStageOrThrow } from '../middleware/tenant-guard.js';
 
 const router = Router();
 
@@ -156,6 +158,7 @@ router.delete('/pipelines/:id', async (req: Request, res: Response) => {
 // PUT /api/opportunities/pipelines/:id/stages/reorder
 router.put('/pipelines/:id/stages/reorder', async (req: Request, res: Response) => {
   try {
+    await scopedFindOrThrow(db.pipeline, req.params.id, req.workspaceId!);
     const { stageIds } = req.body;
     if (!Array.isArray(stageIds)) return res.status(400).json({ error: 'stageIds array is required' });
     res.json(await oppService.reorderStages(req.params.id, stageIds));
@@ -167,6 +170,7 @@ router.put('/pipelines/:id/stages/reorder', async (req: Request, res: Response) 
 // POST /api/opportunities/pipelines/:id/stages
 router.post('/pipelines/:id/stages', validate({ body: StageCreateSchema }), async (req: Request, res: Response) => {
   try {
+    await scopedFindOrThrow(db.pipeline, req.params.id, req.workspaceId!);
     res.json(await oppService.createStage(req.params.id, req.body));
   } catch (e) {
     sendErr(res, e);
@@ -176,6 +180,7 @@ router.post('/pipelines/:id/stages', validate({ body: StageCreateSchema }), asyn
 // PUT /api/opportunities/stages/:stageId
 router.put('/stages/:stageId', validate({ body: StageUpdateSchema }), async (req: Request, res: Response) => {
   try {
+    await findScopedStageOrThrow(req.params.stageId, req.workspaceId!);
     res.json(await oppService.updateStage(req.params.stageId, req.body));
   } catch (e) {
     sendErr(res, e);
@@ -185,7 +190,11 @@ router.put('/stages/:stageId', validate({ body: StageUpdateSchema }), async (req
 // DELETE /api/opportunities/stages/:stageId
 router.delete('/stages/:stageId', async (req: Request, res: Response) => {
   try {
+    await findScopedStageOrThrow(req.params.stageId, req.workspaceId!);
     const reassignmentStageId = req.query.reassignmentStageId as string;
+    if (reassignmentStageId) {
+      await findScopedStageOrThrow(reassignmentStageId, req.workspaceId!);
+    }
     await oppService.deleteStage(req.params.stageId, reassignmentStageId);
     res.json({ success: true });
   } catch (e) {

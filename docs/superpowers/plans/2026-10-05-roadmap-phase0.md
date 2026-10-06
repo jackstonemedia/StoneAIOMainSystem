@@ -102,11 +102,11 @@
 - Modify: `api/routes/settings.routes.ts`
 - Test: `api/middleware/__tests__/tenant-guard.test.ts`
 
-- [ ] **Step 1: Implement `scopedFindOrThrow(model, id, workspaceId)` and `requireRole(['owner', 'admin'])` middleware**
-- [ ] **Step 2: Apply `requireRole` on mutating workspace settings, team member deletion, and billing routes**
-- [ ] **Step 3: Replace unscoped `stageId` / pipeline stage queries and workflow cloning with `scopedFindOrThrow`**
-- [ ] **Step 4: Replace open `data: req.body` spreads with explicit allow-listed properties**
-- [ ] **Step 5: Run tests**
+- [x] **Step 1: Implement `scopedFindOrThrow(model, id, workspaceId)` and `requireRole(['owner', 'admin'])` middleware**
+- [x] **Step 2: Apply `requireRole` on mutating workspace settings, team member deletion, and billing routes**
+- [x] **Step 3: Replace unscoped `stageId` / pipeline stage queries and workflow cloning with `scopedFindOrThrow`**
+- [x] **Step 4: Replace open `data: req.body` spreads with explicit allow-listed properties**
+- [x] **Step 5: Run tests**
 
 ---
 
@@ -117,10 +117,10 @@
 - Modify: `server.ts`
 - Test: `src/components/__tests__/conversations-routing.test.tsx`
 
-- [ ] **Step 1: Ensure `/inbox` redirects immediately to `/conversations`**
-- [ ] **Step 2: Verify all internal navigation links point to `/conversations`**
-- [ ] **Step 3: Move unused duplicate inbox folders (`src/pages/inbox`, `src/pages/business/inbox`) to `src/pages/_archived/`**
-- [ ] **Step 4: Run typecheck and linting**
+- [x] **Step 1: Ensure `/inbox` redirects immediately to `/conversations`**
+- [x] **Step 2: Verify all internal navigation links point to `/conversations`**
+- [x] **Step 3: Move unused duplicate inbox folders (`src/pages/inbox`, `src/pages/business/inbox`) to `src/pages/_archived/`**
+- [x] **Step 4: Run typecheck and linting**
 
 ---
 
@@ -129,17 +129,17 @@
 **Files:**
 - Create: `api/__tests__/multi-tenant-isolation.test.ts`
 
-- [ ] **Step 1: Create fixture creating Workspace A and Workspace B with mock contacts, deals, conversations, campaigns, and workflows**
-- [ ] **Step 2: Write tests proving Workspace A cannot read Workspace B records (returns 404 or empty list)**
-- [ ] **Step 3: Write tests proving Workspace A cannot update or delete Workspace B records (returns 404 or 403)**
-- [ ] **Step 4: Run full vitest suite and verify all isolation assertions pass**
+- [x] **Step 1: Create fixture creating Workspace A and Workspace B with mock contacts, deals, conversations, campaigns, and workflows**
+- [x] **Step 2: Write tests proving Workspace A cannot read Workspace B records (returns 404 or empty list)**
+- [x] **Step 3: Write tests proving Workspace A cannot update or delete Workspace B records (returns 404 or 403)**
+- [x] **Step 4: Run full vitest suite and verify all isolation assertions pass**
 
 ---
 
 ### Task 8: Verification Gate & Phase 0 Sign-Off Report
 
-- [ ] **Step 1: Run `npm run typecheck` (`tsc --noEmit`)**
-- [ ] **Step 2: Run `npm run lint`**
-- [ ] **Step 3: Run `vitest run`**
-- [ ] **Step 4: Verify dev server endpoints and health check**
-- [ ] **Step 5: Present Phase 0 completion report and script to user for sign-off**
+- [x] **Step 1: Run `npm run typecheck` (`tsc --noEmit`)**
+- [x] **Step 2: Run `npm run lint`**
+- [x] **Step 3: Run `vitest run`**
+- [x] **Step 4: Verify dev server endpoints and health check**
+- [x] **Step 5: Present Phase 0 completion report and script to user for sign-off**

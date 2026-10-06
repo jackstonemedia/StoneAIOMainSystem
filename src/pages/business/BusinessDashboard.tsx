@@ -251,7 +251,7 @@ export default function BusinessDashboard() {
                   { label:'Add Contact',   icon:Users,        path:'/business/crm/contacts', hex:'#52677D' },
                   { label:'Create Form',   icon:FileText,     path:'/business/forms',        hex:'#BDC4D4' },
                   { label:'Analytics',     icon:BarChart3,    path:'/business/analytics',    hex:'#52677D' },
-                  { label:'Send Message',  icon:MessageSquare,path:'/inbox',                 hex:'#10B981' },
+                  { label:'Send Message',  icon:MessageSquare,path:'/conversations',           hex:'#10B981' },
                   { label:'Reputation',    icon:Star,         path:'/business/reputation',   hex:'#EF4444' },
                 ].map((a, i) => (
                   <button
