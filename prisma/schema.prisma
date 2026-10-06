@@ -489,8 +489,10 @@ model Contact {
   // Email Marketing engagement fields & relations
   lastEmailOpenedAt     DateTime?         @map("last_email_opened_at")
   lastEmailClickedAt    DateTime?         @map("last_email_clicked_at")
+  lastEmailRepliedAt    DateTime?         @map("last_email_replied_at")
   totalEmailsReceived   Int               @default(0) @map("total_emails_received")
   totalOpens            Int               @default(0) @map("total_opens")
+  totalReplies          Int               @default(0) @map("total_replies")
   listMemberships       ContactListMembership[]
   campaignRecipients    CampaignRecipient[]
   automationEnrollments AutomationEnrollment[]
@@ -642,7 +644,7 @@ model ChannelConnection {
   userId                    String    @map("user_id")
   provider                  String // "gmail" | "outlook" | "twilio"
   label                     String? // e.g. "Work Gmail" — display name
-  email                     String? // connected email address (for display only)
+  email                     String? // connected email address or phone for twilio
   credentialsJson           String    @map("credentials_json") // AES-256-GCM encrypted JSON
   isActive                  Boolean   @default(true) @map("is_active")
   // Twilio-specific
@@ -653,11 +655,24 @@ model ChannelConnection {
   // Gmail-specific (tracks polling state)
   gmailHistoryId            String?   @map("gmail_history_id")
   lastPolledAt              DateTime? @map("last_polled_at")
+
+  // Native Outreach Engine & Quota Tracking
+  dailySendLimit            Int       @default(40) @map("daily_send_limit")
+  sentTodayCount            Int       @default(0) @map("sent_today_count")
+  lastSentAt                DateTime? @map("last_sent_at")
+  lastResetAt               DateTime? @map("last_reset_at")
+  status                    String    @default("ACTIVE") // "ACTIVE" | "WARMUP" | "PAUSED" | "DISCONNECTED" | "ERROR"
+  consecutiveBounces        Int       @default(0) @map("consecutive_bounces")
+  minDelaySeconds           Int       @default(90) @map("min_delay_seconds")
+  maxDelaySeconds           Int       @default(180) @map("max_delay_seconds")
+  warmupDay                 Int       @default(0) @map("warmup_day")
+
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
   workspace                 Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaignRecipients        CampaignRecipient[]
 
-  @@unique([workspaceId, userId, provider])
+  @@unique([workspaceId, provider, email])
   @@index([workspaceId])
   @@map("channel_connections")
 }
@@ -1664,6 +1679,7 @@ enum EnrollmentExitReason {
   UNSUBSCRIBED
   SUPPRESSED
   CONTACT_DELETED
+  REPLIED
 }
 
 enum EmailEventType {
@@ -1675,6 +1691,7 @@ enum EmailEventType {
   BOUNCED
   COMPLAINED
   UNSUBSCRIBED
+  REPLIED
 }
 
 enum ConsentSource {
@@ -1743,40 +1760,53 @@ model EmailTemplate {
 }
 
 model Campaign {
-  id             String              @id @default(uuid())
-  workspaceId    String              @map("workspace_id")
-  name           String
-  subject        String
-  status         CampaignStatus      @default(DRAFT)
-  blockJson      Json                @map("block_json")
-  listId         String?             @map("list_id")
-  segmentId      String?             @map("segment_id")
-  smartListId    String?             @map("smart_list_id")
-  scheduledAtUtc DateTime?           @map("scheduled_at_utc")
-  sentAtUtc      DateTime?           @map("sent_at_utc")
-  abTestConfig   Json?               @map("ab_test_config")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  recipients     CampaignRecipient[]
+  id                 String              @id @default(uuid())
+  workspaceId        String              @map("workspace_id")
+  name               String
+  subject            String
+  status             CampaignStatus      @default(DRAFT)
+  blockJson          Json                @map("block_json")
+  listId             String?             @map("list_id")
+  segmentId          String?             @map("segment_id")
+  smartListId        String?             @map("smart_list_id")
+  scheduledAtUtc     DateTime?           @map("scheduled_at_utc")
+  sentAtUtc          DateTime?           @map("sent_at_utc")
+  abTestConfig       Json?               @map("ab_test_config")
+  multiDayProgress   Json?               @map("multi_day_progress")
+  dailyBatchLimit    Int?                @map("daily_batch_limit")
+  sendingWindowStart String?             @default("09:00") @map("sending_window_start")
+  sendingWindowEnd   String?             @default("17:00") @map("sending_window_end")
+  sendingTimezone    String?             @default("America/New_York") @map("sending_timezone")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients         CampaignRecipient[]
 
   @@index([workspaceId])
   @@map("email_campaigns")
 }
 
 model CampaignRecipient {
-  id              String    @id @default(uuid())
-  campaignId      String    @map("campaign_id")
-  contactId       String    @map("contact_id")
-  variant         String?
-  sentAt          DateTime? @map("sent_at")
-  status          String
-  resendMessageId String?   @map("resend_message_id")
-  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(uuid())
+  campaignId          String             @map("campaign_id")
+  contactId           String             @map("contact_id")
+  channelConnectionId String?            @map("channel_connection_id")
+  variant             String?
+  scheduledForDate    DateTime?          @map("scheduled_for_date")
+  sentAt              DateTime?          @map("sent_at")
+  openedAt            DateTime?          @map("opened_at")
+  clickedAt           DateTime?          @map("clicked_at")
+  repliedAt           DateTime?          @map("replied_at")
+  unsubscribedAt      DateTime?          @map("unsubscribed_at")
+  status              String
+  resendMessageId     String?            @map("resend_message_id")
+  campaign            Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact             Contact            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channelConnection   ChannelConnection? @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
 
   @@index([campaignId])
   @@index([contactId])
+  @@index([channelConnectionId])
   @@index([resendMessageId])
   @@map("campaign_recipients")
 }

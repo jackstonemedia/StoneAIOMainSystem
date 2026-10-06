@@ -341,6 +341,16 @@ router.delete('/campaigns/:campaignId', asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+router.get('/outreach/capacity', asyncHandler(async (req, res) => {
+  const { getWorkspaceOutreachCapacity } = await import('../services/email-marketing/mailbox-pool.service.js');
+  res.json(await getWorkspaceOutreachCapacity(getWid(req)));
+}));
+
+router.get('/campaigns/:campaignId/outreach-plan', asyncHandler(async (req, res) => {
+  const { getCampaignOutreachPlan } = await import('../services/email-marketing/campaigns.service.js');
+  res.json(await getCampaignOutreachPlan(getWid(req), req.params.campaignId));
+}));
+
 router.post('/campaigns/:campaignId/send', asyncHandler(async (req, res) => {
   const result = await sendCampaign(getWid(req), req.params.campaignId);
   res.json(result);
@@ -511,7 +521,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
       let appHost: string | null = null;
       try {
         if (appUrl) appHost = new URL(appUrl).hostname;
-      } catch {}
+      } catch {
+        // ignore
+      }
       const allowedHosts = appHost ? [appHost, 'localhost'] : ['localhost'];
       isAllowed = isSafeRedirectUrl(targetUrl, allowedHosts);
     }
@@ -572,7 +584,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
             metadataJson: JSON.stringify({ campaignId, linkUrl: safeUrl }),
           },
         });
-      } catch {}
+      } catch {
+        // ignore
+      }
 
       // 4. Emit internal trigger for automations / workflows
       try {
@@ -582,7 +596,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
           campaignId,
           linkUrl: safeUrl,
         });
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
   } catch (err) {
     console.error('[TrackClick] Error recording click event:', err);
@@ -645,7 +661,9 @@ export async function handleTrackOpen(req: Request, res: Response): Promise<void
           contactId,
           campaignId,
         });
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
   } catch (err) {
     console.error('[TrackOpen] Error recording open event:', err);

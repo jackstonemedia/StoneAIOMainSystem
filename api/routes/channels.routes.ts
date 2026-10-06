@@ -16,12 +16,16 @@ router.get('/connections', async (req, res) => {
       select: {
         id: true, userId: true, provider: true, label: true, email: true,
         twilioPhoneNumber: true, isActive: true, createdAt: true,
+        dailySendLimit: true, sentTodayCount: true, status: true,
+        lastSentAt: true, lastResetAt: true, consecutiveBounces: true,
+        minDelaySeconds: true, maxDelaySeconds: true, warmupDay: true,
       },
       orderBy: { createdAt: 'desc' },
     });
     res.json(connections);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
+
 
 // ── Disconnect a channel connection ───────────────────────────────────────────
 // SECURITY: Validates BOTH workspaceId AND userId.
@@ -63,13 +67,13 @@ router.get('/gmail/callback', async (req, res) => {
 
     await db.channelConnection.upsert({
       where: {
-        workspaceId_userId_provider: {
+        workspaceId_provider_email: {
           workspaceId: state.workspaceId,
-          userId: state.userId,
           provider: 'gmail',
+          email,
         },
       },
-      update: { credentialsJson: encryptJson(credentials), email, isActive: true, updatedAt: new Date() },
+      update: { credentialsJson: encryptJson(credentials), email, isActive: true, updatedAt: new Date(), status: 'ACTIVE' },
       create: {
         workspaceId: state.workspaceId,
         userId: state.userId,
@@ -78,6 +82,7 @@ router.get('/gmail/callback', async (req, res) => {
         email,
         credentialsJson: encryptJson(credentials),
         isActive: true,
+        status: 'ACTIVE',
       },
     });
 
@@ -117,13 +122,13 @@ router.get('/outlook/callback', async (req, res) => {
 
     const conn = await db.channelConnection.upsert({
       where: {
-        workspaceId_userId_provider: {
+        workspaceId_provider_email: {
           workspaceId: state.workspaceId,
-          userId: state.userId,
           provider: 'outlook',
+          email,
         },
       },
-      update: { credentialsJson: encryptJson(credentials), email, isActive: true, updatedAt: new Date() },
+      update: { credentialsJson: encryptJson(credentials), email, isActive: true, updatedAt: new Date(), status: 'ACTIVE' },
       create: {
         workspaceId: state.workspaceId,
         userId: state.userId,
@@ -132,6 +137,7 @@ router.get('/outlook/callback', async (req, res) => {
         email,
         credentialsJson: encryptJson(credentials),
         isActive: true,
+        status: 'ACTIVE',
       },
     });
 
@@ -169,17 +175,19 @@ router.post('/sms/connect', async (req, res) => {
   try {
     const conn = await db.channelConnection.upsert({
       where: {
-        workspaceId_userId_provider: {
+        workspaceId_provider_email: {
           workspaceId: req.workspaceId,
-          userId: req.userId!,
           provider: 'twilio',
+          email: phoneNumber,
         },
       },
       update: {
         credentialsJson: encryptJson({ accountSid, authToken }),
         twilioPhoneNumber: phoneNumber,
+        email: phoneNumber,
         label: `SMS (${phoneNumber})`,
         isActive: true,
+        status: 'ACTIVE',
         updatedAt: new Date(),
       },
       create: {
@@ -187,9 +195,11 @@ router.post('/sms/connect', async (req, res) => {
         userId: req.userId!,
         provider: 'twilio',
         label: `SMS (${phoneNumber})`,
+        email: phoneNumber,
         twilioPhoneNumber: phoneNumber,
         credentialsJson: encryptJson({ accountSid, authToken }),
         isActive: true,
+        status: 'ACTIVE',
       },
     });
     res.json({ success: true, id: conn.id, label: conn.label, phoneNumber: conn.twilioPhoneNumber });
@@ -206,7 +216,8 @@ router.patch('/connections/:id', async (req, res) => {
     if (conn.workspaceId !== req.workspaceId) return res.status(403).json({ error: 'Forbidden' });
 
     const {
-      label, isActive, twoWaySync, signature, autoReply, autoReplyText,
+      label, isActive, dailySendLimit, status,
+      twoWaySync, signature, autoReply, autoReplyText,
       sharedWithUserIds, archiveOnReply, forwardingNumber, businessHoursAutoReply,
       teamRoutingId, stopStartHandling, quietHoursEnabled
     } = req.body;
@@ -214,6 +225,27 @@ router.patch('/connections/:id', async (req, res) => {
     const data: any = {};
     if (label !== undefined) data.label = label;
     if (isActive !== undefined) data.isActive = isActive;
+
+    if (dailySendLimit !== undefined) {
+      const limit = Number(dailySendLimit);
+      if (isNaN(limit) || limit < 1 || limit > 50) {
+        return res.status(400).json({ error: 'Daily send limit must be between 1 and 50' });
+      }
+      data.dailySendLimit = limit;
+    }
+
+    if (status !== undefined) {
+      const validStatuses = ['ACTIVE', 'WARMUP', 'PAUSED', 'DISCONNECTED', 'ERROR'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}` });
+      }
+      data.status = status;
+      if (status === 'PAUSED' || status === 'DISCONNECTED') {
+        data.isActive = false;
+      } else if (status === 'ACTIVE' || status === 'WARMUP') {
+        data.isActive = true;
+      }
+    }
 
     const updated = await db.channelConnection.update({
       where: { id: req.params.id },

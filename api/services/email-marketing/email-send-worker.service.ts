@@ -90,7 +90,9 @@ export async function processEmailSendJobDirectly(data: EmailSendJobData): Promi
         where: { id: data.campaignRecipientId },
         data: { status: `FAILED:${String(err.message).slice(0, 100)}` },
       });
-    } catch {}
+    } catch {
+      // ignore
+    }
     return { ok: false, error: err.message };
   }
 }
@@ -295,7 +297,7 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     const baseUrl = env.PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || env.VITE_APP_URL || 'http://localhost:4000';
 
     // 0. Auto-convert plain URLs not already inside an <a> tag
-    emailHtml = emailHtml.replace(/(^|[^"'>=\/])((https?:\/\/|www\.)[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=]+)/gi, (match, prefix, url) => {
+    emailHtml = emailHtml.replace(/(^|[^"'>=/])((https?:\/\/|www\.)[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=]+)/gi, (match, prefix, url) => {
       const href = url.startsWith('www.') ? `https://${url}` : url;
       return `${prefix}<a href="${href}">${url}</a>`;
     });
@@ -330,27 +332,47 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     }
   }
 
-  // ── 5. Send via Gmail Channel ──────────────────────────────────────────
-  const gmailConn = await db.channelConnection.findFirst({
-    where: { workspaceId, provider: 'gmail', isActive: true },
-  }).catch(() => null);
+  // ── 5. Select Outbound Mailbox from Multi-Inbox Pool ───────────────────
+  const {
+    selectNextMailbox,
+    recordSendSuccess,
+    recordSendBounce,
+    recordSendAuthError,
+  } = await import('./mailbox-pool.service.js');
 
-  if (gmailConn) {
+  const mailbox = await selectNextMailbox(workspaceId);
+
+  if (mailbox) {
     try {
-      const { sendGmailMessage } = await import('../channels/gmail.service.js');
+      let messageId: string | null = null;
       const plainText = emailHtml.replace(/<[^>]*>?/gm, '').trim();
-      const result = await sendGmailMessage(
-        gmailConn.id,
-        contact.email,
-        emailSubject,
-        plainText,
-        undefined,
-        emailHtml,
-        sendFromName,
-      );
 
-      const messageId = result.messageId || null;
-      await markRecipientSent(campaignRecipientId, messageId);
+      if (mailbox.provider === 'outlook') {
+        const { sendOutlookMessage } = await import('../channels/outlook.service.js');
+        const result = await sendOutlookMessage(
+          mailbox.id,
+          contact.email,
+          emailSubject,
+          emailHtml,
+        );
+        messageId = result.conversationId || null;
+      } else {
+        const { sendGmailMessage } = await import('../channels/gmail.service.js');
+        const result = await sendGmailMessage(
+          mailbox.id,
+          contact.email,
+          emailSubject,
+          plainText,
+          undefined,
+          emailHtml,
+          sendFromName,
+        );
+        messageId = result.messageId || null;
+      }
+
+      // Record send success & quota increment for this mailbox
+      await recordSendSuccess(mailbox.id);
+      await markRecipientSent(campaignRecipientId, messageId, mailbox.id);
 
       await db.emailEvent.create({
         data: {
@@ -369,10 +391,17 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
             type: 'email',
             title: `Campaign: ${emailSubject}`,
             content: emailHtml,
-            metadataJson: JSON.stringify({ campaignId, provider: 'gmail', messageId }),
+            metadataJson: JSON.stringify({
+              campaignId,
+              provider: mailbox.provider,
+              mailboxEmail: mailbox.email,
+              messageId,
+            }),
           },
         });
-      } catch {}
+      } catch {
+        // ignore
+      }
 
       await db.contact.updateMany({
         where: { id: contactId, workspaceId },
@@ -383,10 +412,17 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       });
 
       return;
-    } catch (gmailErr: any) {
-      console.error(`[EmailSendWorker] Gmail send failed for ${contact.email}:`, gmailErr.message);
-      
-      const errorMsg = `Gmail send failed: ${gmailErr.message}`;
+    } catch (sendErr: any) {
+      console.error(`[EmailSendWorker] Send failed for ${contact.email} via ${mailbox.email}:`, sendErr.message);
+
+      // Track bounce or auth error
+      if (sendErr.message?.toLowerCase().includes('bounce') || sendErr.message?.toLowerCase().includes('undeliver')) {
+        await recordSendBounce(mailbox.id);
+      } else {
+        await recordSendAuthError(mailbox.id, sendErr.message);
+      }
+
+      const errorMsg = `Outreach send failed: ${sendErr.message}`;
       if (job.attemptsMade >= (job.opts.attempts ?? 4) - 1) {
         await markRecipientFailed(campaignRecipientId, errorMsg);
         return;
@@ -394,7 +430,25 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
       throw new Error(errorMsg);
     }
   } else {
-    const errorMsg = 'No active Gmail connection found for this workspace. A connected Gmail account is required to send emails.';
+    // Check if mailboxes exist but all daily quotas are exhausted
+    const allMailboxes = await db.channelConnection.findMany({
+      where: { workspaceId, provider: { in: ['gmail', 'outlook'] } },
+      select: { id: true, dailySendLimit: true, sentTodayCount: true, status: true },
+    });
+
+    const isQuotaExhausted = allMailboxes.some(m => m.sentTodayCount >= m.dailySendLimit);
+
+    if (isQuotaExhausted) {
+      // Defer to next day instead of failing
+      console.warn(`[EmailSendWorker] Workspace ${workspaceId} reached daily mailbox quota. Deferring recipient ${campaignRecipientId}.`);
+      await db.campaignRecipient.updateMany({
+        where: { id: campaignRecipientId },
+        data: { status: 'DEFERRED_DAILY_LIMIT' },
+      });
+      return;
+    }
+
+    const errorMsg = 'No active Gmail or Outlook mailbox connected for this workspace. Please connect a mailbox in Settings.';
     if (job.attemptsMade >= (job.opts.attempts ?? 4) - 1) {
       await markRecipientFailed(campaignRecipientId, errorMsg);
       return;
@@ -418,10 +472,15 @@ function parseCustomFields(customFieldsJson: string | null | undefined): Record<
   }
 }
 
-async function markRecipientSent(recipientId: string, resendMessageId: string | null) {
+async function markRecipientSent(recipientId: string, resendMessageId: string | null, channelConnectionId?: string) {
   await db.campaignRecipient.updateMany({
     where: { id: recipientId },
-    data: { status: 'SENT', sentAt: new Date(), resendMessageId },
+    data: {
+      status: 'SENT',
+      sentAt: new Date(),
+      resendMessageId,
+      ...(channelConnectionId ? { channelConnectionId } : {}),
+    },
   });
 }
 

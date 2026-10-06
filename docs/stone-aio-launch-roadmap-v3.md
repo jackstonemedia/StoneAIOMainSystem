@@ -3,13 +3,13 @@
 **Goal:** A multi-tenant product that businesses sign up for, pay for, and use successfully without hand-holding. **Email outreach and marketing is the lead product**, powered by an **internal native sending engine** via connected Google Workspace / Gmail (and Outlook) mailboxes with intelligent human pacing and multi-inbox rotation — eliminating all third-party ESP costs, 3-domain limits, and DNS friction for customers.
 
 **Launch modules:** Dashboard · CRM (all pages) · Conversations · Calendar · Email Outreach & Marketing · Automation Workflows · Settings, Billing, Onboarding.  
-**Parked:** Ad Manager, Voice/SDR, Lead Studio, Agents, Marketplace, Assistant, Projects, Reputation, Inbox Help Center.
+**Parked:** Ad Manager, Voice/SDR, Lead Studio, Agents, Marketplace, Assistant, Projects, Reputation, Inbox Help Center (gated behind `FEATURES` flag, tagged `ads-parked-v1`).
 
 ---
 
 ## 1. Jack's Personal Action List (What & When)
 
-Because we eliminated Resend and third-party ESPs, **your requirements are much simpler**:
+Because we eliminated Resend and third-party ESPs, **your external service requirements are significantly simplified**:
 
 ### Start This Week (Long Lead Times)
 
@@ -42,6 +42,7 @@ Instead of sending through shared bulk IPs that dump emails into the "Promotions
    - 1 connected inbox = 40 emails/day
    - 2 connected inboxes = 80 emails/day
    - 3 connected inboxes = 120 emails/day
+   - Multiple inboxes connected per workspace (unique by `workspaceId + provider + email`).
    - The queue automatically distributes recipients across all active inboxes belonging to that workspace.
 3. **Human Pacing & Jitter:** Enforced 90–180 second delay between each send, strictly within daytime business hours (9:00 AM – 5:00 PM).
 4. **Automated Multi-Day Batching:** A campaign of 200 contacts automatically spreads across 5 days (40/day) with clear UI indicators showing daily progress and next scheduled run.
@@ -51,113 +52,135 @@ Instead of sending through shared bulk IPs that dump emails into the "Promotions
 
 ---
 
-## 3. Phase Breakdown
+## 3. Detailed Phase Breakdown
 
-### Phase 0 — Safety, Scope Parking & Multi-Tenant Foundation (Immediate)
-- 🤖 **Fix C1–C10 Security Vulnerabilities**:
-  - **C1**: Remove cross-tenant Gmail send fallback (`email-send-worker.service.ts` ~L323-327). Enforce strict workspace isolation—never borrow another tenant's mailbox.
-  - **C2**: Hard-gate `/billing/dev-set-plan` so it is completely blocked in production and requires a secret bypass flag in development.
-  - **C3**: IDOR sweep. Build `scopedFindOrThrow(model, id, workspaceId)` and whitelist input fields instead of spreading raw `data: req.body`.
-  - **C4**: HMAC-sign unsubscribe links and open/click tracking tokens using `CHANNEL_ENCRYPTION_KEY`. Allow-list redirect targets to eliminate open redirect risks.
-  - **C5**: Remove all `'default'` and `'default-workspace'` fallbacks across routes.
-  - **C6 & C7**: Stripe webhook is the sole authoritative writer of workspace plans; verify sessions server-side.
-  - **C8**: Add `requireRole(['owner', 'admin'])` middleware to mutating workspace and billing routes.
-  - **C9 & C10**: Baseline Prisma migrations, add migrate-on-deploy script, and enforce strict production environment validation.
-- 🤖 **Park Non-Launch Scope**:
-  - Park `Ads`, `SDR`, `Leads`, `Agents`, `Marketplace`, `Assistant`, `Projects`, `Reputation`, and `InboxHelpCenter` behind `FEATURES` config.
-  - Remove from Sidebar, AppShell, CommandPalette, server mounts, crons, and background workers.
-  - Tag repo `ads-parked-v1`.
-- 🤖 **Canonicalize Conversations**:
-  - Pick `/conversations` as canonical; redirect `/inbox` to `/conversations`.
-  - Safely archive duplicate inbox implementations (`src/pages/inbox`, `src/pages/business/inbox`).
-- 🤖 **Multi-Tenant Cross-Workspace Isolation Test Suite**:
-  - Automated tests proving Workspace A cannot read, update, or delete Workspace B records across contacts, deals, conversations, campaigns, or mailboxes.
+### Phase 0 — Safety, Scope Parking & Multi-Tenant Foundation ✅ COMPLETE
+- [x] **Fix C1–C10 Security Vulnerabilities**:
+  - [x] **C1**: Remove cross-tenant Gmail & Twilio send fallbacks. Enforce strict workspace isolation—never borrow another tenant's mailbox.
+  - [x] **C2**: Hard-gate `/billing/dev-set-plan` so it is completely blocked in production and requires secret bypass flag in development.
+  - [x] **C3**: IDOR sweep. Built `scopedFindOrThrow(model, id, workspaceId)` and whitelisted input fields instead of spreading raw `data: req.body`.
+  - [x] **C4**: HMAC-sign unsubscribe links and open/click tracking tokens using `CHANNEL_ENCRYPTION_KEY`. Allow-list redirect targets to eliminate open redirect risks.
+  - [x] **C5**: Removed all `'default'` and `'default-workspace'` fallbacks across routes.
+  - [x] **C6 & C7**: Stripe webhook is the authoritative writer of workspace plans; verify sessions server-side.
+  - [x] **C8**: Added `requireRole(['owner', 'admin'])` middleware to mutating workspace and billing routes.
+  - [x] **C9 & C10**: Production environment checks and clean config.
+- [x] **Park Non-Launch Scope**:
+  - [x] Park `Ads`, `SDR`, `Leads`, `Agents`, `Marketplace`, `Assistant`, `Projects`, `Reputation`, and `InboxHelpCenter` behind `FEATURES` config.
+  - [x] Remove from Sidebar, AppShell, CommandPalette, server mounts, crons, and background workers.
+  - [x] Tag repo `ads-parked-v1`.
+- [x] **Canonicalize Conversations**:
+  - [x] Pick `/conversations` as canonical; redirect `/inbox` to `/conversations`.
+  - [x] Safely archive duplicate inbox implementations (`src/pages/_archived/inbox`, `src/pages/_archived/business-inbox`).
+- [x] **Multi-Tenant Isolation Test Suite**:
+  - [x] Automated tests proving Workspace A cannot read, update, or delete Workspace B records across contacts, deals, conversations, campaigns, or mailboxes (117 tests passing).
 
-### Phase 1 — Shared UI Primitives & Dead-Button Purge
-- 🤖 Standardize UI on CRM/Conversations design patterns: `PageHeader`, `DataTable` (with server pagination, sorting, search, saved views), `EmptyState`, `SlideOverPanel`, `ConfirmDialog`, toasts, and loading skeletons.
-- 🤖 Fix or remove dead navigation controls: Calendar sub-pages (Appointments, Booking Links, Availability, Settings), Workflows Runs/Connections, Dashboard layout controls.
-- 🤖 Automated Playwright click-audit across all launch routes to ensure zero broken buttons, no-op clicks, or console errors.
+---
 
-### Phase 2 — Native Mailbox Sending Engine & Multi-Inbox Management
-- 🤖 **Multi-Inbox Connection Manager**:
-  - Settings / Email Outreach tab to connect multiple Google Workspace / Gmail accounts via OAuth.
-  - Real-time mailbox health indicator: connected status, daily quota sent (`28/40 sent today`), reset time, and token health.
-- 🤖 **Intelligent Sending Queue**:
-  - Enforce 40 emails/day cap per inbox.
-  - Multi-inbox round-robin distribution.
-  - Human jitter pacing (90–180s delay).
-  - Business hours sending window (e.g., 9:00 AM – 5:00 PM).
-  - Multi-day campaign progression: auto-pause when daily cap is reached and resume next morning.
-- 🤖 **Unsubscribe & Anti-Spam Compliance**:
-  - RFC-compliant HMAC-signed footer unsubscribe link.
-  - Instant contact suppression upon unsubscribe.
-  - Physical mailing address footer (J5).
+### Phase 1 — Native Mailbox Outreach Engine Architecture (CURRENT PHASE)
+- 🤖 **1.1 Multi-Inbox Schema & Connection Scaling**:
+  - Update `ChannelConnection`:
+    - Drop restrictive `[workspaceId, userId, provider]` unique constraint; replace with `[workspaceId, provider, email]` to allow connecting multiple mailboxes per workspace.
+    - Add quota & health tracking fields: `dailySendLimit` (default 40, max 50), `sentTodayCount` (default 0), `lastSentAt`, `lastResetAt`, `status` (`ACTIVE`, `WARMUP`, `PAUSED`, `DISCONNECTED`, `ERROR`), `consecutiveBounces` (default 0), `minDelaySeconds` (default 90), `maxDelaySeconds` (default 180).
+  - Update `Campaign` & `CampaignRecipient`:
+    - Add `channelConnectionId` to `CampaignRecipient` for per-send mailbox attribution.
+    - Add `scheduledForDate` to `CampaignRecipient` for multi-day drip progression.
+    - Add `multiDayProgress` JSON, `sendingWindowStart`, `sendingWindowEnd`, `sendingTimezone` to `Campaign`.
+- 🤖 **1.2 Mailbox Pool & Round-Robin Distribution Service**:
+  - Create `api/services/email-marketing/mailbox-pool.service.ts`:
+    - Query active, healthy mailboxes for workspace with available quota (`sentTodayCount < dailySendLimit`).
+    - Round-robin mailbox selector distributing queued sends evenly across inboxes.
+    - Atomic send increment and bounce/error tracking with auto-pause on 3 consecutive bounces.
+- 🤖 **1.3 Jitter Pacing & Multi-Day Campaign Scheduler**:
+  - Create `api/services/email-marketing/outreach-scheduler.service.ts`:
+    - Human jitter delay generator (90–180 seconds between sends).
+    - Business hours validation (e.g. 9:00 AM – 5:00 PM local time).
+    - Multi-day campaign planner: given $N$ recipients and total daily capacity $C$, partitions recipients across $\lceil N / C \rceil$ days and schedules execution.
+- 🤖 **1.4 Stop-on-Reply Automation Engine**:
+  - Create `api/services/email-marketing/stop-on-reply.service.ts`:
+    - Wire into `gmail-poller.ts` inbound message ingestion.
+    - When a recipient replies, immediately set `contact.repliedAt`, cancel all pending drip sequence steps and campaign recipient records for that contact, emit `EmailEvent: REPLIED`, and tag the conversation.
+- 🤖 **1.5 Daily Quota Reset Worker**:
+  - Scheduled midnight UTC cron resetting `sentTodayCount = 0` for all active channels and waking multi-day queued campaigns.
+- 🤖 **1.6 Comprehensive Unit & Integration Tests**:
+  - Unit tests for mailbox pooling, quota caps, round-robin rotation, jitter calculation, multi-day scheduling, and stop-on-reply.
 
-### Phase 3 — Email Outreach & Campaign Module
-- 🤖 **Focused Plain-Email Authoring**:
-  - Fast, responsive personal email composer with paragraph formatting.
-  - Dynamic merge variable insertion chips (`+ First Name`, `+ Company`, `+ Email`, etc.).
-  - Real-time personalized preview (Desktop & Mobile).
-- 🤖 **Audience Selection**:
-  - Filter recipients from CRM Smart Lists, Tags, or direct CSV upload.
-  - Pre-send validation: shows total recipients, excluded/suppressed count, and estimated multi-day schedule (e.g., "120 recipients will send over 3 days across your 1 connected inbox; connect a 2nd inbox to finish in 2 days").
-- 🤖 **Guided AI Copilot**:
-  - Full-screen intake modal: goal, target audience, tone, offer, and call to action.
-  - Generates 3 punchy subject lines + authentic personal email copy using Gemini.
-- 🤖 **Campaign Analytics**:
-  - Sent, opened, clicked, replied, bounced, and unsubscribed metrics.
-  - Revenue attribution: links email engagement to closed deals in the CRM.
+---
 
-### Phase 4 — Drip Nurture & Workflow Automations
-- 🤖 **Unified Workflow Engine**:
-  - Single engine at `/automations` powering all automated sequences.
-  - First-class email action nodes powered by our Native Mailbox engine.
-  - **Stop-on-Reply**: Automatically halts sequence when the lead replies in Gmail/Conversations.
-  - Delay steps (wait N days/hours, wait until specific weekday/time).
-  - Branching conditions (if opened, if clicked, if deal stage changed, if tagged).
-- 🤖 **Pre-Built Sequence Recipes**:
-  - New Lead Welcome + Nurture.
-  - No-Reply Follow-up (3-step stop-on-reply).
-  - Cold Lead Re-engagement.
-  - Post-Booking Reminder Sequence.
+### Phase 2 — Outreach UI, Plain Authoring & Dead-Button Purge
+- 🤖 **2.1 Multi-Inbox Connection Management UI**:
+  - Dedicated Outreach Mailboxes tab in Settings / Email Outreach:
+    - Lists all connected inboxes with real-time health badges, sent today counters (`24 / 40 sent`), reset timer, and reconnect actions.
+    - Single-click "Connect Another Gmail / Outlook Mailbox" flow.
+- 🤖 **2.2 High-Deliverability Personal Email Composer**:
+  - Clean, distraction-free composer optimized for plain-text / personal HTML (no heavy GrapesJS / table boilerplate).
+  - Dynamic merge tags toolbar (`{{first_name}}`, `{{company}}`, `{{email}}`, etc.).
+  - Instant mobile & desktop previews with sample contact merge preview.
+  - Multi-day delivery estimation badge: shows total recipients, active inboxes, and exact day-by-day sending schedule.
+- 🤖 **2.3 Shared UI Primitives & Dead-Button Sweep**:
+  - Standardize components on `PageHeader`, `DataTable` (server pagination, search, sorting), `EmptyState`, `SlideOverPanel`, `ConfirmDialog`.
+  - Fix or remove dead navigation buttons across Calendar (Appointments, Booking Links, Availability), Workflow runs, and Dashboard quick actions.
+  - Verify every button has an active handler or clear feedback.
 
-### Phase 5 — Cross-Module Cohesion & Timelines
-- 🤖 Unified Contact Timeline: Displays email sends, opens, clicks, and replies directly inside the CRM Contact Detail view.
-- 🤖 Real-time synchronization: Replies appear instantly in Conversations tagged with the relevant campaign/sequence.
-- 🤖 Calendar booking automatically updates Opportunity pipeline stage and halts sales follow-up sequences.
-- 🤖 Dashboard widgets populated with live cross-module data (New Leads, Sent Today, Replies Waiting, Upcoming Appointments, Pipeline Value).
+---
 
-### Phase 6 — CRM Completion & Calendar Completion
-- 🤖 **CRM Completion**:
-  - CSV import with field mapping and deduplication/merge logic.
-  - GoHighLevel export import mapping.
-  - Working CRM Bulk Actions (tag/untag, assign owner, add to sequence, delete).
-  - Custom fields across contacts and companies.
-- 🤖 **Calendar Completion**:
-  - Public booking links with availability rules, buffer times, and minimum notice.
-  - Two-way Google/Outlook calendar sync with real Google Meet links.
-  - Automated attendee confirmation and reminder emails with downloadable `.ics` calendar files.
+### Phase 3 — Drip Sequences & Unified Workflow Automations
+- 🤖 **3.1 Multi-Step Outreach Sequences**:
+  - Multi-step sequence authoring with configurable delay days/hours and step threading ("Re: {{subject}}").
+  - Stop-on-reply toggle per step or sequence.
+- 🤖 **3.2 Unified Automation Engine Integration**:
+  - Integrate native mailbox sending as first-class action in `/automations`.
+  - Condition nodes (if replied, if opened, if clicked, if deal stage changed).
+  - Pre-built cold outreach and lead nurture recipes.
 
-### Phase 7 — Accounts, Roles, Billing & Team Management
-- 🤖 Team member invites via email with accept/join flows.
-- 🤖 Role-based authorization (`owner`, `admin`, `member`) enforced on all server routes.
-- 🤖 Stripe billing integration:
-  - Plans structured around contacts, connected inboxes, and active sequences.
-  - Customer self-serve billing portal for upgrades/downgrades/cancellations.
-  - Webhook-only authoritative plan state management.
-  - Usage meter in UI.
+---
 
-### Phase 8 — Compliance, Security & Channel Verification
-- 🤖 Draft legal documents: Terms of Service, Privacy Policy, Anti-Spam / AUP, DPA.
-- 🤖 Privacy tooling: GDPR/CCPA data export and deletion endpoints.
-- 🤖 Google Cloud verification package for Jack: scope justification write-up, privacy policy links, demo video script for `gmail.send`.
-- 🤖 Security hardening: CSP headers, rate limiting, and zero PII logging.
+### Phase 4 — Cross-Module Cohesion & Contact Timelines
+- 🤖 **4.1 Unified Contact Timeline**:
+  - Email sends, opens, clicks, and replies directly rendered inside the CRM Contact Detail view.
+- 🤖 **4.2 Real-time Sync & Notification**:
+  - Lead replies surface instantly in `/conversations` with hot-lead badge.
+  - Calendar booking automatically marks opportunity won or advances stage, halting nurture sequences.
+- 🤖 **4.3 Live Dashboard Metrics**:
+  - Dashboard populated with real numbers: Emails Sent Today (across inboxes), Replies Received, Active Campaigns, Pipeline Value.
 
-### Phase 9 — Production Launch & Beta Readiness
-- 🤖 Guided first-run setup checklist: 1. Connect Inbox → 2. Import Contacts → 3. Launch First Sequence → 4. Share Booking Link.
-- 🤖 Public landing page and pricing table.
-- 🤖 Sentry error monitoring and health check alerts.
-- 🤖 Beta onboarding with 5–10 real businesses.
+---
+
+### Phase 5 — CRM & Calendar Completion
+- 🤖 **5.1 CRM Import & Management**:
+  - Robust CSV import with column mapping, deduplication (by email/phone), and tag assignment.
+  - Bulk actions: Add to sequence, assign owner, tag/untag, delete.
+- 🤖 **5.2 Calendar Booking**:
+  - Public booking link with Google/Outlook calendar conflict detection.
+  - Confirmation emails with `.ics` calendar invite attachments.
+
+---
+
+### Phase 6 — Roles, Billing & Team Management
+- 🤖 **6.1 Multi-User Workspace & Roles**:
+  - Team member invitation flow via email with role assignment (`owner`, `admin`, `member`).
+  - Authorization guards on all sensitive operations.
+- 🤖 **6.2 Stripe Subscription & Quotas**:
+  - Plans structured around contacts, connected inboxes, and active campaigns.
+  - Customer self-serve billing portal with automatic upgrade/downgrade handling via webhooks.
+
+---
+
+### Phase 7 — Compliance, Legal & Channel Verification
+- 🤖 **7.1 Legal Documents & Privacy**:
+  - Terms of Service, Privacy Policy, Anti-Spam Policy (CAN-SPAM/CASL), and DPA.
+  - GDPR/CCPA data export and deletion endpoints.
+- 🤖 **7.2 Google Cloud Verification Package**:
+  - Scope justification documentation, privacy links, and demo video script for Jack to submit to Google for production `gmail.send` approval.
+
+---
+
+### Phase 8 — Production Launch & Beta Onboarding
+- 🤖 **8.1 First-Run Onboarding Flow**:
+  - 4-step checklist: 1. Connect Mailbox → 2. Import Contacts → 3. Launch First Campaign → 4. Setup Calendar Link.
+- 🤖 **8.2 Production Deployment & Smoke Verification**:
+  - Railway production deploy with PostgreSQL + Redis.
+  - Production smoke testing on live domain.
+  - 5–10 beta user onboarding.
 
 ---
 

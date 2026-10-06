@@ -247,6 +247,23 @@ export async function fetchGmailHistory(connectionId: string): Promise<void> {
         where: { id: convo.id },
         data: { unreadCount: { increment: 1 }, lastMessageAt: new Date(), updatedAt: new Date() },
       });
+
+      // ── Stop-on-Reply Hook ────────────────────────────────────────────────
+      try {
+        const senderEmail = from.match(/<(.+?)>/)?.[1] ?? from.trim();
+        const { handleInboundLeadReply } = await import('../email-marketing/stop-on-reply.service.js');
+        await handleInboundLeadReply({
+          workspaceId: conn.workspaceId,
+          senderEmail,
+          subject,
+          bodySnippet: bodyStr,
+          messageId: msgId,
+          threadId,
+          receivedAt: new Date(date),
+        });
+      } catch (replyErr) {
+        console.warn('[Gmail Poller] Stop-on-reply handler error (non-fatal):', replyErr);
+      }
     }
   }
 

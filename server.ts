@@ -392,6 +392,21 @@ async function startServer() {
     });
     console.log('✅ Email Marketing campaign scheduler: active (1-min interval)');
 
+    // ── Native Outreach: Daily Quota Reset (Midnight UTC & Startup) ─────────
+    cron.schedule('0 0 * * *', async () => {
+      try {
+        const { resetDailyQuotas } = await import('./api/services/email-marketing/mailbox-pool.service.js');
+        const { resetCount } = await resetDailyQuotas();
+        console.log(`[Native Outreach] Daily quota reset: ${resetCount} mailbox(es) reset.`);
+      } catch (err) { console.error('[Native Outreach Quota Reset Cron]', err); }
+    });
+    // Check and reset stale quotas on startup
+    import('./api/services/email-marketing/mailbox-pool.service.js')
+      .then(m => m.resetDailyQuotas())
+      .then(res => { if (res.resetCount > 0) console.log(`[Native Outreach] Startup quota reset: ${res.resetCount} mailbox(es) refreshed.`); })
+      .catch(() => null);
+    console.log('✅ Native Outreach daily quota reset: active (Midnight UTC)');
+
     // ── Real-time SSE pub/sub ────────────────────────────────────────────────
     initRealtime();
 

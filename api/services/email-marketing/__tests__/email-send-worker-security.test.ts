@@ -25,6 +25,8 @@ vi.mock('../../../../infrastructure/database/client.js', () => ({
     },
     channelConnection: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
     },
     emailEvent: {
       create: vi.fn(),
@@ -82,34 +84,43 @@ describe('Email Send Worker Multi-Tenant Isolation (C1 Security Audit)', () => {
     });
 
     // Channel connection: workspace_victim has NO connection
-    (db.channelConnection.findFirst as any).mockImplementation((args: any) => {
+    (db.channelConnection.findMany as any).mockImplementation((args: any) => {
       // If query does not include workspaceId, this is a multi-tenant leak!
       if (!args.where || !args.where.workspaceId) {
         throw new Error('CRITICAL SECURITY VIOLATION: channelConnection queried without workspaceId!');
       }
       if (args.where.workspaceId === 'workspace_victim') {
-        return Promise.resolve(null);
+        return Promise.resolve([]);
       }
       // Another workspace has an active connection
-      return Promise.resolve({ id: 'conn_other_tenant', workspaceId: 'other_workspace', provider: 'gmail' });
+      return Promise.resolve([
+        {
+          id: 'conn_other_tenant',
+          workspaceId: 'other_workspace',
+          provider: 'gmail',
+          dailySendLimit: 40,
+          sentTodayCount: 0,
+          status: 'ACTIVE',
+          isActive: true,
+        },
+      ]);
     });
 
     const result = await processEmailSendJobDirectly(jobData);
 
     // Verification:
-    // 1. db.channelConnection.findFirst was ONLY called with workspaceId: 'workspace_victim'
-    expect(db.channelConnection.findFirst).toHaveBeenCalledWith(
+    // 1. db.channelConnection.findMany was ONLY called with workspaceId: 'workspace_victim'
+    expect(db.channelConnection.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           workspaceId: 'workspace_victim',
-          provider: 'gmail',
-          isActive: true,
         }),
       })
     );
 
-    // 2. It must NEVER have called findFirst without workspaceId
-    const allCalls = (db.channelConnection.findFirst as any).mock.calls;
+    // 2. It must NEVER have called findMany without workspaceId
+    const allCalls = (db.channelConnection.findMany as any).mock.calls;
+    expect(allCalls.length).toBeGreaterThan(0);
     for (const call of allCalls) {
       expect(call[0]?.where?.workspaceId).toBe('workspace_victim');
     }

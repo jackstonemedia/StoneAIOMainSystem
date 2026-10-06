@@ -88,7 +88,7 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
 
   const { processEmailSendJobDirectly } = await import('./email-send-worker.service.js');
 
-  let recipients = await db.campaignRecipient.findMany({
+  const recipients = await db.campaignRecipient.findMany({
     where: { campaignId },
   });
 
@@ -364,13 +364,44 @@ async function checkSmartListId(workspaceId: string, id: string): Promise<string
 }
 
 /**
+ * Generates the multi-day outreach plan for a campaign based on active mailbox capacity.
+ */
+export async function getCampaignOutreachPlan(workspaceId: string, campaignId: string) {
+  const campaign = await db.campaign.findFirst({
+    where: { id: campaignId, workspaceId },
+  });
+  if (!campaign) throw new Error('Campaign not found');
+
+  const contactIds = await resolveRecipientContactIds(
+    workspaceId,
+    campaign.listId,
+    campaign.segmentId,
+    (campaign as any).smartListId
+  );
+
+  const { getWorkspaceOutreachCapacity } = await import('./mailbox-pool.service.js');
+  const capacity = await getWorkspaceOutreachCapacity(workspaceId);
+
+  const { planCampaignMultiDaySchedule } = await import('./outreach-scheduler.service.js');
+  const dailyLimit = capacity.totalDailyLimit > 0 ? capacity.totalDailyLimit : 40;
+  const plan = planCampaignMultiDaySchedule(contactIds, dailyLimit, new Date());
+
+  return {
+    campaignId,
+    recipientCount: contactIds.length,
+    capacity,
+    plan,
+  };
+}
+
+/**
  * Transitions a DRAFT/SCHEDULED campaign to SENDING and fans out
- * one BullMQ job per recipient.
+ * sends respecting multi-inbox capacity and multi-day scheduling.
  */
 export async function sendCampaign(
   workspaceId: string,
   campaignId: string
-): Promise<{ queued: number; failed?: number }> {
+): Promise<{ queued: number; failed?: number; totalDays?: number; multiDay?: boolean }> {
   const campaign = await db.campaign.findFirst({
     where: { id: campaignId, workspaceId },
   });
@@ -379,6 +410,14 @@ export async function sendCampaign(
 
   if (campaign.status === CampaignStatus.SENDING) {
     return resumeAndCompleteSending(workspaceId, campaignId);
+  }
+
+  // Validate active outreach mailbox capacity (Gmail / Outlook)
+  const { getWorkspaceOutreachCapacity } = await import('./mailbox-pool.service.js');
+  const capacity = await getWorkspaceOutreachCapacity(workspaceId);
+
+  if (capacity.activeMailboxes === 0) {
+    throw new Error('No active Gmail or Outlook mailbox connected. Please connect an outreach mailbox in Settings → Channels before launching.');
   }
 
   // If already SENT, clear old recipient records to execute a fresh send
@@ -411,6 +450,11 @@ export async function sendCampaign(
     });
     return { queued: 0 };
   }
+
+  // Apply Multi-Day Schedule Planning
+  const { planCampaignMultiDaySchedule, applyCampaignMultiDaySchedule } = await import('./outreach-scheduler.service.js');
+  const schedulePlan = planCampaignMultiDaySchedule(contactIds, capacity.totalDailyLimit, new Date());
+  await applyCampaignMultiDaySchedule(campaignId, schedulePlan);
 
   // Create CampaignRecipient rows and process sends
   const { processEmailSendJobDirectly } = await import('./email-send-worker.service.js');
@@ -549,18 +593,25 @@ export async function sendCampaign(
     }
   }
 
-  // Update campaign status from SENDING -> SENT upon completion
-  await db.campaign.updateMany({
-    where: { id: campaignId, workspaceId },
-    data: { status: CampaignStatus.SENT, sentAtUtc: new Date() },
-  });
+  // Update campaign status
+  if (schedulePlan.totalDays > 1) {
+    await db.campaign.updateMany({
+      where: { id: campaignId, workspaceId },
+      data: { status: CampaignStatus.SENDING, sentAtUtc: campaign.sentAtUtc || new Date() },
+    });
+  } else {
+    await db.campaign.updateMany({
+      where: { id: campaignId, workspaceId },
+      data: { status: CampaignStatus.SENT, sentAtUtc: new Date() },
+    });
+  }
 
   if (queued === 0 && failed > 0) {
     // All sends failed — surface the first error to the client
     throw new Error(`All ${failed} email send(s) failed. First error: ${errors[0] || 'Unknown error'}`);
   }
 
-  return { queued, failed };
+  return { queued, failed, totalDays: schedulePlan.totalDays, multiDay: schedulePlan.totalDays > 1 };
 }
 
 export async function processScheduledCampaigns() {
