@@ -1,0 +1,152 @@
+[
+  {
+    "route": "/crm",
+    "file": "crm-landing.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/contacts",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 1707,
+    "snippet": "erprise +1 BO Bob Smith +1 (555) 987-6543 bob@techstart.io TechStart Oct 16, 2026, 3:55 AM Oct 16, 2026, 3:55 AM smb AL Alice Freeman +1 (555) 123-4567 alice@acmecorp.com Acme Corp Oct 16, 2026, 3:55 AM Oct 16, 2026, 3:55 AM enterprise +1 Advanced filters Sort 20 / page Prev 1 Next"
+  },
+  {
+    "route": "/crm/contacts",
+    "file": "crm-contacts.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/contacts",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 1707,
+    "snippet": "erprise +1 BO Bob Smith +1 (555) 987-6543 bob@techstart.io TechStart Oct 16, 2026, 3:55 AM Oct 16, 2026, 3:55 AM smb AL Alice Freeman +1 (555) 123-4567 alice@acmecorp.com Acme Corp Oct 16, 2026, 3:55 AM Oct 16, 2026, 3:55 AM enterprise +1 Advanced filters Sort 20 / page Prev 1 Next"
+  },
+  {
+    "route": "/crm/companies",
+    "file": "crm-companies.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/companies",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 829,
+    "snippet": " Manage fields Product Tour Account Name Website / Domain Industry Headquarters Employees Revenue Description Actions A Acme Corp acmecorp.com Manufacturing San Francisco, CA 1,000-5,000 $100M-$500M Leading manufacturer of industrial equipment. B BrightCo brightco.com Marketing Miami, FL 10-50 $1M-$5M Digital marketing agency. G Global Solutions globalsol.com Consulting Chicago, IL 500-1,000 $50M-"
+  },
+  {
+    "route": "/crm/opportunities",
+    "file": "crm-opportunities.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/opportunities",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 846,
+    "snippet": "pgrade $45,000 B Bob Smith 0d in stage U Proposal 2 $360,000 Enterprise Expansion $240,000 F Frank Muller 0d in stage U Q3 Enterprise License $120,000 A Alice Freeman 0d in stage U Negotiation 1 $28,000 Marketing Automation $28,000 E Elena Torres 0d in stage U Won 2 $80,400 Consulting Retainer $72,000 C Carol Nguyen 0d in stage U SMB Starter Pack $8,400 E Elena Torres 0d in stage U Lost 0 $0 No op"
+  },
+  {
+    "route": "/crm/tasks",
+    "file": "crm-tasks.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/tasks",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 682,
+    "snippet": "r All Tasks 6 Due Today 1 Upcoming 3 Completed 1 Custom Filter Rule Status Task Title Contact Due Date Priority Actions Confirm technical requirements F Frank Muller 10/14/2026 HIGH Send revised contract B Bob Smith 10/15/2026 HIGH Follow up on enterprise proposal A Alice Freeman 10/16/2026 HIGH Initial discovery call C Carol Nguyen 10/17/2026 MEDIUM Demo scheduling for procurement D David Park 10"
+  },
+  {
+    "route": "/crm/documents",
+    "file": "crm-documents.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/documents",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 237,
+    "snippet": "PACE Dashboard CRM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM New Document Product Tour All Documents 0 Loading... Select a document or create a new one Create Document"
+  },
+  {
+    "route": "/crm/smart-lists",
+    "file": "crm-smart-lists.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/smart-lists",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 302,
+    "snippet": "flows D Dev User Enterprise CRM Create Smart List Product Tour List Name Active Filters Contacts Created Author Actions Recently Active 1 condition 0 10/16/2026 Jack Stone 1 Smart Lists Create Smart List"
+  },
+  {
+    "route": "/crm/bulk-actions",
+    "file": "crm-bulk-actions.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/bulk-actions",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 433,
+    "snippet": "s D Dev User Enterprise CRM Product Tour Action Label Operation Status User Created (EDT) Completed (EDT) Statistics No Bulk Actions Yet Bulk actions allow you to update, tag, or email multiple contacts at once. Select multiple contacts in the Contacts view to start a bulk action. Go to Contacts Page 1 of 1 20 / page Prev 1 Next"
+  },
+  {
+    "route": "/crm/settings",
+    "file": "crm-settings.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/settings",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 565,
+    "snippet": "d CRM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour CRM Settings Manage your CRM configuration and preferences. General Basic CRM settings and preferences. Users & Teams Manage team access and role permissions. Data Management Import, export, and manage custom fields. Tag Management Rename, delete, and merge contact tags. Notification"
+  },
+  {
+    "route": "/crm/opportunities/settings/pipelines",
+    "file": "crm-opportunities-settings-pipelines.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/opportunities/settings/pipelines",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 1727,
+    "snippet": "board CRM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour Pipeline & Stage Management Customize sales processes, stage criteria, and win/loss tracking per pipeline New Pipeline YOUR PIPELINES Standard Sales Default 6 stages • 8 opportunities Pipeline Configuration Control pipeline behavior, thresholds, and default status PIPELINE NAME S"
+  },
+  {
+    "route": "/crm/opportunities/settings/fields",
+    "file": "crm-opportunities-settings-fields.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/opportunities/settings/fields",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 397,
+    "snippet": "RM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour Custom Field Builder Define custom data fields for opportunities, scoped globally or per-pipeline New Field ORDER FIELD LABEL TYPE SCOPE DEFAULT REQUIRED ACTIONS ▲ ▼ Expected ARR NUMBER All Pipelines Optional ▲ ▼ Competitors TEXT All Pipelines Optional "
+  },
+  {
+    "route": "/crm/opportunities/settings/tags",
+    "file": "crm-opportunities-settings-tags.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/opportunities/settings/tags",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 789,
+    "snippet": "board CRM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour Tag Management Organize and label deals with custom tags, recolor, or merge duplicate tags Merge Tags Create New Tag Shared with Contacts Add Tag SWATCH TAG NAME USAGE COUNT SCOPE ACTIONS ceo 0 deals / contacts Shared cto 0 deals / contacts Shared enterprise 0 deals / contacts Sh"
+  },
+  {
+    "route": "/crm/contacts/ct_alice",
+    "file": "crm-contact-detail.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/contacts/ct_alice",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 658,
+    "snippet": "RM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour Back A Alice Freeman Acme Corp Hide empty fields Contact Details First Name Last Name Email Phone Date Of Birth Contact Source Contact Type Advanced Details Business Name Website Location Job Title Tags & Labels Add Tag enterprise vip Do Not Disturb SMS Opted Out Will not receive SMS me"
+  },
+  {
+    "route": "/crm/companies/co_global",
+    "file": "crm-company-detail.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/companies/co_global",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 661,
+    "snippet": "ard CRM Conversations Ad Manager Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour G Global Solutions Consulting Account • Created 10/16/2026 Visit Website New Opportunity ACCOUNT OVERVIEW Website globalsol.com Location Chicago, IL Employees 500-1,000 Revenue $50M-$100M PROPERTIES Account Name Global Solutions Website globalsol.com Headquarters / Location Chicago"
+  },
+  {
+    "route": "/crm/opportunities/dl_1",
+    "file": "crm-opportunity-detail.png",
+    "http": 200,
+    "finalUrl": "http://127.0.0.1:5173/crm/opportunities/dl_1",
+    "title": "Stone AIO — AI Agent Platform",
+    "hasExpected": true,
+    "bodyChars": 629,
+    "snippet": "r Calendar Email Marketing AUTOMATION Workflows D Dev User Enterprise CRM Product Tour Opportunities / Standard Sales / Q3 Enterprise License Q3 Enterprise License Proposal $120,000 Mark Won Mark Lost Add Tag Owner: U user_dev_jack_stone 0 days in current stage LINKED CONTACT View Full Contact A Alice Freeman alice@acmecorp.com +1 (555) 123-4567 alice@acmecorp.com Overview Activity Log Files (0) A"
+  }
+]
