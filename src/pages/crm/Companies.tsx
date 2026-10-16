@@ -244,6 +244,65 @@ export default function Companies() {
           >
             <Settings className="w-4 h-4" /> Manage fields
           </button>
+
+          <div className="w-[1px] h-5 bg-border mx-1" />
+
+          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
+            <Filter className="w-4 h-4 text-white" /> Advanced filters
+          </button>
+
+          <div className="relative">
+            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
+              <ChevronDown className="w-4 h-4" /> Sort
+            </button>
+
+            <AnimatePresence>
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute left-0 top-full mt-2 w-[200px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {[
+                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
+                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
+                      { label: 'Newest First', field: 'createdAt', dir: 'desc' },
+                      { label: 'Oldest First', field: 'createdAt', dir: 'asc' },
+                      { label: 'Industry (A-Z)', field: 'industry', dir: 'asc' },
+                      { label: 'Location (A-Z)', field: 'location', dir: 'asc' }
+                    ].map((opt, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setSortConfig({ field: opt.field as keyof Company, direction: opt.dir as 'asc' | 'desc' });
+                          setSortDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {sortConfig && (
+                      <div className="border-t border-border mt-1 pt-1">
+                        <button
+                          onClick={() => {
+                            setSortConfig(null);
+                            setSortDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors"
+                        >
+                          Clear Sort
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </HeaderPortal>
 
@@ -448,65 +507,6 @@ export default function Companies() {
           '--btn-border': 'transparent',
         } as React.CSSProperties}
       >
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4 text-white" /> Advanced filters
-          </button>
-
-          <div className="relative">
-            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
-              <ChevronDown className="w-4 h-4" /> Sort
-            </button>
-
-            <AnimatePresence>
-              {sortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 bottom-full mb-2 w-[200px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    {[
-                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
-                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
-                      { label: 'Newest First', field: 'createdAt', dir: 'desc' },
-                      { label: 'Oldest First', field: 'createdAt', dir: 'asc' },
-                      { label: 'Industry (A-Z)', field: 'industry', dir: 'asc' },
-                      { label: 'Location (A-Z)', field: 'location', dir: 'asc' }
-                    ].map((opt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setSortConfig({ field: opt.field as keyof Company, direction: opt.dir as 'asc' | 'desc' });
-                          setSortDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    {sortConfig && (
-                      <div className="border-t border-border mt-1 pt-1">
-                        <button
-                          onClick={() => {
-                            setSortConfig(null);
-                            setSortDropdownOpen(false);
-                          }}
-                          className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors"
-                        >
-                          Clear Sort
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
         <div className="flex items-center gap-4">
           {/* Rows per page */}
           <div className="relative">

@@ -21,6 +21,7 @@ import { CustomizeCardModal } from './components/CustomizeCardModal';
 import { ImportOpportunitiesModal } from './components/ImportOpportunitiesModal';
 import { SavedViewsModal } from './components/SavedViewsModal';
 import { FilterSlideOver } from './components/FilterSlideOver';
+import { HeaderPortal } from '../../components/layout/HeaderPortal';
 
 import type {
   Opportunity,
@@ -475,83 +476,8 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="h-full flex flex-col bg-bg overflow-hidden relative">
-      {/* ── Header Bar ───────────────────────────────────────────────────────── */}
-      <header className="px-6 py-3.5 border-b border-border bg-surface shrink-0 flex items-center justify-between gap-4 z-20">
-        {/* Left: Title + Pipeline Switcher */}
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-[18px] font-bold text-text-main shrink-0">Opportunities</h1>
-
-          {/* Pipeline Switcher Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowPipelineSwitcher(o => !o)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[13px] font-semibold text-text-main transition-colors"
-            >
-              <span>{activePipeline?.name || 'Sales Pipeline'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-            </button>
-
-            <AnimatePresence>
-              {showPipelineSwitcher && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  className="absolute top-full left-0 mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[220px] max-h-72 overflow-y-auto"
-                >
-                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5">
-                    Select Pipeline
-                  </div>
-                  {pipelines.map(p => (
-                    <div
-                      key={p.id}
-                      onClick={() => {
-                        setActivePipelineId(p.id);
-                        setShowPipelineSwitcher(false);
-                      }}
-                      className={`px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors ${
-                        activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{p.name}</span>
-                        {p.isDefault && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-text-muted font-bold">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      {activePipeline?.id === p.id && <Check className="w-4 h-4" />}
-                    </div>
-                  ))}
-
-                  <div className="pt-1 mt-1 border-t border-border flex items-center justify-between gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPipelineSwitcher(false);
-                        setShowNewPipelineModal(true);
-                      }}
-                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-white" />
-                      <span>+ New Pipeline</span>
-                    </button>
-                    <Link
-                      to="/opportunities/settings/pipelines"
-                      onClick={() => setShowPipelineSwitcher(false)}
-                      className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                      title="Pipeline Settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
+      {/* ── Banner controls (portal → CrmLayout banner row, same row as bell + AI agent) ── */}
+      <HeaderPortal>
         {/* Center/Right Actions */}
         <div className="flex items-center gap-2.5">
           {/* Live Search */}
@@ -761,7 +687,86 @@ export default function OpportunitiesPage() {
             </AnimatePresence>
           </div>
         </div>
-      </header>
+      </HeaderPortal>
+
+      {/* ── Identity row: title + pipeline switcher stay in-page ── */}
+      <div className="px-6 py-2.5 border-b border-border bg-surface shrink-0 flex items-center gap-3 z-20">
+        {/* Left: Title + Pipeline Switcher */}
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-[18px] font-bold text-text-main shrink-0">Opportunities</h1>
+
+          {/* Pipeline Switcher Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowPipelineSwitcher(o => !o)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[13px] font-semibold text-text-main transition-colors"
+            >
+              <span>{activePipeline?.name || 'Sales Pipeline'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+
+            <AnimatePresence>
+              {showPipelineSwitcher && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute top-full left-0 mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[220px] max-h-72 overflow-y-auto"
+                >
+                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5">
+                    Select Pipeline
+                  </div>
+                  {pipelines.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setActivePipelineId(p.id);
+                        setShowPipelineSwitcher(false);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors ${
+                        activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{p.name}</span>
+                        {p.isDefault && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-text-muted font-bold">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      {activePipeline?.id === p.id && <Check className="w-4 h-4" />}
+                    </div>
+                  ))}
+
+                  <div className="pt-1 mt-1 border-t border-border flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPipelineSwitcher(false);
+                        setShowNewPipelineModal(true);
+                      }}
+                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <span>+ New Pipeline</span>
+                    </button>
+                    <Link
+                      to="/opportunities/settings/pipelines"
+                      onClick={() => setShowPipelineSwitcher(false)}
+                      className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      title="Pipeline Settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
 
       {/* ── Main View Container ──────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col relative">

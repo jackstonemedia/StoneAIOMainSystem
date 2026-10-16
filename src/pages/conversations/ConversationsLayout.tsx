@@ -7,7 +7,6 @@ import { useChannelConnections } from '../../hooks/useConversations';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../components/ui/NotificationPanel';
-import { TourLauncher } from '../../components/tour/TourLauncher';
 import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 function DisconnectedBanner() {
@@ -106,7 +105,6 @@ function ConversationsTopBarActions() {
         <RefreshCw className="w-4 h-4" /> Refresh
       </button>
 
-      <TourLauncher />
     </div>
   );
 }
