@@ -57,7 +57,7 @@ export default function OpportunitiesPage() {
   const { toast } = useToast();
 
   // ── Navigation / View States ──────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('list');
   const [activePipelineId, setActivePipelineId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<string>('createdAt');
