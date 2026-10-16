@@ -334,13 +334,6 @@ export default function Companies() {
                     {visibleCols.has('Account Name') && (
                       <td className="p-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[12px] bg-white/10 text-white border border-white/20 shrink-0 shadow-xs">
-                            {company.logoUrl ? (
-                              <img src={company.logoUrl} alt="" className="w-full h-full object-contain rounded-lg" onError={e => { (e.target as HTMLElement).style.display = 'none'; }} />
-                            ) : (
-                              (company.name[0] || 'C').toUpperCase()
-                            )}
-                          </div>
                           <span className="text-[13px] font-bold text-text-main hover:text-primary transition-colors">
                             {company.name}
                           </span>

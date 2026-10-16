@@ -530,9 +530,6 @@ export default function Contacts() {
                 {visibleCols.has('Contact name') && (
                   <td className="p-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
-                        {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
-                      </div>
                       <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">{c.name ?? 'Unknown'}</span>
                       {((c as any).totalEmailsReceived || 0) > 0 && (
                         <span
