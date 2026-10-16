@@ -256,7 +256,15 @@ Values seen in code/seed: `pending`, `completed`, `overdue`. `crm.service.ts` co
 
 ### 3.4 Appointment — `Appointment.status` (String)
 
-Seed uses `scheduled`. `crm.service.ts` types appointment status as `'pending' | 'completed' | null` in one filter type. No other values found in code — treat any other value as **unverified**. `emitTrigger` event names `appointment.booked | appointment.cancelled | appointment.completed` exist in `trigger-emitter.service.ts`, but no code was found that maps those event names to `Appointment.status` values — **unverified** whether booking/cancelling/completing an appointment writes a specific `status` value or only emits the trigger.
+Schema: `String @default("scheduled")` (`prisma/schema.prisma`, `Appointment`). No enum.
+
+Values written in code (`api/services/business.service.ts`):
+- `scheduled` — default on create (`createAppointment`: `status: status ?? 'scheduled'`).
+- `cancelled` — via `updateAppointment` passthrough; on `prev.status !== new status` + `status === 'cancelled'`, emits `appointment.cancelled`.
+- `completed` — via `updateAppointment` passthrough; emits `appointment.completed`.
+- `no_show` — excluded (with `cancelled`) from slot-engine availability (`status: { notIn: ['cancelled', 'no_show'] }`), but no writer for `no_show` was found — value exists in filter only.
+
+`pending` is NOT an `Appointment.status` value in code (the earlier map draft mis-attributed a `crm.service.ts` filter type for a different model). Booking writes `scheduled`; cancelling/completing write the status AND emit the trigger.
 
 ### 3.5 Contact — `Contact.status` (String, free-form)
 
@@ -264,7 +272,7 @@ Default on create: `'Lead'` (capital L) in `crm.service.ts` (`status: data.statu
 
 ### 3.6 Conversation (legacy) — `Conversation.status` (String)
 
-Seed uses `open`, `closed`. No transition code found that writes `closed` — **unverified** how a conversation becomes `closed` (likely via UI/API update, not a state machine). `ConversationMessage.status` is a free-form `String` with no values found in code — **unverified**.
+Schema: `String @default("open")`. Values: `open` (default), `closed` (via UI toggle — `src/pages/business/inbox/ConversationsTab.tsx:574` PATCHes `status: open ↔ closed`). `ConversationListPane.tsx:66` also lists `snoozed`, `archived` as filter options, but no writes for `snoozed`/`archived` were found — do not assume those transitions exist for legacy `Conversation`. `ConversationMessage.status` is a free-form `String` with no values found in code — **unverified**.
 
 ### 3.7 InboxConversation — `InboxConversation.status` (String)
 
@@ -278,7 +286,9 @@ Values: `pending`, `open`, `resolved`, `snoozed` (from `inbox-conversation.servi
 | → `snoozed` | Caller sets `status: 'snoozed'` (with `snoozedUntil`) — exact UI/API path **unverified**. |
 | `pending` | Initial state for a new conversation (inferred from the `pending → open` transition; initial creation value not read in full — **unverified**). |
 
-`InboxMessage.status` — free-form `String`, no values enumerated in code — **unverified**. `InboxChannel.isEnabled` is a Boolean, not a status. `InboxCampaign.status` — free-form `String`, no values enumerated — **unverified**.
+`InboxMessage.status` — `String @default("sent")` (`prisma/schema.prisma`). `inbox-message.service.ts` `createMessage` never sets `status`, so it is always `sent` in practice. No other writes found.
+
+`InboxChannel.isEnabled` is a Boolean, not a status. `InboxCampaign.status` — `String @default("draft")`, schema comment `draft | active | completed` (`prisma/schema.prisma`, `InboxCampaign`).
 
 ### 3.8 Workflow (native) — `Workflow.status` (String, lowercase)
 
@@ -307,10 +317,10 @@ Values: `RUNNING`, `SUCCEEDED`, `FAILED`, `PAUSED`.
 
 ### 3.10 Agent (legacy) — `Agent.status` / `AgentRun.status` / `AgentRunStep.status`
 
-- `Agent.status` — free-form `String`, default `'draft'` on create (`agents.service.ts`). No other values enumerated in code — **unverified**.
-- `AgentRun.status` — free-form `String`, created as `'running'` (`agents.service.ts` + `agents.routes.ts` creates with `status: 'running'`). `updateAgentRun(id, status)` sets `status` + `completedAt`. No enum — **unverified** what terminal values are used (`completed` / `failed` are plausible but not read).
-- `AgentRunStep.status` — values seen in `agents.routes.ts` SSE log events: `'success'`, `'error'`. No enum — **unverified**.
-- `AIAction.status` — free-form `String`, no values enumerated — **unverified**.
+- `Agent.status` — free-form `String`, default `'draft'` on create (`agents.service.ts`). Observed writes: `'draft'` (default), `'active'` (VoiceAgentBuilder `src/pages/VoiceAgentBuilder.tsx:133-134` sends `status: 'active'` when saving). No `archived` write found. `updateAgent` allows arbitrary passthrough.
+- `AgentRun.status` — free-form `String`. Created as `'running'` (`createAgentRun`). Terminal values in `api/routes/agents.routes.ts`: `'success'` (`:212`) / `'failed'` (`:205`) via `updateAgentRun`, which also sets `completedAt`.
+- `AgentRunStep.status` — values in `api/routes/agents.routes.ts:201`: `'success'` / `'failed'` (correction: earlier draft said `success|error`; code uses `failed`, not `error`).
+- `AIAction.status` — free-form `String`, default `'pending'`, schema comment `pending | approved | rejected` (`prisma/schema.prisma`, `AIAction`).
 
 ### 3.11 Email marketing — Campaign / Recipient / Automation
 
@@ -327,7 +337,7 @@ Values: `RUNNING`, `SUCCEEDED`, `FAILED`, `PAUSED`.
 
 **`CampaignRecipient.status`** — free-form `String` (NOT an enum): `PENDING`, `SENT`, `HOLD`, plus lowercase `'testing'` / `'completed'` inside `abTestConfig` (different field — do not confuse). Transitions: created as `PENDING`; A/B hold logic sets `HOLD` for the losing-variant pool; send worker sets `SENT` + `resendMessageId` via `markRecipientSent`; A/B winner selection flips `HOLD → PENDING` for the winner's held recipients. `SENT` recipients are counted for analytics; `HOLD` recipients are excluded until released.
 
-**`Automation.status`** — Prisma enum `AutomationStatus`: `DRAFT`, `ACTIVE`, `PAUSED`, `ARCHIVED`. Transition code for email-marketing automations was not fully read — **unverified** which endpoints flip `DRAFT → ACTIVE` etc. Do not assume the `Workflow` publish/pause endpoints apply to `Automation`.
+**`Automation.status`** — Prisma enum `AutomationStatus`: `DRAFT`, `ACTIVE`, `PAUSED`, `ARCHIVED`. `POST /email-marketing/automations` (`api/routes/email-marketing.routes.ts:431`) creates with `status || 'DRAFT'`; `PATCH /email-marketing/automations/:id` (`:457`) allows `status` passthrough (any enum value, no state-machine enforcement). No dedicated activate/pause endpoint — transitions are via generic PATCH. Do NOT assume the `Workflow` publish/pause endpoints apply to `Automation`.
 
 **`AutomationEnrollment.exitReason`** — Prisma enum `EnrollmentExitReason`: `COMPLETED_ALL_STEPS`, `GOAL_MET`, `MANUALLY_REMOVED`, `UNSUBSCRIBED`, `SUPPRESSED`, `CONTACT_DELETED`. `AutomationStepType` enum (step kinds, not statuses): `SEND_EMAIL`, `WAIT`, `CONDITION_BRANCH`, `ADD_TAG`, `REMOVE_TAG`, `UPDATE_FIELD`, `ADD_TO_LIST`, `REMOVE_FROM_LIST`, `WEBHOOK_CALL`, `GOAL_CHECK`, `EXIT_AUTOMATION`. `AutomationTriggerType` enum: `CONTACT_CREATED`, `TAG_ADDED`, `TAG_REMOVED`, `FORM_SUBMITTED`, `LIST_JOINED`, `DEAL_STAGE_CHANGED`, `CUSTOM_FIELD_CHANGED`, `DATE_BASED`, `EMAIL_OPENED`, `EMAIL_LINK_CLICKED`, `MANUAL_ENROLLMENT`, `API_EVENT`.
 
@@ -347,26 +357,26 @@ Values: `RUNNING`, `SUCCEEDED`, `FAILED`, `PAUSED`.
 
 ### 3.13 Lead Studio
 
-- `LeadGenerationJob.status` — free-form `String` in schema. Values written in `lead-worker.service.ts`: `running` (on start, with `startedAt`, `progressPct: 5`), `expanding` (during niche expansion, `progressPct: 70`), `completed` (on success), `failed` (on error, with `errorMessage`). Initial creation value (when the job row is first inserted via the API) was not read — **unverified** (likely `queued` or `pending`, but do not assume).
+- `LeadGenerationJob.status` — free-form `String` in schema, `String @default("queued")`, comment `queued | running | completed | failed | expanding` (`prisma/schema.prisma`, `LeadGenerationJob`). Values written in `lead-worker.service.ts`: `running` (on start, with `startedAt`, `progressPct: 5`), `expanding` (during niche expansion, `progressPct: 70`), `completed` (on success), `failed` (on error, with `errorMessage`). Initial creation value is `queued` (schema default).
 - `Lead` has no status field. Dedup uses `isDuplicate`, `UserLeadHistory`, `DailyLeadQuota`.
 
 ### 3.14 SDR
 
 - `AutonomousSdrAgent.status` — Prisma enum `SdrStatus`: `ACTIVE`, `PAUSED`, `DRAFT`. `SdrMode`: `COPILOT`, `AUTOPILOT`.
-- `SdrLeadDossier.status` — Prisma enum `DossierStatus`: `DRAFTED`, `APPROVED`, `SENDING`, `ENGAGED`, `MEETING_BOOKED`, `BOUNCED`, `DECLINED`. Transitions in `sdr-orchestrator.service.ts`: new dossiers are `DRAFTED` in Copilot mode, `APPROVED` in Autopilot mode (`isAutopilot ? 'APPROVED' : 'DRAFTED'`); approval flow moves `DRAFTED → APPROVED`; sending moves to `SENDING`; `dossiersToApprove = all.filter(d => d.status === 'DRAFTED')`. Other transitions (`SENDING → ENGAGED | MEETING_BOOKED | BOUNCED | DECLINED`) are enum values with no transition code read — **unverified**.
+- `SdrLeadDossier.status` — Prisma enum `DossierStatus`: `DRAFTED`, `APPROVED`, `SENDING`, `ENGAGED`, `MEETING_BOOKED`, `BOUNCED`, `DECLINED` (`prisma/schema.prisma` + `api/services/sdr/sdr-store.ts:39`). Transitions in `sdr-orchestrator.service.ts`: new dossiers are `DRAFTED` in Copilot mode, `APPROVED` in Autopilot mode (`isAutopilot ? 'APPROVED' : 'DRAFTED'`); approval flow moves `DRAFTED → APPROVED`; sending moves to `SENDING`; `dossiersToApprove = all.filter(d => d.status === 'DRAFTED')`. Writers for `ENGAGED | MEETING_BOOKED | BOUNCED | DECLINED` were not found — enum values confirmed, transition paths for those four remain **unverified**.
 
 ### 3.15 Billing / Workspace subscription
 
-- `Workspace.subscriptionStatus` — free-form `String?`. Values written: `active` (checkout verify, portal/webhook success), `inactive` (when normalized plan is `free`), `canceled` (Stripe `customer.subscription.deleted` webhook), plus raw Stripe `sub.status` on webhook update (`subscriptionStatus: sub.status` — so Stripe values like `trialing`, `past_due`, `unpaid`, `incomplete` can land in this field — **unverified** which Stripe statuses have been observed in production).
-- `Workspace.plan` — free-form `String` (`free`, `pro`, …). `dev-set-plan` endpoint (`POST /api/billing/dev-set-plan`, non-production only) sets plan + `subscriptionStatus: 'active'|'inactive'`.
+- `Workspace.subscriptionStatus` — free-form `String?`. Values written: `active` (checkout verify, portal/webhook success), `inactive` (when normalized plan is `free`), `canceled` (Stripe `customer.subscription.deleted` webhook), plus raw Stripe `sub.status` passthrough on webhook update (`billing.routes.ts:446` `subscriptionStatus: sub.status` — Stripe values like `trialing`, `past_due`, `unpaid`, `incomplete`, `incomplete_expired`, `paused` can land here; no exhaustive list in code because it is passthrough).
+- `Workspace.plan` — free-form `String`, schema default `'free'`. No single canonical set in code — three observed sets conflict: schema/frontend type `free | starter | pro | enterprise` (`src/types/workspace.ts:9`); billing checkout accepts `basic, pro, ultra` (`billing.routes.ts:49` `Invalid plan ID: Supported: basic, pro, ultra`); fallbacks use `'free'` / `'pro'` (`settings.routes.ts` returns `plan: 'pro'` on error; `billing.routes.ts` normalizes to `'free'`). Briefs must NOT assume one plan list — read the call site.
 - Stripe webhook handler (`billing.routes.ts` `stripeWebhookHandler`) handles `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, and emits `subscription.activated` / `subscription.canceled` triggers. Idempotency via `ProcessedWebhookEvent` (see §5).
 
 ### 3.16 Other status fields (no state machine found)
 
 - `UserOnboardingProgress.status` — `String`: `not_started`, `in_progress`, `completed`, `skipped` (from validation test). `PUT /api/onboarding/progress/:tourKey` validates against those four.
-- `Release.status` — free-form `String`, no values enumerated — **unverified**.
-- `HelpCenterArticle.status` — free-form `String`, no values enumerated — **unverified**.
-- `InboxCampaign.status` — free-form `String`, no values enumerated — **unverified**.
+- `Release.status` — `String @default("PUBLISHED")`, schema comment `PUBLISHED, ARCHIVED` (`prisma/schema.prisma`, `Release`).
+- `HelpCenterArticle.status` — `String @default("draft")`, schema comment `draft | published` (`prisma/schema.prisma`, `HelpCenterArticle`).
+- `InboxCampaign.status` — `String @default("draft")`, schema comment `draft | active | completed` (`prisma/schema.prisma`, `InboxCampaign`).
 - `Notification` — no status; `read: Boolean`.
 - `WebhookEndpoint.active`, `WorkflowSchedule.active`, `WorkflowWebhook.active`, `CrmTriggerSubscription.active`, `ChannelConnection.isActive`, `InboxChannel.isEnabled` — Booleans, not statuses.
 
@@ -497,14 +507,14 @@ Tabs (`TABS`): `general`, `billing` (Billing & Plans), `appearance`, `integratio
 9. **Stub endpoints look real.** Password / 2FA / sessions in `settings.routes.ts` return fake data (see §5.5). Do not build on them.
 10. **Mock fallbacks when env is missing.** `SendingDomain` uses `mock_dom_…` IDs when `RESEND_API_KEY` is missing. `bullmq.ts` uses in-memory mock queues/workers when `REDIS_URL` is missing. `realtime.service.ts` falls back to an in-memory emitter when `REDIS_URL` is missing. `settings.routes.ts` `GET /workspace` returns a fake `{ name: 'Stone AIO', plan: 'pro' }` on DB error. These fallbacks mean “it worked locally” does NOT prove the real provider path works.
 11. **`PORT` mismatch.** `env.ts` defaults `PORT` to `4000`; `.env.example` sets `PORT=3000` and `VITE_APP_URL=http://localhost:3000`. Vite dev server is `5173` with `/api` proxy → `:4000`. A brief that says “the app is on port 3000” is ambiguous — name the process (Vite vs API) and the port.
-12. **`infrastructure/database/client.js` exists alongside `client.ts`.** Imports in code use `client.js` (ESM `.js` suffix for TS files). Do not edit `client.js` thinking it is the source — `client.ts` is the source; `client.js` is a checked-in compiled artifact (or a duplicate — **unverified** which one is authoritative; check git history before touching either).
+12. **`infrastructure/database/client.js` exists alongside `client.ts`.** `client.ts` is the source (TS, `PrismaClient`, global `__prisma`). `client.js` is a checked-in compiled CommonJS artifact (`"use strict"`, `require("@prisma/client")`). Imports in code use `client.js` specifier per TS ESM convention (`import { db } from '.../client.js'`); with `tsconfig.server.json` (`module: Node16`) + `tsx`, that resolves to `client.ts`. Do NOT edit `client.js` — edit `client.ts` only.
 13. **Root scratch files.** `check.ts`, `check_runs.ts`, `debug_email.ts`, `old_contact_detail.txt`, `opps.txt` at repo root are scratch/debug artifacts. Do not import them or treat them as specs.
 14. **Duplicate `/inbox` mount in `App.tsx`.** Two `<Route path="/inbox">` entries exist (Conversations vs Inbox layouts). First match wins. A brief that says “the /inbox page” must say which layout.
-15. **`review.received` trigger exists but has no known emitter.** Do not build a review feature on `review.received` — there is no code that emits it today. Build from the job-completion moment.
-16. **Build is currently broken (see Baseline).** `npm run build` fails on `src/shims/react-shim.ts` (default export). `npm run typecheck` OOMs on default heap. `npm test` has 3 Prisma-related suite failures + 1 Clerk test failure. A Blueprint that says “run build/tests to verify” must budget for these pre-existing failures — they are NOT caused by the new work.
+15. **`review.received` trigger is defined but has no emitter.** `trigger-emitter.service.ts:21` lists `'review.received'`, `trigger-crm-event.ts:27` offers it as “Review Received”, `Settings.tsx:86` has a `review_received` notification pref — but no `emitTrigger(..., 'review.received', …)` call was found. Do not build a review feature on `review.received` — there is no code that emits it today. Build from the job-completion moment.
+16. **Build / typecheck / tests status (see Baseline §8 + Prep re-run).** Original baseline: `npm run build` FAILED on `react-shim`; `typecheck` OOMed. Prep re-run 2026-10-15: `npm run build` PASSED twice (exit 0, `✓ built in 22-28s`, no `react-shim` error — discrepancy vs baseline, no code changed, cause not fully determined, watch on next run); `typecheck` with `NODE_OPTIONS=--max-old-space-size=8192` completed with 207 real TS errors (exit 2, mostly `TS7006` implicit `any` + `TS2305` missing Prisma exports because client not generated); `npm test` still 63/64 pass, 4 files fail (3 Prisma suites + 1 Clerk test). A Blueprint that says “run build/tests to verify” must budget for the pre-existing typecheck + test failures — they are NOT caused by new work. Dev server: Vite UI serves (HTTP 200 on `:5173`), API does NOT start (Prisma client missing — `PrismaClient` export error).
 17. **Prisma client is NOT generated in a fresh checkout.** `npx prisma generate` needs to download engines; in this sandbox the download failed with `ECONNRESET` (see Baseline). Tests that import `@prisma/client` fail until `generate` succeeds. Do not assume `npm install` alone makes the server runnable.
-18. **`Integration.accessToken` is plaintext.** Do not copy that pattern for new credentials — use `encryptString` / `ApiKey` / `ChannelConnection` pattern.
-19. **Frontend `Settings.tsx` `notifications` tab has no backend API.** A brief that says “add a notification preference” must include a backend model + API, not just UI.
+18. **`Integration.accessToken` is plaintext — oversight, not a pattern.** `api/routes/integrations.routes.ts` upsert stores `accessToken` directly with no `encryptString`. Contrast: `AdAccount.accessToken` IS encrypted (`ads-account.service.ts:146` `encryptString(p.access_token)`), `ApiKey.keyEncrypted` IS encrypted (`settings.routes.ts`). Do not copy the `Integration` plaintext pattern for new credentials — use `encryptString` / `ApiKey` / `ChannelConnection` pattern.
+19. **Frontend `Settings.tsx` `notifications` tab has no backend API — confirmed.** Toggles are local React state only (`setNotifPrefs`); Save button only shows `toast('success', 'Notification preferences saved!')` with no API call. A brief that says “add a notification preference” must include a backend model + API, not just UI.
 20. **Seed data is NOT production data.** `prisma/seed.ts` uses hardcoded IDs (`ws_demo`, `ct_alice`, `dl_1`, …) and fake people/companies. Never use seed IDs in a brief as if they are real.
 
 ## 8. Baseline build / test results (recorded BEFORE any code change)
@@ -522,30 +532,71 @@ Recorded on branch `agent/software-map`, base `374ed22`, Node `v24.20.0`, npm `1
 
 No code was changed to fix any baseline failure. All failures above are pre-existing.
 
+### Prep re-run 2026-10-15 (same branch, same base `374ed22`, `.env` created from `.env.example` with safe dev defaults: SQLite `file:./prisma/dev.db`, `NODE_ENV=development`, empty/dummy keys, `VITE_DEV_AUTH_BYPASS=false`, `REDIS_URL=""`)
+
+| Command | Result |
+|---|---|
+| `npx prisma generate` | **FAIL** — `Error: aborted … code: 'ECONNRESET', attemptNumber: 1, retriesLeft: 2` (same Prisma engines download failure). Engines cache `~/.cache/prisma/master/.../debian-openssl-3.0.x/` is empty. `node_modules/.prisma/` still does not exist. No code changed. |
+| `npm test` (`vitest run`) | **PARTIAL FAIL (same as baseline)** — `Test Files 4 failed | 13 passed (17)`, `Tests 1 failed | 63 passed (64)`, duration `64.39s`. Same 3 Prisma suites (`resend-domain-webhook`, `sending-domain.service`, `sdr-orchestrator` — `Cannot find module '.prisma/client/default'`) + same 1 Clerk test (`tour_render` `SignedIn can only be used within <ClerkProvider />`). |
+| `npm run build` (`vite build`) | **PASS (differs from baseline — discrepancy noted)** — `✓ built in 27.85s` (first run) and `✓ built in 22.46s` (re-run, true exit `0`), no `react-shim` error. No app code changed between baseline and re-run. Cause of baseline-vs-rerun difference not fully determined (possible: `node_modules` state / Vite cache / `.env` presence). Watch on next run; do NOT claim the baseline failure is fixed. |
+| `npm run typecheck` with `NODE_OPTIONS=--max-old-space-size=8192` | **FAIL (real type errors, not OOM)** — true exit `2`, 207 `error TS` lines across 21 files. Top: `campaigns.service.ts` 42, `business.service.ts` 42, `ads-metrics.service.ts` 27, `crm.service.ts` 21, `opportunities.service.ts` 18. Mostly `TS7006` implicit `any` + `TS2305` missing Prisma exports (`PrismaClient`, `EmailEventType`, `SubscriptionStatus`, `SendingDomainStatus`, `CampaignStatus`, `Prisma`) because the Prisma client is not generated. Plain `npm run typecheck` (no heap flag) OOMs as in baseline. No code changed. |
+| Dev server smoke (`npm run dev`) | **PARTIAL** — Vite UI on `:5173` serves `GET /` → HTTP `200`, 2582 bytes HTML. API on `:4000` does NOT start: `SyntaxError: The requested module '@prisma/client' does not provide an export named 'PrismaClient'` (`infrastructure/database/client.ts:1`), so `GET /api/health/live` and `GET /api/health/ready` fail (connection refused, HTTP `000`). Server stopped cleanly after test. No screenshots captured (API down, UI only serves shell). |
+
 ## 9. Unverified — do not build on these without reading the code first
 
-- `AdLead.contact` relation semantics (schema shows `Contact?` — whether a synced ad lead creates/links a `Contact` row).
-- `VoiceAgentBuilder` / Retell webhook handling (no Retell webhook file found).
-- `Appointment.status` values beyond `scheduled` / `pending` / `completed`, and whether booking/cancelling/completing writes a status or only emits a trigger.
-- `Automation.status` transitions (`DRAFT → ACTIVE → PAUSED → ARCHIVED`) — endpoints not fully read.
-- `Campaign.status PAUSED` — how/whether it is written.
-- `Agent.status` terminal values, `AgentRun.status` terminal values, `AgentRunStep.status` beyond `success|error`, `AIAction.status` values.
-- `InboxMessage.status`, `InboxCampaign.status`, `Release.status`, `HelpCenterArticle.status` values.
-- `LeadGenerationJob.status` initial value on creation.
-- `SDR DossierStatus` transitions beyond `DRAFTED → APPROVED → SENDING`.
-- `Workflow` `paused → published` path; `WorkflowRun` `PAUSED` resume conditions beyond `resumeAt`.
-- `Resend` duplicate-delivery dedup (no `claimWebhookEvent` in the Resend handler).
-- `Integration.accessToken` plaintext storage — intentional or oversight.
-- `infrastructure/database/client.js` vs `client.ts` — which is authoritative.
-- `voice-agents.routes.ts` mount point (file exists; mount not confirmed in `server.ts` read).
-- `Settings.tsx` `notifications` tab persistence.
-- Frontend role-based UI gating (whether non-admins are hidden from admin UI).
-- `review.received` — any emitter.
-- SMS templates — whether a shared template system exists.
-- `Conversation.status closed` transition path.
-- Resend webhook replay-window duration, email-send-worker retry policy, Gmail poll interval, `Workspace.plan` full value set, Stripe `sub.status` values observed in production.
+Prep update 2026-10-15: 26 of 29 §9 sub-items were resolved by reading the code (see “Resolved in prep” below). 3 remain partially open. Do not treat the resolved items as unverified anymore — cite the file:line in Blueprints.
+
+### Resolved in prep 2026-10-15 (verified from code)
+
+- `AdLead.contact` — 1-to-1, `Contact` owns the FK (`Contact.adLeadId`). `syncLeadToCrm` (`api/services/ads/ads-lead.service.ts:104-150`): if a `Contact` with this `adLeadId` exists → mark `SYNCED`, no new `Contact`; else if email matches an existing `Contact` → update that `Contact` with `source` + `adLeadId`, mark `SYNCED`; else create a new `Contact` (`source` `GOOGLE_ADS`/`FACEBOOK_ADS`, `status: 'Lead'`, `adLeadId`), mark `SYNCED`.
+- `VoiceAgentBuilder` / Retell webhook — `api/routes/voice-agents.routes.ts` HAS `POST /webhook`: `call_started` → `agent.call_started`, `call_ended` → `agent.call_ended` (with transcript/summary/sentiment). BUT the router is NOT mounted in `server.ts` (no import, no `app.use`) — webhook is dead until mounted. Frontend calls `/api/voice-agents/*` will 404.
+- `Appointment.status` — `String @default("scheduled")`. Writes: `scheduled` (default, `business.service.ts:179`), `cancelled`/`completed` via `updateAppointment` passthrough (emits `appointment.cancelled` / `appointment.completed` on status change). `no_show` appears only in slot-engine exclusion filter. No `pending` write for `Appointment`.
+- `Automation.status` — enum `DRAFT/ACTIVE/PAUSED/ARCHIVED`, default `DRAFT`. `POST /email-marketing/automations` creates with `status || 'DRAFT'`; `PATCH` allows `status` passthrough, no state-machine enforcement.
+- `Agent.status` — `String @default("draft")`. Observed: `draft`, `active` (`VoiceAgentBuilder.tsx:133-134` sends `status: 'active'`). No `archived` write found.
+- `AgentRun.status` — create `'running'`; terminal `'success'` / `'failed'` (`api/routes/agents.routes.ts:205,212`).
+- `AgentRunStep.status` — `'success'` / `'failed'` (`agents.routes.ts:201`). Correction: code uses `failed`, not `error`.
+- `AIAction.status` — `String @default("pending")`, comment `pending | approved | rejected`.
+- `InboxMessage.status` — `String @default("sent")`. `createMessage` never sets it — always `sent` in practice.
+- `InboxCampaign.status` — `String @default("draft")`, comment `draft | active | completed`.
+- `Release.status` — `String @default("PUBLISHED")`, comment `PUBLISHED, ARCHIVED`.
+- `HelpCenterArticle.status` — `String @default("draft")`, comment `draft | published`.
+- `LeadGenerationJob.status` — `String @default("queued")`, comment `queued | running | completed | failed | expanding`. Initial = `queued`.
+- `Workflow` `paused → published` — `Workflow.status`: `draft` (create) → `published` (`POST /:id/publish-native`, `workflows.routes.ts:625`) / `paused` (`POST /:id/pause-native`, sets `status: 'paused'`, deactivates schedules/webhooks/CRM subs). `paused → published` = re-publish (re-activates schedules/webhooks/subs).
+- `WorkflowRun` `PAUSED` resume — `RUNNING` → `SUCCEEDED` (all nodes ok) / `FAILED` (`failRun`) / `PAUSED` (`logic-wait` node, `resumeAt = now + durationMs`). Resume: `resume-paused-runs.job.ts` queries `status: 'PAUSED', resumeAt <= now`, engine resume sets `RUNNING, resumeAt: null, waitingNodeId: null`.
+- `Resend` dedup — No dedup in Resend handler: no `claimWebhookEvent`, no `ProcessedWebhookEvent` check in `resend-webhook.handler.ts`. Contrast: Stripe/Twilio/Meta use idempotency (see §5).
+- `Integration.accessToken` plaintext — Oversight. `integrations.routes.ts` upsert stores `accessToken` directly, no `encryptString`. Contrast: `AdAccount.accessToken` IS encrypted (`ads-account.service.ts:146`), `ApiKey` IS encrypted. Do not copy the `Integration` pattern.
+- `client.js` vs `client.ts` — `client.ts` is the source; `client.js` is a checked-in compiled CommonJS artifact. Imports use `.js` specifier per TS ESM convention; `tsx` resolves to `.ts`. Edit `client.ts` only.
+- `voice-agents.routes.ts` mount — NOT mounted in `server.ts` (no import, no `app.use`). See Retell webhook above.
+- `Settings.tsx` `notifications` tab — NOT persisted. Local state only; Save button only shows a toast, no API call.
+- Frontend role gating — No frontend hiding found. Backend `requireRole('admin')` enforces `PUT /api-keys`, `POST /team/invite`, `DELETE /team/:userId`. Frontend shows admin UI to all; backend rejects non-admins.
+- `review.received` — Trigger type defined (`trigger-emitter.service.ts:21`, `trigger-crm-event.ts:27`, `Settings.tsx:86`), NO emitter (`emitTrigger(..., 'review.received', …)`) found.
+- SMS templates — No shared system. Only `ThreadPane.tsx` placeholder `"Send SMS… (/ for templates)"`. No `SmsTemplate` model.
+- `Conversation.status closed` — Toggle `open ↔ closed` via PATCH (`ConversationsTab.tsx:574`). UI filter also lists `snoozed`, `archived`, but no writes for those found for legacy `Conversation`.
+- Resend replay window — 5 minutes. `resend-webhook.handler.ts`: `svix-timestamp` >5 min old → reject.
+- Email-send-worker retry — Attempts 4 (initial + 3 retries), exponential backoff 30s (`email-send-worker.service.ts:16,44-45`).
+- Gmail poll interval — Every 2 minutes. `gmail-poller.ts`: “Called by cron every 2 minutes”, `pollAllGmailAccounts` polls all active Gmail connections.
+- Stripe `sub.status` — Passthrough. `billing.routes.ts:446` stores live Stripe `sub.status` directly, plus code writes `active` / `inactive` / `canceled` in fallbacks. No exhaustive list in code.
+
+### Still partially open (do not build on these without reading the code)
+
+- `Campaign.status PAUSED` (email `Campaign`) — Enum `CampaignStatus` includes `PAUSED`, but NO writer for email `Campaign` `PAUSED` was found. `PAUSED` writes found are for `AdCampaign` only (`ads-campaign.service.ts:259`). Do not assume email campaigns can be paused via a backend path until a writer is found.
+- `SDR DossierStatus` transitions beyond `DRAFTED → APPROVED → SENDING` — Enum full set confirmed (`DRAFTED/APPROVED/SENDING/ENGAGED/MEETING_BOOKED/BOUNCED/DECLINED`). Writers for `ENGAGED | MEETING_BOOKED | BOUNCED | DECLINED` not found.
+- `Workspace.plan` full value set — No single canonical set. Schema default `'free'`; frontend type `free | starter | pro | enterprise` (`src/types/workspace.ts:9`); billing checkout accepts `basic, pro, ultra` (`billing.routes.ts:49`); fallbacks use `'free'` / `'pro'`. Read the call site; do not assume one list.
 
 ## 10. What Changed (for this map task)
+
+### Prep update 2026-10-15 (no app code changed)
+
+- **Summary:** Prep to be the best Coding Agent for Stone AIO. Resolved 26 of 29 §9 unverified sub-items from code, re-ran baseline with `.env` + heap flag, wrote playbooks in `~/workspace/coding-agent-playbooks/` (workspace only, NOT in repo). No app code changed. No board rows touched. No merge to main.
+- **Changes by area:** `docs/software-map.md` only — §3 status values corrected (§3.4, §3.6, §3.7, §3.10, §3.11 Automation, §3.13, §3.14, §3.15, §3.16), §7 landmines updated (§7 items 12, 15, 16, 18, 19), §8 baseline + prep re-run, §9 resolved/partially-open rewrite, this §10 entry. No other repo files changed. `.env` created locally from `.env.example` (safe dev defaults, SQLite, empty keys) — gitignored, not committed.
+- **How it works:** Map is now tighter for Blueprints: status values cite file:line, `voice-agents` unmounted + `Integration` plaintext flagged as real findings, `Workspace.plan` conflict called out.
+- **Screenshots:** None — docs + baseline work, no UI build. Dev server smoke: Vite UI HTTP 200 on `:5173`, API down (Prisma client missing) — no screenshots claimed.
+- **Verification:** `npx prisma generate` FAIL `ECONNRESET` (engines cache empty). `npm test` 63/64 pass, 4 files fail (same as baseline). `npm run build` PASS twice (exit 0) — differs from baseline FAIL, discrepancy noted, no code changed. `typecheck` with 8GB heap: exit 2, 207 TS errors (mostly `TS7006` + `TS2305` missing Prisma exports). Dev smoke: UI 200, API connection refused.
+- **Deviations:** None from prep brief. Did NOT fix `react-shim`, type errors, Prisma generate, or any app code. Did NOT create board rows. Did NOT merge.
+- **Known limitations:** 3 §9 items remain partially open (`Campaign PAUSED` writer, SDR `ENGAGED+` transition writers, `Workspace.plan` canonical set). Build baseline discrepancy (FAIL → PASS) needs watching. Prisma client still not generated — API cannot start until engines download succeeds.
+- **Rollback:** Revert this map commit on `agent/software-map` only (`git revert` / reset). No `main` changes to revert. Delete local `.env` if needed (it is gitignored).
+
+### Original map task (2026-10-15)
 
 - **Summary:** Added the Software Map (`docs/software-map.md`) on branch `agent/software-map`. No application code changed. No feature work.
 - **Changes by area:** `docs/software-map.md` (new file, this map). No other files changed.
