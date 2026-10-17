@@ -3,7 +3,6 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export type AdsPlatform = 'ALL' | 'GOOGLE' | 'FACEBOOK';
 export type AdsPreset = 'TODAY' | 'LAST_7' | 'LAST_30' | 'THIS_MONTH' | 'LAST_MONTH';
@@ -23,7 +22,6 @@ const DATE_RANGES: { label: string; value: AdsPreset }[] = [
 ];
 
 export default function AdsLayout() {
-  useAutoLaunchTour('ads');
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
   const [isAIOpen, setIsAIOpen]   = useState(false);
@@ -84,7 +82,7 @@ export default function AdsLayout() {
               <div className="h-5 w-[1px] bg-border" />
 
               {/* Platform tabs matching dashboard pipeline pills */}
-              <div data-tour="ads-accounts-switch" className="flex items-center gap-0.5 bg-surface/40 border border-border/40 rounded-lg p-0.5">
+              <div className="flex items-center gap-0.5 bg-surface/40 border border-border/40 rounded-lg p-0.5">
                 {(['ALL', 'GOOGLE', 'FACEBOOK'] as const).map(p => (
                   <button
                     key={p}

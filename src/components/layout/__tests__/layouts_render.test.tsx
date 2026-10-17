@@ -1,13 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TourProvider } from '../TourProvider';
-import { TourLauncher } from '../TourLauncher';
-import { GettingStartedHub } from '../../dashboard/GettingStartedHub';
 import { ToastProvider } from '../../ui/Toast';
-import AppShell from '../../layout/AppShell';
+import AppShell from '../AppShell';
 import CommandPalette from '../../ui/CommandPalette';
 import CrmLayout from '../../../pages/crm/CrmLayout';
 import AutomationsLayout from '../../../pages/automations/AutomationsLayout';
@@ -28,26 +25,14 @@ function Wrapper({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <ToastProvider>
-          <TourProvider>
-            {children}
-          </TourProvider>
+          {children}
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
 }
 
-describe('All Pages and Layouts Render Test', () => {
-  it('renders TourLauncher without crashing', () => {
-    const { container } = render(<TourLauncher />, { wrapper: Wrapper });
-    expect(container).toBeDefined();
-  });
-
-  it('renders GettingStartedHub without crashing', () => {
-    const { container } = render(<GettingStartedHub />, { wrapper: Wrapper });
-    expect(container).toBeDefined();
-  });
-
+describe('Layouts Render Test', () => {
   it('renders CommandPalette without crashing', () => {
     const { container } = render(<CommandPalette isOpen={true} onClose={() => {}} />, { wrapper: Wrapper });
     expect(container).toBeDefined();

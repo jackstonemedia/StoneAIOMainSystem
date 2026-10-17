@@ -5,10 +5,8 @@ import { useUnreadNotificationsCount } from '../../../hooks/useUnreadNotificatio
 import CRMAIAssistant from '../../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../../components/ui/NotificationPanel';
 
-import { useAutoLaunchTour } from '../../../hooks/useAutoLaunchTour';
 
 export default function CalendarLayout() {
-  useAutoLaunchTour('business');
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();

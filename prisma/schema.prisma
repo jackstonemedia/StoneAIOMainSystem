@@ -342,7 +342,6 @@ model InboxDisplayIdSequence {
   @@map("inbox_display_id_sequences")
 }
 
-
 model WorkspaceMember {
   workspaceId String    @map("workspace_id")
   userId      String    @map("user_id")
@@ -359,24 +358,8 @@ model User {
   clerkId            String                   @unique @map("clerk_id")
   createdAt          DateTime                 @default(now()) @map("created_at")
   updatedAt          DateTime                 @updatedAt @map("updated_at")
-  onboardingProgress UserOnboardingProgress[]
 
   @@map("users")
-}
-
-model UserOnboardingProgress {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  tourKey     String    @map("tour_key")
-  status      String    @default("not_started") // not_started | in_progress | completed | skipped
-  stepIndex   Int       @default(0) @map("step_index")
-  completedAt DateTime? @map("completed_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tourKey])
-  @@map("user_onboarding_progress")
 }
 
 model Agent {

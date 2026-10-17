@@ -4,10 +4,8 @@ import { Settings, Search, Bell, Command, Bot, X } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../components/ui/NotificationPanel';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function CrmLayout() {
-  useAutoLaunchTour('crm');
   const [isAIOpen, setIsAIOpen] = React.useState(false);
   const [isNotifOpen, setIsNotifOpen] = React.useState(false);
   const location = useLocation();

@@ -3,10 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function BusinessLayout() {
-  useAutoLaunchTour('business');
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
   const [isAIOpen, setIsAIOpen] = useState(false);
