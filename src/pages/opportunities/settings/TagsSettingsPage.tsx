@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { opportunitiesApi } from '../../../lib/api/opportunities';
 import { useToast } from '../../../components/ui/Toast';
+import { HeaderPortal } from '../../../components/layout/HeaderPortal';
 import type { Tag } from '../../../types/opportunities';
 
 const COLOR_SWATCHES = [
@@ -99,6 +100,17 @@ export default function TagsSettingsPage() {
   return (
     <div className="h-full flex flex-col bg-bg overflow-hidden">
       {/* Top Header */}
+      {/* ── Banner control (portal → CrmLayout banner row) ── */}
+      <HeaderPortal>
+        <button
+          onClick={() => setShowMergeModal(true)}
+          disabled={tags.length < 2}
+          className="px-4 py-2 bg-surface-hover hover:bg-surface-hover/80 border border-border text-text-main text-[13px] font-semibold rounded-xl flex items-center gap-2 shadow-xs disabled:opacity-50 transition-all"
+        >
+          <GitMerge className="w-4 h-4" /> Merge Tags
+        </button>
+      </HeaderPortal>
+
       <header className="px-8 py-4 border-b border-border bg-surface shrink-0 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
@@ -118,13 +130,6 @@ export default function TagsSettingsPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowMergeModal(true)}
-          disabled={tags.length < 2}
-          className="px-4 py-2 bg-surface-hover hover:bg-surface-hover/80 border border-border text-text-main text-[13px] font-semibold rounded-xl flex items-center gap-2 shadow-xs disabled:opacity-50 transition-all"
-        >
-          <GitMerge className="w-4 h-4" /> Merge Tags
-        </button>
       </header>
 
       {/* Body Content */}

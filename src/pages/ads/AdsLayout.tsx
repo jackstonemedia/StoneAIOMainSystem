@@ -3,7 +3,6 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { TourLauncher } from '../../components/tour/TourLauncher';
 import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export type AdsPlatform = 'ALL' | 'GOOGLE' | 'FACEBOOK';
@@ -124,7 +123,6 @@ export default function AdsLayout() {
             </div>
           )}
 
-          <TourLauncher />
 
           <button
             onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}

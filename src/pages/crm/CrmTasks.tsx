@@ -574,6 +574,71 @@ export default function CrmTasks() {
           >
             <Settings className="w-4 h-4" /> Manage Columns
           </button>
+
+          <div className="w-[1px] h-5 bg-border mx-1" />
+
+          <button
+            onClick={() => setPanelOpen('filter')}
+            className="btn-secondary"
+          >
+            <Filter className="w-4 h-4 text-white" /> Custom Filter Rule
+            {filters.length > 0 && (
+              <span className="ml-1 w-4 h-4 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {filters.length}
+              </span>
+            )}
+          </button>
+
+          {/* Sort dropdown */}
+          <div className="relative">
+            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
+              <ChevronDown className="w-4 h-4" /> Sort
+              {sortConfig && <span className="ml-1 w-2 h-2 rounded-full bg-primary inline-block" />}
+            </button>
+            <AnimatePresence>
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute left-0 top-full mt-2 w-[210px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {[
+                      { label: 'Due Date: Earliest First', field: 'dueDate', dir: 'asc' },
+                      { label: 'Due Date: Latest First',  field: 'dueDate', dir: 'desc' },
+                      { label: 'Title (A–Z)',             field: 'title',   dir: 'asc' },
+                      { label: 'Title (Z–A)',             field: 'title',   dir: 'desc' },
+                      { label: 'Priority (High → Low)',   field: 'priority', dir: 'desc' },
+                    ].map((opt, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setSortConfig({ field: opt.field, dir: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }}
+                        className={`w-full flex items-center px-4 py-2 text-[13px] font-medium hover:bg-surface-hover transition-colors ${
+                          sortConfig?.field === opt.field && sortConfig?.dir === opt.dir
+                            ? 'text-primary'
+                            : 'text-text-muted hover:text-text-main'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {sortConfig && (
+                      <div className="border-t border-border mt-1 pt-1">
+                        <button
+                          onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }}
+                          className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors"
+                        >
+                          Clear Sort
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </HeaderPortal>
 
@@ -622,7 +687,7 @@ export default function CrmTasks() {
       </AnimatePresence>
 
       {/* ── Tabs Row ── */}
-      <div className="px-8 pt-4 flex items-center justify-between gap-4 shrink-0">
+      <div className="px-8 pt-4 flex items-center gap-4 shrink-0">
         <div className="flex items-center gap-1">
           {(['all', 'today', 'upcoming', 'completed'] as const).map(tab => (
             <button
@@ -647,17 +712,6 @@ export default function CrmTasks() {
           ))}
         </div>
 
-        <button
-          onClick={() => setPanelOpen('filter')}
-          className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted hover:text-text-main border border-border hover:border-border/80 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <Filter className="w-3.5 h-3.5" /> Custom Filter Rule
-          {filters.length > 0 && (
-            <span className="ml-1 w-4 h-4 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-              {filters.length}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* ── Main Table ── */}
@@ -911,63 +965,6 @@ export default function CrmTasks() {
           '--btn-border': 'transparent',
         } as React.CSSProperties}
       >
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4 text-white" /> Advanced filters
-          </button>
-
-          {/* Sort dropdown */}
-          <div className="relative">
-            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
-              <ChevronDown className="w-4 h-4" /> Sort
-              {sortConfig && <span className="ml-1 w-2 h-2 rounded-full bg-primary inline-block" />}
-            </button>
-            <AnimatePresence>
-              {sortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 bottom-full mb-2 w-[210px] bg-surface border border-border shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    {[
-                      { label: 'Due Date: Earliest First', field: 'dueDate', dir: 'asc' },
-                      { label: 'Due Date: Latest First',  field: 'dueDate', dir: 'desc' },
-                      { label: 'Title (A–Z)',             field: 'title',   dir: 'asc' },
-                      { label: 'Title (Z–A)',             field: 'title',   dir: 'desc' },
-                      { label: 'Priority (High → Low)',   field: 'priority', dir: 'desc' },
-                    ].map((opt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => { setSortConfig({ field: opt.field, dir: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }}
-                        className={`w-full flex items-center px-4 py-2 text-[13px] font-medium hover:bg-surface-hover transition-colors ${
-                          sortConfig?.field === opt.field && sortConfig?.dir === opt.dir
-                            ? 'text-primary'
-                            : 'text-text-muted hover:text-text-main'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    {sortConfig && (
-                      <div className="border-t border-border mt-1 pt-1">
-                        <button
-                          onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }}
-                          className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors"
-                        >
-                          Clear Sort
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
         <div className="flex items-center gap-4">
           {/* Page size selector */}
           <div className="relative">
