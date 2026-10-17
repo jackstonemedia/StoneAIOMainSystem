@@ -1,0 +1,45 @@
+{
+  "initialLoad": {
+    "http": 200,
+    "bodyChars": 1436,
+    "hasSeedDeal": true,
+    "boardActive": false,
+    "listActive": true,
+    "boardBtnFound": true,
+    "listBtnFound": true,
+    "tables": 6,
+    "hasGroupFooter": false,
+    "url": "/crm/opportunities"
+  },
+  "afterBoardToggle": {
+    "bodyChars": 846,
+    "hasSeedDeal": true,
+    "boardActive": true,
+    "listActive": false,
+    "boardBtnFound": true,
+    "listBtnFound": true,
+    "tables": 0,
+    "hasGroupFooter": false,
+    "url": "/crm/opportunities"
+  },
+  "backToList": {
+    "bodyChars": 1436,
+    "hasSeedDeal": true,
+    "boardActive": false,
+    "listActive": true,
+    "boardBtnFound": true,
+    "listBtnFound": true,
+    "tables": 6,
+    "hasGroupFooter": false,
+    "url": "/crm/opportunities"
+  },
+  "clickThrough": {
+    "clicked": "cell:Q3 Enterprise License",
+    "urlAfter": "http://127.0.0.1:5173/crm/opportunities/:id",
+    "bodyHasDrawerOrDetail": false
+  },
+  "sizes": {
+    "crm-opportunities-list-default.png": 135422,
+    "crm-opportunities-board-after-toggle.png": 87270
+  }
+}
