@@ -39,7 +39,7 @@ From the codebase (verified in fit-check, 2026-10-17):
    ECONNRESET failure on full install). Record exact resolved versions.
 3. Client module `src/lib/sentry.ts`:
    - `initSentry(dsn?)` — DSN defaults to `import.meta.env.VITE_SENTRY_DSN`; if empty, NO-OP, return false.
-     Else `Sentry.init({ dsn, environment: import.meta.env.MODE, sendDefaultPii: false })`. No tracing,
+     Else `Sentry.init({ dsn, environment: import.meta.env.MODE })`. No tracing,
      no Session Replay (error monitoring only — keep the footprint minimal).
    - `captureClientError(error, context?)` — `Sentry.captureException` only if initialized; else no-op.
    - `isSentryEnabled()` — for tests / callers. DSN param is injectable so tests can pass a dummy DSN
@@ -49,7 +49,7 @@ From the codebase (verified in fit-check, 2026-10-17):
    `captureClientError(error, { componentStack })` (in addition to the existing `console.error`).
 6. Server module `api/utils/sentry.ts`:
    - `initSentry(dsn?)` — DSN defaults to `env.SENTRY_DSN`; if empty, NO-OP, return false. Else
-     `Sentry.init({ dsn, environment: env.SENTRY_ENVIRONMENT || env.NODE_ENV, sendDefaultPii: false,
+     `Sentry.init({ dsn, environment: env.SENTRY_ENVIRONMENT || env.NODE_ENV,
      tracesSampleRate: 0 })`. The SDK auto-registers `uncaughtException` / `unhandledRejection` capture.
    - `captureServerError(err, context?)` — `Sentry.captureException` only if initialized; returns event id or null.
 7. `server.ts` — import `./api/utils/sentry.js` FIRST (right after `import 'dotenv/config'`) so init runs at
@@ -95,7 +95,10 @@ From the codebase (verified in fit-check, 2026-10-17):
 - No real secrets in code, docs, or logs. No DSN committed. DSN comes from env only.
 - No user-facing "test error" button, no fake monitoring UI. The test route is dev-only (404 in prod).
 - No `setupExpressErrorHandler` AND `errorHandler` double-capture: capture lives in `errorHandler` only.
-- `sendDefaultPii: false` — errors must not ship user PII to Sentry.
+- No user PII attached to Sentry events by our code — only error + method/path (server) /
+  component-stack (client) context. DEVIATION (found at typecheck): installed @sentry/* v11 has
+  no `sendDefaultPii` init option (tsc TS2353), so the Blueprint's `sendDefaultPii: false` was
+  dropped from both init calls; the SDK does not attach user PII by default.
 
 ## 6. Acceptance criteria
 

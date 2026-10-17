@@ -13,6 +13,7 @@
  */
 import { Component } from 'react';
 import type { ReactNode, ErrorInfo } from 'react';
+import { captureClientError } from '../../lib/sentry.ts';
 
 interface Props {
   children: ReactNode;
@@ -48,6 +49,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('=== [ErrorBoundary CAUGHT ERROR] ===\nError Message:', error?.message, '\nStack:', error?.stack, '\nComponent Stack:', info?.componentStack);
+    // B-2: report render errors to Sentry (no-op when no DSN is configured).
+    captureClientError(error, { componentStack: info?.componentStack });
   }
 
   reset() {
