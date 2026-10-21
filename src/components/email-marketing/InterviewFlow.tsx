@@ -9,6 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import InterviewChat from './InterviewChat';
+import DraftReviewFlow from './DraftReviewFlow';
 import ProfileSidePanel from './ProfileSidePanel';
 import { profileToFormValues, type ProfileFormValues } from './ProfileForm';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
@@ -80,7 +81,8 @@ export default function InterviewFlow({
   const micSupported = useMemo(() => getSpeechRecognition() !== null, []);
   const examplePlaceholder = useMemo(() => {
     if (!draft || draft.currentPhase === 'brief_confirm') return '';
-    return pickExample(createWithAiCopy.interview.examplePools[draft.currentPhase], `${draft.id}:${draft.currentPhase}`);
+    if (!PHASE_ORDER.includes(draft.currentPhase as InterviewPhase)) return '';
+    return pickExample(createWithAiCopy.interview.examplePools[draft.currentPhase as InterviewPhase], `${draft.id}:${draft.currentPhase}`);
   }, [draft]);
 
   const loadPick = useCallback(async () => {
@@ -318,6 +320,47 @@ export default function InterviewFlow({
   }
 
   if (!draft) return <div className="p-6 text-text-muted">No draft available.</div>;
+
+  // Past the interview (Brief confirmed onward): Phase 7 Draft + Phase 8
+  // Review live in DraftReviewFlow. "Edit Brief" reopens Call to Action.
+  const pastInterview =
+    draft.status === 'brief_confirmed' ||
+    draft.status === 'drafted' ||
+    draft.status === 'scheduled' ||
+    draft.currentPhase === 'draft_refine' ||
+    draft.currentPhase === 'review_send';
+
+  const handleEditBrief = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const { draft: next } = await reopenPhase(draft.id, 'cta');
+      setDraft(next);
+    } catch (err) {
+      toast('error', 'Could not reopen the Brief', extractApiError(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (pastInterview) {
+    return (
+      <div className="space-y-4">
+        <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
+        <ProfileSidePanel
+          open={panelOpen}
+          profile={profile}
+          onClose={() => setPanelOpen(false)}
+          onSave={onSaveProfile}
+          saving={saving}
+          serverErrors={serverErrors}
+          inProgress
+          onRegenerate={() => handleSnapshot('regenerate')}
+          onKeep={() => handleSnapshot('keep')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

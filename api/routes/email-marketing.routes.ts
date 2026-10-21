@@ -513,7 +513,28 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
     }
 
     if (workspaceId && contactId) {
-      // 1. Record EmailEvent
+      // 1. Record EmailEvent — with M3 bot filtering (spec §18): clicks ≤10s
+      // after delivery, or matching known scanner user agents, are recorded
+      // with is_bot_suspected and never counted as real clicks.
+      let deliveredAt: Date | null = null;
+      if (campaignId) {
+        const recipient = await db.campaignRecipient.findFirst({
+          where: { campaignId, contactId },
+          select: { sentAt: true },
+        });
+        deliveredAt = recipient?.sentAt || null;
+        if (!deliveredAt) {
+          const sent = await db.emailEvent.findFirst({
+            where: { campaignId, contactId, eventType: EmailEventType.SENT },
+            orderBy: { occurredAt: 'asc' },
+            select: { occurredAt: true },
+          });
+          deliveredAt = sent?.occurredAt || null;
+        }
+      }
+      const userAgent = req.headers['user-agent'] || null;
+      const { isBotClick } = await import('../services/email-marketing/fact-validator.js');
+      const botSuspected = isBotClick(deliveredAt, new Date(), userAgent);
       await db.emailEvent.create({
         data: {
           workspaceId,
@@ -522,7 +543,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
           automationEnrollmentId,
           eventType: EmailEventType.CLICKED,
           linkUrl: safeUrl,
-        },
+          isBotSuspected: botSuspected,
+          metadata: { userAgent, botSuspected },
+        } as any,
       });
 
       // 2. Update contact lastEmailClickedAt

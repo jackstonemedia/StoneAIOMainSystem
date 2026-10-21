@@ -96,6 +96,7 @@ model Workspace {
   sendingDomains              SendingDomain[]
   businessProfile             BusinessProfile?
   campaignDrafts              CampaignDraft[]
+  campaignEmails              CampaignEmail[]
   aiActions                   AIAction[]
   sdrAgents                   AutonomousSdrAgent[]
 
@@ -1750,6 +1751,15 @@ model Campaign {
   name           String
   subject        String
   status         CampaignStatus      @default(DRAFT)
+  // Create-with-AI (M3): the draft this campaign was confirmed from, if any.
+  draftId        String?             @map("draft_id")
+  coldContacts   Boolean             @default(false) @map("cold_contacts")
+  audienceSummary String?            @map("audience_summary")
+  recipientCount Int?                @map("recipient_count")
+  sendWindow     Json?               @map("send_window")
+  // Idempotency key for the final Phase 8 confirmation (spec §13): a repeat
+  // confirm with the same key returns the existing campaign, never a duplicate.
+  idempotencyKey String?             @unique @map("idempotency_key")
   blockJson      Json                @map("block_json")
   listId         String?             @map("list_id")
   segmentId      String?             @map("segment_id")
@@ -1761,6 +1771,7 @@ model Campaign {
   updatedAt      DateTime            @updatedAt @map("updated_at")
   workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   recipients     CampaignRecipient[]
+  emails         CampaignEmail[]
 
   @@index([workspaceId])
   @@map("email_campaigns")
@@ -1830,6 +1841,10 @@ model EmailEvent {
   eventType              EmailEventType @map("event_type")
   linkUrl                String?        @map("link_url")
   occurredAt             DateTime       @default(now()) @map("occurred_at")
+  // Create-with-AI (M3, spec §18): bot filtering — clicks ≤10s after delivery
+  // or matching known scanner user agents are recorded, never counted as real.
+  isBotSuspected         Boolean        @default(false) @map("is_bot_suspected")
+  metadata               Json?
   workspace              Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact                Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
@@ -1978,6 +1993,9 @@ model BusinessProfile {
   websiteUrl       String?  @map("website_url")
   differentiators  String?
   guaranteesProof  String?  @map("guarantees_proof")
+  // Create-with-AI (M3, spec §13): business time zone for the send window
+  // (weekdays 08:00–17:00). Null = UTC; the Phase 8 UI shows which zone applies.
+  timezone         String?
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -2030,7 +2048,50 @@ model CampaignDraft {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  emails    CampaignEmail[]
 
   @@index([workspaceId])
   @@map("campaign_drafts")
+}
+
+// Create-with-AI (M3, spec §12/§15): one drafted email in a campaign draft.
+// A single email end to end (M3) has exactly one row: kind "scheduled", order 1.
+// Sequences (M4) and reaction emails (M5) add more rows to the same draft.
+model CampaignEmail {
+  id               String    @id @default(uuid())
+  workspaceId      String    @map("workspace_id")
+  draftId          String    @map("draft_id")
+  campaignId       String?   @map("campaign_id")
+  kind             String    @default("scheduled") // scheduled | reaction
+  order            Int       @default(1)
+  name             String    @default("Email 1")
+  purpose          String?
+  timingRule       Json?     @map("timing_rule")
+  receivesRule     Json?     @map("receives_rule")
+  subjectVariants  Json      @map("subject_variants") // string[]
+  subjectSelected  Int       @default(0) @map("subject_selected")
+  previewText      String?   @map("preview_text")
+  bodyHtml         String    @map("body_html")
+  bodyText         String    @map("body_text")
+  cta              Json?
+  factMap          Json      @default("[]") @map("fact_map")
+  // Last 10 versions, oldest first: [{ subjectVariants, subjectSelected,
+  // previewText, bodyHtml, bodyText, factMap, note, at }]
+  versions         Json      @default("[]")
+  // draft | ready | scheduled | sending | sent | paused | cancelled
+  status           String    @default("draft")
+  scheduledAtUtc   DateTime? @map("scheduled_at_utc")
+  // M7 cold-outreach acknowledgment (spec §13); blocking for cold drafts only.
+  coldAck          Boolean   @default(false) @map("cold_ack")
+  recipientCount   Int?      @map("recipient_count")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  draft     CampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  campaign  Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([draftId])
+  @@map("campaign_emails")
 }

@@ -121,7 +121,7 @@ export function fileToBase64(file: File): Promise<string> {
 /* ── Interview drafts (Milestone 2) ─────────────────────────────────────────── */
 
 export type InterviewPhase = 'goal' | 'audience' | 'cta';
-export type DraftPhase = InterviewPhase | 'brief_confirm';
+export type DraftPhase = InterviewPhase | 'brief_confirm' | 'draft_refine' | 'review_send';
 
 export type ChecklistItemState = {
   id: string;
@@ -236,5 +236,200 @@ export async function updateDraftSnapshot(
   action: 'regenerate' | 'keep',
 ): Promise<{ draft: CampaignDraftState }> {
   const r = await apiClient.post(`${DRAFTS}/${draftId}/snapshot`, { action });
+  return r.data;
+}
+
+/* ── Draft + Refine, Review + Send (Milestone 3) ───────────────────────────── */
+
+export type DraftEmailState = {
+  id: string;
+  draftId: string;
+  campaignId: string | null;
+  kind: string;
+  order: number;
+  name: string;
+  purpose: string | null;
+  subjectVariants: string[];
+  subjectSelected: number;
+  previewText: string | null;
+  bodyHtml: string;
+  bodyText: string;
+  cta: Record<string, unknown> | null;
+  factMap: { claim: string; source: string }[];
+  versions: {
+    subjects: string[];
+    subjectSelected: number;
+    previewText: string | null;
+    bodyHtml: string;
+    bodyText: string;
+    factMap: { claim: string; source: string }[];
+    note: string;
+    at: string;
+  }[];
+  status: string;
+  scheduledAtUtc: string | null;
+  coldAck: boolean;
+  recipientCount: number | null;
+  placeholders: string[];
+  removedClaims: { claim: string; where: string }[];
+};
+
+export type RecipientResolutionState = {
+  sourceType: 'segment' | 'smartList' | 'list' | 'csv';
+  sourceId: string | null;
+  sourceName: string | null;
+  totalCandidates: number;
+  selected: { email: string; contactId?: string; firstName?: string; lastName?: string; phone?: string; company?: string }[];
+  excluded: { key: string; label: string; count: number; contacts: { email: string; contactId?: string }[] }[];
+  phase2ExclusionsNote: string | null;
+  mismatch: { applicable: boolean; mismatchPct: number | null; warned: boolean; detail: string };
+  csvContacts: { email: string; firstName?: string; lastName?: string; phone?: string; company?: string }[];
+  csvRejected: { row: number; email: string; reason: string }[];
+  csvDuplicates: number;
+  tokenCoverage: Record<string, { missing: number; total: number }>;
+  tokensUsed: string[];
+};
+
+export type SendChecksState = {
+  blocking: string[];
+  warnings: string[];
+  links: { url: string; ok: boolean; status?: number }[];
+  domainAuth: { domain: string | null; spf: boolean; dkim: boolean; verified: boolean; note: string };
+};
+
+export async function generateEmail(draftId: string): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/generate-email`, {});
+  return r.data;
+}
+
+export async function listDraftEmails(draftId: string): Promise<{ emails: DraftEmailState[] }> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}/emails`);
+  return r.data;
+}
+
+export async function getDraftEmail(emailId: string): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.get(`${BASE}/emails/${emailId}`);
+  return r.data;
+}
+
+export async function editDraftEmail(
+  emailId: string,
+  patch: Partial<{ subjectVariants: string[]; subjectSelected: number; previewText: string; bodyHtml: string; bodyText: string }>,
+): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.patch(`${BASE}/emails/${emailId}`, patch);
+  return r.data;
+}
+
+export async function refineDraftEmail(
+  emailId: string,
+  instruction: string,
+  scope: 'whole' | 'subject' | 'opening' | 'body' | 'cta' | 'signoff' = 'whole',
+): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/refine`, { instruction, scope });
+  return r.data;
+}
+
+export async function undoDraftEmail(emailId: string): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/undo`, {});
+  return r.data;
+}
+
+export async function draftEmailVersions(emailId: string): Promise<{ versions: DraftEmailState['versions']; count: number }> {
+  const r = await apiClient.get(`${BASE}/emails/${emailId}/versions`);
+  return r.data;
+}
+
+export async function consistencyCheckDraftEmail(emailId: string): Promise<{ warnings: string[]; ok: boolean }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/consistency-check`, {});
+  return r.data;
+}
+
+export async function getRecipientSources(): Promise<{
+  segments: { id: string; name: string }[];
+  smartLists: { id: string; name: string }[];
+  lists: { id: string; name: string }[];
+}> {
+  const r = await apiClient.get(`${BASE}/recipient-sources`);
+  return r.data;
+}
+
+export async function suggestFilter(draftId: string): Promise<{
+  suggestion: string;
+  mapped: { hint: string; field: string }[];
+  unmapped: string[];
+}> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/recipients/suggest-filter`, {});
+  return r.data;
+}
+
+export async function resolveRecipients(
+  draftId: string,
+  sourceType: 'segment' | 'smartList' | 'list' | 'csv',
+  sourceId: string | null,
+  csvText: string | null,
+): Promise<RecipientResolutionState> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/recipients/resolve`, { sourceType, sourceId, csvText });
+  return r.data;
+}
+
+export async function runSendChecks(
+  emailId: string,
+  sendAt: string | null,
+): Promise<SendChecksState> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/checks`, { sendAt });
+  return r.data;
+}
+
+export async function testSendDraftEmail(
+  emailId: string,
+  addresses: string[],
+): Promise<{ sent: number; to: string[]; subject: string; note: string }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/test-send`, { addresses });
+  return r.data;
+}
+
+export async function simulatePath(
+  emailId: string,
+  scenario: string,
+): Promise<{ scenario: string; emails: { name: string; when: string; trigger: string }[]; note: string }> {
+  const r = await apiClient.get(`${BASE}/emails/${emailId}/path-simulator`, { params: { scenario } });
+  return r.data;
+}
+
+export async function recommendedStart(draftId: string): Promise<{ atUtc: string; reason: string; timeZone: string }> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}/recommended-start`);
+  return r.data;
+}
+
+export async function confirmSendDraftEmail(
+  emailId: string,
+  input: { idempotencyKey: string; campaignName: string; sendNow: boolean; sendAt?: string | null; coldAck?: boolean },
+): Promise<{ campaignId: string; emailId: string; sendAtUtc: string; recipientCount: number; idempotentReplay: boolean; note: string }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/confirm-send`, input);
+  return r.data;
+}
+
+export async function getCampaignStatus(campaignId: string): Promise<{
+  campaign: { id: string; name: string; subject: string; status: string; scheduledAtUtc: string | null; sentAtUtc: string | null; recipientCount: number | null };
+  recipients: { id: string; contactId: string; status: string; sentAt: string | null }[];
+  events: { type: string; contactId: string; linkUrl: string | null; occurredAt: string; isBotSuspected: boolean }[];
+  counts: Record<string, number>;
+}> {
+  const r = await apiClient.get(`${BASE}/campaigns/${campaignId}`);
+  return r.data;
+}
+
+export async function pauseCampaignAction(campaignId: string): Promise<{ status: string }> {
+  const r = await apiClient.post(`${BASE}/campaigns/${campaignId}/pause`, {});
+  return r.data;
+}
+
+export async function resumeCampaignAction(campaignId: string): Promise<{ status: string; sendAtUtc: string }> {
+  const r = await apiClient.post(`${BASE}/campaigns/${campaignId}/resume`, {});
+  return r.data;
+}
+
+export async function cancelCampaignAction(campaignId: string): Promise<{ status: string }> {
+  const r = await apiClient.post(`${BASE}/campaigns/${campaignId}/cancel`, {});
   return r.data;
 }

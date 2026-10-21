@@ -119,6 +119,20 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     return; // Workspace was deleted — discard silently
   }
 
+  // ── 1b. Create-with-AI pause/cancel guard (M3, spec §13) ──────────────────
+  // Pause and cancel stop all unsent emails immediately. The recipient stays
+  // PENDING so a resume can re-queue it; nothing is marked sent.
+  if (campaignId) {
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, workspaceId },
+      select: { status: true },
+    });
+    if (campaign && (campaign.status === 'PAUSED' || campaign.status === 'CANCELLED')) {
+      console.log(`[EmailSendWorker] Skipping job ${job.id} — campaign ${campaign.status}`);
+      return;
+    }
+  }
+
   // ── 2. Load contact ───────────────────────────────────────────────────────
   const contact = await db.contact.findFirst({
     where: { id: contactId, workspaceId },

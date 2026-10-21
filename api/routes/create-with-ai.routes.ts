@@ -28,6 +28,38 @@ import {
 } from '../services/email-marketing/business-profile.service.js';
 import { prefillFromWebsite } from '../services/email-marketing/website-prefill.service.js';
 import {
+  generateEmail,
+  refineEmail,
+  directEditEmail,
+  undoEmail,
+  consistencyCheck,
+  getEmailOrThrow,
+  emailToState,
+  DraftError,
+} from '../services/email-marketing/draft-generator.service.js';
+import {
+  resolveRecipients,
+  suggestFilterFromHints,
+  coverageForSelected,
+  getRecipientSources,
+  RecipientError,
+  type ListHints,
+} from '../services/email-marketing/recipients.service.js';
+import {
+  runSendChecks,
+  testSendEmail,
+  simulatePath,
+  recommendedStartFor,
+  confirmSend,
+  pauseCampaign,
+  resumeCampaign,
+  cancelCampaign,
+  campaignStatus,
+  SendError,
+} from '../services/email-marketing/send-orchestration.service.js';
+import { usedTokens } from '../services/email-marketing/fact-validator.js';
+import { db } from '../../infrastructure/database/client.js';
+import {
   createDraft,
   getDraft,
   listDrafts,
@@ -295,6 +327,329 @@ router.post(
       res.json({ draft });
     } catch (err) {
       draftError(err, res);
+    }
+  }),
+);
+
+// ── Draft + Refine (Milestone 3, Phase 7) ───────────────────────────────────
+// All routes are workspace-scoped. Generation needs a locked Brief; AI
+// unavailability is an honest 503, never a fabricated draft.
+
+function m3Error(err: unknown, res: Response): void {
+  if (err instanceof DraftError || err instanceof RecipientError || err instanceof SendError) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
+  console.error('[CreateWithAI] M3 route error:', err instanceof Error ? err.message : err);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
+function listHintsOf(draft: any): ListHints {
+  const brief = (draft?.brief || {}) as Record<string, any>;
+  return ((brief?.audience?.list_hints || {}) as ListHints) || {};
+}
+
+router.post(
+  '/drafts/:draftId/generate-email',
+  asyncHandler(async (req, res) => {
+    try {
+      const email = await generateEmail(getWid(req), req.params.draftId);
+      res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId/emails',
+  asyncHandler(async (req, res) => {
+    try {
+      const rows = await db.campaignEmail.findMany({
+        where: { draftId: req.params.draftId, workspaceId: getWid(req) },
+        orderBy: { order: 'asc' },
+      });
+      res.json({ emails: rows.map(emailToState) });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/emails/:emailId',
+  asyncHandler(async (req, res) => {
+    try {
+      const row = await getEmailOrThrow(getWid(req), req.params.emailId);
+      res.json({ email: emailToState(row) });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.patch(
+  '/emails/:emailId',
+  asyncHandler(async (req, res) => {
+    try {
+      const b = req.body || {};
+      const email = await directEditEmail(getWid(req), req.params.emailId, {
+        subjectVariants: Array.isArray(b.subjectVariants) ? b.subjectVariants : undefined,
+        subjectSelected: typeof b.subjectSelected === 'number' ? b.subjectSelected : undefined,
+        previewText: typeof b.previewText === 'string' ? b.previewText : undefined,
+        bodyHtml: typeof b.bodyHtml === 'string' ? b.bodyHtml : undefined,
+        bodyText: typeof b.bodyText === 'string' ? b.bodyText : undefined,
+      });
+      res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/refine',
+  asyncHandler(async (req, res) => {
+    try {
+      const scope = req.body?.scope as 'whole' | 'subject' | 'opening' | 'body' | 'cta' | 'signoff' | undefined;
+      const email = await refineEmail(getWid(req), req.params.emailId, req.body?.instruction || '', scope || 'whole');
+      res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/undo',
+  asyncHandler(async (req, res) => {
+    try {
+      const email = await undoEmail(getWid(req), req.params.emailId);
+      res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/emails/:emailId/versions',
+  asyncHandler(async (req, res) => {
+    try {
+      const row = await getEmailOrThrow(getWid(req), req.params.emailId);
+      const versions = (Array.isArray(row.versions) ? row.versions : []) as unknown[];
+      res.json({ versions, count: versions.length });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/consistency-check',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await consistencyCheck(getWid(req), req.params.emailId);
+      res.json(result);
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+// ── Review and Send (Milestone 3, Phase 8) ──────────────────────────────────
+
+router.get(
+  '/recipient-sources',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await getRecipientSources(getWid(req)));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/recipients/suggest-filter',
+  asyncHandler(async (req, res) => {
+    try {
+      const draft = await db.campaignDraft.findFirst({ where: { id: req.params.draftId, workspaceId: getWid(req) } });
+      if (!draft) {
+        res.status(404).json({ error: 'Campaign draft not found' });
+        return;
+      }
+      res.json(suggestFilterFromHints(listHintsOf(draft)));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/recipients/resolve',
+  asyncHandler(async (req, res) => {
+    try {
+      const wid = getWid(req);
+      const b = req.body || {};
+      const sourceType = b.sourceType as 'segment' | 'smartList' | 'list' | 'csv' | undefined;
+      if (!sourceType || !['segment', 'smartList', 'list', 'csv'].includes(sourceType)) {
+        res.status(400).json({ error: 'sourceType must be segment, smartList, list, or csv.' });
+        return;
+      }
+      const draft = await db.campaignDraft.findFirst({ where: { id: req.params.draftId, workspaceId: wid } });
+      if (!draft) {
+        res.status(404).json({ error: 'Campaign draft not found' });
+        return;
+      }
+      const resolution = await resolveRecipients(wid, sourceType, b.sourceId || null, b.csvText || null, listHintsOf(draft));
+      // Token coverage for the selected audience (spec §13).
+      const emails = await db.campaignEmail.findMany({ where: { draftId: req.params.draftId, workspaceId: wid }, orderBy: { order: 'asc' } });
+      const tokens = emails.length > 0
+        ? usedTokens([emails[0].subjectVariants, emails[0].previewText, emails[0].bodyHtml, emails[0].bodyText].map((x) => String(x || '')).join('\n'))
+        : [];
+      const coverage = coverageForSelected(
+        resolution.selected.map((s) => ({ firstName: s.firstName, lastName: s.lastName, company: s.company, phone: s.phone })),
+        tokens,
+      );
+      // Persist the selection on the draft email's receivesRule so confirm
+      // re-resolves the same audience (spec §18: re-check before send).
+      if (emails.length > 0) {
+        await db.campaignEmail.update({
+          where: { id: emails[0].id },
+          data: {
+            receivesRule: {
+              sourceType: resolution.sourceType,
+              sourceId: resolution.sourceId,
+              sourceName: resolution.sourceName,
+              recipientCount: resolution.selected.length,
+              excluded: resolution.excluded.map((g) => ({ key: g.key, label: g.label, count: g.count })),
+              mismatch: resolution.mismatch,
+              tokenCoverage: coverage,
+              csvText: sourceType === 'csv' ? b.csvText || null : null,
+              resolvedAt: new Date().toISOString(),
+            },
+          },
+        });
+      }
+      res.json({ ...resolution, tokenCoverage: coverage, tokensUsed: tokens });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/checks',
+  asyncHandler(async (req, res) => {
+    try {
+      const wid = getWid(req);
+      const email = await getEmailOrThrow(wid, req.params.emailId);
+      const receives = (email.receivesRule || {}) as Record<string, any>;
+      const recipientCount = typeof receives.recipientCount === 'number' ? receives.recipientCount : 0;
+      const sendAt = req.body?.sendAt ? new Date(req.body.sendAt) : null;
+      res.json(await runSendChecks(wid, req.params.emailId, recipientCount, sendAt && !Number.isNaN(sendAt.getTime()) ? sendAt : null));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/test-send',
+  asyncHandler(async (req, res) => {
+    try {
+      const addresses = Array.isArray(req.body?.addresses) ? req.body.addresses : [];
+      res.json(await testSendEmail(getWid(req), req.params.emailId, addresses));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/emails/:emailId/path-simulator',
+  asyncHandler(async (req, res) => {
+    try {
+      const scenario = typeof req.query.scenario === 'string' ? req.query.scenario : 'clicked';
+      res.json(simulatePath(scenario));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId/recommended-start',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await recommendedStartFor(getWid(req), req.params.draftId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/confirm-send',
+  asyncHandler(async (req, res) => {
+    try {
+      const b = req.body || {};
+      res.json(
+        await confirmSend(getWid(req), req.params.emailId, {
+          idempotencyKey: b.idempotencyKey || '',
+          campaignName: b.campaignName || 'Create with AI campaign',
+          sendNow: !!b.sendNow,
+          sendAt: b.sendAt || null,
+          coldAck: !!b.coldAck,
+        }),
+      );
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/campaigns/:campaignId',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await campaignStatus(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/campaigns/:campaignId/pause',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await pauseCampaign(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/campaigns/:campaignId/resume',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await resumeCampaign(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/campaigns/:campaignId/cancel',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await cancelCampaign(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
     }
   }),
 );
