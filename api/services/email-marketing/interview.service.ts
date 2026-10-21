@@ -10,9 +10,24 @@
  * (packages/ai/client.js, server-side only). When AI is unconfigured or the
  * call fails, the user's answers are already saved and the turn returns a
  * 503-style error — never a fabricated interview.
+ *
+ * M4 (spec §9): the sequence phase reuses the pre-existing sequence engine
+ * (sequence.service.ts) — validateSequence is pure (no DB), so importing it
+ * here keeps the pure section testable. The engine's DB functions
+ * (enroll/advance/record) are used by the sequence runner, not the interview.
  */
 
-export type PhaseId = 'goal' | 'audience' | 'cta';
+import {
+  validateSequence,
+  SequenceError,
+  zonedTimeToUtc,
+  assertValidTimeZone,
+  type SequenceInput,
+  type ValidatedSequence,
+} from './sequence.service.js';
+import { recommendedStart } from './fact-validator.js';
+
+export type PhaseId = 'goal' | 'audience' | 'cta' | 'sequence';
 export type PhaseStatus = 'missing' | 'vague' | 'complete' | 'placeholder';
 
 export interface ChecklistItem {
@@ -51,7 +66,7 @@ export type MessageKind = 'answer' | 'question' | 'recap' | 'transition' | 'brie
 export interface ChatMessage {
   role: 'user' | 'ai';
   text: string;
-  phase: PhaseId | 'brief_confirm';
+  phase: PhaseId | 'brief_confirm' | 'sequence_confirmed';
   kind: MessageKind;
   /** For AI questions: the checklist item the question targets (attempts logic). */
   target?: string;
@@ -113,27 +128,34 @@ export interface BriefObject {
 export interface DraftState {
   id: string;
   workspaceId: string;
-  currentPhase: PhaseId | 'brief_confirm';
+  currentPhase: PhaseId | 'brief_confirm' | 'sequence_confirmed';
   status: string;
   profileSnapshot: Record<string, unknown>;
   conversation: ChatMessage[];
   checklists: Partial<Record<PhaseId, PhaseChecklist>>;
   brief: BriefObject | null;
   briefVersion: number;
+  /** M4 sequence object (Phase 4, spec §9) — null until Phase 4 completes. */
+  sequence: Record<string, unknown> | null;
   profileNotedAt: string | null;
   expiresAt: string;
 }
 
-export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta'];
+export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta', 'sequence'];
 export const PHASE_LABELS: Record<PhaseId, string> = {
   goal: 'Goal',
   audience: 'Audience',
   cta: 'Call to Action',
+  sequence: 'Sequence and Timing',
 };
 /** UI phase numbers: "Phase N of 8" (Phase 0 profile is not counted). */
-export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3 };
+export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3, sequence: 4 };
 
-/** Question caps (spec §5.5): 8 per phase for Phases 1–3, 24 across Phases 1–6. */
+/** Question caps (spec §5.5): 8 per phase for Phases 1–3, 4 per phase for
+ * Phases 4–6, 24 across Phases 1–6. */
+export function phaseQuestionCap(phase: PhaseId): number {
+  return phase === 'sequence' ? 4 : 8;
+}
 export const QUESTIONS_PER_PHASE_CAP = 8;
 export const QUESTIONS_TOTAL_CAP = 24;
 /** Extra checklist items per phase (spec §5.2). */
@@ -166,6 +188,14 @@ const BASE_ITEMS: Record<PhaseId, Array<{ id: string; label: string }>> = {
     { id: 'what_next', label: 'What happens next' },
     { id: 'reader_needs', label: 'What the reader needs ready' },
   ],
+  sequence: [
+    { id: 'one_or_series', label: 'One email or a series' },
+    { id: 'how_many', label: 'How many emails' },
+    { id: 'span_gap', label: 'Over how many days, and the gap between emails' },
+    { id: 'start_deadline', label: 'Start and deadline' },
+    { id: 'jobs', label: 'The job of each email' },
+    { id: 'send_timing', label: 'Send timing' },
+  ],
 };
 
 export function baseChecklist(phase: PhaseId): PhaseChecklist {
@@ -185,9 +215,11 @@ export function baseChecklist(phase: PhaseId): PhaseChecklist {
   };
 }
 
-export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' {
-  const i = PHASE_ORDER.indexOf(phase);
-  return i < PHASE_ORDER.length - 1 ? PHASE_ORDER[i + 1] : 'brief_confirm';
+export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' | 'sequence_confirmed' {
+  if (phase === 'goal') return 'audience';
+  if (phase === 'audience') return 'cta';
+  if (phase === 'cta') return 'brief_confirm';
+  return 'sequence_confirmed';
 }
 
 export function countQuestions(conversation: ChatMessage[], phase: PhaseId): number {
@@ -210,10 +242,169 @@ function normQuestion(q: string): string {
  * Validates one Interview JSON output (spec §5.3 step 3 + §16).
  * Returns a list of problems; empty means valid. Never throws on bad input.
  */
+/** Checklist fact text: raw model output uses user_words, merged items use userWords. */
+function sequenceFactText(items: Array<Record<string, unknown>>, id: string): string {
+  const it = items.find((i) => i.id === id);
+  if (!it) return '';
+  const fact = typeof it.fact === 'string' ? it.fact.trim() : '';
+  const words = typeof (it as { userWords?: unknown }).userWords === 'string' ? ((it as { userWords: string }).userWords || '').trim() : '';
+  const snake = typeof (it as { user_words?: unknown }).user_words === 'string' ? ((it as { user_words: string }).user_words || '').trim() : '';
+  return fact || words || snake;
+}
+
+function firstIntIn(text: string): number | null {
+  const m = text.match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+const WORD_NUMBERS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+
+/**
+ * Parses a wall-clock date (YYYY-MM-DD) or datetime into an absolute instant.
+ * Date-only values are interpreted in the business time zone: a start date
+ * means 08:00 (the send-window opening) on that day; a deadline date means
+ * 23:59 (end of that day, so a send on the deadline day is still allowed).
+ * Datetimes without an offset are business-zone wall times. Returns null
+ * when no date can be parsed — the caller asks the user instead of guessing.
+ */
+function parseSequenceDate(text: string, timeZone: string, isDeadline: boolean): string | null {
+  const iso = text.match(/\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)?/);
+  if (!iso) return null;
+  const raw = iso[0];
+  const [y, m, d] = raw.slice(0, 10).split('-').map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return null;
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw);
+  const timePart = raw.match(/[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (hasOffset) {
+    const dt = new Date(raw.replace(' ', 'T'));
+    return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+  }
+  if (timePart) {
+    return zonedTimeToUtc(
+      { year: y, month: m, day: d, hour: parseInt(timePart[1], 10), minute: parseInt(timePart[2], 10), second: 0 },
+      timeZone,
+    ).toISOString();
+  }
+  if (isDeadline) {
+    return zonedTimeToUtc({ year: y, month: m, day: d, hour: 23, minute: 59, second: 0 }, timeZone).toISOString();
+  }
+  return zonedTimeToUtc({ year: y, month: m, day: d, hour: 8, minute: 0, second: 0 }, timeZone).toISOString();
+}
+
+function parseSendWindow(fact: string, timeZone: string): { days: number[]; startHour: number; endHour: number; timeZone: string } {
+  const days = /every day|daily|7 days/i.test(fact) ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5];
+  const hourNums = [...fact.matchAll(/(\d{1,2})\s*(?::(\d{2}))?\s*(am|pm)?/gi)]
+    .map((mm) => {
+      let h = parseInt(mm[1], 10);
+      const ap = (mm[3] || '').toLowerCase();
+      if (ap === 'pm' && h < 12) h += 12;
+      if (ap === 'am' && h === 12) h = 0;
+      return h;
+    })
+    .filter((h) => h >= 0 && h <= 23);
+  let startHour = 8;
+  let endHour = 17;
+  if (hourNums.length >= 2) {
+    startHour = Math.min(hourNums[0], hourNums[1]);
+    endHour = Math.max(hourNums[0], hourNums[1]);
+    if (endHour <= startHour) endHour = 17;
+  } else if (hourNums.length === 1) {
+    startHour = hourNums[0];
+  }
+  return { days, startHour, endHour, timeZone };
+}
+
+export interface SequenceAssembly {
+  ok: boolean;
+  sequence?: ValidatedSequence & { fromEscapeHatch: boolean };
+  error?: string;
+}
+
+/**
+ * Assembles a validated sequence from Phase 4 checklist facts (spec §9).
+ * Missing pieces get safe defaults (count 1, 1-day gaps, next in-window
+ * start, no deadline, generic purposes, weekday 8–17 window) — it only
+ * FAILS on contradictory or invalid data (count/span out of range, a
+ * deadline the plan cannot meet, a past or DST-gap start), which the
+ * interview must ask the user to fix. Never guesses a date: an unparsable
+ * start falls back to the next in-window slot, never to an invented day.
+ */
+export function assembleSequenceFromChecklist(
+  items: Array<Record<string, unknown>>,
+  opts: { timeZone?: string; now?: Date; fromEscapeHatch?: boolean },
+): SequenceAssembly {
+  const timeZone = opts.timeZone || 'UTC';
+  const now = opts.now || new Date();
+  try {
+    assertValidTimeZone(timeZone);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+  const oneOrSeries = sequenceFactText(items, 'one_or_series');
+  const howMany = sequenceFactText(items, 'how_many');
+  let count = firstIntIn(howMany);
+  if (count === null) {
+    const word = Object.keys(WORD_NUMBERS).find((w) => new RegExp(`\\b${w}\\b`, 'i').test(howMany));
+    count = word ? WORD_NUMBERS[word] : /series|more than one|multiple/i.test(oneOrSeries) ? 2 : 1;
+  }
+  const spanGap = sequenceFactText(items, 'span_gap');
+  const spanMatch = spanGap.match(/(\d+)\s*days?/i);
+  const gapsPart = spanGap.split(/gaps?:/i)[1] || '';
+  const gapNums = [...gapsPart.matchAll(/\d+/g)].map((g) => parseInt(g[0], 10)).filter((n) => n >= 1);
+  const offsets: number[] = [0];
+  for (let i = 1; i < count; i++) {
+    offsets.push(offsets[i - 1] + (gapNums[i - 1] ?? 1));
+  }
+  const spanDays = spanMatch ? parseInt(spanMatch[1], 10) : offsets[offsets.length - 1];
+  const jobsFact = sequenceFactText(items, 'jobs');
+  const purposes: string[] = [];
+  for (const part of jobsFact.split(/\n|;/)) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    for (const piece of trimmed.split(/(?=\b\d+[.)]\s+)/)) {
+      const cleaned = piece.replace(/^\d+[.)]\s*/, '').replace(/\.$/, '').trim();
+      if (cleaned && !/^\d+$/.test(cleaned)) purposes.push(cleaned);
+    }
+  }
+  const emails = offsets.map((offsetDays, i) => ({
+    offsetDays,
+    purpose: purposes[i] || `Follow-up email ${i + 1}`,
+    name: `Email ${i + 1}`,
+  }));
+  const sdFact = sequenceFactText(items, 'start_deadline');
+  let start: string | null = parseSequenceDate(sdFact, timeZone, false);
+  if (!start) {
+    start = recommendedStart(now, timeZone).atUtc.toISOString();
+  }
+  let deadline: string | null = null;
+  const allDates = [...sdFact.matchAll(/\d{4}-\d{2}-\d{2}/g)].map((g) => g[0]);
+  if (allDates.length >= 2) {
+    deadline = parseSequenceDate(sdFact.slice(sdFact.indexOf(allDates[1])), timeZone, true);
+  }
+  const sendWindow = parseSendWindow(sequenceFactText(items, 'send_timing'), timeZone);
+  const input: SequenceInput = {
+    count,
+    spanDays,
+    emails,
+    start,
+    deadline,
+    sendWindow,
+    pattern: oneOrSeries || undefined,
+  };
+  try {
+    const validated = validateSequence(input, now);
+    return { ok: true, sequence: { ...validated, fromEscapeHatch: opts.fromEscapeHatch || false, pattern: input.pattern ?? null } };
+  } catch (e) {
+    if (e instanceof SequenceError) return { ok: false, error: e.message };
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 export function validateTurnOutput(
   output: unknown,
   phase: PhaseId,
   previousQuestions: string[],
+  opts?: { timeZone?: string; now?: Date },
 ): string[] {
   const errors: string[] = [];
   if (!output || typeof output !== 'object') return ['Output is not a JSON object.'];
@@ -261,6 +452,13 @@ export function validateTurnOutput(
     const n = normQuestion(o.next_question);
     if (previousQuestions.some((q) => normQuestion(q) === n)) {
       errors.push('next_question repeats a previous question in this phase.');
+    }
+  }
+  if (phase === 'sequence' && o.phase_complete && opts?.timeZone) {
+    const items = Array.isArray(o.checklist) ? (o.checklist as Array<Record<string, unknown>>) : [];
+    const asm = assembleSequenceFromChecklist(items, { timeZone: opts.timeZone, now: opts.now || new Date() });
+    if (!asm.ok) {
+      errors.push(`Sequence plan cannot be assembled: ${asm.error} Ask for the missing or corrected detail.`);
     }
   }
   return errors;
@@ -330,6 +528,7 @@ export function assembleBrief(draft: DraftState): BriefObject {
 export function phaseOpening(phase: PhaseId): string {
   if (phase === 'goal') return 'What do you want to send? Tell me in your own words, with as much detail as you like.';
   if (phase === 'audience') return 'Now tell me about the people who will read this email.';
+  if (phase === 'sequence') return "Now let's decide how many emails go out, and over how many days.";
   return "Now let's decide what you want readers to do after reading this.";
 }
 
@@ -340,7 +539,12 @@ export function phaseBanner(phase: PhaseId): string {
 
 export function transitionMessage(phase: PhaseId, recap: string, audienceThinNote: boolean): string {
   const next = nextPhase(phase);
-  const nextLabel = next === 'brief_confirm' ? 'the Campaign Brief confirmation' : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
+  const nextLabel =
+    next === 'brief_confirm'
+      ? 'the Campaign Brief confirmation'
+      : next === 'sequence_confirmed'
+        ? 'drafting your emails (Phase 7)'
+        : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
   let msg =
     `Phase ${PHASE_NUMBERS[phase]} of 8 complete: ${PHASE_LABELS[phase]}. ` +
     `Here is what I understand so far: ${recap} Next up, ${nextLabel}.`;
@@ -438,7 +642,7 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
 
   const questionsSoFar = countQuestions(next.conversation, phase);
   const totalSoFar = countTotalQuestions(next.conversation);
-  const capped = questionsSoFar >= QUESTIONS_PER_PHASE_CAP || totalSoFar >= QUESTIONS_TOTAL_CAP;
+  const capped = questionsSoFar >= phaseQuestionCap(phase) || totalSoFar >= QUESTIONS_TOTAL_CAP;
   const allResolved = mergedItems.every((i) => i.status === 'complete' || i.status === 'placeholder');
   const phaseComplete = output.phase_complete && allResolved;
 
@@ -455,6 +659,49 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
   let aiText = '';
   let completed = false;
   if (phaseComplete || capped) {
+    if (phase === 'sequence') {
+      // Assemble BEFORE announcing completion: an unassemblable plan must
+      // never advance the phase (defensive — validation should have caught
+      // it, but applyTurn never crashes or advances on a bad plan).
+      const timeZone =
+        typeof (draft.profileSnapshot as { timezone?: unknown }).timezone === 'string'
+          ? ((draft.profileSnapshot as { timezone: string }).timezone as string)
+          : 'UTC';
+      const asm = assembleSequenceFromChecklist(
+        mergedItems as unknown as Array<Record<string, unknown>>,
+        { timeZone, now: new Date(nowIso) },
+      );
+      if (!asm.ok) {
+        const clarification = `I could not put that sequence together yet: ${asm.error} Could you confirm or correct the count, timing, start, or deadline?`;
+        next.conversation = [
+          ...next.conversation,
+          { role: 'ai', text: clarification, phase, kind: 'question', at: nowIso },
+        ];
+        return { draft: next, phaseCompleted: false, capped, audienceThin, aiText: clarification };
+      }
+      const seqRecap = output.recap || recapFromChecklist(mergedItems);
+      let seqMsg = transitionMessage(phase, seqRecap, audienceThin);
+      if (capped) {
+        seqMsg += ' I have asked enough questions for this phase, so I will move on with what you have shared.';
+      }
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: seqMsg, phase, kind: 'transition', at: nowIso },
+      ];
+      const seq = asm.sequence as ValidatedSequence & { compressed: boolean; compressionNote: string | null };
+      next.sequence = asm.sequence as unknown as Record<string, unknown>;
+      next.status = 'sequence_confirmed';
+      next.currentPhase = 'sequence_confirmed';
+      const timeline = seq.emails.map((e) => `Email ${e.order} (${e.purpose}) on ${e.plannedAtUtc.slice(0, 10)}`).join('; ');
+      const confirmMsg =
+        `Sequence confirmed: ${seq.count} email${seq.count === 1 ? '' : 's'} over ${seq.spanDays} days. ${timeline}` +
+        `${seq.compressed && seq.compressionNote ? ` ${seq.compressionNote}` : ''} Next up, drafting your emails (Phase 7).`;
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: confirmMsg, phase: 'sequence_confirmed', kind: 'system', at: nowIso },
+      ];
+      return { draft: next, phaseCompleted: true, capped, audienceThin, aiText: seqMsg };
+    }
     const recap = output.recap || recapFromChecklist(mergedItems);
     let msg = transitionMessage(phase, recap, audienceThin);
     if (capped) {
@@ -506,7 +753,7 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
 /** Escape hatch (spec §3 rule 7): mark every missing item a blocking placeholder. */
 export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState {
   const phase = draft.currentPhase;
-  if (phase === 'brief_confirm') return draft;
+  if (phase === 'brief_confirm' || phase === 'sequence_confirmed') return draft;
   const prev = draft.checklists[phase] || baseChecklist(phase);
   let audienceThin = false;
   const items = prev.items.map((i) => {
@@ -538,6 +785,46 @@ export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState 
       ...next.conversation,
       { role: 'ai', text: next.brief.text, phase: 'brief_confirm', kind: 'brief', at: nowIso },
     ];
+  } else if (np === 'sequence_confirmed') {
+    // Escape hatch for Phase 4: assemble with defaults for anything missing
+    // (count 1, 1-day gaps, next in-window start, no deadline). Invalid data
+    // (a past start, an unmeetable deadline) still blocks with a clear
+    // message — the hatch never silently overrides the user's dates.
+    const timeZone =
+      typeof (draft.profileSnapshot as { timezone?: unknown }).timezone === 'string'
+        ? ((draft.profileSnapshot as { timezone: string }).timezone as string)
+        : 'UTC';
+    const asm = assembleSequenceFromChecklist(
+      (next.checklists[phase] as PhaseChecklist).items as unknown as Array<Record<string, unknown>>,
+      { timeZone, now: new Date(nowIso), fromEscapeHatch: true },
+    );
+    if (asm.ok) {
+      next.sequence = asm.sequence as unknown as Record<string, unknown>;
+      next.status = 'sequence_confirmed';
+      const seq = asm.sequence as ValidatedSequence;
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `Continuing with what you have — sequence confirmed: ${seq.count} email${seq.count === 1 ? '' : 's'} over ${seq.spanDays} days. Next up, drafting your emails (Phase 7).`,
+          phase: 'sequence_confirmed',
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    } else {
+      next.currentPhase = phase;
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `I could not put that sequence together yet: ${asm.error} Please correct the count, timing, start, or deadline and continue.`,
+          phase,
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    }
   } else {
     const opening = phaseOpening(np as PhaseId);
     next.conversation = [
@@ -568,10 +855,21 @@ export function applyReopen(draft: DraftState, phase: PhaseId, nowIso: string): 
   };
 }
 
-/** True when a reopen target is strictly before the current phase (brief_confirm counts as after cta). */
+/** Full interview order (spec §3 rule 8): the Brief confirmation sits between
+ * Phase 3 (CTA) and Phase 4 (Sequence) — it is not a checklist phase, so it
+ * is absent from PHASE_ORDER but present here for reopen ordering. */
+export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confirmed'> = [
+  'goal',
+  'audience',
+  'cta',
+  'brief_confirm',
+  'sequence',
+  'sequence_confirmed',
+];
+
+/** True when a reopen target is strictly before the current phase. */
 export function canReopen(currentPhase: DraftState['currentPhase'], target: PhaseId): boolean {
-  const order = [...PHASE_ORDER, 'brief_confirm' as const];
-  return order.indexOf(target) < order.indexOf(currentPhase as (typeof order)[number]);
+  return INTERVIEW_ORDER.indexOf(target) < INTERVIEW_ORDER.indexOf(currentPhase);
 }
 
 /** True when the profile changed after the snapshot and the user has not noted it. */
@@ -666,6 +964,15 @@ export function buildSystemPrompt(phase: PhaseId, wordsToAvoid: string[]): strin
     'You may add up to 6 extra items when the conversation shows they are needed; each records a short reason.',
     'An item is complete ONLY if it holds detail that could go into an email as written (numbers, dates, names, places, concrete actions).',
     'Vague examples: "a great deal", "soon", "some customers", "everyone", "our usual service".',
+    phase === 'sequence'
+      ? [
+          'Sequence rules (spec §9) — recommend first, with a reason, then ask:',
+          '- Recommend a sequence FIRST (one email or a series, how many, over how many days) with a one-sentence reason, then ask the user to confirm or change it. Patterns are starting points only, never categories to pick from: a single email for a simple offer; a short series (2–3 emails) for a deadline or a reminder; a longer series (up to 6) for a story that needs room.',
+          '- Safeguards you must respect and explain in plain words when they bite: sends only on weekdays 8:00–17:00 in the business time zone; at most 3 emails per contact per 7 days across all campaigns; a contact already in another active sequence is skipped, not double-mailed; nothing is sent after the deadline (if the plan would run past it, compress the gaps and say so); at most 6 emails, at most 30 days, at least 1 day between emails; timing is per person from that person\'s first send.',
+          '- Fact formatting (so the plan can be assembled exactly): how_many fact = just the number. span_gap fact = "span: N days; gaps: a, b, ..." (gaps in days between consecutive emails). start_deadline fact = "start: YYYY-MM-DD; deadline: YYYY-MM-DD or none" (dates only, no times — sends go out in the morning send window; if the user gives a month and day without a year, ask for the year, never guess it). jobs fact = numbered purposes, one per email, in order (e.g. "1. Announce the offer. 2. Remind before the deadline."). send_timing fact = the send window in plain words (e.g. "weekdays 8 to 5" or "weekday mornings").',
+          '- If the user is unsure about the series, recommend the smallest sequence that does the job and say why.',
+        ].join('\n')
+      : '',
     'When every item is complete or a placeholder, set phase_complete true, next_question null, and write a 2 to 4 sentence recap.',
     'Return ONLY the JSON object matching the schema. No markdown fences, no extra text.',
   ]
@@ -691,7 +998,7 @@ export function interviewResponseSchema(): Record<string, unknown> {
   return {
     type: 'OBJECT',
     properties: {
-      phase: { type: 'STRING', enum: ['goal', 'audience', 'cta'] },
+      phase: { type: 'STRING', enum: ['goal', 'audience', 'cta', 'sequence'] },
       checklist: { type: 'ARRAY', items: item },
       acknowledgment: { type: 'STRING' },
       next_question: { type: 'STRING', nullable: true },
@@ -825,8 +1132,15 @@ export async function resolveOutput(
   const previousQuestions = ctx.conversation
     .filter((m) => m.role === 'ai' && m.phase === ctx.phase && m.kind === 'question')
     .map((m) => m.text);
+  const validationOpts = {
+    timeZone:
+      typeof (ctx.profileSnapshot as { timezone?: unknown }).timezone === 'string'
+        ? ((ctx.profileSnapshot as { timezone: string }).timezone as string)
+        : 'UTC',
+    now: new Date(),
+  };
   let output = await provider(ctx);
-  let errors = validateTurnOutput(output, ctx.phase, previousQuestions);
+  let errors = validateTurnOutput(output, ctx.phase, previousQuestions, validationOpts);
   let repairs = 0;
   while (errors.length && repairs < AI_TURN_MAX_REPAIRS) {
     repairs += 1;
@@ -835,7 +1149,7 @@ export async function resolveOutput(
     } catch {
       break;
     }
-    errors = validateTurnOutput(output, ctx.phase, previousQuestions);
+    errors = validateTurnOutput(output, ctx.phase, previousQuestions, validationOpts);
   }
   if (errors.length) {
     throw new InterviewError('Something went wrong. Your answers are saved.', 503, true);
@@ -856,6 +1170,7 @@ function toDraftState(row: Record<string, unknown>): DraftState {
     checklists: (row.checklists as DraftState['checklists']) || {},
     brief: (row.brief as BriefObject | null) || null,
     briefVersion: (row.briefVersion as number) || 0,
+    sequence: (row.sequence as Record<string, unknown> | null) || null,
     profileNotedAt: row.profileNotedAt ? new Date(row.profileNotedAt as string).toISOString() : null,
     expiresAt: new Date(row.expiresAt as string).toISOString(),
   };
@@ -884,6 +1199,7 @@ async function saveDraftState(draft: DraftState): Promise<void> {
       checklists: toJson(draft.checklists),
       brief: toJson(draft.brief),
       briefVersion: draft.briefVersion,
+      sequence: toJson(draft.sequence),
       profileNotedAt: draft.profileNotedAt ? new Date(draft.profileNotedAt) : null,
       expiresAt: expiryFromNow(),
     },
@@ -916,6 +1232,7 @@ export async function createDraft(workspaceId: string): Promise<DraftState> {
         },
       ]),
       checklists: toJson({ goal: baseChecklist('goal') }),
+      sequence: toJson(null),
       expiresAt: expiryFromNow(),
     },
   });
@@ -982,6 +1299,9 @@ export async function runTurn(
   if (phase === 'brief_confirm') {
     throw new InterviewError('The Brief is ready for confirmation — use confirm-brief.', 400);
   }
+  if (phase === 'sequence_confirmed') {
+    throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
+  }
   const text = (message || '').trim();
   if (!text) throw new InterviewError('Type your answer to continue.', 400);
   const nowIso = new Date().toISOString();
@@ -1043,6 +1363,9 @@ export async function retryTurn(
   if (phase === 'brief_confirm') {
     throw new InterviewError('The Brief is ready for confirmation — use confirm-brief.', 400);
   }
+  if (phase === 'sequence_confirmed') {
+    throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
+  }
   if (!checkAiRateLimit(workspaceId)) {
     throw new InterviewError('Too many AI requests for this workspace right now. Try again shortly.', 429, true);
   }
@@ -1081,6 +1404,9 @@ export async function escapeHatch(workspaceId: string, draftId: string): Promise
   const phase = draft.currentPhase;
   if (phase === 'brief_confirm') {
     throw new InterviewError('The Brief is already ready for confirmation.', 400);
+  }
+  if (phase === 'sequence_confirmed') {
+    throw new InterviewError('The sequence is already confirmed.', 400);
   }
   if (countUserAnswers(draft.conversation, phase) < 1) {
     throw new InterviewError('Type at least one answer in this phase first.', 400);
@@ -1154,6 +1480,36 @@ export async function confirmBrief(
   await saveDraftState(withCorrection);
   const turn = await runTurnFromState(workspaceId, withCorrection, provider);
   return { draft: turn.draft, turn };
+}
+
+/**
+ * Starts Phase 4 (Sequence and Timing) on a brief_confirmed draft (M4).
+ * The locked Brief is never rewritten by Phase 4; the sequence is stored
+ * on draft.sequence and the Plan (M6) assembles sequence + reactions + A/B.
+ * A brief_confirmed draft WITHOUT a sequence routes here on resume — a
+ * 1-email sequence answer behaves exactly like the M3 single-email flow.
+ */
+export async function startSequence(workspaceId: string, draftId: string): Promise<DraftState> {
+  const draft = await getDraft(workspaceId, draftId);
+  if (draft.status !== 'brief_confirmed' || draft.currentPhase !== 'brief_confirm') {
+    throw new InterviewError('Phase 4 starts from a confirmed Brief (status brief_confirmed).', 400);
+  }
+  if (draft.sequence) {
+    throw new InterviewError('This draft already has a sequence.', 400);
+  }
+  const nowIso = new Date().toISOString();
+  const next: DraftState = {
+    ...draft,
+    currentPhase: 'sequence',
+    status: 'interviewing',
+    checklists: { ...draft.checklists, sequence: baseChecklist('sequence') },
+    conversation: [
+      ...draft.conversation,
+      { role: 'ai', text: `${phaseBanner('sequence')} ${phaseOpening('sequence')}`, phase: 'sequence', kind: 'question', at: nowIso },
+    ],
+  };
+  await saveDraftState(next);
+  return next;
 }
 
 /** Runs a turn from an already-saved draft state (used by confirmBrief). */

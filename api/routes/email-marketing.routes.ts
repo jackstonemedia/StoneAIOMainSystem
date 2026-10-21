@@ -74,6 +74,7 @@ import {
   markContactReplied,
   processDripSequences,
 } from '../services/email-marketing/sequence-scheduler.service.js';
+import { processDueSequenceSteps } from '../services/email-marketing/sequence-runner.service.js';
 import {
   createSendingDomain,
   getSendingDomains,
@@ -87,6 +88,7 @@ import createWithAiRouter from './create-with-ai.routes.js';
 setInterval(() => {
   processScheduledCampaigns().catch(err => console.error('[ScheduledCampaigns] Background runner error:', err));
   processDripSequences().catch(err => console.error('[SequenceScheduler] Background runner error:', err));
+  processDueSequenceSteps().catch(err => console.error('[SequenceRunner] Background runner error:', err));
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';

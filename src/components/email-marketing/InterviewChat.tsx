@@ -14,16 +14,19 @@ import React from 'react';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import type { CampaignDraftState, ChatMessageState, InterviewPhase } from '../../lib/createWithAiApi';
 
-const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta'];
-const PHASE_NUMBERS: Record<InterviewPhase, number> = { goal: 1, audience: 2, cta: 3 };
+const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence'];
+const PHASE_NUMBERS: Record<InterviewPhase, number> = { goal: 1, audience: 2, cta: 3, sequence: 4 };
 const PHASE_NAMES: Record<InterviewPhase, string> = {
   goal: 'Goal',
   audience: 'Audience',
   cta: 'Call to Action',
+  sequence: 'Sequence and Timing',
 };
 
 export function phaseIndex(draft: CampaignDraftState): number {
   if (draft.currentPhase === 'brief_confirm') return 3;
+  if (draft.currentPhase === 'sequence') return 3;
+  if (draft.currentPhase === 'sequence_confirmed') return 6;
   if (draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send') return 6;
   return PHASE_ORDER.indexOf(draft.currentPhase as InterviewPhase);
 }
@@ -77,7 +80,7 @@ export default function InterviewChat({
   const briefConfirmed = draft.status === 'brief_confirmed';
   const inBriefConfirm = draft.currentPhase === 'brief_confirm' && !briefConfirmed;
   const currentPhase =
-    draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send'
+    draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'sequence_confirmed' || draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send'
       ? null
       : (draft.currentPhase as InterviewPhase);
   const userAnswersInPhase = currentPhase

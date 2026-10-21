@@ -29,6 +29,7 @@ import {
 import { prefillFromWebsite } from '../services/email-marketing/website-prefill.service.js';
 import {
   generateEmail,
+  generateSequenceEmails,
   refineEmail,
   directEditEmail,
   undoEmail,
@@ -52,6 +53,7 @@ import {
   simulatePath,
   recommendedStartFor,
   confirmSend,
+  confirmSequenceSend,
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
@@ -70,6 +72,7 @@ import {
   escapeHatch,
   reopenPhase,
   confirmBrief,
+  startSequence,
   refreshSnapshot,
   InterviewError,
   type PhaseId,
@@ -316,6 +319,18 @@ router.post(
 );
 
 router.post(
+  '/drafts/:draftId/start-sequence',
+  asyncHandler(async (req, res) => {
+    try {
+      const draft = await startSequence(getWid(req), req.params.draftId);
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
   '/drafts/:draftId/snapshot',
   asyncHandler(async (req, res) => {
     try {
@@ -356,6 +371,65 @@ router.post(
     try {
       const email = await generateEmail(getWid(req), req.params.draftId);
       res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/generate-sequence',
+  asyncHandler(async (req, res) => {
+    try {
+      const emails = await generateSequenceEmails(getWid(req), req.params.draftId);
+      res.json({ emails });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/confirm-sequence',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await confirmSequenceSend(getWid(req), req.params.draftId, {
+        idempotencyKey: req.body?.idempotencyKey || '',
+        campaignName: req.body?.campaignName || '',
+        sendNow: !!req.body?.sendNow,
+        sendAt: req.body?.sendAt || null,
+        coldAck: !!req.body?.coldAck,
+      });
+      res.json(result);
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId/sequence-status',
+  asyncHandler(async (req, res) => {
+    try {
+      const { getSequenceStatus } = await import('../services/email-marketing/sequence-runner.service.js');
+      res.json(await getSequenceStatus(getWid(req), req.params.draftId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/sequence-exit',
+  asyncHandler(async (req, res) => {
+    try {
+      const reason = req.body?.reason as 'replied' | 'booked' | 'unsubscribed';
+      if (!['replied', 'booked', 'unsubscribed'].includes(reason)) {
+        res.status(400).json({ error: 'reason must be replied, booked, or unsubscribed.' });
+        return;
+      }
+      const { exitSequenceContact } = await import('../services/email-marketing/sequence-runner.service.js');
+      res.json(await exitSequenceContact(getWid(req), req.params.draftId, req.body?.contactId || '', reason));
     } catch (err) {
       m3Error(err, res);
     }
@@ -560,7 +634,19 @@ router.post(
       const wid = getWid(req);
       const email = await getEmailOrThrow(wid, req.params.emailId);
       const receives = (email.receivesRule || {}) as Record<string, any>;
-      const recipientCount = typeof receives.recipientCount === 'number' ? receives.recipientCount : 0;
+      let recipientCount = typeof receives.recipientCount === 'number' ? receives.recipientCount : 0;
+      // M4: a sequence shares ONE audience (picked once, stored on Email 1).
+      // Emails 2..N have no receivesRule of their own — checking them
+      // against zero would false-block. Fall back to Email 1's count.
+      if (recipientCount === 0 && email.order > 1) {
+        const draft = await db.campaignDraft.findFirst({ where: { id: email.draftId, workspaceId: wid } });
+        const seq = (draft?.sequence || {}) as { count?: number };
+        if (seq.count && seq.count > 1) {
+          const first = await db.campaignEmail.findFirst({ where: { draftId: email.draftId, workspaceId: wid, order: 1 } });
+          const firstReceives = (first?.receivesRule || {}) as Record<string, any>;
+          if (typeof firstReceives.recipientCount === 'number') recipientCount = firstReceives.recipientCount;
+        }
+      }
       const sendAt = req.body?.sendAt ? new Date(req.body.sendAt) : null;
       res.json(await runSendChecks(wid, req.params.emailId, recipientCount, sendAt && !Number.isNaN(sendAt.getTime()) ? sendAt : null));
     } catch (err) {

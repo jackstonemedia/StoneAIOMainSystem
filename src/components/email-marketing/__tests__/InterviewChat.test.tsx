@@ -48,6 +48,7 @@ function goalDraft(overrides: Partial<CampaignDraftState> = {}): CampaignDraftSt
     },
     brief: null,
     briefVersion: 0,
+    sequence: null,
     profileNotedAt: null,
     expiresAt: '2026-11-20T00:00:00.000Z',
     ...overrides,

@@ -142,6 +142,14 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
     data: { status: 'sent' },
   });
 
+  // M4: a sequence's Email 1 reaching SENT enrolls its recipients into
+  // RecipientStates (per-person timing from actual sent times). Never
+  // throws — enroll failures are logged inside, never break completion.
+  {
+    const { enrollSequenceIfNeeded } = await import('./sequence-runner.service.js');
+    await enrollSequenceIfNeeded(workspaceId, campaignId);
+  }
+
   return { queued, failed, status: 'SENT' };
 }
 
@@ -581,6 +589,12 @@ export async function sendCampaign(
     where: { campaignId, kind: 'scheduled' },
     data: { status: 'sent' },
   });
+
+  // M4: enroll a sequence's Email 1 recipients (see resumeAndCompleteSending).
+  {
+    const { enrollSequenceIfNeeded } = await import('./sequence-runner.service.js');
+    await enrollSequenceIfNeeded(workspaceId, campaignId);
+  }
 
   if (queued === 0 && failed > 0) {
     // All sends failed — surface the first error to the client

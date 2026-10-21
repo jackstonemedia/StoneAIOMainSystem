@@ -24,13 +24,14 @@ import {
   escapeHatch,
   reopenPhase,
   confirmBrief,
+  startSequence,
   updateDraftSnapshot,
   type CampaignDraftState,
   type InterviewPhase,
   type BusinessProfile,
 } from '../../lib/createWithAiApi';
 
-const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta'];
+const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence'];
 
 function pickExample(pool: string[], key: string): string {
   let h = 0;
@@ -323,12 +324,35 @@ export default function InterviewFlow({
 
   // Past the interview (Brief confirmed onward): Phase 7 Draft + Phase 8
   // Review live in DraftReviewFlow. "Edit Brief" reopens Call to Action.
+  // M4: a brief_confirmed draft WITHOUT a sequence does NOT go to
+  // DraftReviewFlow — it stops at the Phase 4 entry card below (the user
+  // must plan the sequence first; a 1-email answer keeps the single-email
+  // flow). A brief_confirmed draft WITH a sequence goes to DraftReviewFlow.
+  const hasSequence =
+    !!draft.sequence &&
+    typeof draft.sequence === 'object' &&
+    Number((draft.sequence as Record<string, unknown>).count) > 0;
   const pastInterview =
-    draft.status === 'brief_confirmed' ||
+    (draft.status === 'brief_confirmed' && hasSequence) ||
+    draft.status === 'sequence_confirmed' ||
     draft.status === 'drafted' ||
     draft.status === 'scheduled' ||
     draft.currentPhase === 'draft_refine' ||
     draft.currentPhase === 'review_send';
+  const needsSequenceEntry = draft.status === 'brief_confirmed' && !hasSequence;
+
+  const handleStartSequence = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const { draft: next } = await startSequence(draft.id);
+      setDraft(next);
+    } catch (err) {
+      toast('error', 'Could not start Sequence and Timing', extractApiError(err));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleEditBrief = async () => {
     if (sending) return;
@@ -347,6 +371,44 @@ export default function InterviewFlow({
     return (
       <div className="space-y-4">
         <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
+        <ProfileSidePanel
+          open={panelOpen}
+          profile={profile}
+          onClose={() => setPanelOpen(false)}
+          onSave={onSaveProfile}
+          saving={saving}
+          serverErrors={serverErrors}
+          inProgress
+          onRegenerate={() => handleSnapshot('regenerate')}
+          onKeep={() => handleSnapshot('keep')}
+        />
+      </div>
+    );
+  }
+
+  // M4 Phase 4 entry card: the Brief is confirmed but no sequence exists
+  // yet. One action only — start the sequence interview. There is no
+  // "skip Phase 4" fork: answering "one email" in Phase 4 keeps the
+  // single-email flow (M3 behavior).
+  if (needsSequenceEntry) {
+    return (
+      <div className="space-y-4">
+        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
+          <p className="text-sm font-semibold text-text-main">Phase 4 of 8: Sequence and Timing</p>
+          <p className="text-sm text-text-main">{createWithAiCopy.flow.comingNext}</p>
+          <p className="text-sm text-text-muted">
+            Answer in your own words — how many emails, over how many days, and what each one is for. If one email is
+            enough, say so and this campaign stays a single email.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleStartSequence} className="btn-primary text-sm" disabled={sending}>
+              Continue to Sequence and Timing
+            </button>
+            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
+              Edit Brief
+            </button>
+          </div>
+        </div>
         <ProfileSidePanel
           open={panelOpen}
           profile={profile}

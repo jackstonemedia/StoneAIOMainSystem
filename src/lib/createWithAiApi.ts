@@ -121,8 +121,8 @@ export function fileToBase64(file: File): Promise<string> {
 
 /* ── Interview drafts (Milestone 2) ─────────────────────────────────────────── */
 
-export type InterviewPhase = 'goal' | 'audience' | 'cta';
-export type DraftPhase = InterviewPhase | 'brief_confirm' | 'draft_refine' | 'review_send';
+export type InterviewPhase = 'goal' | 'audience' | 'cta' | 'sequence';
+export type DraftPhase = InterviewPhase | 'brief_confirm' | 'sequence_confirmed' | 'draft_refine' | 'review_send';
 
 export type ChecklistItemState = {
   id: string;
@@ -168,6 +168,7 @@ export type CampaignDraftState = {
   >;
   brief: Record<string, unknown> | null;
   briefVersion: number;
+  sequence: Record<string, unknown> | null;
   profileNotedAt: string | null;
   expiresAt: string;
 };
@@ -438,5 +439,56 @@ export async function resumeCampaignAction(campaignId: string): Promise<{ status
 
 export async function cancelCampaignAction(campaignId: string): Promise<{ status: string }> {
   const r = await apiClient.post(`${BASE}/campaigns/${campaignId}/cancel`, {});
+  return r.data;
+}
+
+/* ── Sequence and Timing (Milestone 4) ───────────────────────────────────── */
+
+export async function startSequence(draftId: string): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/start-sequence`, {});
+  return r.data;
+}
+
+export async function generateSequence(draftId: string): Promise<{ emails: DraftEmailState[] }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/generate-sequence`, {});
+  return r.data;
+}
+
+export async function confirmSequenceSend(
+  draftId: string,
+  input: { idempotencyKey: string; campaignName: string; sendNow: boolean; sendAt?: string | null; coldAck?: boolean },
+): Promise<{ campaignId: string; emailIds: string[]; sendAtUtc: string; recipientCount: number; idempotentReplay: boolean; note: string }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/confirm-sequence`, input);
+  return r.data;
+}
+
+export async function sequenceStatus(draftId: string): Promise<{
+  draftId: string;
+  draftStatus: string;
+  sequence: Record<string, unknown> | null;
+  campaign: { id: string; status: string; scheduledAtUtc: string | null } | null;
+  states: {
+    contactId: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    status: string;
+    currentEmailOrder: number;
+    nextSendAt: string | null;
+    firstSentAt: string | null;
+    lastSentAt: string | null;
+    history: { at: string; from: string; to: string; reason?: string }[];
+  }[];
+}> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}/sequence-status`);
+  return r.data;
+}
+
+export async function sequenceExit(
+  draftId: string,
+  contactId: string,
+  reason: 'replied' | 'booked' | 'unsubscribed',
+): Promise<{ contactId: string; status: string }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/sequence-exit`, { contactId, reason });
   return r.data;
 }

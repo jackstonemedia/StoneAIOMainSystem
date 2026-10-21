@@ -499,14 +499,22 @@ function pushVersion(versions: EmailVersion[], v: EmailVersion): EmailVersion[] 
  * DraftError(503) when AI is unavailable — nothing is fabricated, and the
  * draft keeps its previous state.
  */
-export async function generateEmail(workspaceId: string, draftId: string): Promise<EmailState> {
+export async function generateEmail(
+  workspaceId: string,
+  draftId: string,
+  opts?: { order?: number; purpose?: string; earlierTexts?: string[] },
+): Promise<EmailState> {
   const draft = await getDraftOrThrow(workspaceId, draftId);
-  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted') {
+  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed') {
     throw new DraftError('Confirm the Brief before drafting (Phase 7 needs a locked Brief).', 400);
   }
+  const order = opts?.order ?? 1;
   // Fail fast before spending an AI call: an already-launched email must
   // never be regenerated back to 'draft' (M3 status anomaly repair).
-  const existing = await db.campaignEmail.findFirst({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
+  const existing = await db.campaignEmail.findFirst({
+    where: { draftId, workspaceId, ...(order > 1 ? { order } : {}) },
+    orderBy: { order: 'asc' },
+  });
   if (existing) await assertLoadedEmailEditable(workspaceId, existing);
   if (!checkAiRateLimit(workspaceId)) {
     throw new DraftError('AI call budget for this workspace is exhausted for the hour. Try again later.', 429);
@@ -519,6 +527,11 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
   const brief = briefOf(draft) || {};
   const cold = !!(brief.audience && (brief.audience as Record<string, unknown>).cold_contacts);
   const styleSummaries = Array.isArray(snap.styleSummaries) ? snap.styleSummaries : [];
+  const sequence = (draft as { sequence?: Record<string, unknown> | null }).sequence as
+    | { emails?: Array<{ order: number; offsetDays: number; purpose: string }> }
+    | null
+    | undefined;
+  const seqEmail = sequence?.emails?.find((e) => e.order === order);
   const userText = [
     `Business Profile: ${JSON.stringify(snap)}`,
     `Approved style summaries: ${JSON.stringify(styleSummaries)}`,
@@ -527,8 +540,13 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
     cold
       ? 'This is cold outreach: plain-text style, 50 to 100 words, no images, no heavy layout. It reads like one person writing to one person.'
       : 'Otherwise: a light branded template (business name, simple layout), 100 to 150 words, one call-to-action button plus a matching text link.',
-    'Write the single email for this campaign. Return exactly 3 subject options, preview text (90 characters or fewer), HTML body, plain-text body, and the fact_map.',
-  ].join('\n\n');
+    order > 1
+      ? `This is email ${order} in a sequence. Its purpose: ${opts?.purpose || seqEmail?.purpose || `Follow-up email ${order}`}. Earlier emails in this sequence (full text, for consistency — build on them, do not repeat them):\n${(opts?.earlierTexts || []).join('\n---\n')}`
+      : null,
+    order > 1
+      ? `Write email ${order} of the sequence. Return exactly 3 subject options, preview text (90 characters or fewer), HTML body, plain-text body, and the fact_map.`
+      : 'Write the single email for this campaign. Return exactly 3 subject options, preview text (90 characters or fewer), HTML body, plain-text body, and the fact_map.',
+  ].filter(Boolean).join('\n\n');
 
   let generated = await geminiGenerate(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), userText);
   // Repair loop (max 2) is inside geminiGenerate's validation throw path only
@@ -564,10 +582,16 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
           workspaceId,
           draftId,
           kind: 'scheduled',
-          order: 1,
-          name: 'Email 1',
-          purpose: typeof brief.campaign_definition?.summary === 'string' ? brief.campaign_definition.summary : 'Single campaign email',
-          timingRule: { type: 'scheduled', label: 'Email 1: sent at the scheduled start' },
+          order,
+          name: `Email ${order}`,
+          purpose: opts?.purpose || seqEmail?.purpose || (typeof brief.campaign_definition?.summary === 'string' ? brief.campaign_definition.summary : 'Single campaign email'),
+          timingRule: {
+            type: 'scheduled',
+            label:
+              order === 1
+                ? 'Email 1: sent at the scheduled start'
+                : `Email ${order}: ${seqEmail?.offsetDays ?? order - 1} day(s) after Email 1 (per-person timing from each recipient's first send)`,
+          },
           receivesRule: { type: 'all_recipients', label: 'Everyone selected in Phase 8' },
           subjectVariants: toJson(validated.subjects),
           subjectSelected: 0,
@@ -589,6 +613,40 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
   const state = emailToState(row);
   state.removedClaims = removed;
   return state;
+}
+
+/**
+ * Generates every email in a confirmed sequence, in order (M4, spec §12).
+ * Each email after the first receives the full text of the earlier sequence
+ * emails (spec §12 input) plus its own purpose, so the sequence reads as one
+ * conversation, not N disconnected emails. A draft with no sequence uses
+ * generateEmail directly (M3 single-email flow, unchanged).
+ */
+export async function generateSequenceEmails(workspaceId: string, draftId: string): Promise<EmailState[]> {
+  const draft = await getDraftOrThrow(workspaceId, draftId);
+  const sequence = (draft as { sequence?: Record<string, unknown> | null }).sequence as
+    | { count?: number; emails?: Array<{ order: number; purpose: string }> }
+    | null
+    | undefined;
+  if (!sequence || !Array.isArray(sequence.emails) || sequence.emails.length === 0) {
+    throw new DraftError('No sequence confirmed for this draft. Confirm a sequence in Phase 4 first.', 400);
+  }
+  const states: EmailState[] = [];
+  for (const seqEmail of [...sequence.emails].sort((a, b) => a.order - b.order)) {
+    const earlierRows = await db.campaignEmail.findMany({
+      where: { draftId, workspaceId, order: { lt: seqEmail.order } },
+      orderBy: { order: 'asc' },
+    });
+    const earlierTexts = earlierRows.map((r) => String(r.bodyText || ''));
+    states.push(
+      await generateEmail(workspaceId, draftId, {
+        order: seqEmail.order,
+        purpose: seqEmail.purpose,
+        earlierTexts,
+      }),
+    );
+  }
+  return states;
 }
 
 /**

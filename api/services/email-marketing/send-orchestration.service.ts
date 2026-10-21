@@ -32,7 +32,7 @@ import {
 } from './fact-validator.js';
 import { getEmailOrThrow, assertLoadedEmailEditable } from './draft-generator.service.js';
 import { checkDomainDns, isReservedDomain } from './sending-domain.service.js';
-import { resolveRecipients, type ListHints } from './recipients.service.js';
+import { resolveRecipients, type ListHints, type RecipientSourceType } from './recipients.service.js';
 
 export class SendError extends Error {
   status: number;
@@ -521,6 +521,109 @@ export async function confirmSend(
     note: input.sendNow && sendAt.getTime() > Date.now()
       ? 'Send now was outside the send window, so the campaign is scheduled for the recommended start instead.'
       : 'Campaign scheduled. The existing schedulers deliver it at the scheduled time through the standard send path.',
+  };
+}
+
+/**
+ * Sequence confirmation (M4, spec §9 + §13): confirms a whole sequence at
+ * once. Email 1 goes through the existing confirmSend (campaign + snapshot
+ * list + schedulers); emails 2..N are marked 'scheduled' with their planned
+ * global times (per-person dues live on RecipientStates, computed at
+ * enroll time from each recipient's actual first send). Later emails NEVER
+ * get their own campaigns — the sequence runner sends them per contact
+ * under the email-1 campaign's id (tracking + UTM), and it re-checks the
+ * campaign status (pause/cancel stops all unsent steps, spec §13).
+ * All emails are check-gated BEFORE anything launches: a blocking issue in
+ * any email aborts the whole confirm with nothing scheduled.
+ */
+export async function confirmSequenceSend(
+  workspaceId: string,
+  draftId: string,
+  input: ConfirmSendInput,
+): Promise<{
+  campaignId: string;
+  emailIds: string[];
+  sendAtUtc: string;
+  recipientCount: number;
+  idempotentReplay: boolean;
+  note: string;
+}> {
+  if (!input.idempotencyKey || !input.idempotencyKey.trim()) {
+    throw new SendError('An idempotency key is required for the final confirmation.', 400);
+  }
+  const replay = await db.campaign.findFirst({ where: { workspaceId, idempotencyKey: input.idempotencyKey } });
+  if (replay) {
+    const replayEmails = await db.campaignEmail.findMany({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
+    return {
+      campaignId: replay.id,
+      emailIds: replayEmails.map((e) => e.id),
+      sendAtUtc: replay.scheduledAtUtc ? replay.scheduledAtUtc.toISOString() : new Date().toISOString(),
+      recipientCount: replay.recipientCount || 0,
+      idempotentReplay: true,
+      note: 'This idempotency key was already used — returning the existing sequence campaign, no duplicate send.',
+    };
+  }
+  const draft = await db.campaignDraft.findFirst({ where: { id: draftId, workspaceId } });
+  if (!draft) throw new SendError('Campaign draft not found', 404);
+  const sequence = (draft.sequence || {}) as {
+    count?: number;
+    emails?: Array<{ order: number; plannedAtUtc: string; purpose: string }>;
+  };
+  if (!sequence.count || sequence.count <= 1 || !Array.isArray(sequence.emails) || sequence.emails.length === 0) {
+    throw new SendError('This draft has no multi-email sequence. Use the single-email confirmation.', 400);
+  }
+  const emails = await db.campaignEmail.findMany({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
+  if (emails.length !== sequence.count) {
+    throw new SendError(`Generate all ${sequence.count} sequence emails before confirming (found ${emails.length}).`, 400);
+  }
+  const first = emails[0];
+  const receives = (first.receivesRule || {}) as Record<string, unknown>;
+  if (!receives.sourceType) {
+    throw new SendError('Pick recipients in Phase 8 first (saved segment, filter, or CSV).', 400);
+  }
+  const brief = (draft.brief || {}) as Record<string, unknown>;
+  const hints = (brief?.audience as { list_hints?: ListHints } | null)?.list_hints || {};
+  const resolution = await resolveRecipients(
+    workspaceId,
+    String(receives.sourceType) as RecipientSourceType,
+    (receives.sourceId as string | null) ?? null,
+    receives.sourceType === 'csv' ? (typeof receives.csvText === 'string' ? receives.csvText : null) : null,
+    hints,
+  );
+  const selected = resolution.selected || [];
+  if (selected.length === 0) throw new SendError('Zero recipients — pick a list or upload a CSV with at least one valid contact.', 400);
+  // Gate every email before launching any of them.
+  const plannedByOrder = new Map(sequence.emails.map((e) => [e.order, e.plannedAtUtc]));
+  for (const email of emails) {
+    const planned = plannedByOrder.get(email.order);
+    const sendAt = planned ? new Date(planned) : null;
+    const checks = await runSendChecks(workspaceId, email.id, selected.length, sendAt);
+    if (checks.blocking.length > 0) {
+      throw new SendError(`Sending is blocked for Email ${email.order}: ${checks.blocking.join(' ')}`, 400);
+    }
+  }
+  const firstResult = await confirmSend(workspaceId, first.id, input);
+  // Emails 2..N: scheduled rows with planned global times (display). Their
+  // per-person dues are set at enroll time (RecipientState), not here.
+  for (const email of emails.slice(1)) {
+    const planned = plannedByOrder.get(email.order);
+    await db.campaignEmail.update({
+      where: { id: email.id },
+      data: {
+        status: 'scheduled',
+        scheduledAtUtc: planned ? new Date(planned) : null,
+        recipientCount: selected.length,
+        coldAck: input.coldAck ?? email.coldAck ?? false,
+      },
+    });
+  }
+  return {
+    campaignId: firstResult.campaignId,
+    emailIds: emails.map((e) => e.id),
+    sendAtUtc: firstResult.sendAtUtc,
+    recipientCount: firstResult.recipientCount,
+    idempotentReplay: false,
+    note: `Sequence scheduled: Email 1 via the standard send path; emails 2..${emails.length} follow per recipient from each recipient's first send (sequence runner).`,
   };
 }
 

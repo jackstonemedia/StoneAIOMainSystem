@@ -99,7 +99,7 @@ export const createWithAiCopy = {
     resumeHint: 'This draft autosaves after every answer and expires after 30 days without edits.',
     startNew: 'Start a new campaign',
     startNewHint: 'Every campaign starts blank — only your Business Profile carries over.',
-    comingNext: 'Your Brief is confirmed. You can write the single email now (Draft and Refine), or wait for Sequence and Timing in Milestone 4.',
+    comingNext: 'Your Brief is confirmed. Continue to Sequence and Timing to plan how many emails go out, then write them.',
   },
   interview: {
     banner: (n: number, name: string, sentence: string) => `Phase ${n} of 8: ${name}. ${sentence}`,
@@ -107,11 +107,13 @@ export const createWithAiCopy = {
       goal: 'What this campaign is really for.',
       audience: 'Now I will learn who will read this email.',
       cta: "What you want readers to do after reading this.",
+      sequence: 'How many emails go out, and over how many days.',
     },
     openings: {
       goal: 'What do you want to send? Tell me in your own words, with as much detail as you like.',
       audience: 'Now tell me about the people who will read this email.',
       cta: "Now let's decide what you want readers to do after reading this.",
+      sequence: "Now let's decide how many emails go out, and over how many days.",
     },
     examplePools: {
       goal: [
@@ -144,6 +146,16 @@ export const createWithAiCopy = {
         'Visit the page to see the new menu and order ahead.',
         'Nothing — just let them know we are closed that week.',
       ],
+      sequence: [
+        'One email is enough — just announce the new menu.',
+        'Three emails over two weeks: announce, remind, last chance before Friday.',
+        'Two emails a week apart: the offer, then a follow-up for people who did not click.',
+        'Four emails over a month: welcome, tips, offer, final reminder.',
+        'Five emails in ten days for the holiday sale, then stop.',
+        'Two emails: invite to the class, then a reminder the day before.',
+        'Three emails over three weeks for past patients due for a check-up.',
+        'One email a week for a month to re-engage lapsed members.',
+      ],
     },
     requiredHint: 'Type your answer to continue.',
     escapeHatch: 'Write it with what I have',
@@ -162,7 +174,7 @@ export const createWithAiCopy = {
     openCaution:
       'Open tracking is approximate. Some email apps mark every email as opened automatically, so I lean on clicks for important decisions.',
     briefPrompt: 'Here is the campaign as I understand it. Type looks good, or tell me what to change.',
-    briefConfirmed: 'Brief confirmed. Write the single email now, or wait for Sequence and Timing in Milestone 4.',
+    briefConfirmed: 'Brief confirmed. Next: Sequence and Timing — how many emails go out, and over how many days.',
     capNote: 'I have asked enough questions for this phase, so I will move on with what you have shared.',
   },
   errors: {

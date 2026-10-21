@@ -52,6 +52,7 @@ model Workspace {
   workflowWebhooks        WorkflowWebhook[]
   crmTriggerSubscriptions CrmTriggerSubscription[]
   channelConnections      ChannelConnection[]
+  recipientStates         RecipientState[]
 
   // Ad Manager relations
   adAccounts          AdAccount[]
@@ -498,6 +499,7 @@ model Contact {
   campaignRecipients    CampaignRecipient[]
   automationEnrollments AutomationEnrollment[]
   emailEvents           EmailEvent[]
+  recipientStates       RecipientState[]
 
   @@index([workspaceId])
   @@index([email])
@@ -2040,6 +2042,12 @@ model CampaignDraft {
   briefVersion    Int      @default(0) @map("brief_version")
   plan            Json?
   planVersion     Int      @default(0) @map("plan_version")
+  // M4 sequence object (Phase 4, spec §9): { count, spanDays, emails:
+  // [{ order, offsetDays, purpose }], start, deadline, sendTimePrefs,
+  // recommendation, reason, compressed, compressionNote, fromEscapeHatch }.
+  // Null until Phase 4 completes. The locked Brief (M2) is never rewritten
+  // by Phase 4; the Plan (M6) assembles sequence + reactions + A/B.
+  sequence        Json?
   // Set when the user clicks "Keep it as is" on a profile change (spec §4).
   // Null means no profile change has been noted for the current snapshot.
   profileNotedAt  DateTime? @map("profile_noted_at")
@@ -2049,6 +2057,7 @@ model CampaignDraft {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   emails    CampaignEmail[]
+  recipientStates RecipientState[]
 
   @@index([workspaceId])
   @@map("campaign_drafts")
@@ -2094,4 +2103,47 @@ model CampaignEmail {
   @@index([workspaceId])
   @@index([draftId])
   @@map("campaign_emails")
+}
+
+// Create-with-AI (M4, spec §9/§10.1): per-person sequence state for one
+// contact in one campaign draft. Timing is per person: firstSentAt is when
+// THIS person's first email actually went out, and nextSendAt is computed
+// from it (calendar days in the business time zone, snapped to the send
+// window), never from a campaign-wide clock. Exits are terminal: once a
+// contact books, replies, unsubscribes, bounces or complains, no further
+// email in this sequence may go to them, and advanceSequence() must re-check
+// exits + suppression + frequency cap + conflict before every next send.
+// Statuses: active | completed | exited_reply | exited_booked |
+// exited_unsubscribed | exited_bounced | exited_complained |
+// skipped_conflict | skipped_frequency_cap | skipped_deadline
+model RecipientState {
+  id              String    @id @default(uuid())
+  workspaceId     String    @map("workspace_id")
+  draftId         String    @map("draft_id")
+  contactId       String    @map("contact_id")
+  // CampaignEmail row the contact is currently waiting on (null = sequence
+  // finished or exited before any email row existed for the next step).
+  currentEmailId  String?   @map("current_email_id")
+  // Next scheduled email's order in the sequence (1-based). 1 = waiting on
+  // Email 1; count+1 = completed.
+  nextEmailOrder  Int       @default(1) @map("next_email_order")
+  status          String    @default("active")
+  firstSentAt     DateTime? @map("first_sent_at")
+  lastSentAt      DateTime? @map("last_sent_at")
+  nextSendAt      DateTime? @map("next_send_at")
+  // Signals seen for this contact in this sequence, e.g.
+  // { clicked: true, replied: false, unsubscribed: false, bounced: false }.
+  signals         Json      @default("{}")
+  // Append-only audit trail: [{ at, from, to, reason }].
+  history         Json      @default("[]")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  draft     CampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  contact   Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, draftId, contactId])
+  @@index([workspaceId])
+  @@index([draftId])
+  @@index([contactId])
+  @@map("recipient_states")
 }
