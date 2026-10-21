@@ -27,6 +27,20 @@ import {
   type ProfileInput,
 } from '../services/email-marketing/business-profile.service.js';
 import { prefillFromWebsite } from '../services/email-marketing/website-prefill.service.js';
+import {
+  createDraft,
+  getDraft,
+  listDrafts,
+  deleteDraft,
+  runTurn,
+  retryTurn,
+  escapeHatch,
+  reopenPhase,
+  confirmBrief,
+  refreshSnapshot,
+  InterviewError,
+  type PhaseId,
+} from '../services/email-marketing/interview.service.js';
 
 const router = Router();
 
@@ -142,6 +156,145 @@ router.post(
     } catch (err) {
       // A failed fetch is a normal outcome: say so, let the user continue manually.
       res.status(400).json({ error: err instanceof Error ? err.message : 'Could not fetch that website.', failed: true });
+    }
+  }),
+);
+
+// ── Interview drafts (Milestone 2) ─────────────────────────────────────────
+// All routes are workspace-scoped. A draft is blank except for the Business
+// Profile snapshot — no new campaign ever reads another campaign's draft.
+
+function draftError(err: unknown, res: Response): void {
+  if (err instanceof InterviewError) {
+    res.status(err.status).json({ error: err.message, saved: err.saved });
+    return;
+  }
+  console.error('[CreateWithAI] Draft route error:', err instanceof Error ? err.message : err);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
+router.post(
+  '/drafts',
+  asyncHandler(async (req, res) => {
+    try {
+      const draft = await createDraft(getWid(req));
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts',
+  asyncHandler(async (req, res) => {
+    try {
+      const drafts = await listDrafts(getWid(req));
+      res.json({ drafts });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId',
+  asyncHandler(async (req, res) => {
+    try {
+      const draft = await getDraft(getWid(req), req.params.draftId);
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.delete(
+  '/drafts/:draftId',
+  asyncHandler(async (req, res) => {
+    try {
+      await deleteDraft(getWid(req), req.params.draftId);
+      res.json({ ok: true });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/turn',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await runTurn(getWid(req), req.params.draftId, req.body?.message || '');
+      res.json(result);
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/retry',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await retryTurn(getWid(req), req.params.draftId);
+      res.json(result);
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/escape-hatch',
+  asyncHandler(async (req, res) => {
+    try {
+      const draft = await escapeHatch(getWid(req), req.params.draftId);
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/reopen',
+  asyncHandler(async (req, res) => {
+    try {
+      const phase = req.body?.phase as PhaseId;
+      const draft = await reopenPhase(getWid(req), req.params.draftId, phase);
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/confirm-brief',
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await confirmBrief(getWid(req), req.params.draftId, req.body?.confirmation || '');
+      res.json(result);
+    } catch (err) {
+      draftError(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/snapshot',
+  asyncHandler(async (req, res) => {
+    try {
+      const action = req.body?.action as 'regenerate' | 'keep';
+      if (action !== 'regenerate' && action !== 'keep') {
+        res.status(400).json({ error: 'action must be "regenerate" or "keep".' });
+        return;
+      }
+      const draft = await refreshSnapshot(getWid(req), req.params.draftId, action);
+      res.json({ draft });
+    } catch (err) {
+      draftError(err, res);
     }
   }),
 );

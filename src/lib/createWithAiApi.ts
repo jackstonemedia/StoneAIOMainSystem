@@ -117,3 +117,124 @@ export function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/* ── Interview drafts (Milestone 2) ─────────────────────────────────────────── */
+
+export type InterviewPhase = 'goal' | 'audience' | 'cta';
+export type DraftPhase = InterviewPhase | 'brief_confirm';
+
+export type ChecklistItemState = {
+  id: string;
+  label: string;
+  kind: 'base' | 'extra';
+  reason?: string;
+  status: 'missing' | 'vague' | 'complete' | 'placeholder';
+  userWords: string;
+  fact: string;
+  attempts: number;
+  blocksSending: boolean;
+};
+
+export type ChatMessageState = {
+  role: 'user' | 'ai';
+  text: string;
+  phase: DraftPhase;
+  kind: 'answer' | 'question' | 'recap' | 'transition' | 'brief' | 'system';
+  target?: string;
+  at: string;
+};
+
+export type CampaignDraftState = {
+  id: string;
+  workspaceId: string;
+  currentPhase: DraftPhase;
+  status: string;
+  profileSnapshot: Record<string, unknown>;
+  conversation: ChatMessageState[];
+  checklists: Partial<
+    Record<
+      InterviewPhase,
+      {
+        items: ChecklistItemState[];
+        needsReview: boolean;
+        flags?: {
+          coldContacts?: boolean | null;
+          listHints?: Record<string, string | undefined>;
+          estimatedSize?: number | null;
+        };
+      }
+    >
+  >;
+  brief: Record<string, unknown> | null;
+  briefVersion: number;
+  profileNotedAt: string | null;
+  expiresAt: string;
+};
+
+export type TurnResultState = {
+  draft: CampaignDraftState;
+  aiText: string;
+  phaseCompleted: boolean;
+  capped: boolean;
+  briefReady: boolean;
+};
+
+const DRAFTS = `${BASE}/drafts`;
+
+export async function createDraft(): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(DRAFTS, {});
+  return r.data;
+}
+
+export async function listDrafts(): Promise<{ drafts: CampaignDraftState[] }> {
+  const r = await apiClient.get(DRAFTS);
+  return r.data;
+}
+
+export async function getDraft(draftId: string): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}`);
+  return r.data;
+}
+
+export async function deleteDraft(draftId: string): Promise<void> {
+  await apiClient.delete(`${DRAFTS}/${draftId}`);
+}
+
+export async function sendTurn(draftId: string, message: string): Promise<TurnResultState> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/turn`, { message });
+  return r.data;
+}
+
+export async function retryTurn(draftId: string): Promise<TurnResultState> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/retry`, {});
+  return r.data;
+}
+
+export async function escapeHatch(draftId: string): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/escape-hatch`, {});
+  return r.data;
+}
+
+export async function reopenPhase(
+  draftId: string,
+  phase: InterviewPhase,
+): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/reopen`, { phase });
+  return r.data;
+}
+
+export async function confirmBrief(
+  draftId: string,
+  confirmation: string,
+): Promise<{ draft: CampaignDraftState; turn?: TurnResultState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/confirm-brief`, { confirmation });
+  return r.data;
+}
+
+export async function updateDraftSnapshot(
+  draftId: string,
+  action: 'regenerate' | 'keep',
+): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/snapshot`, { action });
+  return r.data;
+}

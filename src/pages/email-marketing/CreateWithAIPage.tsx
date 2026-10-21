@@ -13,6 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ProfileForm, { profileToFormValues, type ProfileFormValues } from '../../components/email-marketing/ProfileForm';
 import ProfileConfirmCard from '../../components/email-marketing/ProfileConfirmCard';
 import ProfileSidePanel from '../../components/email-marketing/ProfileSidePanel';
+import InterviewFlow from '../../components/email-marketing/InterviewFlow';
 import { getProfile, saveProfile } from '../../lib/createWithAiApi';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
@@ -83,9 +84,7 @@ export default function CreateWithAIPage() {
       )}
 
       {continued && profile && (
-        <div className="border border-border rounded-lg p-4 bg-surface/40">
-          <p className="text-sm text-text-main">{createWithAiCopy.flow.interviewComing}</p>
-        </div>
+        <InterviewFlow profile={profile} onSaveProfile={save} saving={saving} serverErrors={serverErrors} />
       )}
 
       {profile && (

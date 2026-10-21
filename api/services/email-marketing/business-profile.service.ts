@@ -153,7 +153,19 @@ export async function upsertProfile(workspaceId: string, input: ProfileInput) {
   const profile = await db.businessProfile.upsert({
     where: { workspaceId },
     update: { ...data },
-    create: { workspaceId, ...data },
+    // validateProfile above guarantees the required fields are present; the
+    // assertions below are type-level only (runtime values unchanged).
+    create: {
+      workspaceId,
+      ...data,
+      businessName: data.businessName as string,
+      businessType: data.businessType as string,
+      services: data.services as string,
+      serviceArea: data.serviceArea as string,
+      senderName: data.senderName as string,
+      replyToEmail: data.replyToEmail as string,
+      physicalAddress: data.physicalAddress as string,
+    },
   });
   return profile;
 }
@@ -303,7 +315,7 @@ export async function generateStyleSummary(workspaceId: string, sampleId: string
   if (!profile) throw Object.assign(new Error('No Business Profile found.'), { status: 404 });
   const sample = await db.writingSample.findFirst({ where: { id: sampleId, profileId: profile.id } });
   if (!sample) throw Object.assign(new Error('Sample not found.'), { status: 404 });
-  const { tryGetAIClient, DEFAULT_MODEL } = await import('../../../packages/ai/client.js');
+  const { tryGetAIClient, SUMMARY_MODEL } = await import('../../../packages/ai/client.js');
   const ai = tryGetAIClient();
   if (!ai) {
     throw Object.assign(
@@ -320,7 +332,7 @@ export async function generateStyleSummary(workspaceId: string, sampleId: string
     'Sample text:',
     sample.content.slice(0, MAX_SAMPLE_CHARS),
   ].join('\n');
-  const response = await ai.models.generateContent({ model: DEFAULT_MODEL, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
+  const response = await ai.models.generateContent({ model: SUMMARY_MODEL, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
   const text = (response.text || '').trim();
   const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/(\{[\s\S]*\})/);
   const parsed = parseStyleSummary(jsonMatch ? safeJson(jsonMatch[1]) : null);

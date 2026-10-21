@@ -10,6 +10,13 @@ const envSchema = z.object({
 
   // AI
   GOOGLE_AI_API_KEY: z.string().optional(),
+  // Gemini model ids are configurable (spec §22 default 13). The provider
+  // retires model ids without notice, so no code path may hardcode one:
+  // GEMINI_MODEL is the default, GEMINI_INTERVIEW_MODEL overrides it for
+  // interview/drafting, GEMINI_SUMMARY_MODEL for short summaries.
+  GEMINI_MODEL: z.string().optional(),
+  GEMINI_INTERVIEW_MODEL: z.string().optional(),
+  GEMINI_SUMMARY_MODEL: z.string().optional(),
 
   // Voice
   RETELL_API_KEY: z.string().optional(),

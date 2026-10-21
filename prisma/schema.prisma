@@ -95,6 +95,7 @@ model Workspace {
   emailSuppressionEntries     SuppressionEntry[]
   sendingDomains              SendingDomain[]
   businessProfile             BusinessProfile?
+  campaignDrafts              CampaignDraft[]
   aiActions                   AIAction[]
   sdrAgents                   AutonomousSdrAgent[]
 
@@ -2001,4 +2002,35 @@ model WritingSample {
 
   @@index([profileId])
   @@map("writing_samples")
+}
+
+model CampaignDraft {
+  id              String   @id @default(uuid())
+  workspaceId     String   @map("workspace_id")
+  // goal | audience | cta | brief_confirm (M2 end state; M4+ phases added later)
+  currentPhase    String   @default("goal") @map("current_phase")
+  // interviewing | brief_confirmed | plan_confirmed | drafted | scheduled | canceled
+  status          String   @default("interviewing")
+  // Copy of the BusinessProfile row + approved sample style summaries at creation.
+  // Later profile edits never silently change an in-progress draft (spec §4).
+  profileSnapshot Json     @map("profile_snapshot")
+  // [{ role: 'user' | 'ai', text, phase, kind: 'answer'|'question'|'recap'|'transition'|'brief'|'system', at }]
+  conversation    Json     @default("[]")
+  // { goal: { items: [...], needsReview: bool, flags: {} }, audience: {...}, cta: {...} }
+  checklists      Json     @default("{}")
+  brief           Json?
+  briefVersion    Int      @default(0) @map("brief_version")
+  plan            Json?
+  planVersion     Int      @default(0) @map("plan_version")
+  // Set when the user clicks "Keep it as is" on a profile change (spec §4).
+  // Null means no profile change has been noted for the current snapshot.
+  profileNotedAt  DateTime? @map("profile_noted_at")
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("campaign_drafts")
 }

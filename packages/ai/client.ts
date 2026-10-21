@@ -26,4 +26,16 @@ export function tryGetAIClient(): GoogleGenAI | null {
   return getAIClient();
 }
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+/**
+ * Default Gemini model, configurable via GEMINI_MODEL.
+ * Default is the provider's current recommended model as of 2026-10-21.
+ * gemini-2.5-flash (the previous default) is retired for new users (404)
+ * and gemini-2.0-flash is retired — neither may be hardcoded anywhere.
+ */
+export const DEFAULT_MODEL = env.GEMINI_MODEL || 'gemini-3.8-flash';
+
+/** Strongest model for interview turns and drafting (spec §22 default 13). */
+export const INTERVIEW_MODEL = env.GEMINI_INTERVIEW_MODEL || DEFAULT_MODEL;
+
+/** Smaller/cheaper model for short summaries (spec §22 default 13). */
+export const SUMMARY_MODEL = env.GEMINI_SUMMARY_MODEL || DEFAULT_MODEL;

@@ -218,7 +218,7 @@ export default function ProfileForm({
                 {Object.entries(suggestions).map(([key, value]) => (
                   <div key={key} className="text-xs">
                     <span className="font-medium text-text-main">
-                      {(copy.fields as Record<string, { label: string }>)[key]?.label || key}:{' '}
+                      {(copy.fields as unknown as Record<string, { label: string }>)[key]?.label || key}:{' '}
                     </span>
                     <span className="text-text-muted whitespace-pre-line">{value}</span>
                   </div>
