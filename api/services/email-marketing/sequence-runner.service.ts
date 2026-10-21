@@ -185,6 +185,13 @@ export async function processDueSequenceSteps(
         where: { workspaceId: info.workspaceId, draftId, contactId: due.contactId, status: 'active' },
       });
       if (!state || state.nextSendAt === null || state.nextSendAt.getTime() > now.getTime()) continue;
+      // M5: the reaction engine owns states with a pending reaction send,
+      // and states past the sequence count (single-email reaction-only
+      // states) have no scheduled email to send — never let the sequence
+      // runner touch either.
+      const sig = (state.signals || {}) as Record<string, unknown>;
+      if (sig.reactionPending) continue;
+      if (state.nextEmailOrder > info.sequence.count) continue;
       const order = state.nextEmailOrder;
       try {
         const email = await db.campaignEmail.findFirst({ where: { workspaceId: info.workspaceId, draftId, order } });
@@ -211,6 +218,8 @@ export async function processDueSequenceSteps(
           { businessName: info.profile.businessName, physicalAddress: info.profile.physicalAddress },
           contact.id,
           trackBase,
+          // M5: real per-email tracking identity (was hardcoded order 1).
+          { emailOrder: order, emailId: email.id },
         );
         const sent = await sender({
           workspaceId: info.workspaceId,

@@ -546,6 +546,34 @@ export async function enrollSequenceRecipients(
     const next = perPerson.find((p) => p.order === 2) || perPerson[0];
     const nextEmail = emails.find((e) => e.order === 2) || null;
     if (sequence.count === 1) {
+      // M5: a single-email campaign WITH reaction rules stays ACTIVE (not
+      // completed) so the reaction engine can evaluate its windows and
+      // click triggers. nextEmailOrder 2 is past the sequence count, so
+      // the sequence runner skips it (no scheduled email to send); the
+      // reaction tick completes the state when no rules remain pending.
+      // Without rules, the single email finishes here as before.
+      const ruleCount = await db.reactionRule.count({ where: { workspaceId, draftId } }).catch(() => 0);
+      if (ruleCount > 0) {
+        const wakeAt = new Date(r.sentAt.getTime() + 72 * 60 * 60 * 1000);
+        await db.recipientState.upsert({
+          where: { workspaceId_draftId_contactId: { workspaceId, draftId, contactId: r.contactId } },
+          update: { status: 'active', firstSentAt: r.sentAt, lastSentAt: r.sentAt, nextSendAt: wakeAt, nextEmailOrder: 2 },
+          create: {
+            workspaceId,
+            draftId,
+            contactId: r.contactId,
+            status: 'active',
+            firstSentAt: r.sentAt,
+            lastSentAt: r.sentAt,
+            nextSendAt: wakeAt,
+            nextEmailOrder: 2,
+            signals: { reactionOnly: true },
+            history: [{ at: new Date().toISOString(), from: 'new', to: 'active', reason: 'Single-email campaign with reaction rules; reaction engine owns follow-up.' }],
+          },
+        });
+        enrolled++;
+        continue;
+      }
       await db.recipientState.upsert({
         where: { workspaceId_draftId_contactId: { workspaceId, draftId, contactId: r.contactId } },
         update: { status: 'completed', firstSentAt: r.sentAt, lastSentAt: r.sentAt, nextSendAt: null, nextEmailOrder: 2 },

@@ -505,7 +505,7 @@ export async function generateEmail(
   opts?: { order?: number; purpose?: string; earlierTexts?: string[] },
 ): Promise<EmailState> {
   const draft = await getDraftOrThrow(workspaceId, draftId);
-  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed') {
+  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed' && draft.status !== 'reactions_confirmed') {
     throw new DraftError('Confirm the Brief before drafting (Phase 7 needs a locked Brief).', 400);
   }
   const order = opts?.order ?? 1;
@@ -642,6 +642,75 @@ export async function generateSequenceEmails(workspaceId: string, draftId: strin
       await generateEmail(workspaceId, draftId, {
         order: seqEmail.order,
         purpose: seqEmail.purpose,
+        earlierTexts,
+      }),
+    );
+  }
+  return states;
+}
+
+/**
+ * Generates every planned reaction email (M5, spec §12): one row per
+ * send_reaction rule, in priority order, each with the full text of the
+ * source email and earlier scheduled emails (spec §12 input) plus its own
+ * purpose and facts. Reaction rows carry kind 'reaction' and orders after
+ * the sequence (count+1, count+2, …) so the sequence machinery — which
+ * filters kind 'scheduled' — never mistakes them for sequence steps.
+ * A draft with no send_reaction rules returns an empty list.
+ */
+export async function generateReactionEmails(workspaceId: string, draftId: string): Promise<EmailState[]> {
+  const draft = await getDraftOrThrow(workspaceId, draftId);
+  if (draft.status !== 'reactions_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed') {
+    throw new DraftError('Confirm reactions in Phase 5 before drafting reaction emails.', 400);
+  }
+  const rules = await db.reactionRule.findMany({
+    where: { workspaceId, draftId, action: 'send_reaction' },
+    orderBy: { priority: 'asc' },
+  });
+  if (rules.length === 0) return [];
+  const sequence = (draft as { sequence?: Record<string, unknown> | null }).sequence as { count?: number } | null | undefined;
+  const count = Number(sequence?.count || 0);
+  const scheduledRows = await db.campaignEmail.findMany({
+    where: { draftId, workspaceId, kind: 'scheduled' },
+    orderBy: { order: 'asc' },
+  });
+  const states: EmailState[] = [];
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    const params = (rule.actionParams || {}) as Record<string, unknown>;
+    const purpose = String(params.emailPurpose || 'Follow-up email');
+    const facts = Array.isArray(params.emailFacts) ? (params.emailFacts as unknown[]).map(String) : [];
+    const order = count + 1 + i;
+    const existing = await db.campaignEmail.findFirst({ where: { draftId, workspaceId, kind: 'reaction', order } });
+    if (!existing) {
+      await db.campaignEmail.create({
+        data: {
+          workspaceId,
+          draftId,
+          kind: 'reaction',
+          order,
+          name: `Reaction: ${purpose.slice(0, 60)}`,
+          purpose,
+          timingRule: { type: 'reaction', label: `Reaction to Email ${rule.sourceOrder} (${rule.condition})` },
+          receivesRule: { type: 'reaction', label: rule.readback || `Reaction for Email ${rule.sourceOrder}` },
+          subjectVariants: [],
+          previewText: '',
+          bodyHtml: '',
+          bodyText: '',
+          factMap: [],
+          versions: [],
+          status: 'draft',
+        },
+      });
+    }
+    const earlierTexts = scheduledRows
+      .filter((r) => r.order <= rule.sourceOrder)
+      .map((r) => String(r.bodyText || ''))
+      .filter(Boolean);
+    states.push(
+      await generateEmail(workspaceId, draftId, {
+        order,
+        purpose: facts.length ? `${purpose}. Facts to use: ${facts.join('; ')}` : purpose,
         earlierTexts,
       }),
     );

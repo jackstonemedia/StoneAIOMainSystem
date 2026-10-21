@@ -75,6 +75,7 @@ import {
   processDripSequences,
 } from '../services/email-marketing/sequence-scheduler.service.js';
 import { processDueSequenceSteps } from '../services/email-marketing/sequence-runner.service.js';
+import { processDueReactions } from '../services/email-marketing/reaction-engine.service.js';
 import {
   createSendingDomain,
   getSendingDomains,
@@ -88,6 +89,9 @@ import createWithAiRouter from './create-with-ai.routes.js';
 setInterval(() => {
   processScheduledCampaigns().catch(err => console.error('[ScheduledCampaigns] Background runner error:', err));
   processDripSequences().catch(err => console.error('[SequenceScheduler] Background runner error:', err));
+  // M5: reactions FIRST (they own pending sends + windows), then sequences
+  // (which skip reaction-pending states) — same 30s tick, own try/catch.
+  processDueReactions().catch(err => console.error('[ReactionEngine] Background runner error:', err));
   processDueSequenceSteps().catch(err => console.error('[SequenceRunner] Background runner error:', err));
 }, 30_000);
 
@@ -555,8 +559,13 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
         }
       }
       const userAgent = req.headers['user-agent'] || null;
-      const { isBotClick } = await import('../services/email-marketing/fact-validator.js');
+      const { isBotClick, decodeTrackingTokenEmailId } = await import('../services/email-marketing/fact-validator.js');
       const botSuspected = isBotClick(deliveredAt, new Date(), userAgent);
+      // M5: per-email click attribution for reaction rules. Signed tokens
+      // carry the CampaignEmail id; tokenless worker links (Email 1) carry
+      // none and fall back to utm_content / order-1 attribution in the
+      // reaction engine.
+      const tokenEmailId = token ? decodeTrackingTokenEmailId(token, campaignId || '', contactId, targetUrl) : null;
       await db.emailEvent.create({
         data: {
           workspaceId,
@@ -566,7 +575,7 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
           eventType: EmailEventType.CLICKED,
           linkUrl: safeUrl,
           isBotSuspected: botSuspected,
-          metadata: { userAgent, botSuspected },
+          metadata: { userAgent, botSuspected, emailId: tokenEmailId },
         } as any,
       });
 

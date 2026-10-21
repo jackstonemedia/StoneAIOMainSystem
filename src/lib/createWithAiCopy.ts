@@ -108,12 +108,14 @@ export const createWithAiCopy = {
       audience: 'Now I will learn who will read this email.',
       cta: "What you want readers to do after reading this.",
       sequence: 'How many emails go out, and over how many days.',
+      reactions: 'What happens when someone opens, clicks, or ignores an email.',
     },
     openings: {
       goal: 'What do you want to send? Tell me in your own words, with as much detail as you like.',
       audience: 'Now tell me about the people who will read this email.',
       cta: "Now let's decide what you want readers to do after reading this.",
       sequence: "Now let's decide how many emails go out, and over how many days.",
+      reactions: "Now let's decide what happens after each email goes out — who gets a follow-up, who gets a different email, and when you want to hear about it. I recommend starting with the plain-language plan: what should happen if someone doesn't open, doesn't click, clicks, or clicks but doesn't reply. Opens are approximate, so I lean on clicks — and I never treat a machine-opened email as if a person read it.",
     },
     examplePools: {
       goal: [
@@ -156,6 +158,16 @@ export const createWithAiCopy = {
         'Three emails over three weeks for past patients due for a check-up.',
         'One email a week for a month to re-engage lapsed members.',
       ],
+      reactions: [
+        'If someone does not open in 3 days, send a follow-up with a new subject.',
+        'If someone clicks but does not reply in 4 days, alert me so I can call them.',
+        'If someone clicks the pricing link, send the detailed quote email within an hour.',
+        'If someone does not click in 3 days, send the next email in the sequence.',
+        'If someone clicks, tag them as interested and stop the sequence.',
+        'If nobody opens the first email, resend it once with a different subject.',
+        'If someone clicks the booking link, send a thank-you note and stop.',
+        'If someone replies, stop everything — I will handle it myself.',
+      ],
     },
     requiredHint: 'Type your answer to continue.',
     escapeHatch: 'Write it with what I have',
@@ -174,6 +186,7 @@ export const createWithAiCopy = {
     openCaution:
       'Open tracking is approximate. Some email apps mark every email as opened automatically, so I lean on clicks for important decisions.',
     briefPrompt: 'Here is the campaign as I understand it. Type looks good, or tell me what to change.',
+    reactionsPrompt: 'Here is the reaction plan as I understand it. Type looks good, or tell me what to change.',
     briefConfirmed: 'Brief confirmed. Next: Sequence and Timing — how many emails go out, and over how many days.',
     capNote: 'I have asked enough questions for this phase, so I will move on with what you have shared.',
   },

@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import ReactionPaths from './ReactionPaths';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import {
   cancelCampaignAction,
@@ -213,31 +214,34 @@ export default function ReviewSend({
       )}
 
       {launched && campaignState ? (
-        <div className="border border-border rounded-lg p-3 space-y-2">
-          <p className="text-sm font-semibold text-text-main">Campaign: {campaignState.campaign.name}</p>
-          <p className="text-sm text-text-muted">
-            Status: {campaignState.campaign.status} · Recipients: {campaignState.campaign.recipientCount ?? 0} · Scheduled:{' '}
-            {campaignState.campaign.scheduledAtUtc ? new Date(campaignState.campaign.scheduledAtUtc).toLocaleString() : '—'}
-          </p>
-          {confirmResult && <p className="text-sm text-text-muted">{confirmResult.note}</p>}
-          <p className="text-sm text-text-muted">
-            Events: {Object.entries(campaignState.counts).map(([k, v]) => `${k} ${v}`).join(', ') || 'none yet'}
-          </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => handleCampaignAction('pause')} className="btn-secondary text-xs" disabled={busy}>
-              {copy.pause}
-            </button>
-            <button type="button" onClick={() => handleCampaignAction('resume')} className="btn-secondary text-xs" disabled={busy}>
-              {copy.resume}
-            </button>
-            <button type="button" onClick={() => handleCampaignAction('cancel')} className="btn-secondary text-xs" disabled={busy}>
-              {copy.cancel}
-            </button>
-            <button type="button" onClick={refreshCampaign} className="btn-secondary text-xs" disabled={busy}>
-              Refresh status
-            </button>
+        <>
+          <div className="border border-border rounded-lg p-3 space-y-2">
+            <p className="text-sm font-semibold text-text-main">Campaign: {campaignState.campaign.name}</p>
+            <p className="text-sm text-text-muted">
+              Status: {campaignState.campaign.status} · Recipients: {campaignState.campaign.recipientCount ?? 0} · Scheduled:{' '}
+              {campaignState.campaign.scheduledAtUtc ? new Date(campaignState.campaign.scheduledAtUtc).toLocaleString() : '—'}
+            </p>
+            {confirmResult && <p className="text-sm text-text-muted">{confirmResult.note}</p>}
+            <p className="text-sm text-text-muted">
+              Events: {Object.entries(campaignState.counts).map(([k, v]) => `${k} ${v}`).join(', ') || 'none yet'}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => handleCampaignAction('pause')} className="btn-secondary text-xs" disabled={busy}>
+                {copy.pause}
+              </button>
+              <button type="button" onClick={() => handleCampaignAction('resume')} className="btn-secondary text-xs" disabled={busy}>
+                {copy.resume}
+              </button>
+              <button type="button" onClick={() => handleCampaignAction('cancel')} className="btn-secondary text-xs" disabled={busy}>
+                {copy.cancel}
+              </button>
+              <button type="button" onClick={refreshCampaign} className="btn-secondary text-xs" disabled={busy}>
+                Refresh status
+              </button>
+            </div>
           </div>
-        </div>
+          <ReactionPaths draftId={draft.id} emails={[email]} />
+        </>
       ) : (
         <>
           {/* Recipient picker */}

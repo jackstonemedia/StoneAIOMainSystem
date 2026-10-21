@@ -15,6 +15,7 @@ import DraftEditor from './DraftEditor';
 import ReviewSend from './ReviewSend';
 import SequenceTimeline from './SequenceTimeline';
 import SequenceReview from './SequenceReview';
+import ReactionEmailsSection from './ReactionEmailsSection';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
@@ -22,9 +23,11 @@ import {
   generateEmail,
   generateSequence,
   listDraftEmails,
+  getReactionStatus,
   type BusinessProfile,
   type CampaignDraftState,
   type DraftEmailState,
+  type ReactionRuleState,
 } from '../../lib/createWithAiApi';
 
 export default function DraftReviewFlow({
@@ -41,6 +44,7 @@ export default function DraftReviewFlow({
   const { toast } = useToast();
   const [email, setEmail] = useState<DraftEmailState | null>(null);
   const [emails, setEmails] = useState<DraftEmailState[]>([]);
+  const [reactionRules, setReactionRules] = useState<ReactionRuleState[]>([]);
   const [view, setView] = useState<'draft' | 'review'>('draft');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -48,6 +52,8 @@ export default function DraftReviewFlow({
 
   const sequence = (draft.sequence || {}) as { count?: number };
   const isSequence = !!draft.sequence && Number(sequence.count) > 1;
+  const scheduledEmails = emails.filter((e) => e.kind === 'scheduled');
+  const reactionEmails = emails.filter((e) => e.kind === 'reaction');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,7 +61,7 @@ export default function DraftReviewFlow({
       const { emails: all } = await listDraftEmails(draft.id);
       const sorted = [...all].sort((a, b) => a.order - b.order);
       setEmails(sorted);
-      const first = sorted[0] || null;
+      const first = sorted.find((e) => e.kind === 'scheduled') || null;
       setEmail(first);
       if (first && (first.status === 'scheduled' || first.status === 'sending' || first.status === 'sent')) {
         setView('review');
@@ -64,6 +70,13 @@ export default function DraftReviewFlow({
       toast('error', 'Could not load the draft email', extractApiError(err));
     } finally {
       setLoading(false);
+    }
+    // M5: reaction plan is best-effort here (older drafts have no rules).
+    try {
+      const status = await getReactionStatus(draft.id);
+      setReactionRules(status.rules);
+    } catch {
+      setReactionRules([]);
     }
   }, [draft.id, toast]);
 
@@ -141,7 +154,7 @@ export default function DraftReviewFlow({
             <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
               <p className="text-sm font-semibold text-text-main">Emails in this sequence</p>
               <div className="flex flex-wrap gap-2">
-                {emails.map((e) => (
+                {scheduledEmails.map((e) => (
                   <button
                     key={e.id}
                     type="button"
@@ -160,6 +173,14 @@ export default function DraftReviewFlow({
             {email && (
               <DraftEditor email={email} profile={profile} onChanged={setEmail} onContinue={() => setView('review')} />
             )}
+            <ReactionEmailsSection
+              draftId={draft.id}
+              rules={reactionRules}
+              reactionEmails={reactionEmails}
+              scheduledReady={scheduledEmails.length > 0}
+              profile={profile}
+              onGenerated={load}
+            />
             <button type="button" onClick={() => setView('review')} className="btn-primary text-sm">
               Continue to Review and Send
             </button>
@@ -207,7 +228,17 @@ export default function DraftReviewFlow({
       )}
 
       {email && view === 'draft' && (
-        <DraftEditor email={email} profile={profile} onChanged={setEmail} onContinue={() => setView('review')} />
+        <>
+          <DraftEditor email={email} profile={profile} onChanged={setEmail} onContinue={() => setView('review')} />
+          <ReactionEmailsSection
+            draftId={draft.id}
+            rules={reactionRules}
+            reactionEmails={reactionEmails}
+            scheduledReady={scheduledEmails.length > 0}
+            profile={profile}
+            onGenerated={load}
+          />
+        </>
       )}
 
       {email && view === 'review' && (

@@ -153,6 +153,14 @@ export async function runSendChecks(
   const snap = (draft.profileSnapshot || {}) as Record<string, unknown>;
   const blocking: string[] = [];
   const warnings: string[] = [];
+  // M5: a send_reaction rule without a drafted reaction email is a BLOCKING
+  // item (spec §13), surfaced here so the Phase 8 UI shows it and both
+  // confirm paths refuse via their existing blocking checks.
+  try {
+    await assertReactionEmailsDrafted(workspaceId, email.draftId);
+  } catch (err) {
+    blocking.push(err instanceof Error ? err.message : 'A reaction email is missing its draft.');
+  }
 
   const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const selectedSubject = subjects[email.subjectSelected ?? 0] || '';
@@ -233,6 +241,9 @@ export function renderFinalHtml(
   profile: { businessName: string; physicalAddress: string },
   contactId: string,
   trackBase: string,
+  // M5: per-email tracking identity. Defaults preserve the M3 behavior
+  // (order 1, legacy 'email' token id) for single-email sends.
+  opts?: { emailOrder?: number; emailId?: string },
 ): { html: string; text: string } {
   const unsub = unsubscribeUrlFor(workspaceId, contactId);
   // The draft carries a placeholder footer (spec §17: unremovable); the real
@@ -244,7 +255,8 @@ export function renderFinalHtml(
     workspaceId,
     contactId,
     campaignId,
-    emailOrder: 1,
+    emailOrder: opts?.emailOrder ?? 1,
+    emailId: opts?.emailId,
   });
   const text = `${stripped.bodyText}${renderLockedFooterText(profile, unsub)}`;
   return { html, text };
@@ -310,33 +322,6 @@ export async function testSendEmail(
 }
 
 /** Path simulator (spec §13): the 7 scenarios for a single-email campaign. */
-export function simulatePath(scenario: string): {
-  scenario: string;
-  emails: { name: string; when: string; trigger: string }[];
-  note: string;
-} {
-  const scenarios: Record<string, string> = {
-    did_not_open: 'Did not open',
-    opened_no_click: 'Opened but did not click',
-    clicked: 'Clicked',
-    clicked_link: 'Clicked a specific link',
-    clicked_not_booked: 'Clicked but did not book',
-    replied: 'Replied',
-    booked: 'Booked',
-  };
-  const label = scenarios[scenario] || scenario;
-  const emails = [
-    { name: 'Email 1', when: 'At the scheduled start', trigger: 'Everyone selected in Phase 8' },
-  ];
-  let note = 'This is a single-email campaign (M3): every scenario receives Email 1 at the scheduled start.';
-  if (scenario === 'replied' || scenario === 'booked') {
-    note += ' A reply or booking exits the contact from any further emails (M4 exits).';
-  } else {
-    note += ' Reaction emails for clickers and non-clickers arrive with Milestone 5 (Reactions); the simulator already matches the live single-email behavior.';
-  }
-  return { scenario: label, emails, note };
-}
-
 /** Recommended start for a draft (spec §13: first slot in the send window). */
 export async function recommendedStartFor(workspaceId: string, draftId: string): Promise<{ atUtc: string; reason: string; timeZone: string }> {
   const draft = await db.campaignDraft.findFirst({ where: { id: draftId, workspaceId } });
@@ -361,6 +346,30 @@ export interface ConfirmSendInput {
  * the same key returns the existing campaign — a double click cannot double
  * send.
  */
+/**
+ * M5 Phase 8 blocking check (spec §13: "reaction rule → missing email"):
+ * every send_reaction rule in the draft must have a drafted reaction email
+ * row (kind 'reaction', non-empty body). Reaction emails are drafted in
+ * Phase 7 (generate-reactions); launching without them would arm rules
+ * that can never fire. Throws a 400 naming the first missing rule.
+ */
+export async function assertReactionEmailsDrafted(workspaceId: string, draftId: string): Promise<void> {
+  const rules = await db.reactionRule.findMany({ where: { workspaceId, draftId, action: 'send_reaction' }, orderBy: { priority: 'asc' } });
+  if (rules.length === 0) return;
+  const reactionRows = await db.campaignEmail.findMany({ where: { workspaceId, draftId, kind: 'reaction' } });
+  for (const rule of rules) {
+    const params = (rule.actionParams || {}) as Record<string, unknown>;
+    const purpose = String(params.emailPurpose || '');
+    const row = reactionRows.find((r) => String(r.purpose || '') === purpose && String(r.bodyText || '').trim().length > 0);
+    if (!row) {
+      throw new SendError(
+        `Reaction rule for Email ${rule.sourceOrder} is missing its email: draft the "${purpose || 'reaction'}" email in Phase 7 before confirming.`,
+        400,
+      );
+    }
+  }
+}
+
 export async function confirmSend(
   workspaceId: string,
   emailId: string,
@@ -572,7 +581,7 @@ export async function confirmSequenceSend(
   if (!sequence.count || sequence.count <= 1 || !Array.isArray(sequence.emails) || sequence.emails.length === 0) {
     throw new SendError('This draft has no multi-email sequence. Use the single-email confirmation.', 400);
   }
-  const emails = await db.campaignEmail.findMany({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
+  const emails = await db.campaignEmail.findMany({ where: { draftId, workspaceId, kind: 'scheduled' }, orderBy: { order: 'asc' } });
   if (emails.length !== sequence.count) {
     throw new SendError(`Generate all ${sequence.count} sequence emails before confirming (found ${emails.length}).`, 400);
   }

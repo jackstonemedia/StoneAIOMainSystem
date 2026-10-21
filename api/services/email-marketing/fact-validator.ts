@@ -418,6 +418,9 @@ export interface TrackWrapOptions {
   contactId: string;
   campaignId: string;
   emailOrder: number;
+  /** CampaignEmail id carried in the signed token (M5: per-email click
+   * attribution for reaction rules). Defaults to 'email' (legacy). */
+  emailId?: string;
 }
 
 /** Per-recipient token, HMAC-signed (spec §20) and bound to the destination URL. */
@@ -452,7 +455,29 @@ export function verifyTrackingToken(token: string, campaignId: string, contactId
 }
 
 /**
- * The HMAC secret. TRACKING_SECRET from the environment when set; otherwise
+ * Decode the email id from a VERIFIED tracking token payload (M5). Returns
+ * null for malformed tokens or a payload that fails signature verification
+ * against the claimed campaign/contact/destination — callers must pass the
+ * same values the token was minted with. The email id is the third payload
+ * element; legacy tokens carry the literal 'email'.
+ */
+export function decodeTrackingTokenEmailId(
+  token: string,
+  campaignId: string,
+  contactId: string,
+  destUrl: string,
+): string | null {
+  try {
+    if (!verifyTrackingToken(token, campaignId, contactId, destUrl)) return null;
+    const payload = token.slice(0, token.lastIndexOf('.'));
+    const parts = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Array.isArray(parts) && typeof parts[2] === 'string' ? parts[2] : null;
+  } catch {
+    return null;
+  }
+}
+/**
+ * Tracking secret resolution: falls back to
  * an ephemeral per-boot secret (tokens then validate only within the same
  * server run). Production must set TRACKING_SECRET so tokens survive
  * restarts — see .env.example. Never log or return the secret itself.
@@ -491,7 +516,7 @@ export function wrapLinksForTracking(html: string, opts: TrackWrapOptions): stri
     if (!/^https?:\/\//i.test(href)) return m;
     if (/unsubscribe|track\/click/i.test(href)) return m;
     const dest = withUtm(href, opts.campaignId, opts.emailOrder);
-    const token = trackingToken(opts.campaignId, opts.contactId, 'email', dest);
+    const token = trackingToken(opts.campaignId, opts.contactId, opts.emailId || 'email', dest);
     const q = new URLSearchParams({
       w: opts.workspaceId,
       c: opts.contactId,

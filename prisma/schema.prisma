@@ -53,6 +53,7 @@ model Workspace {
   crmTriggerSubscriptions CrmTriggerSubscription[]
   channelConnections      ChannelConnection[]
   recipientStates         RecipientState[]
+  reactionRules           ReactionRule[]
 
   // Ad Manager relations
   adAccounts          AdAccount[]
@@ -2058,9 +2059,53 @@ model CampaignDraft {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   emails    CampaignEmail[]
   recipientStates RecipientState[]
+  reactionRules ReactionRule[]
 
   @@index([workspaceId])
   @@map("campaign_drafts")
+}
+
+// Create-with-AI (M5, spec §10/§10.1): one reaction rule in a campaign
+// draft's Phase 5 plan. Rules are evaluated in priority order per source
+// email: exits are always-on (never rows — reply/book/unsubscribe stop
+// immediately, bounce/complaint suppress globally), then click rules, then
+// NOT_CLICKED / CLICKED_NOT_REPLIED, then NOT_OPENED. One rule fires per
+// (contact, source email); the default path (next scheduled email) applies
+// when no rule fires. Conditions OPENED_NOT_CLICKED and CLICKED_NOT_ACTED
+// are NOT creatable here: opens cannot be attributed per email under
+// Gmail-only app tracking (campaign-level pixel), and booking events do
+// not exist — CLICKED_NOT_REPLIED (reply-tracked, B3) is the supported
+// cousin of CLICKED_NOT_ACTED. Actions: send_reaction (a kind='reaction'
+// email row, drafted in Phase 7), send_next (default path, no-op),
+// resend (source email with a new subject), notify (in-app + Gmail to the
+// owner), tag (contact tag), stop (terminal 'stopped' state).
+// conditionParams: { link?: string } for CLICKED_LINK (substring match
+// against the clicked URL); { days?: number } for CLICKED_NOT_REPLIED.
+// actionParams: { emailPurpose?: string, emailFacts?: string[] } for
+// send_reaction (the planned email, drafted in Phase 7); { newSubject?: string }
+// for resend; { tagName?: string } for tag.
+model ReactionRule {
+  id                  String   @id @default(uuid())
+  workspaceId         String   @map("workspace_id")
+  draftId             String   @map("draft_id")
+  priority            Int      // 0 = first evaluated within its source email
+  sourceOrder         Int      @map("source_order") // sequence order of the source email (1-based)
+  condition           String   // NOT_OPENED | NOT_CLICKED | CLICKED | CLICKED_LINK | CLICKED_NOT_REPLIED
+  conditionParams     Json     @default("{}") @map("condition_params")
+  action              String   // send_reaction | send_next | resend | notify | tag | stop
+  actionParams        Json     @default("{}") @map("action_params")
+  decisionWindowHours Int      @default(72) @map("decision_window_hours") // W, window rules only
+  delayMinutes        Int      @default(60) @map("delay_minutes") // D, click rules only
+  readback            String   @default("") // plain-words sentence for this rule
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  draft     CampaignDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([draftId])
+  @@map("reaction_rules")
 }
 
 // Create-with-AI (M3, spec §12/§15): one drafted email in a campaign draft.

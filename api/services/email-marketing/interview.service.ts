@@ -26,8 +26,12 @@ import {
   type ValidatedSequence,
 } from './sequence.service.js';
 import { recommendedStart } from './fact-validator.js';
+import {
+  assembleReactionsFromChecklist,
+  type AssembledReactions,
+} from './reaction-engine.service.js';
 
-export type PhaseId = 'goal' | 'audience' | 'cta' | 'sequence';
+export type PhaseId = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions';
 export type PhaseStatus = 'missing' | 'vague' | 'complete' | 'placeholder';
 
 export interface ChecklistItem {
@@ -66,7 +70,7 @@ export type MessageKind = 'answer' | 'question' | 'recap' | 'transition' | 'brie
 export interface ChatMessage {
   role: 'user' | 'ai';
   text: string;
-  phase: PhaseId | 'brief_confirm' | 'sequence_confirmed';
+  phase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed';
   kind: MessageKind;
   /** For AI questions: the checklist item the question targets (attempts logic). */
   target?: string;
@@ -128,7 +132,7 @@ export interface BriefObject {
 export interface DraftState {
   id: string;
   workspaceId: string;
-  currentPhase: PhaseId | 'brief_confirm' | 'sequence_confirmed';
+  currentPhase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed';
   status: string;
   profileSnapshot: Record<string, unknown>;
   conversation: ChatMessage[];
@@ -139,22 +143,29 @@ export interface DraftState {
   sequence: Record<string, unknown> | null;
   profileNotedAt: string | null;
   expiresAt: string;
+  /**
+   * M5 transient marker (NEVER persisted by saveDraftState): an assembled
+   * Phase 5 plan waiting for its ReactionRule rows to be synced by the DB
+   * wrapper after save. Fresh loads never carry it — rows are the truth.
+   */
+  reactionsAssembled?: AssembledReactions | null;
 }
 
-export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta', 'sequence'];
+export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta', 'sequence', 'reactions'];
 export const PHASE_LABELS: Record<PhaseId, string> = {
   goal: 'Goal',
   audience: 'Audience',
   cta: 'Call to Action',
   sequence: 'Sequence and Timing',
+  reactions: 'Reactions',
 };
 /** UI phase numbers: "Phase N of 8" (Phase 0 profile is not counted). */
-export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3, sequence: 4 };
+export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5 };
 
 /** Question caps (spec §5.5): 8 per phase for Phases 1–3, 4 per phase for
  * Phases 4–6, 24 across Phases 1–6. */
 export function phaseQuestionCap(phase: PhaseId): number {
-  return phase === 'sequence' ? 4 : 8;
+  return phase === 'sequence' || phase === 'reactions' ? 4 : 8;
 }
 export const QUESTIONS_PER_PHASE_CAP = 8;
 export const QUESTIONS_TOTAL_CAP = 24;
@@ -196,6 +207,14 @@ const BASE_ITEMS: Record<PhaseId, Array<{ id: string; label: string }>> = {
     { id: 'jobs', label: 'The job of each email' },
     { id: 'send_timing', label: 'Send timing' },
   ],
+  reactions: [
+    { id: 'no_open', label: 'People who do not open' },
+    { id: 'open_no_click', label: 'People who open but do not click' },
+    { id: 'clicked', label: 'People who click' },
+    { id: 'clicked_no_reply', label: 'People who click but do not reply' },
+    { id: 'reaction_jobs', label: 'The job of each reaction email' },
+    { id: 'owner_alerts', label: 'Alerts to the owner' },
+  ],
 };
 
 export function baseChecklist(phase: PhaseId): PhaseChecklist {
@@ -215,10 +234,11 @@ export function baseChecklist(phase: PhaseId): PhaseChecklist {
   };
 }
 
-export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' | 'sequence_confirmed' {
+export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirmed' {
   if (phase === 'goal') return 'audience';
   if (phase === 'audience') return 'cta';
   if (phase === 'cta') return 'brief_confirm';
+  if (phase === 'reactions') return 'reactions_confirmed';
   return 'sequence_confirmed';
 }
 
@@ -529,6 +549,7 @@ export function phaseOpening(phase: PhaseId): string {
   if (phase === 'goal') return 'What do you want to send? Tell me in your own words, with as much detail as you like.';
   if (phase === 'audience') return 'Now tell me about the people who will read this email.';
   if (phase === 'sequence') return "Now let's decide how many emails go out, and over how many days.";
+  if (phase === 'reactions') return "Now let's decide what happens depending on what each person does with your emails. Open tracking is approximate, so I lean on clicks for important decisions and use opens only where they help.";
   return "Now let's decide what you want readers to do after reading this.";
 }
 
@@ -542,7 +563,7 @@ export function transitionMessage(phase: PhaseId, recap: string, audienceThinNot
   const nextLabel =
     next === 'brief_confirm'
       ? 'the Campaign Brief confirmation'
-      : next === 'sequence_confirmed'
+      : next === 'sequence_confirmed' || next === 'reactions_confirmed'
         ? 'drafting your emails (Phase 7)'
         : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
   let msg =
@@ -702,6 +723,54 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
       ];
       return { draft: next, phaseCompleted: true, capped, audienceThin, aiText: seqMsg };
     }
+    if (phase === 'reactions') {
+      // Assemble BEFORE announcing completion (same defensive rule as the
+      // sequence gate): an unassemblable plan must never advance the phase.
+      const sequence = (draft.sequence || {}) as { count?: number };
+      const count = Number(sequence.count || 0);
+      if (!count) {
+        const clarification = 'Reactions need a confirmed sequence first — please complete Phase 4 before deciding reactions.';
+        next.conversation = [
+          ...next.conversation,
+          { role: 'ai', text: clarification, phase, kind: 'question', at: nowIso },
+        ];
+        return { draft: next, phaseCompleted: false, capped, audienceThin, aiText: clarification };
+      }
+      const asm = assembleReactionsFromChecklist(
+        mergedItems as unknown as Array<Record<string, unknown>>,
+        count,
+      );
+      if (!asm.ok) {
+        const clarification = `I could not put those reactions together yet: ${asm.error} Could you confirm or correct what should happen for non-openers, non-clickers, and clickers?`;
+        next.conversation = [
+          ...next.conversation,
+          { role: 'ai', text: clarification, phase, kind: 'question', at: nowIso },
+        ];
+        return { draft: next, phaseCompleted: false, capped, audienceThin, aiText: clarification };
+      }
+      const reactRecap = output.recap || recapFromChecklist(mergedItems);
+      let reactMsg = transitionMessage(phase, reactRecap, audienceThin);
+      if (capped) {
+        reactMsg += ' I have asked enough questions for this phase, so I will move on with what you have shared.';
+      }
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: reactMsg, phase, kind: 'transition', at: nowIso },
+      ];
+      // The assembled plan rides the transient marker to the DB wrapper,
+      // which syncs ReactionRule rows after save (never persisted on the
+      // draft row — rows are the source of truth).
+      next.reactionsAssembled = asm.assembled;
+      next.currentPhase = 'reactions_confirm';
+      const readbackMsg =
+        `Here is how reactions will work, in plain words: ${asm.assembled.readback} ` +
+        `Type "looks good" to confirm, or tell me what to change.`;
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: readbackMsg, phase: 'reactions_confirm', kind: 'system', at: nowIso },
+      ];
+      return { draft: next, phaseCompleted: true, capped, audienceThin, aiText: reactMsg };
+    }
     const recap = output.recap || recapFromChecklist(mergedItems);
     let msg = transitionMessage(phase, recap, audienceThin);
     if (capped) {
@@ -753,7 +822,7 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
 /** Escape hatch (spec §3 rule 7): mark every missing item a blocking placeholder. */
 export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState {
   const phase = draft.currentPhase;
-  if (phase === 'brief_confirm' || phase === 'sequence_confirmed') return draft;
+  if (phase === 'brief_confirm' || phase === 'sequence_confirmed' || phase === 'reactions_confirm' || phase === 'reactions_confirmed') return draft;
   const prev = draft.checklists[phase] || baseChecklist(phase);
   let audienceThin = false;
   const items = prev.items.map((i) => {
@@ -825,6 +894,43 @@ export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState 
         },
       ];
     }
+  } else if (np === 'reactions_confirmed') {
+    // Escape hatch for Phase 5: assemble from whatever facts exist and
+    // confirm directly (mirrors the sequence hatch). Missing items are
+    // skipped, never blocking — reactions enhance a campaign, they never
+    // gate sending. An empty plan is a valid plan (default path for all).
+    const sequence = (draft.sequence || {}) as { count?: number };
+    const count = Number(sequence.count || 0);
+    const rasm = assembleReactionsFromChecklist(
+      (next.checklists[phase] as PhaseChecklist).items as unknown as Array<Record<string, unknown>>,
+      count || 1,
+    );
+    if (rasm.ok) {
+      next.reactionsAssembled = rasm.assembled;
+      next.status = 'reactions_confirmed';
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `Continuing with what you have — reactions confirmed: ${rasm.assembled.readback} Next up, drafting your emails (Phase 7).`,
+          phase: 'reactions_confirmed',
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    } else {
+      next.currentPhase = phase;
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `I could not put those reactions together yet: ${rasm.error} Please correct what should happen for non-openers, non-clickers, and clickers and continue.`,
+          phase,
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    }
   } else {
     const opening = phaseOpening(np as PhaseId);
     next.conversation = [
@@ -857,14 +963,18 @@ export function applyReopen(draft: DraftState, phase: PhaseId, nowIso: string): 
 
 /** Full interview order (spec §3 rule 8): the Brief confirmation sits between
  * Phase 3 (CTA) and Phase 4 (Sequence) — it is not a checklist phase, so it
- * is absent from PHASE_ORDER but present here for reopen ordering. */
-export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confirmed'> = [
+ * is absent from PHASE_ORDER but present here for reopen ordering. The
+ * reactions confirmation sits between Phase 5 and drafting the same way. */
+export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed'> = [
   'goal',
   'audience',
   'cta',
   'brief_confirm',
   'sequence',
   'sequence_confirmed',
+  'reactions',
+  'reactions_confirm',
+  'reactions_confirmed',
 ];
 
 /** True when a reopen target is strictly before the current phase. */
@@ -971,6 +1081,18 @@ export function buildSystemPrompt(phase: PhaseId, wordsToAvoid: string[]): strin
           '- Safeguards you must respect and explain in plain words when they bite: sends only on weekdays 8:00–17:00 in the business time zone; at most 3 emails per contact per 7 days across all campaigns; a contact already in another active sequence is skipped, not double-mailed; nothing is sent after the deadline (if the plan would run past it, compress the gaps and say so); at most 6 emails, at most 30 days, at least 1 day between emails; timing is per person from that person\'s first send.',
           '- Fact formatting (so the plan can be assembled exactly): how_many fact = just the number. span_gap fact = "span: N days; gaps: a, b, ..." (gaps in days between consecutive emails). start_deadline fact = "start: YYYY-MM-DD; deadline: YYYY-MM-DD or none" (dates only, no times — sends go out in the morning send window; if the user gives a month and day without a year, ask for the year, never guess it). jobs fact = numbered purposes, one per email, in order (e.g. "1. Announce the offer. 2. Remind before the deadline."). send_timing fact = the send window in plain words (e.g. "weekdays 8 to 5" or "weekday mornings").',
           '- If the user is unsure about the series, recommend the smallest sequence that does the job and say why.',
+        ].join('\n')
+      : '',
+    phase === 'reactions'
+      ? [
+          'Reaction rules (spec §10) — recommend first, with a reason, then ask. Go through the scheduled emails in order (from the confirmed sequence in this conversation) and ask about each one that can lead somewhere:',
+          '- Recommend a reaction FIRST for each email, with a one-sentence reason, then ask the user to confirm or change it. The reliable default: people who have not clicked after 3 days get the next scheduled email; people who click get a short follow-up note an hour later plus an owner alert.',
+          '- What you can react to: whether someone did not open, did not click, clicked (optionally a specific link), or clicked but has not replied within some days. Always-on exits are NOT questions — state them once in plain words: anyone who replies, books, or unsubscribes stops immediately; anyone who bounces is suppressed from all campaigns; auto-replies do not count.',
+          '- Two reactions are NOT offered, and you must say so in plain words if the user asks: open-only rules (opens cannot be attributed to one email under Gmail-only tracking, so use not-clicked instead — it works for everyone, opened or not) and booking-based rules (the platform does not track bookings; click-plus-no-reply within N days is the supported version, because replies ARE tracked).',
+          '- Caps you must respect and explain in plain words when they bite: at most 8 emails per contact per campaign; at least 24 hours between emails except a click reaction sent after its chosen delay; one path per contact per email (if more than one rule could match, the first listed wins); a contact never gets the same email twice, except an explicit resend with a new subject line.',
+          '- Open caution (say it once, briefly): open tracking is approximate — some email apps mark every email as opened automatically — so lean on clicks for important decisions.',
+          '- Fact formatting (so the plan can be assembled exactly): no_open fact = "action: send-next | resend | nothing; window: N days; email: N" (resend needs a new subject in quotes). open_no_click fact = "skip" unless the user insists (then record the insistence — the plan will still skip it and say why). clicked fact = "action: send-note | alert | tag | nothing; delay: N hours; link: <substring or none>; email: N". clicked_no_reply fact = "days: N; action: alert | nothing; email: N". reaction_jobs fact = numbered purposes, one per reaction email, in order (e.g. "1. Short thank-you note offering the free estimate."). owner_alerts fact = which events the owner hears about (clicks, replies) — alerts always go in-app and email.',
+          '- If the user is unsure, recommend the smallest reaction set that does the job and say why.',
         ].join('\n')
       : '',
     'When every item is complete or a placeholder, set phase_complete true, next_question null, and write a 2 to 4 sentence recap.',
@@ -1302,6 +1424,12 @@ export async function runTurn(
   if (phase === 'sequence_confirmed') {
     throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
   }
+  if (phase === 'reactions_confirm') {
+    throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
+  }
+  if (phase === 'reactions_confirmed') {
+    throw new InterviewError('Reactions are confirmed — drafting comes next.', 400);
+  }
   const text = (message || '').trim();
   if (!text) throw new InterviewError('Type your answer to continue.', 400);
   const nowIso = new Date().toISOString();
@@ -1331,6 +1459,11 @@ export async function runTurn(
   }
   const applied = applyTurn(withAnswer, output, nowIso);
   await saveDraftState(applied.draft);
+  if (applied.draft.reactionsAssembled) {
+    const { syncReactionRules } = await import('./reaction-engine.service.js');
+    await syncReactionRules(workspaceId, applied.draft.id, applied.draft.reactionsAssembled.rules);
+    applied.draft.reactionsAssembled = null;
+  }
   return {
     draft: applied.draft,
     aiText: applied.aiText,
@@ -1366,6 +1499,12 @@ export async function retryTurn(
   if (phase === 'sequence_confirmed') {
     throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
   }
+  if (phase === 'reactions_confirm') {
+    throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
+  }
+  if (phase === 'reactions_confirmed') {
+    throw new InterviewError('Reactions are confirmed — drafting comes next.', 400);
+  }
   if (!checkAiRateLimit(workspaceId)) {
     throw new InterviewError('Too many AI requests for this workspace right now. Try again shortly.', 429, true);
   }
@@ -1386,6 +1525,11 @@ export async function retryTurn(
   }
   const applied = applyTurn(draft, output, new Date().toISOString());
   await saveDraftState(applied.draft);
+  if (applied.draft.reactionsAssembled) {
+    const { syncReactionRules } = await import('./reaction-engine.service.js');
+    await syncReactionRules(workspaceId, applied.draft.id, applied.draft.reactionsAssembled.rules);
+    applied.draft.reactionsAssembled = null;
+  }
   return {
     draft: applied.draft,
     aiText: applied.aiText,
@@ -1408,11 +1552,19 @@ export async function escapeHatch(workspaceId: string, draftId: string): Promise
   if (phase === 'sequence_confirmed') {
     throw new InterviewError('The sequence is already confirmed.', 400);
   }
+  if (phase === 'reactions_confirm' || phase === 'reactions_confirmed') {
+    throw new InterviewError('The reactions are already confirmed.', 400);
+  }
   if (countUserAnswers(draft.conversation, phase) < 1) {
     throw new InterviewError('Type at least one answer in this phase first.', 400);
   }
   const next = applyEscapeHatch(draft, new Date().toISOString());
   await saveDraftState(next);
+  if (next.reactionsAssembled) {
+    const { syncReactionRules } = await import('./reaction-engine.service.js');
+    await syncReactionRules(workspaceId, next.id, next.reactionsAssembled.rules);
+    next.reactionsAssembled = null;
+  }
   return next;
 }
 
@@ -1427,6 +1579,13 @@ export async function reopenPhase(workspaceId: string, draftId: string, phase: P
   }
   const next = applyReopen(draft, phase, new Date().toISOString());
   await saveDraftState(next);
+  // A reopen before Phase 5 invalidates the assembled reaction plan: the
+  // sequence (or Brief) it was built on may change, so stale rules must
+  // never fire against the new plan. They are re-assembled when Phase 5
+  // completes again.
+  if (INTERVIEW_ORDER.indexOf(phase) < INTERVIEW_ORDER.indexOf('reactions')) {
+    await db.reactionRule.deleteMany({ where: { workspaceId, draftId: draft.id } }).catch(() => null);
+  }
   return next;
 }
 
@@ -1512,6 +1671,84 @@ export async function startSequence(workspaceId: string, draftId: string): Promi
   return next;
 }
 
+/**
+ * Starts Phase 5 (Reactions) on a sequence_confirmed draft (M5).
+ * The locked Brief and the confirmed sequence are never rewritten by
+ * Phase 5; the assembled rules live in ReactionRule rows (synced by the
+ * turn/hatch wrappers from the transient marker), and the Plan (M6)
+ * assembles sequence + reactions + A/B.
+ */
+export async function startReactions(workspaceId: string, draftId: string): Promise<DraftState> {
+  const draft = await getDraft(workspaceId, draftId);
+  if (draft.status !== 'sequence_confirmed' || draft.currentPhase !== 'sequence_confirmed') {
+    throw new InterviewError('Phase 5 starts from a confirmed sequence (status sequence_confirmed).', 400);
+  }
+  if (!draft.sequence) {
+    throw new InterviewError('This draft has no sequence to react to.', 400);
+  }
+  const nowIso = new Date().toISOString();
+  const next: DraftState = {
+    ...draft,
+    currentPhase: 'reactions',
+    status: 'interviewing',
+    checklists: { ...draft.checklists, reactions: baseChecklist('reactions') },
+    conversation: [
+      ...draft.conversation,
+      { role: 'ai', text: `${phaseBanner('reactions')} ${phaseOpening('reactions')}`, phase: 'reactions', kind: 'question', at: nowIso },
+    ],
+  };
+  await saveDraftState(next);
+  return next;
+}
+
+/**
+ * Reaction readback confirmation (typed only — no Approve buttons, spec
+ * default 7, mirroring confirmBrief). "looks good" confirms the assembled
+ * rules. Any other text is a correction: it re-opens Phase 5 and re-runs
+ * the interview from the correction.
+ */
+export async function confirmReactions(
+  workspaceId: string,
+  draftId: string,
+  confirmation: string,
+  provider: InterviewProvider = geminiTurn,
+): Promise<{ draft: DraftState; turn?: TurnResult }> {
+  const draft = await getDraft(workspaceId, draftId);
+  if (draft.currentPhase !== 'reactions_confirm') {
+    throw new InterviewError('The reactions readback is not ready for confirmation yet.', 400);
+  }
+  if (draft.status !== 'interviewing') {
+    throw new InterviewError('These reactions are already confirmed.', 400);
+  }
+  const text = (confirmation || '').trim();
+  if (!text) throw new InterviewError('Type "looks good", or tell me what to change.', 400);
+  const nowIso = new Date().toISOString();
+  if (looksGood(text)) {
+    const locked: DraftState = {
+      ...draft,
+      status: 'reactions_confirmed',
+      currentPhase: 'reactions_confirmed',
+      conversation: [
+        ...draft.conversation,
+        { role: 'user', text, phase: 'reactions_confirm', kind: 'answer', at: nowIso },
+        { role: 'ai', text: 'Reactions confirmed. Next up, drafting your emails (Phase 7).', phase: 'reactions_confirmed', kind: 'system', at: nowIso },
+      ],
+    };
+    await saveDraftState(locked);
+    return { draft: locked };
+  }
+  // Corrections re-open Phase 5; the rules are re-assembled (replacing the
+  // old rows) when Phase 5 completes again.
+  const reopened = applyReopen(draft, 'reactions', nowIso);
+  const withCorrection: DraftState = {
+    ...reopened,
+    conversation: [...reopened.conversation, { role: 'user', text, phase: 'reactions', kind: 'answer', at: nowIso }],
+  };
+  await saveDraftState(withCorrection);
+  const turn = await runTurnFromState(workspaceId, withCorrection, provider);
+  return { draft: turn.draft, turn };
+}
+
 /** Runs a turn from an already-saved draft state (used by confirmBrief). */
 async function runTurnFromState(
   workspaceId: string,
@@ -1539,6 +1776,11 @@ async function runTurnFromState(
   }
   const applied = applyTurn(draft, output, new Date().toISOString());
   await saveDraftState(applied.draft);
+  if (applied.draft.reactionsAssembled) {
+    const { syncReactionRules } = await import('./reaction-engine.service.js');
+    await syncReactionRules(workspaceId, applied.draft.id, applied.draft.reactionsAssembled.rules);
+    applied.draft.reactionsAssembled = null;
+  }
   return {
     draft: applied.draft,
     aiText: applied.aiText,

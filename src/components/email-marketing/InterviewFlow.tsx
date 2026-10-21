@@ -25,13 +25,15 @@ import {
   reopenPhase,
   confirmBrief,
   startSequence,
+  startReactions,
+  confirmReactions,
   updateDraftSnapshot,
   type CampaignDraftState,
   type InterviewPhase,
   type BusinessProfile,
 } from '../../lib/createWithAiApi';
 
-const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence'];
+const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions'];
 
 function pickExample(pool: string[], key: string): string {
   let h = 0;
@@ -81,7 +83,7 @@ export default function InterviewFlow({
 
   const micSupported = useMemo(() => getSpeechRecognition() !== null, []);
   const examplePlaceholder = useMemo(() => {
-    if (!draft || draft.currentPhase === 'brief_confirm') return '';
+    if (!draft || draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'reactions_confirm') return '';
     if (!PHASE_ORDER.includes(draft.currentPhase as InterviewPhase)) return '';
     return pickExample(createWithAiCopy.interview.examplePools[draft.currentPhase as InterviewPhase], `${draft.id}:${draft.currentPhase}`);
   }, [draft]);
@@ -239,6 +241,29 @@ export default function InterviewFlow({
     }
   };
 
+  const handleConfirmReactions = async (text: string) => {
+    if (!draft || !text.trim() || sending) return;
+    setSending(true);
+    setAiError(null);
+    try {
+      const result = await confirmReactions(draft.id, text.trim());
+      setDraft(result.draft);
+      setInput('');
+    } catch (err) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string };
+      setAiError(e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic);
+      try {
+        const { draft: fresh } = await getDraft(draft.id);
+        setDraft(fresh);
+      } catch {
+        // Keep the stale draft; Retry will surface the server state.
+      }
+      setInput('');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSnapshot = async (action: 'regenerate' | 'keep') => {
     if (!draft) return;
     try {
@@ -322,24 +347,25 @@ export default function InterviewFlow({
 
   if (!draft) return <div className="p-6 text-text-muted">No draft available.</div>;
 
-  // Past the interview (Brief confirmed onward): Phase 7 Draft + Phase 8
-  // Review live in DraftReviewFlow. "Edit Brief" reopens Call to Action.
-  // M4: a brief_confirmed draft WITHOUT a sequence does NOT go to
-  // DraftReviewFlow — it stops at the Phase 4 entry card below (the user
-  // must plan the sequence first; a 1-email answer keeps the single-email
-  // flow). A brief_confirmed draft WITH a sequence goes to DraftReviewFlow.
+  // Past the interview (Reactions confirmed onward): Phase 7 Draft +
+  // Phase 8 Review live in DraftReviewFlow. "Edit Brief" reopens Call to
+  // Action. M5: a sequence_confirmed draft WITHOUT reactions confirmed
+  // stops at the Phase 5 entry card below (the user must plan reactions
+  // first; the Phase 5 escape hatch assembles from what they have).
   const hasSequence =
     !!draft.sequence &&
     typeof draft.sequence === 'object' &&
     Number((draft.sequence as Record<string, unknown>).count) > 0;
-  const pastInterview =
-    (draft.status === 'brief_confirmed' && hasSequence) ||
-    draft.status === 'sequence_confirmed' ||
+  const reactionsDone =
+    draft.status === 'reactions_confirmed' ||
     draft.status === 'drafted' ||
     draft.status === 'scheduled' ||
     draft.currentPhase === 'draft_refine' ||
     draft.currentPhase === 'review_send';
+  const pastInterview = reactionsDone;
   const needsSequenceEntry = draft.status === 'brief_confirmed' && !hasSequence;
+  const needsReactionsEntry =
+    !reactionsDone && (draft.status === 'sequence_confirmed' || (draft.status === 'brief_confirmed' && hasSequence));
 
   const handleStartSequence = async () => {
     if (sending) return;
@@ -349,6 +375,19 @@ export default function InterviewFlow({
       setDraft(next);
     } catch (err) {
       toast('error', 'Could not start Sequence and Timing', extractApiError(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleStartReactions = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const { draft: next } = await startReactions(draft.id);
+      setDraft(next);
+    } catch (err) {
+      toast('error', 'Could not start Reactions', extractApiError(err));
     } finally {
       setSending(false);
     }
@@ -424,6 +463,48 @@ export default function InterviewFlow({
     );
   }
 
+  // M5 Phase 5 entry card: the sequence is planned but reactions are not
+  // yet. One action only — start the reactions interview. There is no
+  // "skip Phase 5" fork: the Phase 5 escape hatch assembles a plan from
+  // whatever the user has said (skipping anything unanswered, and saying
+  // so in the readback).
+  if (needsReactionsEntry) {
+    return (
+      <div className="space-y-4">
+        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
+          <p className="text-sm font-semibold text-text-main">Phase 5 of 8: Reactions</p>
+          <p className="text-sm text-text-main">
+            Your sequence is planned. Now decide what happens after each email goes out — who gets a follow-up, who
+            gets a different email, and when you want to hear about it.
+          </p>
+          <p className="text-sm text-text-muted">
+            Answer in your own words. Opens are approximate, so the plan leans on clicks — and a machine-opened email
+            is never treated as if a person read it.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleStartReactions} className="btn-primary text-sm" disabled={sending}>
+              Continue to Reactions
+            </button>
+            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
+              Edit Brief
+            </button>
+          </div>
+        </div>
+        <ProfileSidePanel
+          open={panelOpen}
+          profile={profile}
+          onClose={() => setPanelOpen(false)}
+          onSave={onSaveProfile}
+          saving={saving}
+          serverErrors={serverErrors}
+          inProgress
+          onRegenerate={() => handleSnapshot('regenerate')}
+          onKeep={() => handleSnapshot('keep')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <InterviewChat
@@ -443,6 +524,7 @@ export default function InterviewFlow({
         onEscapeHatch={handleEscapeHatch}
         onCorrectRecap={handleCorrectRecap}
         onConfirmBrief={handleConfirmBrief}
+        onConfirmReactions={handleConfirmReactions}
         profileChanged={profileChanged}
         onRegenerateProfile={() => handleSnapshot('regenerate')}
         onKeepProfile={() => handleSnapshot('keep')}

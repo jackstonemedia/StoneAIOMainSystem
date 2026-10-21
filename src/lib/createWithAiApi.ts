@@ -121,8 +121,8 @@ export function fileToBase64(file: File): Promise<string> {
 
 /* ── Interview drafts (Milestone 2) ─────────────────────────────────────────── */
 
-export type InterviewPhase = 'goal' | 'audience' | 'cta' | 'sequence';
-export type DraftPhase = InterviewPhase | 'brief_confirm' | 'sequence_confirmed' | 'draft_refine' | 'review_send';
+export type InterviewPhase = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions';
+export type DraftPhase = InterviewPhase | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'draft_refine' | 'review_send';
 
 export type ChecklistItemState = {
   id: string;
@@ -238,6 +238,82 @@ export async function updateDraftSnapshot(
   action: 'regenerate' | 'keep',
 ): Promise<{ draft: CampaignDraftState }> {
   const r = await apiClient.post(`${DRAFTS}/${draftId}/snapshot`, { action });
+  return r.data;
+}
+
+/* ── Reactions (Milestone 5) ────────────────────────────────────────────────── */
+
+export type ReactionRuleState = {
+  id: string;
+  priority: number;
+  sourceOrder: number;
+  condition: string;
+  conditionParams: Record<string, unknown>;
+  action: string;
+  actionParams: Record<string, unknown>;
+  decisionWindowHours: number;
+  delayMinutes: number;
+  readback: string;
+};
+
+export type ReactionContactState = {
+  contactId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  status: string;
+  currentEmailOrder: number;
+  nextSendAt: string | null;
+  rulesFired: string[];
+  divertedSources: number[];
+  reactionPending: Record<string, unknown> | null;
+  history: unknown;
+};
+
+export type ReactionStatusState = {
+  draftId: string;
+  draftStatus: string;
+  rules: ReactionRuleState[];
+  states: ReactionContactState[];
+};
+
+export type PathScenarioState = {
+  scenario: string;
+  steps: { at: string; what: string; reason?: string }[];
+  finalState: string;
+};
+
+export async function startReactions(draftId: string): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/start-reactions`, {});
+  return r.data;
+}
+
+export async function confirmReactions(
+  draftId: string,
+  message: string,
+): Promise<{ draft: CampaignDraftState; turn?: TurnResultState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/confirm-reactions`, { message });
+  return r.data;
+}
+
+export async function getReactionStatus(draftId: string): Promise<ReactionStatusState> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}/reaction-status`);
+  return r.data;
+}
+
+export async function generateReactionEmails(
+  draftId: string,
+): Promise<{ created: { id: string; order: number; purpose: string | null }[] }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/generate-reactions`, {});
+  return r.data;
+}
+
+export async function getPathSimulator(
+  emailId: string,
+  scenario?: string,
+): Promise<{ emailId: string; draftId: string; rules: string[]; scenarios: PathScenarioState[]; note: string }> {
+  const q = scenario ? `?scenario=${encodeURIComponent(scenario)}` : '';
+  const r = await apiClient.get(`${BASE}/emails/${emailId}/path-simulator${q}`);
   return r.data;
 }
 

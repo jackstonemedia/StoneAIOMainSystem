@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import ReactionPaths from './ReactionPaths';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
@@ -306,6 +307,7 @@ export default function SequenceReview({
               <p className="text-sm text-text-muted">No recipients enrolled yet — they enroll when Email 1 finishes sending.</p>
             )}
           </div>
+          <ReactionPaths draftId={draft.id} emails={emails} />
           <button type="button" onClick={onBack} className="btn-secondary text-sm">
             Back to drafts
           </button>

@@ -124,8 +124,7 @@ export async function sendGmailMessage(
   return { messageId: res.data.id!, threadId: res.data.threadId! };
 }
 
-/** Called by the Gmail poller every 2 minutes for one connection. */
-export async function fetchGmailHistory(connectionId: string): Promise<void> {
+/** Called by the Gmail poller every 2 minutes for one connection. */export async function fetchGmailHistory(connectionId: string): Promise<void> {
   const { gmail, conn } = await getAuthenticatedGmail(connectionId);
 
   // First-ever poll: save current historyId and return (processing starts next run)
@@ -296,4 +295,30 @@ function htmlToText(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * M5 (Gmail-only bounce scanning): search one connection's mailbox.
+ * Returns Gmail message ids only; callers fetch what they need.
+ */
+export async function searchGmailMessages(connectionId: string, query: string, maxResults = 50): Promise<string[]> {
+  const { gmail } = await getAuthenticatedGmail(connectionId);
+  const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults });
+  return (res.data.messages || []).map((m) => m.id!).filter(Boolean);
+}
+
+/** M5: fetch one message in RAW MIME form, base64url-decoded to text. */
+export async function getGmailMessageRaw(connectionId: string, messageId: string): Promise<string> {
+  const { gmail } = await getAuthenticatedGmail(connectionId);
+  const res = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'RAW' });
+  const raw = res.data.raw || '';
+  return Buffer.from(raw, 'base64url').toString('utf8');
+}
+
+/** M5: resolve a sent message by its RFC Message-ID (exact DSN mapping). */
+export async function findGmailMessageByRfcId(connectionId: string, rfcMessageId: string): Promise<string | null> {
+  const clean = rfcMessageId.replace(/[<>]/g, '').trim();
+  if (!clean) return null;
+  const ids = await searchGmailMessages(connectionId, `rfc822msgid:${clean}`, 5);
+  return ids[0] || null;
 }

@@ -30,6 +30,7 @@ import { prefillFromWebsite } from '../services/email-marketing/website-prefill.
 import {
   generateEmail,
   generateSequenceEmails,
+  generateReactionEmails,
   refineEmail,
   directEditEmail,
   undoEmail,
@@ -50,7 +51,6 @@ import {
 import {
   runSendChecks,
   testSendEmail,
-  simulatePath,
   recommendedStartFor,
   confirmSend,
   confirmSequenceSend,
@@ -60,6 +60,13 @@ import {
   campaignStatus,
   SendError,
 } from '../services/email-marketing/send-orchestration.service.js';
+import {
+  simulatePath,
+  buildScenarioEvents,
+  SIMULATOR_SCENARIOS,
+  getReactionStatus,
+  type ReactionRuleInput,
+} from '../services/email-marketing/reaction-engine.service.js';
 import { usedTokens } from '../services/email-marketing/fact-validator.js';
 import { db } from '../../infrastructure/database/client.js';
 import {
@@ -73,6 +80,8 @@ import {
   reopenPhase,
   confirmBrief,
   startSequence,
+  startReactions,
+  confirmReactions,
   refreshSnapshot,
   InterviewError,
   type PhaseId,
@@ -671,8 +680,87 @@ router.get(
   '/emails/:emailId/path-simulator',
   asyncHandler(async (req, res) => {
     try {
-      const scenario = typeof req.query.scenario === 'string' ? req.query.scenario : 'clicked';
-      res.json(simulatePath(scenario));
+      // M5: the simulator now runs the draft's REAL reaction rules through
+      // the canonical scenarios (spec §13), with the same priority, caps,
+      // first-click-per-link, and exit semantics as the live tick.
+      const email = await getEmailOrThrow(getWid(req), req.params.emailId);
+      const draft = await db.campaignDraft.findFirst({ where: { id: email.draftId, workspaceId: getWid(req) } });
+      if (!draft) throw new Error('Campaign draft not found');
+      const status = await getReactionStatus(getWid(req), draft.id);
+      const rules: ReactionRuleInput[] = status.rules.map((r) => ({
+        sourceOrder: r.sourceOrder,
+        condition: r.condition as ReactionRuleInput['condition'],
+        conditionParams: (r.conditionParams as Record<string, unknown> | null) || {},
+        action: r.action as ReactionRuleInput['action'],
+        actionParams: (r.actionParams as Record<string, unknown> | null) || {},
+        decisionWindowHours: r.decisionWindowHours,
+        delayMinutes: r.delayMinutes,
+        readback: r.readback,
+      }));
+      const seq = (draft.sequence || {}) as { count?: number };
+      const sequenceCount = typeof seq.count === 'number' ? seq.count : 1;
+      const clickLink = rules.find((r) => r.condition === 'CLICKED_LINK')?.conditionParams?.link;
+      const requested = typeof req.query.scenario === 'string' ? req.query.scenario : null;
+      const scenarios = requested ? [requested] : [...SIMULATOR_SCENARIOS];
+      const results = scenarios.map((scenario) => {
+        const { events, horizon } = buildScenarioEvents(scenario, { clickLink: typeof clickLink === 'string' ? clickLink : undefined });
+        const out = simulatePath({ rules, sequenceCount, events, horizon });
+        return { scenario, ...out };
+      });
+      res.json({
+        emailId: email.id,
+        draftId: draft.id,
+        rules: status.rules.map((r) => r.readback),
+        scenarios: results,
+        note: 'Simulator matches the live reaction tick: priority order, one rule per contact per rule id, diverting rules block other diverting rules per source, first click per link only, bot clicks ignored, caps 8 emails / 24h gap (click reactions exempt). Unsubscribe exits behave like replied; booked exits behave like replied when an appointment is recorded.',
+      });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+// ── M5: Reactions routes ────────────────────────────────────────────────────
+
+router.post(
+  '/drafts/:draftId/start-reactions',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await startReactions(getWid(req), req.params.draftId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/confirm-reactions',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await confirmReactions(getWid(req), req.params.draftId, String(req.body?.message || '')));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId/reaction-status',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await getReactionStatus(getWid(req), req.params.draftId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/generate-reactions',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await generateReactionEmails(getWid(req), req.params.draftId);
+      res.json({ created: out.map((e) => ({ id: e.id, order: e.order, purpose: e.purpose })) });
     } catch (err) {
       m3Error(err, res);
     }

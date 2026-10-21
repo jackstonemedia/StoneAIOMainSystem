@@ -40,7 +40,7 @@ import {
   assertEmailEditable,
   SEND_LOCKED_EMAIL_STATUSES,
 } from '../draft-generator.service.js';
-import { simulatePath } from '../send-orchestration.service.js';
+import { simulatePath, buildScenarioEvents } from '../reaction-engine.service.js';
 import { emailToState } from '../draft-generator.service.js';
 
 const PROFILE = {
@@ -334,12 +334,11 @@ describe('CSV parsing (spec §13)', () => {
 });
 
 describe('path simulator (spec §13)', () => {
-  it('returns the single email for every scenario', () => {
-    for (const s of ['did_not_open', 'opened_no_click', 'clicked', 'clicked_link', 'clicked_not_booked', 'replied', 'booked']) {
-      const sim = simulatePath(s);
-      expect(sim.emails).toHaveLength(1);
-      expect(sim.emails[0].name).toBe('Email 1');
-      expect(sim.note.length).toBeGreaterThan(0);
+  it('returns the single email send step for every scenario (no rules)', () => {
+    for (const s of ['did_not_open', 'opened_no_click', 'clicked', 'clicked_link', 'clicked_not_replied', 'replied', 'bounced']) {
+      const { events, horizon } = buildScenarioEvents(s);
+      const sim = simulatePath({ rules: [], sequenceCount: 1, events, horizon });
+      expect(sim.steps[0].what).toBe('Email 1 sent.');
     }
   });
 });
