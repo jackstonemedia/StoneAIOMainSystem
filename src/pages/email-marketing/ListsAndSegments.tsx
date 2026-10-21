@@ -663,7 +663,7 @@ export default function ListsAndSegments() {
                 })
               ) : (
                 <div className="text-center py-8 text-text-muted text-xs">
-                  No DNS records found. Click Check DNS to refresh status from Resend.
+                  No DNS records found. Click Check DNS to re-check DNS records.
                 </div>
               )}
             </div>

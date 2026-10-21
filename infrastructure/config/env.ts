@@ -41,8 +41,6 @@ const envSchema = z.object({
   VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
 
   // Email
-  RESEND_API_KEY: z.string().optional(),
-  RESEND_WEBHOOK_SECRET: z.string().optional(),
   RESEND_RATE_LIMIT_PER_SECOND: z.coerce.number().default(10),
 
   // Create with AI — HMAC secret for signed click-tracking tokens (spec §20).

@@ -47,7 +47,6 @@ import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
-import { resendWebhookHandler } from './api/webhooks/resend-webhook.handler.js';
 import { startEmailSendWorker } from './api/services/email-marketing/email-send-worker.service.js';
 import { triggerScheduledCampaigns } from './api/services/email-marketing/campaigns.service.js';
 
@@ -227,15 +226,6 @@ async function startServer() {
   // Moved here, before resolveWorkspace, and resolves workspace from Integration table.
   app.get('/api/hooks/meta', metaWebhookVerify);
   app.post('/api/hooks/meta', metaWebhookPost);
-
-  // ── Resend delivery webhook — MUST be before resolveWorkspace (no JWT from Resend) ──
-  // Uses raw JSON body so signature verification works on the original payload bytes.
-  app.post(
-    '/api/webhooks/resend',
-    webhookLimiter,
-    express.json(),
-    resendWebhookHandler,
-  );
 
   // ── Stripe webhook — MUST be before resolveWorkspace (no JWT from Stripe) ──
   app.post(

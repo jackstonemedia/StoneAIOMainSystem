@@ -9,10 +9,12 @@
  *   2. Load contact data
  *   3. Check suppression list & subscription status → skip if suppressed
  *   4. Compile block JSON → MJML → email-safe HTML (per-recipient personalization)
- *   5. Send via Resend with RFC 8058 List-Unsubscribe headers
+ *   5. Send via the Gmail channel (sendGmailMessage, workspace Gmail OAuth
+ *      connection) with the locked footer unsubscribe link
  *   6. Record CampaignRecipient status + EmailEvent
  *
- * Rate limiting: reads RESEND_RATE_LIMIT_PER_SECOND (default 10) from env.
+ * Rate limiting: reads RESEND_RATE_LIMIT_PER_SECOND (default 10) from env
+ * (vestigial name — the value is a plain send rate limit, not a Resend use).
  * Retries: up to 3 retries with exponential backoff starting at 30 seconds.
  * One failed recipient never blocks the rest of the batch.
  */

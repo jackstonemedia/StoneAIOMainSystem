@@ -31,6 +31,7 @@ import {
   type TokenContact,
 } from './fact-validator.js';
 import { getEmailOrThrow, assertLoadedEmailEditable } from './draft-generator.service.js';
+import { checkDomainDns, isReservedDomain } from './sending-domain.service.js';
 import { resolveRecipients, type ListHints } from './recipients.service.js';
 
 export class SendError extends Error {
@@ -46,7 +47,7 @@ export interface SendCheck {
   warnings: string[];
   /** Link check results (only for links in the final HTML). */
   links: { url: string; ok: boolean; status?: number }[];
-  domainAuth: { domain: string | null; spf: boolean; dkim: boolean; verified: boolean; note: string };
+  domainAuth: { domain: string | null; spf: boolean; dkim: boolean; dmarc: boolean; verified: boolean; note: string };
 }
 
 function stripHtml(html: string): string {
@@ -71,38 +72,69 @@ async function checkLink(url: string, timeoutMs = 5000): Promise<{ url: string; 
 
 async function domainAuthFor(workspaceId: string, fromEmail: string): Promise<SendCheck['domainAuth']> {
   const domain = fromEmail.includes('@') ? fromEmail.split('@')[1].toLowerCase() : null;
-  if (!domain) return { domain, spf: false, dkim: false, verified: false, note: 'No sender email configured.' };
+  if (!domain) return { domain, spf: false, dkim: false, dmarc: false, verified: false, note: 'No sender email configured.' };
   const row = await db.sendingDomain.findFirst({ where: { workspaceId, domain } });
-  if (!row) {
-    return { domain, spf: false, dkim: false, verified: false, note: `No sending domain registered for ${domain}.` };
-  }
-  if ((row as any).status === 'VERIFIED') {
-    return { domain, spf: true, dkim: true, verified: true, note: `Sending domain ${domain} is verified.` };
-  }
-  let spf = false;
-  let dkim = false;
-  try {
-    const records = Array.isArray(row.dnsRecords) ? (row.dnsRecords as any[]) : [];
-    for (const r of records) {
-      const rec = String(r.record || '').toUpperCase();
-      const st = String(r.status || '').toLowerCase();
-      if (st === 'verified' || st === 'valid') {
-        if (rec === 'SPF') spf = true;
-        if (rec === 'DKIM') dkim = true;
-      }
+  const rowBased = (): SendCheck['domainAuth'] => {
+    if ((row as any)?.status === 'VERIFIED') {
+      return { domain, spf: true, dkim: true, dmarc: false, verified: true, note: `Sending domain ${domain} is verified (record). DMARC status unknown for this record.` };
     }
-  } catch {
-    /* fall through */
-  }
-  return {
-    domain,
-    spf,
-    dkim,
-    verified: spf && dkim,
-    note: spf && dkim
-      ? `SPF and DKIM verified for ${domain}.`
-      : `Sending domain ${domain} is not fully verified (SPF: ${spf}, DKIM: ${dkim}).`,
+    let spf = false;
+    let dkim = false;
+    let dmarc = false;
+    try {
+      const records = Array.isArray((row as any)?.dnsRecords) ? ((row as any).dnsRecords as any[]) : [];
+      for (const r of records) {
+        const rec = String(r.record || '').toUpperCase();
+        const st = String(r.status || '').toLowerCase();
+        if (st === 'verified' || st === 'valid') {
+          if (rec === 'SPF') spf = true;
+          if (rec === 'DKIM') dkim = true;
+          if (rec === 'DMARC') dmarc = true;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+    return {
+      domain,
+      spf,
+      dkim,
+      dmarc,
+      verified: spf && dkim,
+      note: spf && dkim
+        ? `SPF and DKIM verified for ${domain} (record).`
+        : `Sending domain ${domain} is not fully verified (SPF: ${spf}, DKIM: ${dkim}).`,
+    };
   };
+  // Gmail-only: SPF/DKIM/DMARC come from direct DNS lookups (sending-domain
+  // service), never from a provider API. RFC 2606 reserved domains
+  // (.example/.test/.localhost/.invalid) have no real DNS by definition, so
+  // Phase 8 checks use the sending-domain record for those (dev fixtures).
+  // A live DNS lookup that errors inconclusively falls back to the record
+  // rather than blocking on a transient DNS failure.
+  if (isReservedDomain(domain)) {
+    if (!row) {
+      return { domain, spf: false, dkim: false, dmarc: false, verified: false, note: `No sending domain registered for ${domain} (test domain — live DNS does not apply).` };
+    }
+    const r = rowBased();
+    return { ...r, note: `${r.note} Test domain — status from the sending-domain record, not live DNS.` };
+  }
+  const dns = await checkDomainDns(domain);
+  if (!dns.inconclusive) {
+    return {
+      domain,
+      spf: dns.spf,
+      dkim: dns.dkim,
+      dmarc: dns.dmarc,
+      verified: dns.spf && dns.dkim,
+      note: `Live DNS for ${domain}: ${dns.note}`,
+    };
+  }
+  if (row) {
+    const r = rowBased();
+    return { ...r, note: `${r.note} Live DNS lookup was inconclusive; using last verification.` };
+  }
+  return { domain, spf: false, dkim: false, dmarc: false, verified: false, note: `Live DNS lookup inconclusive and no sending domain registered for ${domain}.` };
 }
 
 /**
@@ -163,9 +195,9 @@ export async function runSendChecks(
   if (!domainAuth.spf || !domainAuth.dkim) {
     blocking.push(`Sending domain fails SPF/DKIM: ${domainAuth.note}`);
   }
-  if (!domainAuth.verified && domainAuth.domain) {
-    // DMARC missing is a warning (spec §13); SPF/DKIM failure already blocks.
-    warnings.push(`DMARC status for ${domainAuth.domain} is not confirmed — warn, do not block.`);
+  if (!domainAuth.dmarc && domainAuth.domain) {
+    // DMARC missing is a warning (spec §13/§17); SPF/DKIM failure already blocks above.
+    warnings.push(`DMARC record missing for ${domainAuth.domain} — warn, do not block.`);
   }
 
   // Warnings (non-blocking).
