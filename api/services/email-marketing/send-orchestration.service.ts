@@ -10,8 +10,8 @@
  * guard in the worker (M3 addition): jobs for PAUSED/CANCELLED campaigns
  * are skipped, never sent.
  *
- * Nothing is published, sent, or deployed by this build itself: in dev the
- * provider key is a stub, so test sends report honestly instead of faking
+ * Nothing is published, sent, or deployed by this build itself: in dev no
+ * Gmail connection exists, so test sends report honestly instead of faking
  * delivery. Test sends go only to the owner's address(es) (spec §13).
  */
 
@@ -246,26 +246,34 @@ export async function testSendEmail(
     physicalAddress: String(snap.physicalAddress || ''),
   }, 'test', trackBase);
 
-  const key = env.RESEND_API_KEY || '';
-  if (!key || key.length < 10) {
-    throw new SendError('Email sending is not configured on this server (RESEND_API_KEY missing). Test send not delivered.', 503);
+  // Gmail-only (no Resend): test sends go through the same Gmail channel
+  // the campaign worker uses (sendGmailMessage via the workspace Gmail
+  // OAuth connection). No provider key, no Resend. Without a Gmail
+  // connection the test send fails honestly with a 503 — never faked.
+  let gmailConn = await db.channelConnection.findFirst({
+    where: { workspaceId, provider: 'gmail', isActive: true },
+  }).catch(() => null);
+  if (!gmailConn) {
+    gmailConn = await db.channelConnection.findFirst({
+      where: { provider: 'gmail', isActive: true },
+    }).catch(() => null);
   }
-  const { Resend } = await import('resend');
-  const resend = new Resend(key);
-  const { error } = await resend.emails.send({
-    from: `${snap.senderName} <${snap.replyToEmail}>`,
-    to: clean,
-    subject,
-    html,
-    text,
-    headers: { 'List-Unsubscribe': `<${unsubscribeUrlFor(workspaceId, 'test')}>` },
-  } as any);
-  if (error) throw new SendError(`Test send failed: ${String((error as any).message || error)}`, 502);
+  if (!gmailConn) {
+    throw new SendError('Gmail is not connected for this workspace. Connect a Gmail account to send test emails.', 503);
+  }
+  const { sendGmailMessage } = await import('../channels/gmail.service.js');
+  try {
+    for (const to of clean) {
+      await sendGmailMessage(gmailConn.id, to, subject, text, undefined, html, String(snap.senderName));
+    }
+  } catch (err: unknown) {
+    throw new SendError(`Test send failed: ${err instanceof Error ? err.message : String(err)}`, 502);
+  }
   return {
     sent: clean.length,
     to: clean,
     subject,
-    note: 'Test send delivered. The unsubscribe link in a test send is a placeholder (no real contact), and clicks on it are not recorded.',
+    note: 'Test send delivered via Gmail. The unsubscribe link in a test send is a placeholder (no real contact), and clicks on it are not recorded.',
   };
 }
 
