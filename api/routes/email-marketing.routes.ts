@@ -81,6 +81,7 @@ import {
   deleteSendingDomain,
 } from '../services/email-marketing/sending-domain.service.js';
 import emailCopilotRouter from './email-copilot.routes.js';
+import createWithAiRouter from './create-with-ai.routes.js';
 
 // Background runner: check for due scheduled campaigns & drip sequence follow-ups
 setInterval(() => {
@@ -94,6 +95,9 @@ const router = Router();
 
 // Mount AI Campaign Copilot
 router.use('/ai-copilot', emailCopilotRouter);
+
+// Mount Create with AI (Business Profile, Writing Samples, Website Prefill)
+router.use('/create-with-ai', createWithAiRouter);
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

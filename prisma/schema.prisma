@@ -94,6 +94,7 @@ model Workspace {
   emailEvents                 EmailEvent[]
   emailSuppressionEntries     SuppressionEntry[]
   sendingDomains              SendingDomain[]
+  businessProfile             BusinessProfile?
   aiActions                   AIAction[]
   sdrAgents                   AutonomousSdrAgent[]
 
@@ -1953,3 +1954,51 @@ model SendingDomain {
   @@map("sending_domains")
 }
 
+
+// ── Create with AI — Email Campaign Builder (Milestone 1) ─────────────────
+// BusinessProfile is the ONLY thing the product remembers between campaigns
+// (spec §4 / §15). One profile per workspace. WritingSample rows belong to
+// the profile; samples refine voice only, never facts (spec §4).
+model BusinessProfile {
+  id               String   @id @default(uuid())
+  workspaceId      String   @unique @map("workspace_id")
+  businessName     String   @map("business_name")
+  businessType     String   @map("business_type")
+  services         String   @map("services") // one per line, as typed
+  serviceArea      String   @map("service_area")
+  senderName       String   @map("sender_name")
+  replyToEmail     String   @map("reply_to_email")
+  physicalAddress  String   @map("physical_address")
+  bookingLink      String?  @map("booking_link")
+  phone            String?
+  customerType     String?  @map("customer_type")
+  voiceDescription String?  @map("voice_description")
+  wordsToAvoid     String?  @map("words_to_avoid") // one per line, as typed
+  websiteUrl       String?  @map("website_url")
+  differentiators  String?
+  guaranteesProof  String?  @map("guarantees_proof")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  samples   WritingSample[]
+
+  @@map("business_profiles")
+}
+
+model WritingSample {
+  id           String   @id @default(uuid())
+  profileId    String   @map("profile_id")
+  title        String
+  content      String   // capped at 10,000 chars (enforced in service)
+  source       String   // 'paste' | 'upload'
+  styleSummary Json?    @map("style_summary") // AI-written; null until generated
+  approved     Boolean  @default(false) // user must approve/edit before use
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  profile BusinessProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("writing_samples")
+}
