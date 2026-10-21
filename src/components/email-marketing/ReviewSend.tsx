@@ -80,7 +80,7 @@ export default function ReviewSend({
   const [error, setError] = useState<string | null>(null);
 
   const coldContacts = !!((draft.brief as Record<string, any> | null)?.audience?.cold_contacts);
-  const launched = email.status === 'scheduled' || email.status === 'sending' || email.status === 'sent' || !!confirmResult;
+  const launched = email.status === 'scheduled' || email.status === 'sending' || email.status === 'sent' || email.status === 'paused' || !!confirmResult;
 
   useEffect(() => {
     getRecipientSources().then(setSources).catch(() => undefined);
@@ -425,7 +425,7 @@ export default function ReviewSend({
             <p className="text-sm font-semibold text-text-main">{copy.confirmTitle}</p>
             {recommended && (
               <p className="text-sm text-text-muted">
-                {copy.recommendedStart}: {new Date(recommended.atUtc).toLocaleString()} ({recommended.timeZone}) — {recommended.reason}
+                {copy.recommendedStart}: {new Date(recommended.atUtc).toLocaleString('en-US', { timeZone: recommended.timeZone })} ({recommended.timeZone}) — {recommended.reason}
               </p>
             )}
             <label className="block text-sm">

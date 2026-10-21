@@ -37,6 +37,7 @@ export type ProfileInput = {
   websiteUrl?: string | null;
   differentiators?: string | null;
   guaranteesProof?: string | null;
+  timezone?: string | null;
 };
 
 const REQUIRED_FIELDS: Array<{ key: keyof ProfileInput; label: string }> = [
@@ -81,6 +82,14 @@ export function validateProfile(input: ProfileInput): Record<string, string> {
       }
     } catch {
       errors.bookingLink = 'Booking link must be a valid URL.';
+    }
+  }
+  const timezone = clean(input.timezone);
+  if (timezone) {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+    } catch {
+      errors.timezone = 'Time zone must be a valid IANA time zone (e.g. America/Los_Angeles).';
     }
   }
   const websiteUrl = clean(input.websiteUrl);
@@ -130,6 +139,7 @@ function toInput(profile: Record<string, unknown>): ProfileInput {
     websiteUrl: cleanOrNull(profile.websiteUrl),
     differentiators: cleanOrNull(profile.differentiators),
     guaranteesProof: cleanOrNull(profile.guaranteesProof),
+    timezone: cleanOrNull(profile.timezone),
   };
 }
 

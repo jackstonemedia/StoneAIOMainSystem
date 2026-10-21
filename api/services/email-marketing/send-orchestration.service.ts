@@ -26,10 +26,11 @@ import {
   renderLockedFooterHtml,
   renderLockedFooterText,
   spamRiskHeuristic,
+  stripDraftFooter,
   wrapLinksForTracking,
   type TokenContact,
 } from './fact-validator.js';
-import { getEmailOrThrow } from './draft-generator.service.js';
+import { getEmailOrThrow, assertLoadedEmailEditable } from './draft-generator.service.js';
 import { resolveRecipients, type ListHints } from './recipients.service.js';
 
 export class SendError extends Error {
@@ -121,7 +122,7 @@ export async function runSendChecks(
   const blocking: string[] = [];
   const warnings: string[] = [];
 
-  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s) => typeof s === 'string') as string[];
+  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const selectedSubject = subjects[email.subjectSelected ?? 0] || '';
   const html = String(email.bodyHtml || '');
   const text = String(email.bodyText || '');
@@ -147,8 +148,9 @@ export async function runSendChecks(
   const cold = !!(brief?.audience?.cold_contacts);
   if (cold && !email.coldAck) blocking.push('Cold outreach requires the acknowledgment checkbox: "These are business contacts, and I have a legitimate reason to contact them."');
 
-  // Link checks (invalid or unreachable links block).
-  const links = extractUrls(stripHtml(html) === '' ? '' : html);
+  // Link checks (invalid or unreachable links block). The locked footer's
+  // unsubscribe link is system-generated and excluded from the check.
+  const links = extractUrls(stripDraftFooter(html, '').bodyHtml);
   const linkResults: SendCheck['links'] = [];
   for (const url of [...new Set(links)]) {
     if (/unsubscribe|track\/click/i.test(url)) continue;
@@ -201,7 +203,10 @@ export function renderFinalHtml(
   trackBase: string,
 ): { html: string; text: string } {
   const unsub = unsubscribeUrlFor(workspaceId, contactId);
-  const withFooter = `${email.bodyHtml}\n${renderLockedFooterHtml(profile, unsub)}`;
+  // The draft carries a placeholder footer (spec §17: unremovable); the real
+  // per-recipient footer replaces it here, so a sent email has exactly one.
+  const stripped = stripDraftFooter(email.bodyHtml, email.bodyText);
+  const withFooter = `${stripped.bodyHtml}\n${renderLockedFooterHtml(profile, unsub)}`;
   const html = wrapLinksForTracking(withFooter, {
     trackBase,
     workspaceId,
@@ -209,7 +214,7 @@ export function renderFinalHtml(
     campaignId,
     emailOrder: 1,
   });
-  const text = `${email.bodyText}${renderLockedFooterText(profile, unsub)}`;
+  const text = `${stripped.bodyText}${renderLockedFooterText(profile, unsub)}`;
   return { html, text };
 }
 
@@ -233,7 +238,7 @@ export async function testSendEmail(
   if (!snap.senderName || !snap.replyToEmail) {
     throw new SendError('Business Profile needs a sender name and reply-to email before a test send.', 400);
   }
-  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s) => typeof s === 'string') as string[];
+  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const subject = `[TEST Email 1] ${subjects[email.subjectSelected ?? 0] || 'Campaign email'}`;
   const trackBase = `${(env as any).VITE_APP_URL || 'http://localhost:3000'}/api/email-marketing/track/click`;
   const { html, text } = renderFinalHtml(workspaceId, 'test', email, {
@@ -337,6 +342,16 @@ export async function confirmSend(
   }
 
   const email = await getEmailOrThrow(workspaceId, emailId);
+  // An already-launched email cannot be confirmed again with a fresh key:
+  // that would create a duplicate campaign and re-send it (M3 lifecycle fix).
+  // The idempotency replay above already covers the same-key double click.
+  // A cancelled email may be re-confirmed (a fresh campaign); the UI offers
+  // the confirm form again after cancel, and the email gets a new campaignId.
+  try {
+    await assertLoadedEmailEditable(workspaceId, email);
+  } catch (err: any) {
+    throw new SendError(err.message || 'This email can no longer be sent.', 400);
+  }
   const draft = await db.campaignDraft.findFirst({ where: { id: email.draftId, workspaceId } });
   if (!draft) throw new SendError('Campaign draft not found', 404);
   const snap = (draft.profileSnapshot || {}) as Record<string, unknown>;
@@ -418,7 +433,7 @@ export async function confirmSend(
     });
   }
 
-  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s) => typeof s === 'string') as string[];
+  const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const brief = (draft.brief || {}) as Record<string, any>;
   const campaign = await db.campaign.create({
     data: {
@@ -432,7 +447,7 @@ export async function confirmSend(
         previewText: email.previewText || '',
         campaignEmailId: email.id,
         footerLocked: true,
-        sender: { fromName: snap.senderName, replyTo: snap.replyToEmail },
+        sender: { fromName: String(snap.senderName || ''), replyTo: String(snap.replyToEmail || '') },
       },
       listId: list.id,
       scheduledAtUtc: sendAt,
@@ -511,7 +526,7 @@ export async function cancelCampaign(workspaceId: string, campaignId: string): P
 export async function campaignStatus(workspaceId: string, campaignId: string): Promise<Record<string, unknown>> {
   const campaign = await db.campaign.findFirst({ where: { id: campaignId, workspaceId } });
   if (!campaign) throw new SendError('Campaign not found', 404);
-  const recipients = await db.campaignRecipient.findMany({ where: { campaignId, workspaceId } });
+  const recipients = await db.campaignRecipient.findMany({ where: { campaignId } });
   const events = await db.emailEvent.findMany({
     where: { campaignId, workspaceId },
     orderBy: { occurredAt: 'desc' },

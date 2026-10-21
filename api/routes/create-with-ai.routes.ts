@@ -33,6 +33,7 @@ import {
   directEditEmail,
   undoEmail,
   consistencyCheck,
+  acceptFacts,
   getEmailOrThrow,
   emailToState,
   DraftError,
@@ -425,6 +426,19 @@ router.post(
   asyncHandler(async (req, res) => {
     try {
       const email = await undoEmail(getWid(req), req.params.emailId);
+      res.json({ email });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/emails/:emailId/accept-facts',
+  asyncHandler(async (req, res) => {
+    try {
+      const claims = Array.isArray(req.body?.claims) ? req.body.claims : [];
+      const email = await acceptFacts(getWid(req), req.params.emailId, claims);
       res.json({ email });
     } catch (err) {
       m3Error(err, res);

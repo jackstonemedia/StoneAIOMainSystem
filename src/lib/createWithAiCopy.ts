@@ -34,6 +34,7 @@ export const createWithAiCopy = {
       physicalAddress: { label: 'Business address', placeholder: 'Street, city, state, ZIP', hint: 'Required in the footer of every marketing email.' },
       bookingLink: { label: 'Booking or main action link', placeholder: 'https://yourbusiness.com/book' },
       phone: { label: 'Phone', placeholder: 'e.g. (408) 555-0132' },
+      timezone: { label: 'Business time zone', hint: 'Used for the send window (weekdays 8:00–17:00). Leave empty for UTC.', placeholder: 'e.g. America/Los_Angeles' },
       bookingOrPhoneHint: 'At least one of the booking link or phone is required.',
       customerType: { label: 'Customer type', placeholder: 'e.g. homeowners, property managers, members' },
       voiceDescription: { label: 'Voice and tone', placeholder: 'Describe how you talk to your customers.' },

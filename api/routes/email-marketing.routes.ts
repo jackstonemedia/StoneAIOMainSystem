@@ -492,6 +492,26 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
   const contactId = typeof req.query.c === 'string' ? req.query.c : '';
   const campaignId = typeof req.query.cmp === 'string' && req.query.cmp ? req.query.cmp : null;
   const automationEnrollmentId = typeof req.query.ae === 'string' && req.query.ae ? req.query.ae : null;
+  const token = typeof req.query.t === 'string' ? req.query.t : '';
+
+  // Signed tracking tokens (spec §20): when a token is present it must
+  // verify against the claimed campaign, contact and destination. A failed
+  // token records nothing and redirects home — a forged click must neither
+  // pollute analytics nor turn this endpoint into an open redirect.
+  // Links without a token keep the legacy behavior (the pre-existing flow
+  // sends tokenless links); signing for that flow is a follow-up, and
+  // tokenless forgery for already-delivered legacy links remains possible.
+  if (token) {
+    const { verifyTrackingToken } = await import('../services/email-marketing/fact-validator.js');
+    if (!campaignId || !contactId || !targetUrl || !verifyTrackingToken(token, campaignId, contactId, targetUrl)) {
+      res.writeHead(302, {
+        Location: '/',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      res.end();
+      return;
+    }
+  }
 
   // Safe redirect destination
   const safeUrl = (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) ? targetUrl : '/';

@@ -28,6 +28,7 @@ export type ProfileFormValues = {
   websiteUrl: string;
   differentiators: string;
   guaranteesProof: string;
+  timezone: string;
 };
 
 export function profileToFormValues(p: Partial<BusinessProfile> | null): ProfileFormValues {
@@ -47,6 +48,7 @@ export function profileToFormValues(p: Partial<BusinessProfile> | null): Profile
     websiteUrl: p?.websiteUrl || '',
     differentiators: p?.differentiators || '',
     guaranteesProof: p?.guaranteesProof || '',
+    timezone: p?.timezone || '',
   };
 }
 
@@ -260,6 +262,9 @@ export default function ProfileForm({
           </Field>
           <Field label={copy.fields.phone.label} error={errors.phone}>
             <input type="tel" value={values.phone} onChange={set('phone')} placeholder={copy.fields.phone.placeholder} className={inputCls} />
+          </Field>
+          <Field label={copy.fields.timezone.label} hint={copy.fields.timezone.hint} error={errors.timezone}>
+            <input value={values.timezone} onChange={set('timezone')} placeholder={copy.fields.timezone.placeholder} className={inputCls} />
           </Field>
         </div>
       )}

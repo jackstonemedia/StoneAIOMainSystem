@@ -133,6 +133,15 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
     data: { status: CampaignStatus.SENT, sentAtUtc: campaign.sentAtUtc || new Date() },
   });
 
+  // M3: the linked single email follows the campaign into SENT. Scoped to
+  // kind 'scheduled' (the M3 single email); reaction emails (M5) own their
+  // lifecycle. Regular campaigns have no CampaignEmail rows, so this is a
+  // no-op for them. Without this, a sent email stayed 'scheduled' forever.
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sent' },
+  });
+
   return { queued, failed, status: 'SENT' };
 }
 
@@ -395,6 +404,14 @@ export async function sendCampaign(
     data: { status: CampaignStatus.SENDING },
   });
 
+  // M3: the linked single email follows the campaign into SENDING (scoped
+  // to kind 'scheduled'; a no-op for regular campaigns, which have no
+  // CampaignEmail rows).
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sending' },
+  });
+
   // Resolve recipients
   const contactIds = await resolveRecipientContactIds(
     workspaceId,
@@ -553,6 +570,16 @@ export async function sendCampaign(
   await db.campaign.updateMany({
     where: { id: campaignId, workspaceId },
     data: { status: CampaignStatus.SENT, sentAtUtc: new Date() },
+  });
+
+  // M3: the linked single email follows the campaign into SENT (scoped to
+  // kind 'scheduled'; see the resumeAndCompleteSending transition above).
+  // This runs before the all-failed throw below, so the email agrees with
+  // its campaign even when every recipient failed; per-recipient outcomes
+  // live on CampaignRecipient.
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sent' },
   });
 
   if (queued === 0 && failed > 0) {

@@ -18,6 +18,7 @@ import { db } from '../../../infrastructure/database/client.js';
 import {
   buildAllowedClaimSet,
   buildAllowedHosts,
+  ensureDraftFooter,
   extractClaims,
   findPlaceholders,
   normalizeClaim,
@@ -35,9 +36,60 @@ export class DraftError extends Error {
   }
 }
 
+/**
+ * Email statuses in which content must no longer change (spec §13: edits
+ * apply to unsent only; pause/resume/cancel are the sanctioned transitions).
+ * A scheduled email is already locked for sending; a paused one resumes
+ * with the same content; a sent one is history.
+ */
+export const SEND_LOCKED_EMAIL_STATUSES = new Set(['scheduled', 'sending', 'sent', 'paused']);
+/** Campaign statuses that lock their emails, even if an email row disagrees. */
+const SEND_LOCKED_CAMPAIGN_STATUSES = new Set(['SCHEDULED', 'SENDING', 'SENT', 'PAUSED']);
+
+/**
+ * Pure send-state guard (no DB, unit-testable): throws when the email's own
+ * status, or its campaign's status when known, locks it. A null campaign
+ * status means the email is not linked to a live campaign — only the email's
+ * own status decides then. This is the repair for the M3 status anomaly: a
+ * sent email's row must never go back to a changeable state.
+ */
+export function assertEmailEditable(emailStatus: string, campaignStatus: string | null): void {
+  if (SEND_LOCKED_EMAIL_STATUSES.has(String(emailStatus || ''))) {
+    throw new DraftError(`This email can no longer be changed because it is ${emailStatus}. Cancel the campaign and start a new one for new content.`, 400);
+  }
+  if (campaignStatus && SEND_LOCKED_CAMPAIGN_STATUSES.has(campaignStatus)) {
+    throw new DraftError('This email belongs to a campaign that has already been scheduled or sent and can no longer be changed.', 400);
+  }
+}
+
+/** Load a linked campaign's status for the guard (null when unlinked or gone). */
+export async function linkedCampaignStatus(workspaceId: string, email: any): Promise<string | null> {
+  if (!email.campaignId) return null;
+  const camp = await db.campaign.findFirst({ where: { id: email.campaignId, workspaceId }, select: { status: true } });
+  return camp ? String(camp.status) : null;
+}
+
+/** Full guard for a loaded email row: own status + linked campaign status. */
+export async function assertLoadedEmailEditable(workspaceId: string, email: any): Promise<void> {
+  assertEmailEditable(String(email.status || ''), await linkedCampaignStatus(workspaceId, email));
+}
+
 export const DRAFT_AI_TIMEOUT_MS = 30_000;
 export const DRAFT_MAX_REVISE_ROUNDS = 2;
 export const DRAFT_VERSIONS_CAP = 10;
+/** Shape validation repair retries (spec §16: validate + repair, max 2). */
+export const DRAFT_MAX_REPAIRS = 2;
+
+/** The model's JSON failed shape validation — carries the repair context. */
+class ShapeError extends Error {
+  badOutput: unknown;
+  errors: string[];
+  constructor(errors: string[], badOutput: unknown) {
+    super(`Draft JSON invalid: ${errors.join('; ')}`);
+    this.errors = errors;
+    this.badOutput = badOutput;
+  }
+}
 
 export interface GeneratedEmail {
   subjects: string[];
@@ -82,6 +134,12 @@ export interface EmailState {
   placeholders: string[];
   /** Claims the validator removed in the latest generation/refine. */
   removedClaims: { claim: string; where: string }[];
+  /**
+   * New facts the user typed in a direct edit that are not yet in any source
+   * (spec §12: ask whether to update the Brief). Kept in the draft, flagged
+   * here, until accepted into the Brief via acceptFacts.
+   */
+  newClaims: string[];
 }
 
 function isAuthError(err: unknown): boolean {
@@ -105,6 +163,11 @@ function parseJsonText(text: string): unknown {
 
 function asJsonArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
+}
+
+/** Prisma Json columns need plain JSON values; cast through a JSON round-trip. */
+function toJson(v: unknown): any {
+  return JSON.parse(JSON.stringify(v ?? null));
 }
 
 export function emailToState(row: any): EmailState {
@@ -131,8 +194,9 @@ export function emailToState(row: any): EmailState {
     scheduledAtUtc: row.scheduledAtUtc ? new Date(row.scheduledAtUtc).toISOString() : null,
     coldAck: !!row.coldAck,
     recipientCount: row.recipientCount,
-    placeholders: findPlaceholders([subjects.join(' '), row.previewText || '', bodyHtml, bodyText].join('\n')),
+    placeholders: [...new Set(findPlaceholders([subjects.join(' '), row.previewText || '', bodyHtml, bodyText].join('\n')))],
     removedClaims: [],
+    newClaims: [],
   };
 }
 
@@ -174,8 +238,10 @@ export function allowedSourcesFor(draft: any): { texts: string[]; hosts: Set<str
   for (const k of ['businessName', 'businessType', 'services', 'serviceArea', 'senderName', 'phone', 'customerType', 'voiceDescription', 'differentiators', 'guaranteesProof', 'websiteUrl', 'bookingLink']) {
     if (snap[k]) texts.push(String(snap[k]));
   }
-  const samples = Array.isArray(snap.samples) ? snap.samples : Array.isArray(snap.styleSummaries) ? snap.styleSummaries : [];
-  for (const s of samples) texts.push(typeof s === 'string' ? s : JSON.stringify(s));
+  // NOTE: writing samples and style summaries are voice inputs only, never
+  // fact sources (spec §12 + M1 acceptance: a sample containing a price must
+  // never leak that price into a draft). Only the profile, the Brief, and
+  // the user's typed messages may validate a claim.
   texts.push(JSON.stringify(brief));
   texts.push(...userMessages(draft));
   const hosts = buildAllowedHosts(
@@ -260,8 +326,8 @@ function validateGenerated(out: unknown): { ok: boolean; errors: string[]; value
   };
 }
 
-/** One Gemini draft-generation call (structured output, one transient retry). */
-async function geminiGenerate(
+/** One Gemini draft-generation attempt (structured output, one transient retry on network errors). */
+async function geminiGenerateOnce(
   ai: any,
   model: string,
   systemPrompt: string,
@@ -287,20 +353,44 @@ async function geminiGenerate(
     )) as { text?: string };
     const parsed = parseJsonText((response.text || '').trim());
     const v = validateGenerated(parsed);
-    if (!v.ok) throw new Error(`Draft JSON invalid: ${v.errors.join('; ')}`);
+    if (!v.ok) throw new ShapeError(v.errors, parsed);
     return v.value as GeneratedEmail;
   };
   try {
     return await call();
   } catch (err) {
+    if (err instanceof ShapeError) throw err;
     if (isAuthError(err)) throw new DraftError('AI is not configured or the key is invalid.', 503);
     try {
       return await call();
     } catch (err2) {
+      if (err2 instanceof ShapeError) throw err2;
       if (isAuthError(err2)) throw new DraftError('AI is not configured or the key is invalid.', 503);
       throw new DraftError('Draft generation failed. Nothing was saved — try again.', 503);
     }
   }
+}
+
+/** Draft generation with shape-validation repair retries (spec §16, max 2). */
+async function geminiGenerate(
+  ai: any,
+  model: string,
+  systemPrompt: string,
+  userText: string,
+): Promise<GeneratedEmail> {
+  let repair: { badOutput: unknown; errors: string[] } | undefined;
+  for (let attempt = 0; attempt <= DRAFT_MAX_REPAIRS; attempt++) {
+    try {
+      return await geminiGenerateOnce(ai, model, systemPrompt, userText, repair);
+    } catch (err) {
+      if (err instanceof ShapeError && attempt < DRAFT_MAX_REPAIRS) {
+        repair = { badOutput: err.badOutput, errors: err.errors };
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new DraftError('Draft generation failed. Nothing was saved — try again.', 503);
 }
 
 /** Silent quality check: critique against the rubric, revise, max 2 rounds. */
@@ -352,14 +442,38 @@ export async function getEmailOrThrow(workspaceId: string, emailId: string): Pro
   return email;
 }
 
-function applyValidation(content: DraftContent, draft: any, factMap: FactMapEntry[]): { validated: DraftContent; removed: { claim: string; where: string }[] } {
+function applyValidation(
+  content: DraftContent,
+  draft: any,
+  factMap: FactMapEntry[],
+  keepClaims?: Set<string>,
+  workspaceId?: string,
+): { validated: DraftContent; removed: { claim: string; where: string }[]; kept: string[]; allowed: Set<string> } {
   const { texts, hosts } = allowedSourcesFor(draft);
   const allowed = buildAllowedClaimSet(texts);
-  const v = validateDraftContent(content, allowed, hosts, factMap);
+  const v = validateDraftContent(content, allowed, hosts, factMap, keepClaims);
+  // The locked footer is unremovable (spec §17): restored on every save even
+  // if it was deleted in the editor. The real per-recipient footer replaces
+  // this draft placeholder at send time.
+  const withFooter = ensureDraftFooter(v.bodyHtml, v.bodyText, footerDataOf(draft), draftUnsubscribeUrl(workspaceId || ''));
   return {
-    validated: { subjects: v.subjects, previewText: v.previewText, bodyHtml: v.bodyHtml, bodyText: v.bodyText },
+    validated: { subjects: v.subjects, previewText: v.previewText, bodyHtml: withFooter.bodyHtml, bodyText: withFooter.bodyText },
     removed: v.removed,
+    kept: v.kept,
+    allowed,
   };
+}
+
+function footerDataOf(draft: any): { businessName: string; physicalAddress: string } {
+  const snap = snapshotOf(draft);
+  return {
+    businessName: String(snap.businessName || 'Your business'),
+    physicalAddress: String(snap.physicalAddress || ''),
+  };
+}
+
+function draftUnsubscribeUrl(workspaceId: string): string {
+  return `https://example.invalid/unsubscribe/${Buffer.from(`${workspaceId}:draft`).toString('base64url')}`;
 }
 
 function snapshotVersion(row: any, note: string): EmailVersion {
@@ -390,6 +504,10 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
   if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted') {
     throw new DraftError('Confirm the Brief before drafting (Phase 7 needs a locked Brief).', 400);
   }
+  // Fail fast before spending an AI call: an already-launched email must
+  // never be regenerated back to 'draft' (M3 status anomaly repair).
+  const existing = await db.campaignEmail.findFirst({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
+  if (existing) await assertLoadedEmailEditable(workspaceId, existing);
   if (!checkAiRateLimit(workspaceId)) {
     throw new DraftError('AI call budget for this workspace is exhausted for the hour. Try again later.', 429);
   }
@@ -421,22 +539,23 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
     { subjects: generated.subjects, previewText: generated.previewText, bodyHtml: generated.bodyHtml, bodyText: generated.bodyText },
     draft,
     generated.factMap,
+    undefined,
+    workspaceId,
   );
 
-  const existing = await db.campaignEmail.findFirst({ where: { draftId, workspaceId }, orderBy: { order: 'asc' } });
   const cta = (brief.cta || {}) as Record<string, unknown>;
   const row = existing
     ? await db.campaignEmail.update({
         where: { id: existing.id },
         data: {
-          subjectVariants: validated.subjects,
+          subjectVariants: toJson(validated.subjects),
           subjectSelected: 0,
           previewText: validated.previewText,
           bodyHtml: validated.bodyHtml,
           bodyText: validated.bodyText,
-          cta: { action: cta.action, destination: cta.destination, deadline: cta.deadline },
-          factMap: generated.factMap,
-          versions: pushVersion(asJsonArray(existing.versions) as EmailVersion[], snapshotVersion(existing, 'Regenerated')),
+          cta: toJson({ action: cta.action, destination: cta.destination, deadline: cta.deadline }),
+          factMap: toJson(generated.factMap),
+          versions: toJson(pushVersion(asJsonArray(existing.versions) as EmailVersion[], snapshotVersion(existing, 'Regenerated'))),
           status: 'draft',
         },
       })
@@ -450,13 +569,13 @@ export async function generateEmail(workspaceId: string, draftId: string): Promi
           purpose: typeof brief.campaign_definition?.summary === 'string' ? brief.campaign_definition.summary : 'Single campaign email',
           timingRule: { type: 'scheduled', label: 'Email 1: sent at the scheduled start' },
           receivesRule: { type: 'all_recipients', label: 'Everyone selected in Phase 8' },
-          subjectVariants: validated.subjects,
+          subjectVariants: toJson(validated.subjects),
           subjectSelected: 0,
           previewText: validated.previewText,
           bodyHtml: validated.bodyHtml,
           bodyText: validated.bodyText,
-          cta: { action: cta.action, destination: cta.destination, deadline: cta.deadline },
-          factMap: generated.factMap,
+          cta: toJson({ action: cta.action, destination: cta.destination, deadline: cta.deadline }),
+          factMap: toJson(generated.factMap),
           versions: [],
           status: 'draft',
         },
@@ -484,9 +603,7 @@ export async function refineEmail(
   scope: 'whole' | 'subject' | 'opening' | 'body' | 'cta' | 'signoff' = 'whole',
 ): Promise<EmailState> {
   const email = await getEmailOrThrow(workspaceId, emailId);
-  if (email.status === 'sent' || email.status === 'sending') {
-    throw new DraftError('A sent email cannot be refined.', 400);
-  }
+  await assertLoadedEmailEditable(workspaceId, email);
   if (!instruction || !instruction.trim()) throw new DraftError('Type an instruction to refine the email.', 400);
   if (!checkAiRateLimit(workspaceId)) {
     throw new DraftError('AI call budget for this workspace is exhausted for the hour. Try again later.', 429);
@@ -512,16 +629,18 @@ export async function refineEmail(
     { subjects: revised.subjects, previewText: revised.previewText, bodyHtml: revised.bodyHtml, bodyText: revised.bodyText },
     draft,
     revised.factMap,
+    undefined,
+    workspaceId,
   );
   const row = await db.campaignEmail.update({
     where: { id: emailId },
     data: {
-      subjectVariants: validated.subjects,
+      subjectVariants: toJson(validated.subjects),
       previewText: validated.previewText,
       bodyHtml: validated.bodyHtml,
       bodyText: validated.bodyText,
-      factMap: revised.factMap,
-      versions: pushVersion(asJsonArray(email.versions) as EmailVersion[], snapshotVersion(email, `Refine (${scope}): ${instruction.slice(0, 80)}`)),
+      factMap: toJson(revised.factMap),
+      versions: toJson(pushVersion(asJsonArray(email.versions) as EmailVersion[], snapshotVersion(email, `Refine (${scope}): ${instruction.slice(0, 80)}`))),
     },
   });
   const state = emailToState(row);
@@ -529,43 +648,96 @@ export async function refineEmail(
   return state;
 }
 
-/** Direct editing (spec §12): the user edits fields; code re-validates. */
+/**
+ * Direct editing (spec §12): the user edits fields; code re-validates.
+ * A fact the user types that is not in any source is NOT removed — it is
+ * kept and reported as a new claim, with the question whether to update the
+ * Brief (acceptFacts). Removing a deliberately typed fact would be wrong;
+ * silently keeping an unverified fact would also be wrong.
+ */
 export async function directEditEmail(
   workspaceId: string,
   emailId: string,
   patch: Partial<{ subjectVariants: string[]; subjectSelected: number; previewText: string; bodyHtml: string; bodyText: string }>,
 ): Promise<EmailState> {
   const email = await getEmailOrThrow(workspaceId, emailId);
-  if (email.status === 'sent' || email.status === 'sending') {
-    throw new DraftError('A sent email cannot be edited.', 400);
-  }
+  await assertLoadedEmailEditable(workspaceId, email);
   const draft = await getDraftOrThrow(workspaceId, email.draftId);
+  const oldSubjects = asJsonArray(email.subjectVariants).filter((s) => typeof s === 'string') as string[];
+  const oldText = [oldSubjects.join(' '), email.previewText || '', String(email.bodyHtml || ''), String(email.bodyText || '')].join('\n');
+  const oldClaims = new Set(extractClaims(oldText).map(normalizeClaim));
   const current: DraftContent = {
-    subjects: patch.subjectVariants ?? (asJsonArray(email.subjectVariants).filter((s) => typeof s === 'string') as string[]),
+    subjects: patch.subjectVariants ?? oldSubjects,
     previewText: patch.previewText ?? (email.previewText || ''),
     bodyHtml: patch.bodyHtml ?? String(email.bodyHtml || ''),
     bodyText: patch.bodyText ?? String(email.bodyText || ''),
   };
-  const { validated, removed } = applyValidation(current, draft, asJsonArray(email.factMap) as FactMapEntry[]);
+  const newText = [current.subjects.join(' '), current.previewText, current.bodyHtml, current.bodyText].join('\n');
+  const { texts } = allowedSourcesFor(draft);
+  const allowed = buildAllowedClaimSet(texts);
+  const candidateNew = new Set<string>();
+  for (const claim of extractClaims(newText)) {
+    const n = normalizeClaim(claim);
+    if (!allowed.has(n) && !oldClaims.has(n)) candidateNew.add(n);
+  }
+  const { validated, removed, kept } = applyValidation(current, draft, asJsonArray(email.factMap) as FactMapEntry[], candidateNew, workspaceId);
   const row = await db.campaignEmail.update({
     where: { id: emailId },
     data: {
-      subjectVariants: validated.subjects,
+      subjectVariants: toJson(validated.subjects),
       subjectSelected: patch.subjectSelected ?? email.subjectSelected ?? 0,
       previewText: validated.previewText,
       bodyHtml: validated.bodyHtml,
       bodyText: validated.bodyText,
-      versions: pushVersion(asJsonArray(email.versions) as EmailVersion[], snapshotVersion(email, 'Direct edit')),
+      versions: toJson(pushVersion(asJsonArray(email.versions) as EmailVersion[], snapshotVersion(email, 'Direct edit'))),
     },
   });
   const state = emailToState(row);
   state.removedClaims = removed;
+  state.newClaims = kept;
+  return state;
+}
+
+/**
+ * Accept user-typed facts into the Brief (spec §12: "ask whether to update
+ * the Brief"). The confirmed Brief text is untouched and its version lock
+ * stands; the facts land in user_added_facts (and must_include_facts), which
+ * the validator reads as a source from then on.
+ */
+export async function acceptFacts(workspaceId: string, emailId: string, claims: string[]): Promise<EmailState> {
+  const email = await getEmailOrThrow(workspaceId, emailId);
+  const draft = await getDraftOrThrow(workspaceId, email.draftId);
+  const brief = briefOf(draft) || {};
+  const clean = [...new Set((claims || []).map((c) => String(c).trim()).filter(Boolean))];
+  if (clean.length === 0) throw new DraftError('No facts to accept.', 400);
+  const existing = new Set([
+    ...(Array.isArray(brief.user_added_facts) ? brief.user_added_facts.map((f: unknown) => normalizeClaim(String(f))) : []),
+    ...(Array.isArray(brief.must_include_facts) ? brief.must_include_facts.map((f: unknown) => normalizeClaim(String(f))) : []),
+  ]);
+  const fresh = clean.filter((c) => !existing.has(normalizeClaim(c)));
+  // Drop claims subsumed by a longer fact (e.g. "2026" inside
+  // "December 18, 2026") so the Brief stays clean.
+  const normAll = [...existing, ...fresh.map((c) => normalizeClaim(c))];
+  const kept = fresh.filter((c) => {
+    const n = normalizeClaim(c);
+    return !normAll.some((o) => o !== n && o.length > n.length && o.includes(n));
+  });
+  const nextBrief = {
+    ...brief,
+    must_include_facts: [...(Array.isArray(brief.must_include_facts) ? brief.must_include_facts : []), ...kept],
+    user_added_facts: [...(Array.isArray(brief.user_added_facts) ? brief.user_added_facts : []), ...kept],
+  };
+  await db.campaignDraft.update({ where: { id: draft.id }, data: { brief: toJson(nextBrief) } });
+  const row = await getEmailOrThrow(workspaceId, emailId);
+  const state = emailToState(row);
+  state.newClaims = [];
   return state;
 }
 
 /** Undo: restore the most recent saved version (version history, last 10). */
 export async function undoEmail(workspaceId: string, emailId: string): Promise<EmailState> {
   const email = await getEmailOrThrow(workspaceId, emailId);
+  await assertLoadedEmailEditable(workspaceId, email);
   const versions = asJsonArray(email.versions) as EmailVersion[];
   const prev = versions[versions.length - 1];
   if (!prev) throw new DraftError('Nothing to undo — no earlier version exists.', 400);
@@ -577,8 +749,8 @@ export async function undoEmail(workspaceId: string, emailId: string): Promise<E
       previewText: prev.previewText,
       bodyHtml: prev.bodyHtml,
       bodyText: prev.bodyText,
-      factMap: prev.factMap,
-      versions: versions.slice(0, -1),
+      factMap: toJson(prev.factMap),
+      versions: toJson(versions.slice(0, -1)),
     },
   });
   return emailToState(row);

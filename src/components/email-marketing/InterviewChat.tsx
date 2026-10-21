@@ -24,7 +24,8 @@ const PHASE_NAMES: Record<InterviewPhase, string> = {
 
 export function phaseIndex(draft: CampaignDraftState): number {
   if (draft.currentPhase === 'brief_confirm') return 3;
-  return PHASE_ORDER.indexOf(draft.currentPhase);
+  if (draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send') return 6;
+  return PHASE_ORDER.indexOf(draft.currentPhase as InterviewPhase);
 }
 
 export default function InterviewChat({
@@ -75,7 +76,10 @@ export default function InterviewChat({
   const currentIdx = phaseIndex(draft);
   const briefConfirmed = draft.status === 'brief_confirmed';
   const inBriefConfirm = draft.currentPhase === 'brief_confirm' && !briefConfirmed;
-  const currentPhase = draft.currentPhase === 'brief_confirm' ? null : draft.currentPhase;
+  const currentPhase =
+    draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send'
+      ? null
+      : (draft.currentPhase as InterviewPhase);
   const userAnswersInPhase = currentPhase
     ? draft.conversation.filter((m) => m.role === 'user' && m.phase === currentPhase).length
     : 0;

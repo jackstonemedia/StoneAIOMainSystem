@@ -17,7 +17,13 @@
  *
  * Spec §13: send window (weekdays 08:00–17:00 business time zone) and the
  * recommended start (the first slot in the send window).
+ *
+ * Spec §20: tracking tokens are HMAC-signed (TRACKING_SECRET) and bound to
+ * the campaign, contact and destination URL, so a click link cannot be
+ * forged and the tracking endpoint cannot be used as an open redirect.
  */
+
+import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 
 export interface DraftContent {
   subjects: string[];
@@ -48,6 +54,8 @@ export interface ValidationResult {
   /** Every {{NEEDS: …}} placeholder still present after validation. */
   placeholders: string[];
   factMap: FactMapEntry[];
+  /** Unmapped claims deliberately kept (user-typed direct edits, pending Brief update). */
+  kept: string[];
 }
 
 export const PLACEHOLDER_RE = /\{\{NEEDS:[^}]+\}\}/g;
@@ -79,20 +87,28 @@ export function normalizeClaim(claim: string): string {
 
 /** All numeric/date claims found in a text, in order of appearance. */
 export function extractClaims(text: string): string[] {
-  const found: string[] = [];
+  const found: { claim: string; start: number; end: number }[] = [];
   const push = (re: RegExp) => {
     re.lastIndex = 0;
-    for (const m of text.matchAll(re)) found.push(m[0]);
+    for (const m of text.matchAll(re)) {
+      if (m.index === undefined) continue;
+      found.push({ claim: m[0], start: m.index, end: m.index + m[0].length });
+    }
   };
   push(CURRENCY_RE);
   push(PERCENT_RE);
   push(DATE_RE);
-  // Bare numbers last, skipping ones already covered by a currency/percent/date.
-  const covered = new Set(found.map(normalizeClaim));
+  // Bare numbers last, skipping any that sit inside an already-matched span
+  // (e.g. the "18" and "2026" inside "December 18, 2026").
+  const covered = (start: number, end: number) =>
+    found.some((f) => start >= f.start && end <= f.end);
+  NUMBER_RE.lastIndex = 0;
   for (const m of text.matchAll(NUMBER_RE)) {
-    if (!covered.has(normalizeClaim(m[0]))) found.push(m[0]);
+    if (m.index === undefined || covered(m.index, m.index + m[0].length)) continue;
+    found.push({ claim: m[0], start: m.index, end: m.index + m[0].length });
   }
-  return found;
+  found.sort((a, b) => a.start - b.start);
+  return found.map((f) => f.claim);
 }
 
 /** Every URL in a text (http/https). */
@@ -135,6 +151,20 @@ export function buildAllowedHosts(bookingLink: string | null | undefined, websit
   return hosts;
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Boundary-aware claim removal: "20" must not eat the "20" inside "2026",
+ * and "$499" must not eat the "$499" inside "$4990". A claim only matches
+ * when it is not glued to a word character, digit, "$" (left) or "%" (right).
+ */
+export function removeClaim(text: string, claim: string): string {
+  const pattern = new RegExp(`(?<![\\w$])${escapeRegExp(claim)}(?![\\w%])`, 'g');
+  return text.replace(pattern, '');
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
@@ -155,17 +185,37 @@ export function validateDraftContent(
   allowedClaims: Set<string>,
   allowedHosts: Set<string>,
   factMap: FactMapEntry[],
+  keepClaims?: Set<string>,
 ): ValidationResult {
   const removed: RemovedClaim[] = [];
   const unmappedUrls: string[] = [];
+  const kept: string[] = [];
+
+  // The locked footer is system-generated, never model/user content: the
+  // validator must never rewrite its unsubscribe link. Split it off before
+  // any claim/URL work and re-attach it untouched.
+  const splitTextFooter = (text: string): [string, string] => {
+    const idx = text.indexOf('\n\n---\n');
+    return idx === -1 ? [text, ''] : [text.slice(0, idx), text.slice(idx)];
+  };
+  const splitHtmlFooter = (html: string): [string, string] => {
+    const m = html.match(/<div data-locked-footer="true"[\s\S]*?<\/div>/);
+    if (!m || m.index === undefined) return [html, ''];
+    return [html.slice(0, m.index) + html.slice(m.index + m[0].length), m[0]];
+  };
 
   const cleanText = (text: string, where: string): string => {
-    let out = text;
+    const [head, tail] = splitTextFooter(text);
+    let out = head;
     for (const claim of extractClaims(out)) {
-      if (!allowedClaims.has(normalizeClaim(claim))) {
-        out = out.split(claim).join('');
-        removed.push({ claim, where });
+      if (allowedClaims.has(normalizeClaim(claim))) continue;
+      if (keepClaims?.has(normalizeClaim(claim))) {
+        if (!kept.includes(claim)) kept.push(claim);
+        continue;
       }
+      const before = out;
+      out = removeClaim(out, claim);
+      if (out !== before) removed.push({ claim, where });
     }
     for (const url of extractUrls(out)) {
       let host = '';
@@ -179,12 +229,13 @@ export function validateDraftContent(
         if (!unmappedUrls.includes(url)) unmappedUrls.push(url);
       }
     }
-    return out.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?;:])/g, '$1').trim();
+    return out.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?;:])/g, '$1').trim() + tail;
   };
 
   const cleanHtml = (html: string, where: string): string => {
+    const [headHtml, footerDiv] = splitHtmlFooter(html);
     // Rewrite hrefs first (URLs inside attributes), then clean visible text.
-    let out = html.replace(/href="([^"]+)"/g, (m, href: string) => {
+    let out = headHtml.replace(/href="([^"]+)"/g, (m, href: string) => {
       let host = '';
       try {
         host = new URL(href).hostname.toLowerCase();
@@ -214,7 +265,8 @@ export function validateDraftContent(
     out = parts.join('');
     // A disallowed href rewritten above leaves a placeholder in the attribute;
     // that placeholder also blocks sending and is reported by findPlaceholders.
-    return out;
+    // The locked footer div is re-attached untouched.
+    return out + footerDiv;
   };
 
   const subjects = content.subjects.map((s) => cleanText(s, 'subject'));
@@ -222,7 +274,10 @@ export function validateDraftContent(
   const bodyText = cleanText(content.bodyText, 'body');
   const previewText = cleanText(content.previewText, 'preview').slice(0, 90);
 
-  const allText = [subjects.join(' '), previewText, stripHtml(bodyHtml), bodyText].join('\n');
+  // Include the RAW html too: a disallowed URL becomes a placeholder inside
+  // an href attribute, which stripHtml would erase — and that placeholder
+  // must still block sending.
+  const allText = [subjects.join(' '), previewText, bodyHtml, stripHtml(bodyHtml), bodyText].join('\n');
   return {
     subjects,
     previewText,
@@ -232,6 +287,7 @@ export function validateDraftContent(
     unmappedUrls,
     placeholders: findPlaceholders(allText),
     factMap: factMap.filter((f) => f && f.claim),
+    kept,
   };
 }
 
@@ -258,10 +314,39 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** True when the final HTML still contains the locked footer + unsubscribe link. */
+/** True when the final HTML still contains the locked footer + a real unsubscribe link. */
 export function hasLockedFooter(html: string, text: string): boolean {
-  const combined = `${html}\n${text}`;
-  return combined.includes('data-locked-footer="true"') && /unsubscribe/i.test(combined);
+  const htmlOk = html.includes('data-locked-footer="true"') && /href="[^"]*unsubscribe[^"]*"/i.test(html);
+  const textOk = /Unsubscribe: https?:\/\//i.test(text);
+  return htmlOk && textOk;
+}
+
+/**
+ * Ensure exactly one correct locked footer is present in a draft body
+ * (spec §17: the user cannot edit or remove it). Any existing footer block
+ * is stripped first and replaced — a footer whose unsubscribe link was
+ * damaged is repaired, never left broken — and the real per-recipient footer
+ * replaces this draft placeholder at send time.
+ */
+export function ensureDraftFooter(
+  bodyHtml: string,
+  bodyText: string,
+  profile: ProfileFooterData,
+  draftUnsubscribeUrl: string,
+): { bodyHtml: string; bodyText: string } {
+  const stripped = stripDraftFooter(bodyHtml, bodyText);
+  return {
+    bodyHtml: `${stripped.bodyHtml}\n${renderLockedFooterHtml(profile, draftUnsubscribeUrl)}`,
+    bodyText: `${stripped.bodyText}${renderLockedFooterText(profile, draftUnsubscribeUrl)}`,
+  };
+}
+
+/** Strip the draft footer block so the real per-recipient footer can replace it. */
+export function stripDraftFooter(bodyHtml: string, bodyText: string): { bodyHtml: string; bodyText: string } {
+  return {
+    bodyHtml: bodyHtml.replace(/<div data-locked-footer="true"[\s\S]*?<\/div>\s*$/, '').trimEnd(),
+    bodyText: bodyText.replace(/\n\n---\n[\s\S]*$/, '').trimEnd(),
+  };
 }
 
 // ── Personalization tokens (spec §12) ────────────────────────────────────────
@@ -335,9 +420,52 @@ export interface TrackWrapOptions {
   emailOrder: number;
 }
 
-/** Per-recipient token, same style as the existing unsubscribe token. */
-export function trackingToken(campaignId: string, contactId: string, emailId: string): string {
-  return Buffer.from(`${campaignId}:${contactId}:${emailId}`).toString('base64url');
+/** Per-recipient token, HMAC-signed (spec §20) and bound to the destination URL. */
+export function trackingToken(campaignId: string, contactId: string, emailId: string, destUrl: string): string {
+  const payload = Buffer.from(JSON.stringify([campaignId, contactId, emailId, destUrl]), 'utf8').toString('base64url');
+  const sig = createHmac('sha256', trackingSecret()).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+/**
+ * Verify a tracking token against the claimed campaign, contact and
+ * destination. Returns false for any malformed, tampered or foreign token.
+ * The emailId lives inside the payload and is not checked against a caller
+ * param: the binding that matters is campaign + contact + destination.
+ */
+export function verifyTrackingToken(token: string, campaignId: string, contactId: string, destUrl: string): boolean {
+  try {
+    if (typeof token !== 'string') return false;
+    const dot = token.lastIndexOf('.');
+    if (dot <= 0) return false;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expected = createHmac('sha256', trackingSecret()).update(payload).digest('base64url');
+    const a = Buffer.from(sig, 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+    const parts = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return Array.isArray(parts) && parts[0] === campaignId && parts[1] === contactId && parts[3] === destUrl;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The HMAC secret. TRACKING_SECRET from the environment when set; otherwise
+ * an ephemeral per-boot secret (tokens then validate only within the same
+ * server run). Production must set TRACKING_SECRET so tokens survive
+ * restarts — see .env.example. Never log or return the secret itself.
+ */
+let ephemeralTrackingSecret: string | null = null;
+export function trackingSecret(): string {
+  const configured = (process.env.TRACKING_SECRET || '').trim();
+  if (configured) return configured;
+  if (!ephemeralTrackingSecret) {
+    ephemeralTrackingSecret = randomBytes(32).toString('hex');
+    console.warn('[Tracking] TRACKING_SECRET is not set — using an ephemeral per-boot secret. Set TRACKING_SECRET in production so click tokens survive restarts.');
+  }
+  return ephemeralTrackingSecret;
 }
 
 function withUtm(dest: string, campaignId: string, emailOrder: number): string {
@@ -363,7 +491,7 @@ export function wrapLinksForTracking(html: string, opts: TrackWrapOptions): stri
     if (!/^https?:\/\//i.test(href)) return m;
     if (/unsubscribe|track\/click/i.test(href)) return m;
     const dest = withUtm(href, opts.campaignId, opts.emailOrder);
-    const token = trackingToken(opts.campaignId, opts.contactId, 'email');
+    const token = trackingToken(opts.campaignId, opts.contactId, 'email', dest);
     const q = new URLSearchParams({
       w: opts.workspaceId,
       c: opts.contactId,

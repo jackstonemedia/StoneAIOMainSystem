@@ -45,6 +45,13 @@ const envSchema = z.object({
   RESEND_WEBHOOK_SECRET: z.string().optional(),
   RESEND_RATE_LIMIT_PER_SECOND: z.coerce.number().default(10),
 
+  // Create with AI — HMAC secret for signed click-tracking tokens (spec §20).
+  // Optional in dev (an ephemeral per-boot secret is used when unset, so
+  // tokens validate only within the same server run); set it in production
+  // so tokens survive restarts. Generate with:
+  // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  TRACKING_SECRET: z.string().optional(),
+
   // TikTok OAuth
   TIKTOK_CLIENT_KEY: z.string().optional(),
   TIKTOK_CLIENT_SECRET: z.string().optional(),

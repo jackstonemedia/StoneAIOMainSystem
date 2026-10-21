@@ -12,6 +12,7 @@
 import React, { useMemo, useState } from 'react';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import {
+  acceptFactsDraftEmail,
   consistencyCheckDraftEmail,
   editDraftEmail,
   refineDraftEmail,
@@ -155,6 +156,23 @@ export default function DraftEditor({
         <div className="border border-amber-500/50 rounded-lg p-3 bg-amber-500/10">
           <p className="text-sm text-amber-300">{copy.placeholderNote}</p>
           <p className="text-xs text-text-muted mt-1">{email.placeholders.join(', ')}</p>
+        </div>
+      )}
+
+      {email.newClaims.length > 0 && (
+        <div className="border border-amber-500/50 rounded-lg p-3 bg-amber-500/10 space-y-2">
+          <p className="text-sm text-amber-300">
+            You typed new facts that are not in the profile or Brief yet: {email.newClaims.join(', ')}. Add them to the Brief so they
+            validate, or they will stay flagged.
+          </p>
+          <button
+            type="button"
+            onClick={() => run(() => acceptFactsDraftEmail(email.id, email.newClaims))}
+            className="btn-primary text-xs"
+            disabled={busy}
+          >
+            Add to Brief
+          </button>
         </div>
       )}
 

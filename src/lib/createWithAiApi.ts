@@ -23,6 +23,7 @@ export type BusinessProfile = {
   websiteUrl: string | null;
   differentiators: string | null;
   guaranteesProof: string | null;
+  timezone: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -272,6 +273,7 @@ export type DraftEmailState = {
   recipientCount: number | null;
   placeholders: string[];
   removedClaims: { claim: string; where: string }[];
+  newClaims: string[];
 };
 
 export type RecipientResolutionState = {
@@ -326,6 +328,11 @@ export async function refineDraftEmail(
   scope: 'whole' | 'subject' | 'opening' | 'body' | 'cta' | 'signoff' = 'whole',
 ): Promise<{ email: DraftEmailState }> {
   const r = await apiClient.post(`${BASE}/emails/${emailId}/refine`, { instruction, scope });
+  return r.data;
+}
+
+export async function acceptFactsDraftEmail(emailId: string, claims: string[]): Promise<{ email: DraftEmailState }> {
+  const r = await apiClient.post(`${BASE}/emails/${emailId}/accept-facts`, { claims });
   return r.data;
 }
 
