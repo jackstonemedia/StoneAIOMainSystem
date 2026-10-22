@@ -10,6 +10,13 @@ const envSchema = z.object({
 
   // AI
   GOOGLE_AI_API_KEY: z.string().optional(),
+  // Gemini model ids are configurable (spec §22 default 13). The provider
+  // retires model ids without notice, so no code path may hardcode one:
+  // GEMINI_MODEL is the default, GEMINI_INTERVIEW_MODEL overrides it for
+  // interview/drafting, GEMINI_SUMMARY_MODEL for short summaries.
+  GEMINI_MODEL: z.string().optional(),
+  GEMINI_INTERVIEW_MODEL: z.string().optional(),
+  GEMINI_SUMMARY_MODEL: z.string().optional(),
 
   // Voice
   RETELL_API_KEY: z.string().optional(),
@@ -34,9 +41,14 @@ const envSchema = z.object({
   VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
 
   // Email
-  RESEND_API_KEY: z.string().optional(),
-  RESEND_WEBHOOK_SECRET: z.string().optional(),
   RESEND_RATE_LIMIT_PER_SECOND: z.coerce.number().default(10),
+
+  // Create with AI — HMAC secret for signed click-tracking tokens (spec §20).
+  // Optional in dev (an ephemeral per-boot secret is used when unset, so
+  // tokens validate only within the same server run); set it in production
+  // so tokens survive restarts. Generate with:
+  // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  TRACKING_SECRET: z.string().optional(),
 
   // TikTok OAuth
   TIKTOK_CLIENT_KEY: z.string().optional(),

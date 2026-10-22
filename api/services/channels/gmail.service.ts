@@ -64,38 +64,45 @@ async function getAuthenticatedGmail(connectionId: string) {
   return { gmail: google.gmail({ version: 'v1', auth: client }), conn };
 }
 
-export async function sendGmailMessage(
-  connectionId: string,
-  to: string,
-  subject: string,
-  body: string,
-  threadId?: string,
-  htmlBody?: string,
-  fromName?: string,
-): Promise<{ messageId: string; threadId: string }> {
-  const { gmail, conn } = await getAuthenticatedGmail(connectionId);
-
+/**
+ * Pure MIME builder (extracted for unit tests). Default shape is unchanged:
+ * multipart/alternative with a plain-text part plus an HTML part. With
+ * textOnly, the message is a single text/plain part — no HTML part at all
+ * (M7 cold outreach: plain-text style, no images, no heavy layout).
+ */
+export function buildGmailMime(opts: {
+  fromEmail?: string | null;
+  fromName?: string | null;
+  to: string;
+  subject: string;
+  body: string;
+  htmlBody?: string;
+  textOnly?: boolean;
+}): string {
+  const { fromEmail, fromName, to, subject, body, htmlBody, textOnly } = opts;
+  // RFC 5321: "Display Name <email@domain>" or just the email address
+  const fromHeader = fromName && fromEmail
+    ? `From: ${fromName} <${fromEmail}>`
+    : fromEmail
+      ? `From: ${fromEmail}`
+      : '';
+  const head = [
+    ...(fromHeader ? [fromHeader] : []),
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+  ];
+  if (textOnly) {
+    return [...head, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit', '', body].join('\r\n');
+  }
   // Build a multipart/alternative MIME email so recipients see proper HTML formatting
   // while also having a plain-text fallback for email clients that don't render HTML.
   const boundary = `boundary_${Date.now().toString(36)}`;
   const htmlPart = htmlBody
     ?? body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
            .replace(/\n/g, '<br>');
-
-  // Build From header: use fromName if provided with the connected email address
-  // RFC 5321: "Display Name <email@domain>" or just the email address
-  const connEmail = conn.email;
-  const fromHeader = fromName && connEmail
-    ? `From: ${fromName} <${connEmail}>`
-    : connEmail
-      ? `From: ${connEmail}`
-      : '';
-
   const mimeLines = [
-    ...(fromHeader ? [fromHeader] : []),
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
+    ...head,
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     '',
     `--${boundary}`,
@@ -114,8 +121,30 @@ export async function sendGmailMessage(
     '',
     `--${boundary}--`,
   ];
+  return mimeLines.join('\r\n');
+}
 
-  const mime = mimeLines.join('\r\n');
+export async function sendGmailMessage(
+  connectionId: string,
+  to: string,
+  subject: string,
+  body: string,
+  threadId?: string,
+  htmlBody?: string,
+  fromName?: string,
+  textOnly?: boolean,
+): Promise<{ messageId: string; threadId: string }> {
+  const { gmail, conn } = await getAuthenticatedGmail(connectionId);
+
+  const mime = buildGmailMime({
+    fromEmail: conn.email,
+    fromName,
+    to,
+    subject,
+    body,
+    htmlBody,
+    textOnly,
+  });
   const raw = Buffer.from(mime).toString('base64url');
   const res = await gmail.users.messages.send({
     userId: 'me',
@@ -124,8 +153,7 @@ export async function sendGmailMessage(
   return { messageId: res.data.id!, threadId: res.data.threadId! };
 }
 
-/** Called by the Gmail poller every 2 minutes for one connection. */
-export async function fetchGmailHistory(connectionId: string): Promise<void> {
+/** Called by the Gmail poller every 2 minutes for one connection. */export async function fetchGmailHistory(connectionId: string): Promise<void> {
   const { gmail, conn } = await getAuthenticatedGmail(connectionId);
 
   // First-ever poll: save current historyId and return (processing starts next run)
@@ -296,4 +324,30 @@ function htmlToText(html: string): string {
     .replace(/&#39;/g, "'")
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * M5 (Gmail-only bounce scanning): search one connection's mailbox.
+ * Returns Gmail message ids only; callers fetch what they need.
+ */
+export async function searchGmailMessages(connectionId: string, query: string, maxResults = 50): Promise<string[]> {
+  const { gmail } = await getAuthenticatedGmail(connectionId);
+  const res = await gmail.users.messages.list({ userId: 'me', q: query, maxResults });
+  return (res.data.messages || []).map((m) => m.id!).filter(Boolean);
+}
+
+/** M5: fetch one message in RAW MIME form, base64url-decoded to text. */
+export async function getGmailMessageRaw(connectionId: string, messageId: string): Promise<string> {
+  const { gmail } = await getAuthenticatedGmail(connectionId);
+  const res = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'RAW' });
+  const raw = res.data.raw || '';
+  return Buffer.from(raw, 'base64url').toString('utf8');
+}
+
+/** M5: resolve a sent message by its RFC Message-ID (exact DSN mapping). */
+export async function findGmailMessageByRfcId(connectionId: string, rfcMessageId: string): Promise<string | null> {
+  const clean = rfcMessageId.replace(/[<>]/g, '').trim();
+  if (!clean) return null;
+  const ids = await searchGmailMessages(connectionId, `rfc822msgid:${clean}`, 5);
+  return ids[0] || null;
 }

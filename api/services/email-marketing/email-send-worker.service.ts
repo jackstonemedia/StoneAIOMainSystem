@@ -9,10 +9,12 @@
  *   2. Load contact data
  *   3. Check suppression list & subscription status → skip if suppressed
  *   4. Compile block JSON → MJML → email-safe HTML (per-recipient personalization)
- *   5. Send via Resend with RFC 8058 List-Unsubscribe headers
+ *   5. Send via the Gmail channel (sendGmailMessage, workspace Gmail OAuth
+ *      connection) with the locked footer unsubscribe link
  *   6. Record CampaignRecipient status + EmailEvent
  *
- * Rate limiting: reads RESEND_RATE_LIMIT_PER_SECOND (default 10) from env.
+ * Rate limiting: reads RESEND_RATE_LIMIT_PER_SECOND (default 10) from env
+ * (vestigial name — the value is a plain send rate limit, not a Resend use).
  * Retries: up to 3 retries with exponential backoff starting at 30 seconds.
  * One failed recipient never blocks the rest of the batch.
  */
@@ -117,6 +119,20 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
   if (!workspace) {
     console.warn(`[EmailSendWorker] Workspace ${workspaceId} not found — skipping job ${job.id}`);
     return; // Workspace was deleted — discard silently
+  }
+
+  // ── 1b. Create-with-AI pause/cancel guard (M3, spec §13) ──────────────────
+  // Pause and cancel stop all unsent emails immediately. The recipient stays
+  // PENDING so a resume can re-queue it; nothing is marked sent.
+  if (campaignId) {
+    const campaign = await db.campaign.findFirst({
+      where: { id: campaignId, workspaceId },
+      select: { status: true },
+    });
+    if (campaign && (campaign.status === 'PAUSED' || campaign.status === 'CANCELLED')) {
+      console.log(`[EmailSendWorker] Skipping job ${job.id} — campaign ${campaign.status}`);
+      return;
+    }
   }
 
   // ── 2. Load contact ───────────────────────────────────────────────────────
@@ -330,14 +346,18 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     try {
       const { sendGmailMessage } = await import('../channels/gmail.service.js');
       const plainText = emailHtml.replace(/<[^>]*>?/gm, '').trim();
+      // M7: cold outreach sends plain text only (no HTML part, no images).
+      const { isColdCampaign } = await import('./cold-outreach.service.js');
+      const cold = campaignId ? await isColdCampaign(workspaceId, campaignId).catch(() => false) : false;
       const result = await sendGmailMessage(
         gmailConn.id,
         contact.email,
         emailSubject,
         plainText,
         undefined,
-        emailHtml,
+        cold ? undefined : emailHtml,
         sendFromName,
+        cold,
       );
 
       const messageId = result.messageId || null;
