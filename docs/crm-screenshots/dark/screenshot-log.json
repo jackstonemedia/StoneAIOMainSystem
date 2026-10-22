@@ -1,0 +1,152 @@
+[
+  {
+    "route": "/crm",
+    "file": "crm-landing.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 194630,
+    "bodyChars": 1731
+  },
+  {
+    "route": "/crm/contacts",
+    "file": "crm-contacts.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 194630,
+    "bodyChars": 1731
+  },
+  {
+    "route": "/crm/companies",
+    "file": "crm-companies.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 109961,
+    "bodyChars": 829
+  },
+  {
+    "route": "/crm/opportunities",
+    "file": "crm-opportunities.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 87637,
+    "bodyChars": 846
+  },
+  {
+    "route": "/crm/tasks",
+    "file": "crm-tasks.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 108365,
+    "bodyChars": 682
+  },
+  {
+    "route": "/crm/documents",
+    "file": "crm-documents.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 47685,
+    "bodyChars": 246
+  },
+  {
+    "route": "/crm/smart-lists",
+    "file": "crm-smart-lists.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 53341,
+    "bodyChars": 302
+  },
+  {
+    "route": "/crm/bulk-actions",
+    "file": "crm-bulk-actions.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 62256,
+    "bodyChars": 433
+  },
+  {
+    "route": "/crm/settings",
+    "file": "crm-settings.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 82915,
+    "bodyChars": 565
+  },
+  {
+    "route": "/crm/opportunities/settings/pipelines",
+    "file": "crm-opportunities-settings-pipelines.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 126493,
+    "bodyChars": 1727
+  },
+  {
+    "route": "/crm/opportunities/settings/fields",
+    "file": "crm-opportunities-settings-fields.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 57469,
+    "bodyChars": 397
+  },
+  {
+    "route": "/crm/opportunities/settings/tags",
+    "file": "crm-opportunities-settings-tags.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 105440,
+    "bodyChars": 789
+  },
+  {
+    "route": "/crm/contacts/ct_alice",
+    "file": "crm-contact-detail.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 92077,
+    "bodyChars": 658
+  },
+  {
+    "route": "/crm/companies/co_global",
+    "file": "crm-company-detail.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 98442,
+    "bodyChars": 661
+  },
+  {
+    "route": "/crm/opportunities/dl_1",
+    "file": "crm-opportunity-detail.png",
+    "http": 200,
+    "themeClass": "theme-dark",
+    "stored": "dark",
+    "hasExpected": true,
+    "size": 103489,
+    "bodyChars": 629
+  }
+]
