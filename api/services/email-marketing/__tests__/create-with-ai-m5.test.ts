@@ -199,6 +199,18 @@ describe('simulatePath — canonical scenarios', () => {
     expect(out.steps.some((s) => s.what.includes('next scheduled email'))).toBe(false);
   });
 
+  it('clicked completes once the no-reply alert has fired (mirrors the live tick)', () => {
+    // The clicked scenario's horizon (8d) is past the 4-day no-reply delay,
+    // so the alert fires inside the simulation and the contact completes.
+    const { events, horizon } = buildScenarioEvents('clicked');
+    expect(simulatePath({ rules, sequenceCount: 1, events, horizon }).finalState).toBe('completed');
+    // With a horizon before the no-reply delay (2d), the alert is still
+    // pending, so the contact must stay active — completing early would
+    // silently drop the alert, the same bug the live tick guards against.
+    const early = new Date(new Date('2026-10-01T08:00:00.000Z').getTime() + 2 * 86400_000);
+    expect(simulatePath({ rules, sequenceCount: 1, events, horizon: early }).finalState).toBe('active');
+  });
+
   it('clicked_not_replied → reaction note AND the later no-reply alert (B3)', () => {
     const { events, horizon } = buildScenarioEvents('clicked_not_replied');
     const out = simulatePath({ rules, sequenceCount: 1, events, horizon });

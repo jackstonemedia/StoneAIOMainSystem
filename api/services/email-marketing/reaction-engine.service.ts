@@ -567,6 +567,7 @@ export function simulatePath(args: {
   let lastSentAt: Date | null = null;
   let stopped = false;
   let state = 'active';
+  const pendingSendAts: Date[] = [];
 
   const byTime = [...args.events].sort((a, b) => a.at.getTime() - b.at.getTime());
   const windowEndFor = (order: number): Date | null => {
@@ -612,6 +613,7 @@ export function simulatePath(args: {
         return;
       }
       steps.push({ at: sendAt.toISOString(), what: `Sends ${actionText}.` });
+      pendingSendAts.push(sendAt);
       sentCount += 1;
       lastSentAt = sendAt;
     } else if (rule.action === 'notify' || rule.action === 'tag') {
@@ -689,6 +691,25 @@ export function simulatePath(args: {
         else if (!opened && notOpened) fireRule(notOpened, wEnd, 'window end');
         else steps.push({ at: wEnd.toISOString(), what: `Window for Email ${order} ended — no rule matched; default path continues.` });
       }
+    }
+    // Completion (mirrors the live tick): every sequence email sent, every
+    // source resolved (a rule fired, or its window ended), no reaction send
+    // still scheduled past the horizon, and no no-reply alert still pending.
+    // A pending no-reply blocks completion — completing early would silently
+    // drop the alert, the same bug the live tick guards against.
+    if (!stopped) {
+      let resolved = true;
+      for (let order = 1; order <= args.sequenceCount; order++) {
+        if (!sent.has(order)) { resolved = false; break; }
+        const anyFired = keyed.some((r) => r.sourceOrder === order && firedRuleIds.has(r.id));
+        const wEnd = windowEndFor(order);
+        const windowEnded = !!wEnd && horizon.getTime() >= wEnd.getTime();
+        if (!anyFired && !windowEnded) { resolved = false; break; }
+        const pendingNoReply = keyed.some((r) => r.condition === 'CLICKED_NOT_REPLIED' && r.sourceOrder === order && !firedRuleIds.has(r.id) && clicks.some((c) => c.order === order));
+        if (pendingNoReply) { resolved = false; break; }
+      }
+      const pendingSend = pendingSendAts.some((d) => d.getTime() > horizon.getTime());
+      if (resolved && !pendingSend) state = 'completed';
     }
   }
   return { steps, finalState: state };
@@ -1086,6 +1107,9 @@ export async function processDueReactions(
           const unprocessed = sig.clicks.filter((c) => !c.bot && !(freshSignals.processedClickEventIds || []).includes(c.eventId));
           for (const click of unprocessed) {
             if (click.order === null) continue;
+            // A source whose window already decided (send_next or evaluated)
+            // is closed: a later click must not reopen it.
+            if ((freshSignals.evaluatedSources || []).includes(click.order)) continue;
             const candidates = rules
               .filter((r) => r.sourceOrder === click.order && (r.condition === 'CLICKED' || (r.condition === 'CLICKED_LINK' && click.linkUrl && click.linkUrl.includes(String(r.conditionParams?.link || '')))))
               .sort((a, b) => a.priority - b.priority);
@@ -1196,7 +1220,18 @@ export async function processDueReactions(
                   const wRule = rules.find((r) => r.sourceOrder === o);
                   return now.getTime() >= s.sentAt.getTime() + (wRule?.decisionWindowHours ?? DEFAULT_WINDOW_HOURS) * 3600_000;
                 });
-                if (sources.length > 0 && allDone && windowsPassed) {
+                // B3: a contact who clicked but whose no-reply delay has
+                // not elapsed yet is NOT done — the no-reply alert is still
+                // to come. Completing early would silently drop that alert.
+                const pendingNoReply = rules.some((r) => {
+                  if (r.condition !== 'CLICKED_NOT_REPLIED') return false;
+                  if ((curSig.firedRuleIds || []).includes(r.id)) return false;
+                  const click = sig.clicks.find((c) => !c.bot && c.order === r.sourceOrder);
+                  if (!click) return false;
+                  const days = Number(r.conditionParams?.days ?? DEFAULT_NO_REPLY_DAYS);
+                  return now.getTime() < click.at.getTime() + days * 86_400_000;
+                });
+                if (sources.length > 0 && allDone && windowsPassed && !pendingNoReply) {
                   await db.recipientState.update({ where: { id: cur.id }, data: { status: 'completed', nextSendAt: null, history: toJson(historyAppend(cur.history, { at: now.toISOString(), from: 'active', to: 'completed', reason: 'All reaction windows evaluated; no sends pending.' })) } });
                 }
               }
