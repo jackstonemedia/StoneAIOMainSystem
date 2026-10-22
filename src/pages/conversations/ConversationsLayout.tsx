@@ -7,7 +7,6 @@ import { useChannelConnections } from '../../hooks/useConversations';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../components/ui/NotificationPanel';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 function DisconnectedBanner() {
   const { data: connections = [] } = useChannelConnections();
@@ -64,7 +63,7 @@ function ConversationsTopBarActions() {
       {/* View Selector Dropdown */}
       <select
         value={view}
-        data-tour="inbox-channel-filter"
+       
         onChange={e => setView(e.target.value as any)}
         className="bg-surface/40 hover:bg-surface border border-border/40 text-text-main text-[12px] font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer shadow-xs transition-colors"
       >
@@ -110,7 +109,6 @@ function ConversationsTopBarActions() {
 }
 
 function ConversationsLayoutContent() {
-  useAutoLaunchTour('conversations');
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();

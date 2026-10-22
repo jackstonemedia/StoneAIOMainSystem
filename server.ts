@@ -25,7 +25,6 @@ import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter, { stripeWebhookHandler } from './api/routes/billing.routes.js';
-import onboardingRouter from './api/routes/onboarding.routes.js';
 import workflowRouter      from './api/routes/workflows.routes.js';
 import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
@@ -274,7 +273,6 @@ async function startServer() {
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
-  app.use('/api',                onboardingRouter); // onboarding progress routes
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);

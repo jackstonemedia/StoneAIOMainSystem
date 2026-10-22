@@ -743,7 +743,7 @@ export default function ThreadPane() {
         </div>
 
         {/* ── Composer / Collapsible Message Bar ── */}
-        <div data-tour="inbox-composer" className="shrink-0">
+        <div className="shrink-0">
           {isComposerHidden ? (
             <div className="px-6 py-2.5 bg-surface/90 border-t border-border/50 backdrop-blur-md flex items-center justify-between z-10 transition-all">
               <span className="text-[12px] text-text-muted italic flex items-center gap-2">

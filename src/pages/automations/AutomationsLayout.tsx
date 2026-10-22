@@ -3,10 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { Zap, Play, Link2, Table2, GitMerge, Settings, ShieldAlert, Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function AutomationsLayout() {
-  useAutoLaunchTour('automations');
   const { count: unreadCount } = useUnreadNotificationsCount();
   const [isAIOpen, setIsAIOpen] = useState(false);
 

@@ -1,0 +1,81 @@
+{
+  "00-endpoint-check": {},
+  "01-crm-contacts": {
+    "url": "/crm/contacts",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 255
+  },
+  "02-opportunities": {
+    "url": "/crm/opportunities",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 224
+  },
+  "03-command-palette-empty": {
+    "url": "/crm/opportunities",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 418
+  },
+  "04-command-palette-tour": {
+    "paletteInputValue": "tour",
+    "noResults": true,
+    "productTourText": false,
+    "startTourText": false
+  },
+  "05-dashboard": {
+    "url": "/dashboard",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 779
+  },
+  "06-fresh-crm-contacts": {
+    "url": "/crm/contacts",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 255
+  },
+  "07-fresh-automations": {
+    "url": "/automations",
+    "htmlThemeClass": "theme-inbox-dark",
+    "dataTourCount": 0,
+    "productTourText": false,
+    "startTourText": false,
+    "resetToursText": false,
+    "gettingStartedHub": false,
+    "tourOverlay": false,
+    "tourProgressKey": null,
+    "bodyTextLen": 360
+  }
+}

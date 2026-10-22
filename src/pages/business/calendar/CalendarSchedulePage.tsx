@@ -839,7 +839,7 @@ export default function CalendarSchedulePage() {
       <div className="px-6 sm:px-8 pt-5 pb-3 flex flex-wrap items-center justify-between gap-4 shrink-0 border-b border-border/40">
         
         {/* Left: View Switcher Tabs matching CRM Smart Tabs */}
-        <div data-tour="business-schedule-view" className="flex items-center gap-1 bg-surface-hover/70 border border-border/60 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-surface-hover/70 border border-border/60 rounded-lg p-1">
           {[
             { id: 'month', label: 'Month', icon: CalendarDays },
             { id: 'week', label: 'Week', icon: CalendarRange },
