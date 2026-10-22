@@ -11,6 +11,7 @@
 
 import 'dotenv/config';
 console.log('>>> [server.ts] Loading modules (structured copilot intake v2)...');
+import { initSentry } from './api/utils/sentry.js';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -25,7 +26,6 @@ import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter, { stripeWebhookHandler } from './api/routes/billing.routes.js';
-import onboardingRouter from './api/routes/onboarding.routes.js';
 import workflowRouter      from './api/routes/workflows.routes.js';
 import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
@@ -48,7 +48,6 @@ import publicBookingRouter from './api/routes/public-booking.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
-import { resendWebhookHandler } from './api/webhooks/resend-webhook.handler.js';
 import { startEmailSendWorker } from './api/services/email-marketing/email-send-worker.service.js';
 import { triggerScheduledCampaigns } from './api/services/email-marketing/campaigns.service.js';
 
@@ -84,6 +83,10 @@ import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/n
 
 async function startServer() {
   console.log('>>> [server.ts] startServer() executing...');
+  // B-2: init server Sentry FIRST, before route modules handle anything.
+  // No-op when SENTRY_DSN is unset. SDK auto-captures uncaughtException /
+  // unhandledRejection once initialized.
+  initSentry();
   const app = express();
 
   // ── Security + perf middleware ────────────────────────────────────────────
@@ -93,7 +96,7 @@ async function startServer() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://js.stripe.com"],
-        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://api.stripe.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://api.stripe.com", "https://*.sentry.io"],
         frameSrc: ["'self'", "https://*.clerk.accounts.dev", "https://js.stripe.com", "https://hooks.stripe.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -184,6 +187,17 @@ async function startServer() {
 
 
 
+  // ── Dev-only Sentry test route (B-2) ───────────────────────────────────
+  // Throws through the normal errorHandler so Jack can verify the Sentry
+  // funnel end-to-end with one curl once a DSN is set. 404 in production —
+  // never exposed. Mounted BEFORE resolveWorkspace (same pattern as the
+  // webhooks below) so the one-command check works without a Clerk JWT.
+  if (env.NODE_ENV !== 'production') {
+    app.get('/api/_sentry-test', (_req, _res, next) => {
+      next(new Error('Sentry test error'));
+    });
+  }
+
   // ── All inbound webhooks MUST be registered before resolveWorkspace ───────
   // These routes receive requests from Twilio, Microsoft, and Meta that do NOT
   // carry a Clerk JWT. Workspace is resolved from the payload inside each handler.
@@ -230,15 +244,6 @@ async function startServer() {
   app.get('/api/hooks/meta', metaWebhookVerify);
   app.post('/api/hooks/meta', metaWebhookPost);
 
-  // ── Resend delivery webhook — MUST be before resolveWorkspace (no JWT from Resend) ──
-  // Uses raw JSON body so signature verification works on the original payload bytes.
-  app.post(
-    '/api/webhooks/resend',
-    webhookLimiter,
-    express.json(),
-    resendWebhookHandler,
-  );
-
   // ── Stripe webhook — MUST be before resolveWorkspace (no JWT from Stripe) ──
   app.post(
     ['/api/webhooks/stripe', '/api/stripe/webhook'],
@@ -279,7 +284,6 @@ async function startServer() {
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
-  app.use('/api',                onboardingRouter); // onboarding progress routes
   app.use('/api/workflows',      workflowRouter);
   app.use('/api/tables',         tablesRouter);
   app.use('/api/channels',       channelsRouter);

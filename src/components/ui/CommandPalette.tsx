@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Command, X, Users, Briefcase, Plus, Compass, RotateCcw, Zap, MailOpen, MessageSquare, Megaphone, Calendar } from 'lucide-react';
+import { Search, Command, X, Users, Briefcase, Plus, Zap, MailOpen, MessageSquare, Megaphone, Calendar } from 'lucide-react';
 import { db, StorageKey } from '../../lib/storage';
-import { useTourStore } from '../../store/useTourStore';
-import { getAllTours } from '../../lib/tours/registry';
 
 export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<{ type: string, label: string, url?: string, action?: () => void, icon: any }[]>([]);
   const navigate = useNavigate();
-  const { startTour, resetTour } = useTourStore();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -26,37 +23,18 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean, o
   useEffect(() => {
     if (!isOpen) return;
     const fetchResults = async () => {
-      const allTours = getAllTours();
-
-      const tourCommands = allTours.map(t => ({
-        type: 'Product Tour',
-        label: `Start Tour: ${t.title}`,
-        action: () => {
-          if (t.steps[0]?.route) {
-            navigate(t.steps[0].route);
-            setTimeout(() => startTour(t.key, 0), 300);
-          } else {
-            startTour(t.key, 0);
-          }
-        },
-        icon: Compass,
-      }));
 
       if (!query.trim()) {
         setResults([
           { type: 'Action', label: 'Create new Contact', url: '/crm/contacts?new=true', icon: Plus },
           { type: 'Action', label: 'Create new Deal', url: '/crm/pipeline?new=true', icon: Plus },
-          ...tourCommands.slice(0, 2),
           { type: 'Navigation', label: 'Go to Contacts', url: '/crm/contacts', icon: Users },
           { type: 'Navigation', label: 'Go to Pipeline', url: '/crm/pipeline', icon: Briefcase },
-          { type: 'Action', label: 'Reset All Product Tours', action: () => resetTour(), icon: RotateCcw },
         ]);
         return;
       }
 
       const q = query.toLowerCase();
-
-      const matchedTours = tourCommands.filter(t => t.label.toLowerCase().includes(q) || 'tour'.includes(q) || 'onboarding'.includes(q));
 
       const [contacts, deals] = await Promise.all([
         db.get<any>(StorageKey.CONTACTS),
@@ -71,12 +49,12 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean, o
         .filter(d => d.title.toLowerCase().includes(q))
         .map(d => ({ type: 'Deal', label: d.title, url: `/crm/pipeline?dealId=${d.id}`, icon: Briefcase }));
 
-      setResults([...matchedTours, ...matchedContacts, ...matchedDeals].slice(0, 10));
+      setResults([...matchedContacts, ...matchedDeals].slice(0, 10));
     };
 
     const debounce = setTimeout(fetchResults, 150);
     return () => clearTimeout(debounce);
-  }, [query, isOpen, navigate, startTour, resetTour]);
+  }, [query, isOpen, navigate]);
 
   if (!isOpen) return null;
 

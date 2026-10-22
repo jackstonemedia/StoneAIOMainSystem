@@ -3,11 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { TourLauncher } from '../../components/tour/TourLauncher';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function BusinessLayout() {
-  useAutoLaunchTour('business');
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -62,7 +59,6 @@ export default function BusinessLayout() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3 pb-3">
-          <TourLauncher />
           <button
             onClick={() => document.dispatchEvent(new CustomEvent('open-command-palette'))}
             className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:opacity-80"

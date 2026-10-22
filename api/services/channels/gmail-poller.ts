@@ -13,5 +13,13 @@ export async function pollAllGmailAccounts(): Promise<void> {
     } catch (err) {
       console.error(`[Gmail Poller] Error for connection ${conn.id}:`, err);
     }
+    // M5 (Gmail-only): bounce DSNs arrive as ordinary mail — scan for
+    // them on the same cadence. Never breaks reply polling above.
+    try {
+      const { scanBounceNotifications } = await import('../email-marketing/gmail-bounce.service.js');
+      await scanBounceNotifications(conn.id);
+    } catch (err) {
+      console.error(`[Gmail Poller] Bounce scan error for connection ${conn.id}:`, err);
+    }
   }
 }

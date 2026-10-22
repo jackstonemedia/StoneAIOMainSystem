@@ -4,11 +4,8 @@ import { Settings, Search, Bell, Command, Bot, X } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../components/ui/NotificationPanel';
-import { TourLauncher } from '../../components/tour/TourLauncher';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 export default function CrmLayout() {
-  useAutoLaunchTour('crm');
   const [isAIOpen, setIsAIOpen] = React.useState(false);
   const [isNotifOpen, setIsNotifOpen] = React.useState(false);
   const location = useLocation();
@@ -18,7 +15,7 @@ export default function CrmLayout() {
     <div className="flex flex-col h-full w-full text-sm font-sans relative z-0 bg-bg">
       {/* CRM Nav Bar */}
       <div 
-        className="w-full flex items-center justify-between pr-8 pl-0 pt-3 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm"
+        className="w-full flex items-center justify-between pr-8 pl-0 pt-3 pb-0 shrink-0 border-b z-30 sticky top-0 shadow-sm"
         style={{ 
           background: 'var(--sidebar-bg)', /* Pulls from theme */
           borderColor: 'var(--sidebar-border)',
@@ -64,7 +61,6 @@ export default function CrmLayout() {
         {/* Portal Target for Page-Specific Header Actions */}
         <div className="flex items-center gap-3 pb-3 min-h-[44px]">
           <div id="crm-header-actions" className="flex items-center gap-3"></div>
-          <TourLauncher />
         </div>
       </div>
 

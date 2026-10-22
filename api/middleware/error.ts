@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger.js';
+import { captureServerError } from '../utils/sentry.js';
 
 /** Typed application error with HTTP status code */
 export class AppError extends Error {
@@ -32,6 +33,10 @@ export function errorHandler(
   }
 
   logger.error(`[UnhandledError] ${req.method} ${req.path}`, { error: err, stack: err.stack, method: req.method, path: req.path });
+
+  // B-2: report true 500s to Sentry (no-op when no DSN is configured).
+  // AppError (expected 4xx) is NOT sent — expected errors must not create alert noise.
+  captureServerError(err, { method: req.method, path: req.path });
   
   const details = process.env.NODE_ENV === 'production' ? undefined : (err.stack || err.message || String(err));
   res.status(500).json({ error: 'Internal server error', ...(details && { details }) });

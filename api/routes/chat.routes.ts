@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Type } from '@google/genai';
 import { db } from '../../infrastructure/database/client.js';
-import { tryGetAIClient } from '../../packages/ai/client.js';
+import { tryGetAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
 
 const router = Router();
 const ai = tryGetAIClient();
@@ -95,7 +95,7 @@ router.post('/:id/messages', async (req, res) => {
     }];
 
     const stream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
+      model: DEFAULT_MODEL,
       contents: history,
       config: {
         tools: geminiTools,

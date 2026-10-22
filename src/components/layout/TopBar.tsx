@@ -1,7 +1,6 @@
 import { useLocation, Link } from 'react-router-dom';
 import { Search, Plus, Bell, User, Command } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import { TourLauncher } from '../tour/TourLauncher';
 
 interface TopBarProps {
   onOpenCommandPalette: () => void;
@@ -49,7 +48,6 @@ export default function TopBar({ onOpenCommandPalette, onOpenNotifications }: To
           </div>
         </button>
 
-        <TourLauncher />
 
         <button 
           onClick={() => window.dispatchEvent(new CustomEvent('open-new-dropdown'))} // Simplified for now

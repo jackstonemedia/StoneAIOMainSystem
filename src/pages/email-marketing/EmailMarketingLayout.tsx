@@ -3,8 +3,6 @@ import React, { useState } from 'react';
 import { Bot, Bell, Mail, Zap, Users, FileText, BarChart2 } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
-import { TourLauncher } from '../../components/tour/TourLauncher';
-import { useAutoLaunchTour } from '../../hooks/useAutoLaunchTour';
 
 const NAV_TABS = [
   { name: 'Campaigns',   path: '/email-marketing/campaigns',   icon: Mail },
@@ -16,7 +14,6 @@ const NAV_TABS = [
 ];
 
 export default function EmailMarketingLayout() {
-  useAutoLaunchTour('email-marketing');
   const [isAIOpen, setIsAIOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
   const location = useLocation();
@@ -103,7 +100,6 @@ export default function EmailMarketingLayout() {
           {/* Right: Portal Target for Page-Specific Header Actions (Search bar, Action buttons) */}
           <div className="flex items-center gap-3 pb-2.5 min-h-[40px]">
             <div id="crm-header-actions" className="flex items-center gap-3"></div>
-            <TourLauncher />
           </div>
         </div>
       )}

@@ -1,0 +1,7 @@
+{
+  "route": "/crm/contacts (Sort open)",
+  "file": "crm-contacts-sort-open.png",
+  "http": 200,
+  "dropdownVisible": true,
+  "size": 186581
+}

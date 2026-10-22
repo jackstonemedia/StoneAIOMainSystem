@@ -12,7 +12,7 @@ Stone AIO is a unified, multi-tenant AI CRM, workflow automation engine, and com
 - **Authentication & Security**: Clerk JWT Authentication, strict multi-tenant workspace isolation, AES-256-GCM encryption for integration credentials.
 - **Integrations & Communication**:
   - **Billing**: Stripe (Subscriptions, Webhook Idempotency, Credit limits).
-  - **Email**: Resend (Transactional, Drip campaigns, inbound delivery webhook tracking).
+  - **Email**: Gmail API via OAuth (Transactional, Drip campaigns, app tracking; no third-party send provider).
   - **SMS / Voice**: Twilio (Inbound/Outbound messaging, AI Voice dispatch).
   - **Social / Ads**: Meta Leads Webhook, Ad Management & attribution.
   - **AI Engine**: Google Gemini (AI Actions, Inbox Copilots, Autonomous SDR Agents).

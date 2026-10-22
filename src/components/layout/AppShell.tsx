@@ -10,7 +10,6 @@ import CommandPalette from '../ui/CommandPalette';
 import NotificationPanel from '../ui/NotificationPanel';
 import AIAssistant from '../ai/AIAssistant';
 import { ToastProvider } from '../ui/Toast';
-import { TourProvider } from '../tour/TourProvider';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -37,7 +36,6 @@ export default function AppShell() {
   const content = (
     <ToastProvider>
       <ThemeProvider>
-        <TourProvider>
           <div
             className="flex h-screen overflow-hidden relative"
             style={{ background: 'var(--bg)' }}
@@ -106,7 +104,6 @@ export default function AppShell() {
 
         <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
         <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
-        </TourProvider>
       </ThemeProvider>
     </ToastProvider>
   );

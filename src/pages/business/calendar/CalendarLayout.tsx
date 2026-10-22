@@ -5,11 +5,8 @@ import { useUnreadNotificationsCount } from '../../../hooks/useUnreadNotificatio
 import CRMAIAssistant from '../../../components/crm/CRMAIAssistant';
 import NotificationPanel from '../../../components/ui/NotificationPanel';
 
-import { TourLauncher } from '../../../components/tour/TourLauncher';
-import { useAutoLaunchTour } from '../../../hooks/useAutoLaunchTour';
 
 export default function CalendarLayout() {
-  useAutoLaunchTour('business');
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
@@ -67,7 +64,6 @@ export default function CalendarLayout() {
 
         {/* Portal Target for Page Actions */}
         <div id="crm-header-actions" className="flex items-center gap-2 pb-3 min-h-[44px]">
-          <TourLauncher />
         </div>
       </div>
 

@@ -74,6 +74,10 @@ import {
   markContactReplied,
   processDripSequences,
 } from '../services/email-marketing/sequence-scheduler.service.js';
+import { processDueSequenceSteps } from '../services/email-marketing/sequence-runner.service.js';
+import { processDueReactions } from '../services/email-marketing/reaction-engine.service.js';
+import { processDueAbWinners, processHealthAutoPause } from '../services/email-marketing/ab-test.service.js';
+import { processColdDrip } from '../services/email-marketing/cold-outreach.service.js';
 import {
   createSendingDomain,
   getSendingDomains,
@@ -81,11 +85,22 @@ import {
   deleteSendingDomain,
 } from '../services/email-marketing/sending-domain.service.js';
 import emailCopilotRouter from './email-copilot.routes.js';
+import createWithAiRouter from './create-with-ai.routes.js';
 
 // Background runner: check for due scheduled campaigns & drip sequence follow-ups
 setInterval(() => {
   processScheduledCampaigns().catch(err => console.error('[ScheduledCampaigns] Background runner error:', err));
   processDripSequences().catch(err => console.error('[SequenceScheduler] Background runner error:', err));
+  // M5: reactions FIRST (they own pending sends + windows), then sequences
+  // (which skip reaction-pending states) — same 30s tick, own try/catch.
+  processDueReactions().catch(err => console.error('[ReactionEngine] Background runner error:', err));
+  processDueSequenceSteps().catch(err => console.error('[SequenceRunner] Background runner error:', err));
+  // M6: A/B winner rollout + health auto-pause (own try/catch each; the
+  // winner tick skips PAUSED campaigns, so auto-pause stops rollouts too).
+  processDueAbWinners().catch(err => console.error('[ABWinner] Background runner error:', err));
+  processHealthAutoPause().catch(err => console.error('[HealthAutoPause] Background runner error:', err));
+  // M7: cold drip (ramp cap + window + exit re-check; own try/catch).
+  processColdDrip().catch(err => console.error('[ColdDrip] Background runner error:', err));
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';
@@ -100,6 +115,9 @@ const router = Router();
 
 // Mount AI Campaign Copilot
 router.use('/ai-copilot', emailCopilotRouter);
+
+// Mount Create with AI (Business Profile, Writing Samples, Website Prefill)
+router.use('/create-with-ai', createWithAiRouter);
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -499,6 +517,26 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
   const campaignId = typeof req.query.cmp === 'string' && req.query.cmp ? req.query.cmp : null;
   const automationEnrollmentId = typeof req.query.ae === 'string' && req.query.ae ? req.query.ae : null;
   const sig = typeof req.query.sig === 'string' ? req.query.sig : '';
+  const token = typeof req.query.t === 'string' ? req.query.t : '';
+
+  // Signed tracking tokens (spec §20): when a token is present it must
+  // verify against the claimed campaign, contact and destination. A failed
+  // token records nothing and redirects home — a forged click must neither
+  // pollute analytics nor turn this endpoint into an open redirect.
+  // Links without a token keep the legacy behavior (the pre-existing flow
+  // sends tokenless links); signing for that flow is a follow-up, and
+  // tokenless forgery for already-delivered legacy links remains possible.
+  if (token) {
+    const { verifyTrackingToken } = await import('../services/email-marketing/fact-validator.js');
+    if (!campaignId || !contactId || !targetUrl || !verifyTrackingToken(token, campaignId, contactId, targetUrl)) {
+      res.writeHead(302, {
+        Location: '/',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      });
+      res.end();
+      return;
+    }
+  }
 
   // 1. Destination URL syntax & protocol validation
   if (!targetUrl || !isSafeRedirectUrl(targetUrl)) {
@@ -513,7 +551,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
   let isAllowed = isRelative;
 
   if (!isAllowed) {
-    if (sig && workspaceId && contactId) {
+    if (token) {
+      isAllowed = true;
+    } else if (sig && workspaceId && contactId) {
       isAllowed = verifyClickTrackingSignature({ url: targetUrl, workspaceId, contactId }, sig);
     }
     if (!isAllowed) {
@@ -553,7 +593,33 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
     }
 
     if (workspaceId && contactId) {
-      // 1. Record EmailEvent
+      // 1. Record EmailEvent — with M3 bot filtering (spec §18): clicks ≤10s
+      // after delivery, or matching known scanner user agents, are recorded
+      // with is_bot_suspected and never counted as real clicks.
+      let deliveredAt: Date | null = null;
+      if (campaignId) {
+        const recipient = await db.campaignRecipient.findFirst({
+          where: { campaignId, contactId },
+          select: { sentAt: true },
+        });
+        deliveredAt = recipient?.sentAt || null;
+        if (!deliveredAt) {
+          const sent = await db.emailEvent.findFirst({
+            where: { campaignId, contactId, eventType: EmailEventType.SENT },
+            orderBy: { occurredAt: 'asc' },
+            select: { occurredAt: true },
+          });
+          deliveredAt = sent?.occurredAt || null;
+        }
+      }
+      const userAgent = req.headers['user-agent'] || null;
+      const { isBotClick, decodeTrackingTokenEmailId } = await import('../services/email-marketing/fact-validator.js');
+      const botSuspected = isBotClick(deliveredAt, new Date(), userAgent);
+      // M5: per-email click attribution for reaction rules. Signed tokens
+      // carry the CampaignEmail id; tokenless worker links (Email 1) carry
+      // none and fall back to utm_content / order-1 attribution in the
+      // reaction engine.
+      const tokenEmailId = token ? decodeTrackingTokenEmailId(token, campaignId || '', contactId, targetUrl) : null;
       await db.emailEvent.create({
         data: {
           workspaceId,
@@ -562,7 +628,9 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
           automationEnrollmentId,
           eventType: EmailEventType.CLICKED,
           linkUrl: safeUrl,
-        },
+          isBotSuspected: botSuspected,
+          metadata: { userAgent, botSuspected, emailId: tokenEmailId },
+        } as any,
       });
 
       // 2. Update contact lastEmailClickedAt

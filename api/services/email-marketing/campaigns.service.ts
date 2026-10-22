@@ -12,6 +12,7 @@ import { db } from '../../../infrastructure/database/client.js';
 import { CampaignStatus, SubscriptionStatus, Prisma } from '@prisma/client';
 import { emailMarketingSendQueue } from './email-send-worker.service.js';
 import { evaluateSegment } from './audience.service.js';
+import { coldSendContext } from './cold-outreach.service.js';
 
 // ── Template CRUD ─────────────────────────────────────────────────────────────
 
@@ -87,6 +88,8 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
   if (!campaign) throw new Error('Campaign not found');
 
   const { processEmailSendJobDirectly } = await import('./email-send-worker.service.js');
+  // M7: a resumed cold campaign still drips under the ramp cap.
+  const coldCtx = await coldSendContext(workspaceId, campaignId);
 
   const recipients = await db.campaignRecipient.findMany({
     where: { campaignId },
@@ -112,6 +115,9 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
   let failed = 0;
   for (const recipient of recipients) {
     if (recipient.status === 'PENDING') {
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -132,6 +138,23 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
     where: { id: campaignId, workspaceId },
     data: { status: CampaignStatus.SENT, sentAtUtc: campaign.sentAtUtc || new Date() },
   });
+
+  // M3: the linked single email follows the campaign into SENT. Scoped to
+  // kind 'scheduled' (the M3 single email); reaction emails (M5) own their
+  // lifecycle. Regular campaigns have no CampaignEmail rows, so this is a
+  // no-op for them. Without this, a sent email stayed 'scheduled' forever.
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sent' },
+  });
+
+  // M4: a sequence's Email 1 reaching SENT enrolls its recipients into
+  // RecipientStates (per-person timing from actual sent times). Never
+  // throws — enroll failures are logged inside, never break completion.
+  {
+    const { enrollSequenceIfNeeded } = await import('./sequence-runner.service.js');
+    await enrollSequenceIfNeeded(workspaceId, campaignId);
+  }
 
   return { queued, failed, status: 'SENT' };
 }
@@ -434,6 +457,14 @@ export async function sendCampaign(
     data: { status: CampaignStatus.SENDING },
   });
 
+  // M3: the linked single email follows the campaign into SENDING (scoped
+  // to kind 'scheduled'; a no-op for regular campaigns, which have no
+  // CampaignEmail rows).
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sending' },
+  });
+
   // Resolve recipients
   const contactIds = await resolveRecipientContactIds(
     workspaceId,
@@ -464,6 +495,11 @@ export async function sendCampaign(
 
   const abConfig = campaign.abTestConfig as any;
   const isAbTest = abConfig && abConfig.enabled;
+
+  // M7: cold campaigns drip under the daily ramp cap. The gate is checked
+  // before every send below; at-cap recipients stay PENDING (never failed)
+  // and the drip tick finishes them day by day.
+  const coldCtx = await coldSendContext(workspaceId, campaignId);
 
   if (isAbTest) {
     const testPct = Number(abConfig.splitPercentage ?? abConfig.testPercentage ?? 100);
@@ -499,6 +535,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -525,6 +564,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -565,7 +607,9 @@ export async function sendCampaign(
     });
   } else {
     // Standard Broadcast (non A/B)
-    for (const contactId of contactIds) {
+    // M7: cold broadcasts send in shuffled order (randomized spacing).
+    const broadcastOrder = coldCtx.isCold ? [...contactIds].sort(() => Math.random() - 0.5) : contactIds;
+    for (const contactId of broadcastOrder) {
       const recipient = await db.campaignRecipient.create({
         data: {
           campaignId,
@@ -575,6 +619,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -604,6 +651,22 @@ export async function sendCampaign(
       where: { id: campaignId, workspaceId },
       data: { status: CampaignStatus.SENT, sentAtUtc: new Date() },
     });
+  }
+
+  // M3: the linked single email follows the campaign into SENT (scoped to
+  // kind 'scheduled'; see the resumeAndCompleteSending transition above).
+  // This runs before the all-failed throw below, so the email agrees with
+  // its campaign even when every recipient failed; per-recipient outcomes
+  // live on CampaignRecipient.
+  await db.campaignEmail.updateMany({
+    where: { campaignId, kind: 'scheduled' },
+    data: { status: 'sent' },
+  });
+
+  // M4: enroll a sequence's Email 1 recipients (see resumeAndCompleteSending).
+  {
+    const { enrollSequenceIfNeeded } = await import('./sequence-runner.service.js');
+    await enrollSequenceIfNeeded(workspaceId, campaignId);
   }
 
   if (queued === 0 && failed > 0) {

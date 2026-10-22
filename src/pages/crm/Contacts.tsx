@@ -428,7 +428,7 @@ export default function Contacts() {
               <div className="w-[1px] h-5 bg-border ml-1"></div>
             </div>
           )}
-          <div className="relative shadow-sm rounded-full flex items-center mr-2" data-tour="crm-search-filter">
+          <div className="relative shadow-sm rounded-full flex items-center mr-2">
             <Search className="w-4 h-4 absolute left-3 text-text-muted" />
             <input 
               type="text" 
@@ -443,7 +443,7 @@ export default function Contacts() {
             <Download className="w-4 h-4" /> Import
           </button>
           
-          <div className="relative flex items-center gap-1" data-tour="crm-add-contact">
+          <div className="relative flex items-center gap-1">
             <button 
               onClick={() => setPanelOpen('new_contact')} 
               className="btn-secondary"
@@ -462,11 +462,53 @@ export default function Contacts() {
               <Settings className="w-4 h-4" /> Manage fields
             </button>
           </div>
+
+          <div className="w-[1px] h-5 bg-border mx-1"></div>
+
+          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
+            <Filter className="w-4 h-4 text-white" /> Advanced filters
+          </button>
+          <div className="relative">
+            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
+              <ChevronDown className="w-4 h-4" /> Sort
+            </button>
+            <AnimatePresence>
+              {sortDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
+                  <motion.div 
+                    initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
+                    className="absolute left-0 top-full mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {[
+                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
+                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
+                      { label: 'Newest First', field: 'createdAt', dir: 'desc' },
+                      { label: 'Oldest First', field: 'createdAt', dir: 'asc' }
+                    ].map((opt, i) => (
+                      <button 
+                        key={i} 
+                        onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
+                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {sortConfig && (
+                      <div className="border-t border-border mt-1 pt-1">
+                        <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors">Clear Sort</button>
+                      </div>
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </HeaderPortal>
 
       {/* Content Rendering */}
-      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10" data-tour="crm-contacts-table">
+      <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10">
         <table className="w-full text-left">
           <thead className="sticky top-0 z-10 border-b border-border/50 bg-surface/80 backdrop-blur-md shadow-sm">
             <tr>
@@ -530,9 +572,6 @@ export default function Contacts() {
                 {visibleCols.has('Contact name') && (
                   <td className="p-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold bg-white text-zinc-950 shadow-sm shrink-0 border border-white/20">
-                        {(c.name || '').includes('(Example)') ? (c.name || '').replace('(Example) ', '').charAt(0) : (c.name || '').substring(0, 2).toUpperCase()}
-                      </div>
                       <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">{c.name ?? 'Unknown'}</span>
                       {((c as any).totalEmailsReceived || 0) > 0 && (
                         <span
@@ -666,48 +705,6 @@ export default function Contacts() {
           '--btn-border': 'transparent'
         } as React.CSSProperties}
       >
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
-            <Filter className="w-4 h-4 text-white" /> Advanced filters
-          </button>
-          <div className="relative">
-            <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
-              <ChevronDown className="w-4 h-4" /> Sort
-            </button>
-            <AnimatePresence>
-              {sortDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setSortDropdownOpen(false)} />
-                  <motion.div 
-                    initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }}
-                    className="absolute left-0 bottom-full mb-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
-                  >
-                    {[
-                      { label: 'Name (A-Z)', field: 'name', dir: 'asc' },
-                      { label: 'Name (Z-A)', field: 'name', dir: 'desc' },
-                      { label: 'Newest First', field: 'createdAt', dir: 'desc' },
-                      { label: 'Oldest First', field: 'createdAt', dir: 'asc' }
-                    ].map((opt, i) => (
-                      <button 
-                        key={i} 
-                        onClick={() => { setSortConfig({ field: opt.field as keyof Contact, direction: opt.dir as 'asc' | 'desc' }); setSortDropdownOpen(false); }} 
-                        className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                    {sortConfig && (
-                      <div className="border-t border-border mt-1 pt-1">
-                        <button onClick={() => { setSortConfig(null); setSortDropdownOpen(false); }} className="w-full flex items-center px-4 py-2 text-[13px] font-medium text-red-400 hover:bg-surface-hover transition-colors">Clear Sort</button>
-                      </div>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
         <div className="flex items-center gap-4">
           {/* Rows Per Page Selector (Max 50) */}
           <div className="relative">

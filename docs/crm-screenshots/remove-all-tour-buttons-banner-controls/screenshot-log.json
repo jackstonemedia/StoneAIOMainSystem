@@ -1,0 +1,111 @@
+[
+  {
+    "route": "/settings",
+    "file": "settings-no-tour.png",
+    "label": "Settings (TopBar) \u2014 no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 73490,
+    "bannerControls": "(no #crm-header-actions on this page)"
+  },
+  {
+    "route": "/conversations",
+    "file": "conversations-no-tour.png",
+    "label": "Conversations \u2014 no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 70365,
+    "bannerControls": "(no #crm-header-actions on this page)"
+  },
+  {
+    "route": "/email-marketing",
+    "file": "email-marketing-no-tour.png",
+    "label": "Email Marketing \u2014 no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 93711,
+    "bannerControls": "AI Copilot Create Campaign"
+  },
+  {
+    "route": "/ads",
+    "file": "ads-no-tour.png",
+    "label": "Ads \u2014 no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 87638,
+    "bannerControls": "(no #crm-header-actions on this page)"
+  },
+  {
+    "route": "/crm/contacts",
+    "file": "crm-contacts-banner.png",
+    "label": "CRM Contacts \u2014 Filter + Sort on banner, no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 183080,
+    "bannerControls": "Import Add Contact Manage fields Advanced filters Sort",
+    "note": "Re-captured 2026-10-16 ~09:10 PDT (overlay-free) \u2014 first capture had CRM tour auto-launch overlay (STEP 1 OF 5) because fresh dev DB had tour progress not_started; re-capture after progress marked shows clean banner. See evidence log."
+  },
+  {
+    "route": "/crm/companies",
+    "file": "crm-companies-banner.png",
+    "label": "CRM Companies \u2014 Filter + Sort on banner, no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 108388,
+    "bannerControls": "Export Add Account Manage fields Advanced filters Sort"
+  },
+  {
+    "route": "/crm/opportunities",
+    "file": "crm-opportunities-banner.png",
+    "label": "CRM Opportunities \u2014 action cluster on banner, no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 84993,
+    "bannerControls": "Board List Filter Sort New Opportunity"
+  },
+  {
+    "route": "/crm/tasks",
+    "file": "crm-tasks-banner.png",
+    "label": "CRM Tasks \u2014 Custom Filter Rule + Sort on banner, no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 101200,
+    "bannerControls": "New Task Manage Columns Custom Filter Rule Sort"
+  },
+  {
+    "route": "/crm/opportunities/settings/pipelines",
+    "file": "crm-pipelines-banner.png",
+    "label": "Pipelines settings \u2014 New Pipeline on banner, no Product Tour",
+    "http": 200,
+    "theme": "theme-inbox-dark",
+    "localStorageTheme": "inbox-dark",
+    "hasProductTourText": false,
+    "productTourButtons": 0,
+    "size": 122937,
+    "bannerControls": "New Pipeline"
+  }
+]

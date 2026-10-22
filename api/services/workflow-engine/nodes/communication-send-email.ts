@@ -8,7 +8,8 @@ import { sendGmailMessage } from '../../channels/gmail.service.js';
 /**
  * Send Email node.
  *
- * Sends an email via a connected Gmail channel (preferred) or Resend (fallback).
+ * Sends an email via the connected Gmail channel (Gmail-only; no fallback —
+ * without Gmail the node returns an honest error).
  *
  * Configuration:
  *   - to       (text, required)      — Recipient email address; supports {{variables}}
@@ -21,7 +22,7 @@ export const communicationSendEmail: NodeImplementation = {
   type: 'communication.send_email',
   category: 'communication',
   displayName: 'Send Email',
-  description: 'Send an email via Gmail or Resend.',
+  description: 'Send an email via Gmail.',
   iconName: 'mail',
   color: '#3B82F6',
   outputHandles: [
@@ -112,7 +113,10 @@ export const communicationSendEmail: NodeImplementation = {
         };
       } catch (err: any) {
         await recordSendAuthError(mailbox.id, err);
-        throw new Error(`Gmail send failed via ${mailbox.email}: ${err?.message ?? String(err)}`);
+        throw new Error(
+          `Gmail send failed via ${mailbox.email}: ${err?.message ?? String(err)}. ` +
+          `Check that your Gmail connection is active and has send permissions (Settings → Channels).`
+        );
       }
     } else if (mailbox.provider === 'outlook') {
       try {

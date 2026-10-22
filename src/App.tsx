@@ -93,6 +93,8 @@ const AutomationsList      = lazy(() => import('./pages/email-marketing/Automati
 const AutomationCanvas     = lazy(() => import('./pages/email-marketing/AutomationCanvas'));
 const TemplatesList        = lazy(() => import('./pages/email-marketing/TemplatesList'));
 const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/CampaignAnalytics'));
+const BusinessProfilePage  = lazy(() => import('./pages/email-marketing/BusinessProfilePage'));
+const CreateWithAIPage     = lazy(() => import('./pages/email-marketing/CreateWithAIPage'));
 
 // Autonomous AI SDR
 const AutonomousSdrDashboard = lazy(() => import('./pages/sdr/AutonomousSdrDashboard'));
@@ -238,6 +240,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="templates" element={<ErrorBoundary><TemplatesList /></ErrorBoundary>} />
               <Route path="suppression" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
               <Route path="analytics" element={<ErrorBoundary><CampaignAnalytics /></ErrorBoundary>} />
+              <Route path="profile" element={<ErrorBoundary><BusinessProfilePage /></ErrorBoundary>} />
+              <Route path="create-with-ai" element={<ErrorBoundary><CreateWithAIPage /></ErrorBoundary>} />
             </Route>
 
             {/* Canonicalize Inbox -> Conversations */}

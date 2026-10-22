@@ -8,6 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { opportunitiesApi } from '../../../lib/api/opportunities';
 import { useToast } from '../../../components/ui/Toast';
+import { HeaderPortal } from '../../../components/layout/HeaderPortal';
 import type { CustomField, Pipeline } from '../../../types/opportunities';
 
 const FIELD_TYPES = [
@@ -133,6 +134,19 @@ export default function CustomFieldsSettingsPage() {
   return (
     <div className="h-full flex flex-col bg-bg overflow-hidden">
       {/* Top Header */}
+      {/* ── Banner control (portal → CrmLayout banner row) ── */}
+      <HeaderPortal>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all"
+        >
+          <Plus className="w-4 h-4" /> New Field
+        </button>
+      </HeaderPortal>
+
       <header className="px-8 py-4 border-b border-border bg-surface shrink-0 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link
@@ -152,15 +166,6 @@ export default function CustomFieldsSettingsPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all"
-        >
-          <Plus className="w-4 h-4" /> New Field
-        </button>
       </header>
 
       {/* Body Table */}
