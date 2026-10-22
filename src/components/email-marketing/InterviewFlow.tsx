@@ -8,6 +8,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Sparkles, Bot, FileText, ArrowLeft, RefreshCw, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
+import LiveEmailCanvas from './LiveEmailCanvas';
 import InterviewChat from './InterviewChat';
 import DraftReviewFlow from './DraftReviewFlow';
 import ProfileSidePanel from './ProfileSidePanel';
@@ -323,25 +325,40 @@ export default function InterviewFlow({
 
   if (pickList && !draft) {
     return (
-      <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-3">
-        <p className="text-sm font-semibold text-text-main">{createWithAiCopy.flow.resume}</p>
-        <p className="text-sm text-text-muted">{createWithAiCopy.flow.resumeHint}</p>
-        {pickList.map((d) => (
-          <div key={d.id} className="flex items-center justify-between gap-2 border border-border rounded-lg p-3">
-            <div className="text-sm">
-              <span className="text-text-main font-medium">Draft from {new Date(d.expiresAt).toLocaleDateString()}</span>
-              <span className="text-text-muted"> · Phase {d.currentPhase}</span>
+      <div className="flex-1 flex items-center justify-center p-6 w-full h-full">
+        <div className="w-full max-w-xl p-7 rounded-[18px] bg-surface/50 border border-border/70 backdrop-blur-xl shadow-luxury space-y-5 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 pb-3 border-b border-border/50">
+            <div className="w-10 h-10 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+              <Sparkles className="w-5 h-5" />
             </div>
-            <button type="button" onClick={() => setDraft(d)} className="btn-primary text-xs">
-              Resume
+            <div>
+              <h3 className="text-base font-bold text-text-main">{createWithAiCopy.flow.resume}</h3>
+              <p className="text-xs text-text-muted">{createWithAiCopy.flow.resumeHint}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 max-h-60 overflow-y-auto">
+            {pickList.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 p-3.5 rounded-[12px] bg-surface/60 border border-border/60 hover:border-primary/50 transition-colors">
+                <div className="min-w-0">
+                  <span className="text-xs text-text-main font-semibold block truncate">
+                    Campaign Draft ({new Date(d.expiresAt).toLocaleDateString()})
+                  </span>
+                  <span className="text-[11px] text-text-muted">Current Stage: Phase {d.currentPhase}</span>
+                </div>
+                <button type="button" onClick={() => setDraft(d)} className="btn-primary text-xs shrink-0 cursor-pointer">
+                  Resume
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-3 border-t border-border/50 flex items-center justify-between">
+            <span className="text-xs text-text-muted">{createWithAiCopy.flow.startNewHint}</span>
+            <button type="button" onClick={startNew} className="btn-secondary text-xs cursor-pointer">
+              {createWithAiCopy.flow.startNew}
             </button>
           </div>
-        ))}
-        <div className="pt-1">
-          <p className="text-xs text-text-muted mb-2">{createWithAiCopy.flow.startNewHint}</p>
-          <button type="button" onClick={startNew} className="btn-secondary text-xs">
-            {createWithAiCopy.flow.startNew}
-          </button>
         </div>
       </div>
     );
@@ -453,88 +470,77 @@ export default function InterviewFlow({
 
   if (pastInterview) {
     return (
-      <div className="space-y-4">
-        <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
-        <ProfileSidePanel
-          open={panelOpen}
-          profile={profile}
-          onClose={() => setPanelOpen(false)}
-          onSave={onSaveProfile}
-          saving={saving}
-          serverErrors={serverErrors}
-          inProgress
-          onRegenerate={() => handleSnapshot('regenerate')}
-          onKeep={() => handleSnapshot('keep')}
-        />
-      </div>
-    );
-  }
+      <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
+        {/* Left Pane: AI Strategist & Campaign Strategy Blueprint */}
+        <div className="w-[42%] min-w-[380px] max-w-[500px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
+          <div className="px-5 py-4 border-b border-border/50 bg-surface/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-primary p-0.5 shadow-interactive">
+                <div className="w-full h-full bg-bg rounded-full flex items-center justify-center text-primary">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text-main">AI Campaign Copilot</h3>
+                <p className="text-[11px] text-text-muted">Draft & Polish Stage</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+              Draft Ready
+            </span>
+          </div>
 
-  // M4 Phase 4 entry card: the Brief is confirmed but no sequence exists
-  // yet. One action only — start the sequence interview. There is no
-  // "skip Phase 4" fork: answering "one email" in Phase 4 keeps the
-  // single-email flow (M3 behavior).
-  if (needsSequenceEntry) {
-    return (
-      <div className="space-y-4">
-        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
-          <p className="text-sm font-semibold text-text-main">Phase 4 of 8: Sequence and Timing</p>
-          <p className="text-sm text-text-main">{createWithAiCopy.flow.comingNext}</p>
-          <p className="text-sm text-text-muted">
-            Answer in your own words — how many emails, over how many days, and what each one is for. If one email is
-            enough, say so and this campaign stays a single email.
-          </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={handleStartSequence} className="btn-primary text-sm" disabled={sending}>
-              Continue to Sequence and Timing
-            </button>
-            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
-              Edit Brief
-            </button>
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="p-4 rounded-[12px] bg-surface/40 border border-border/60 shadow-sm space-y-2">
+              <h4 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                <span>Confirmed Campaign Brief</span>
+              </h4>
+              <p className="text-xs text-text-main leading-relaxed whitespace-pre-line">
+                {typeof (draft.brief as any)?.text === 'string'
+                  ? (draft.brief as any).text
+                  : 'Campaign brief synthesized from your interview answers.'}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-[12px] bg-primary/5 border border-primary/20 space-y-2">
+              <h4 className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+                <span>AI Copywriter Insights</span>
+              </h4>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Your draft was created using your confirmed business profile and tone. Use the editor on the right to tweak copy, test subject lines, or send a test email.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleEditBrief}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-border bg-surface-hover hover:bg-surface rounded-[10px] text-xs font-semibold text-text-main transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Edit Campaign Brief (Reopen Interview)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPanelOpen(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-border bg-surface/50 hover:bg-surface-hover rounded-[10px] text-xs font-medium text-text-muted hover:text-text-main transition-colors cursor-pointer"
+              >
+                <span>Edit Business Profile Details</span>
+              </button>
+            </div>
           </div>
         </div>
-        <ProfileSidePanel
-          open={panelOpen}
-          profile={profile}
-          onClose={() => setPanelOpen(false)}
-          onSave={onSaveProfile}
-          saving={saving}
-          serverErrors={serverErrors}
-          inProgress
-          onRegenerate={() => handleSnapshot('regenerate')}
-          onKeep={() => handleSnapshot('keep')}
-        />
-      </div>
-    );
-  }
 
-  // M5 Phase 5 entry card: the sequence is planned but reactions are not
-  // yet. One action only — start the reactions interview. There is no
-  // "skip Phase 5" fork: the Phase 5 escape hatch assembles a plan from
-  // whatever the user has said (skipping anything unanswered, and saying
-  // so in the readback).
-  if (needsReactionsEntry) {
-    return (
-      <div className="space-y-4">
-        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
-          <p className="text-sm font-semibold text-text-main">Phase 5 of 8: Reactions</p>
-          <p className="text-sm text-text-main">
-            Your sequence is planned. Now decide what happens after each email goes out — who gets a follow-up, who
-            gets a different email, and when you want to hear about it.
-          </p>
-          <p className="text-sm text-text-muted">
-            Answer in your own words. Opens are approximate, so the plan leans on clicks — and a machine-opened email
-            is never treated as if a person read it.
-          </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={handleStartReactions} className="btn-primary text-sm" disabled={sending}>
-              Continue to Reactions
-            </button>
-            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
-              Edit Brief
-            </button>
+        {/* Right Pane: DraftReviewFlow */}
+        <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
+          <div className="flex-1 overflow-y-auto p-6">
+            <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
           </div>
         </div>
+
         <ProfileSidePanel
           open={panelOpen}
           profile={profile}
@@ -550,32 +556,90 @@ export default function InterviewFlow({
     );
   }
 
-  // M6 Phase 6 entry card: reactions are confirmed but the plan is not
-  // yet. One action only — start the A/B testing interview. There is no
-  // "skip Phase 6" fork: answering "no test" in Phase 6 is itself a valid
-  // plan (B4a), and the Phase 6 escape hatch locks a plan from whatever
-  // the user has said.
-  if (needsAbEntry) {
+  // Phase transition entries (Sequence, Reactions, A/B testing)
+  if (needsSequenceEntry || needsReactionsEntry || needsAbEntry) {
+    const isSeq = needsSequenceEntry;
+    const isReact = needsReactionsEntry;
+    const phaseNum = isSeq ? 4 : isReact ? 5 : 6;
+    const phaseTitle = isSeq
+      ? 'Phase 4 of 8: Sequence and Timing'
+      : isReact
+      ? 'Phase 5 of 8: Reactions'
+      : 'Phase 6 of 8: A/B Testing';
+    const phaseDesc = isSeq
+      ? 'Your Brief is confirmed. Now decide how many emails go out, over how many days, and what each email is for.'
+      : isReact
+      ? 'Your sequence is planned. Now decide what happens after each email goes out — who gets a follow-up, and when.'
+      : 'Your reactions are planned. Now decide whether to test two subject variations to see which gets higher open rates.';
+    const actionBtn = isSeq
+      ? { label: 'Continue to Sequence and Timing', fn: handleStartSequence }
+      : isReact
+      ? { label: 'Continue to Reactions', fn: handleStartReactions }
+      : { label: 'Continue to A/B Testing', fn: handleStartAbTesting };
+
     return (
-      <div className="space-y-4">
-        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
-          <p className="text-sm font-semibold text-text-main">Phase 6 of 8: A/B Testing</p>
-          <p className="text-sm text-text-main">
-            Your reactions are planned. Now decide whether to test two versions of something — and which one wins.
-          </p>
-          <p className="text-sm text-text-muted">
-            An A/B test sends two versions of one part of an email to two small groups, sees which gets more clicks,
-            then sends the better one to everyone else. With a small list, skipping the test is the right call.
-          </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={handleStartAbTesting} className="btn-primary text-sm" disabled={sending}>
-              Continue to A/B Testing
-            </button>
-            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
-              Edit Brief
-            </button>
+      <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
+        {/* Left Pane: Phase Transition Card */}
+        <div className="w-[44%] min-w-[420px] max-w-[560px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
+          <div className="px-5 py-4 border-b border-border/50 bg-surface/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-primary p-0.5 shadow-interactive">
+                <div className="w-full h-full bg-bg rounded-full flex items-center justify-center text-primary">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text-main">Stone AI Strategist</h3>
+                <p className="text-[11px] text-text-muted">Campaign Progression</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-primary px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+              Phase {phaseNum} of 8
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center space-y-6">
+            <div className="p-6 rounded-[16px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/15 text-primary text-xs font-bold rounded-full">
+                <Layers className="w-3.5 h-3.5" />
+                <span>{phaseTitle}</span>
+              </div>
+
+              <h3 className="text-lg font-bold text-text-main leading-snug">
+                Ready for the Next Strategic Step
+              </h3>
+
+              <p className="text-xs text-text-muted leading-relaxed">
+                {phaseDesc}
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={actionBtn.fn}
+                  disabled={sending}
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-[10px] text-xs font-bold shadow-interactive transition-all cursor-pointer"
+                >
+                  <span>{actionBtn.label}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditBrief}
+                  className="px-4 py-2.5 border border-border bg-surface-hover hover:bg-surface rounded-[10px] text-xs font-semibold text-text-muted hover:text-text-main transition-colors cursor-pointer"
+                >
+                  Edit Brief
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Right Pane: Live Email Canvas */}
+        <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
+          <LiveEmailCanvas draft={draft} profile={profile} />
+        </div>
+
         <ProfileSidePanel
           open={panelOpen}
           profile={profile}
@@ -591,32 +655,42 @@ export default function InterviewFlow({
     );
   }
 
+  // Active Interview (Phases 1-6) Two-Pane Studio
   return (
-    <div className="space-y-4">
-      <InterviewChat
-        draft={draft}
-        input={input}
-        onInputChange={setInput}
-        sending={sending}
-        aiError={aiError}
-        examplePlaceholder={examplePlaceholder}
-        micSupported={micSupported}
-        listening={listening}
-        onMic={handleMic}
-        onSend={handleSend}
-        onRetry={handleRetry}
-        onBack={handleBack}
-        onEditProfile={() => setPanelOpen(true)}
-        onEscapeHatch={handleEscapeHatch}
-        onCorrectRecap={handleCorrectRecap}
-        onConfirmBrief={handleConfirmBrief}
-        onConfirmReactions={handleConfirmReactions}
-        onConfirmPlan={handleConfirmPlan}
-        profileChanged={profileChanged}
-        onRegenerateProfile={() => handleSnapshot('regenerate')}
-        onKeepProfile={() => handleSnapshot('keep')}
-        onStartNew={startNew}
-      />
+    <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
+      {/* Left Pane: AI Chat Studio (~44% width) */}
+      <div className="w-[44%] min-w-[420px] max-w-[560px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
+        <InterviewChat
+          draft={draft}
+          input={input}
+          onInputChange={setInput}
+          sending={sending}
+          aiError={aiError}
+          examplePlaceholder={examplePlaceholder}
+          micSupported={micSupported}
+          listening={listening}
+          onMic={handleMic}
+          onSend={handleSend}
+          onRetry={handleRetry}
+          onBack={handleBack}
+          onEditProfile={() => setPanelOpen(true)}
+          onEscapeHatch={handleEscapeHatch}
+          onCorrectRecap={handleCorrectRecap}
+          onConfirmBrief={handleConfirmBrief}
+          onConfirmReactions={handleConfirmReactions}
+          onConfirmPlan={handleConfirmPlan}
+          profileChanged={profileChanged}
+          onRegenerateProfile={() => handleSnapshot('regenerate')}
+          onKeepProfile={() => handleSnapshot('keep')}
+          onStartNew={startNew}
+        />
+      </div>
+
+      {/* Right Pane: Live Email Canvas (~56% width) */}
+      <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
+        <LiveEmailCanvas draft={draft} profile={profile} />
+      </div>
+
       <ProfileSidePanel
         open={panelOpen}
         profile={profile}

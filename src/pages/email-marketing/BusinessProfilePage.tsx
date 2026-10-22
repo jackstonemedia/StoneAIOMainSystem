@@ -52,25 +52,27 @@ export default function BusinessProfilePage() {
   if (error) return <div className="p-6 text-red-400">Failed to load profile: {extractApiError(error)}</div>;
 
   return (
-    <div className="mx-8 mt-5 mb-8 space-y-6 max-w-3xl">
-      <div>
-        <h2 className="text-xl font-bold text-text-main">{createWithAiCopy.profile.title}</h2>
-        <p className="text-sm text-text-muted mt-1">{createWithAiCopy.profile.subtitle}</p>
+    <div className="flex flex-col h-full w-full relative overflow-y-auto z-0 bg-bg pb-12">
+      <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10" />
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6">
+        <ProfileForm
+          initial={profileToFormValues(data?.profile || null)}
+          onSave={save}
+          saving={saving}
+          serverErrors={serverErrors}
+        />
+
+        {data?.profile && (
+          <div className="mt-10 pt-8 border-t border-border/60">
+            <MyBestEmails samples={data.samples} onRefresh={refresh} />
+          </div>
+        )}
+        {!data?.profile && (
+          <p className="text-sm text-text-muted mt-4 text-center">
+            Save your profile first — writing samples attach to it afterwards.
+          </p>
+        )}
       </div>
-
-      <ProfileForm
-        initial={profileToFormValues(data?.profile || null)}
-        onSave={save}
-        saving={saving}
-        serverErrors={serverErrors}
-      />
-
-      {data?.profile && <MyBestEmails samples={data.samples} onRefresh={refresh} />}
-      {!data?.profile && (
-        <p className="text-sm text-text-muted">
-          Save your profile first — writing samples attach to it afterwards.
-        </p>
-      )}
     </div>
   );
 }

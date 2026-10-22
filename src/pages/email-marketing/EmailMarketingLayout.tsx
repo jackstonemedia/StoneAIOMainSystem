@@ -24,7 +24,8 @@ export default function EmailMarketingLayout() {
       location.pathname !== '/email-marketing/campaigns') ||
     location.pathname.startsWith('/email-marketing/automations/new') ||
     (location.pathname.startsWith('/email-marketing/automations/') &&
-      location.pathname !== '/email-marketing/automations');
+      location.pathname !== '/email-marketing/automations') ||
+    location.pathname.startsWith('/email-marketing/create-with-ai');
 
   return (
     <div className="flex flex-col h-full w-full text-sm font-sans relative z-0 bg-bg text-text-main">

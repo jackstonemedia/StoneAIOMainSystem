@@ -49,6 +49,7 @@ export default function ProfileSidePanel({
           saving={saving}
           serverErrors={serverErrors}
           onCancel={onClose}
+          compact={true}
         />
         {inProgress && (
           <div className="border border-border rounded-lg p-3 space-y-2 bg-surface/40">

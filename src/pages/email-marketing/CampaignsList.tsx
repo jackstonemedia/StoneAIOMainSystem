@@ -334,14 +334,14 @@ export default function CampaignsList() {
             <span>AI Copilot</span>
           </button>
 
-          {/* Create with AI Button (phased interview flow — Milestone 1+) */}
+          {/* Build with AI Button (phased interview flow — Milestone 1+) */}
           <button
             onClick={() => navigate('/email-marketing/create-with-ai')}
             className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
-            title="Create with AI — phased interview that writes the campaign"
+            title="Build with AI — phased interview that writes the campaign"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Create with AI</span>
+            <span>Build with AI</span>
           </button>
 
           {/* New Campaign Button */}
