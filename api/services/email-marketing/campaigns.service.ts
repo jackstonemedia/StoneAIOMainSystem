@@ -12,6 +12,7 @@ import { db } from '../../../infrastructure/database/client.js';
 import { CampaignStatus, SubscriptionStatus, Prisma } from '@prisma/client';
 import { emailMarketingSendQueue } from './email-send-worker.service.js';
 import { evaluateSegment } from './audience.service.js';
+import { coldSendContext } from './cold-outreach.service.js';
 
 // ── Template CRUD ─────────────────────────────────────────────────────────────
 
@@ -87,6 +88,8 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
   if (!campaign) throw new Error('Campaign not found');
 
   const { processEmailSendJobDirectly } = await import('./email-send-worker.service.js');
+  // M7: a resumed cold campaign still drips under the ramp cap.
+  const coldCtx = await coldSendContext(workspaceId, campaignId);
 
   let recipients = await db.campaignRecipient.findMany({
     where: { campaignId },
@@ -112,6 +115,9 @@ export async function resumeAndCompleteSending(workspaceId: string, campaignId: 
   let failed = 0;
   for (const recipient of recipients) {
     if (recipient.status === 'PENDING') {
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -446,6 +452,11 @@ export async function sendCampaign(
   const abConfig = campaign.abTestConfig as any;
   const isAbTest = abConfig && abConfig.enabled;
 
+  // M7: cold campaigns drip under the daily ramp cap. The gate is checked
+  // before every send below; at-cap recipients stay PENDING (never failed)
+  // and the drip tick finishes them day by day.
+  const coldCtx = await coldSendContext(workspaceId, campaignId);
+
   if (isAbTest) {
     const testPct = Number(abConfig.splitPercentage ?? abConfig.testPercentage ?? 100);
     // Shuffle contacts
@@ -480,6 +491,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -506,6 +520,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,
@@ -546,7 +563,9 @@ export async function sendCampaign(
     });
   } else {
     // Standard Broadcast (non A/B)
-    for (const contactId of contactIds) {
+    // M7: cold broadcasts send in shuffled order (randomized spacing).
+    const broadcastOrder = coldCtx.isCold ? [...contactIds].sort(() => Math.random() - 0.5) : contactIds;
+    for (const contactId of broadcastOrder) {
       const recipient = await db.campaignRecipient.create({
         data: {
           campaignId,
@@ -556,6 +575,9 @@ export async function sendCampaign(
         },
       });
 
+      // M7: at-cap recipients stay PENDING for the drip tick (never failed).
+      if (!(await coldCtx.allowed())) continue;
+      await coldCtx.jitter();
       const result = await processEmailSendJobDirectly({
         workspaceId,
         campaignId,

@@ -382,6 +382,9 @@ export default function ReviewSend({
                 {checks.abTest && checks.abTest.planned === 'none' && (
                   <p className="text-text-muted text-xs">No A/B test for this campaign.</p>
                 )}
+                {coldContacts && (
+                  <p className="text-text-muted text-xs">{copy.coldRampNote}</p>
+                )}
                 <p className="text-text-muted text-xs">{checks.domainAuth.note}</p>
                 {checks.links.map((l, i) => (
                   <p key={i} className="text-text-muted text-xs">

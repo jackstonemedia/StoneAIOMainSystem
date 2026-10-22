@@ -77,6 +77,7 @@ import {
 import { processDueSequenceSteps } from '../services/email-marketing/sequence-runner.service.js';
 import { processDueReactions } from '../services/email-marketing/reaction-engine.service.js';
 import { processDueAbWinners, processHealthAutoPause } from '../services/email-marketing/ab-test.service.js';
+import { processColdDrip } from '../services/email-marketing/cold-outreach.service.js';
 import {
   createSendingDomain,
   getSendingDomains,
@@ -98,6 +99,8 @@ setInterval(() => {
   // winner tick skips PAUSED campaigns, so auto-pause stops rollouts too).
   processDueAbWinners().catch(err => console.error('[ABWinner] Background runner error:', err));
   processHealthAutoPause().catch(err => console.error('[HealthAutoPause] Background runner error:', err));
+  // M7: cold drip (ramp cap + window + exit re-check; own try/catch).
+  processColdDrip().catch(err => console.error('[ColdDrip] Background runner error:', err));
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';

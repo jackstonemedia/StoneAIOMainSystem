@@ -33,6 +33,7 @@ import {
 import { getEmailOrThrow, assertLoadedEmailEditable } from './draft-generator.service.js';
 import { checkDomainDns, isReservedDomain } from './sending-domain.service.js';
 import { buildAbTestConfig, buildCtaVariantBody, effectiveAbMode, type AbTestPlan } from './ab-test.service.js';
+import { validateColdFormat } from './cold-outreach.service.js';
 import { resolveRecipients, type ListHints, type RecipientSourceType } from './recipients.service.js';
 
 export class SendError extends Error {
@@ -247,6 +248,9 @@ export async function runSendChecks(
   // Cold-outreach acknowledgment (spec §13; blocking for cold drafts only).
   const cold = !!(brief?.audience?.cold_contacts);
   if (cold && !email.coldAck) blocking.push('Cold outreach requires the acknowledgment checkbox: "These are business contacts, and I have a legitimate reason to contact them."');
+
+  // M7: cold format is plain text, 50–100 words, no images (blocking).
+  if (cold) blocking.push(...validateColdFormat(html, text, true));
 
   // Link checks (invalid or unreachable links block). The locked footer's
   // unsubscribe link is system-generated and excluded from the check.

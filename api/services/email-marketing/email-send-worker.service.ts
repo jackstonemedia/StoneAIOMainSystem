@@ -346,14 +346,18 @@ async function processEmailSendJob(job: Job<EmailSendJobData>): Promise<void> {
     try {
       const { sendGmailMessage } = await import('../channels/gmail.service.js');
       const plainText = emailHtml.replace(/<[^>]*>?/gm, '').trim();
+      // M7: cold outreach sends plain text only (no HTML part, no images).
+      const { isColdCampaign } = await import('./cold-outreach.service.js');
+      const cold = campaignId ? await isColdCampaign(workspaceId, campaignId).catch(() => false) : false;
       const result = await sendGmailMessage(
         gmailConn.id,
         contact.email,
         emailSubject,
         plainText,
         undefined,
-        emailHtml,
+        cold ? undefined : emailHtml,
         sendFromName,
+        cold,
       );
 
       const messageId = result.messageId || null;

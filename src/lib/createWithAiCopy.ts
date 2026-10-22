@@ -252,6 +252,7 @@ export const createWithAiCopy = {
     confirmTitle: 'Final confirmation',
     campaignNameLabel: 'Campaign name',
     coldAck: 'These are business contacts, and I have a legitimate reason to contact them.',
+    coldRampNote: 'Cold outreach: US business contacts only in v1. Sending ramps up from one mailbox — 20/day on days 1–3, 40/day on days 4–7, 75/day in week 2, 100/day after — with randomized spacing, and stops for any contact who replies. A separate sending domain or mailbox is recommended.',
     send: 'Send',
     schedule: 'Schedule',
     pause: 'Pause',
