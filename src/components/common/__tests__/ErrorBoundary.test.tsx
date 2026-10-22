@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { extractApiError, apiFetch } from '../../../lib/apiClient';
+import { captureClientError } from '../../../lib/sentry.ts';
+
+vi.mock('../../../lib/sentry.ts', () => ({
+  captureClientError: vi.fn(() => 'mock-event-id'),
+}));
 
 const ProblemChild = () => {
   throw new Error('Test render crash');
@@ -20,6 +25,25 @@ describe('ErrorBoundary & API Error Standardization (#8)', () => {
 
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+
+    consoleSpy.mockRestore();
+  });
+
+  it('reports render errors to Sentry via captureClientError (B-2)', () => {
+    // Suppress console.error output during intentional error boundary throw
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <ErrorBoundary>
+        <ProblemChild />
+      </ErrorBoundary>
+    );
+
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+    expect(captureClientError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Test render crash' }),
+      expect.objectContaining({ componentStack: expect.any(String) }),
+    );
 
     consoleSpy.mockRestore();
   });

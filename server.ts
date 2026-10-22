@@ -11,6 +11,7 @@
 
 import 'dotenv/config';
 console.log('>>> [server.ts] Loading modules (structured copilot intake v2)...');
+import { initSentry } from './api/utils/sentry.js';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -81,6 +82,10 @@ import { registerAllNodes, nodeRegistry } from './api/services/workflow-engine/n
 
 async function startServer() {
   console.log('>>> [server.ts] startServer() executing...');
+  // B-2: init server Sentry FIRST, before route modules handle anything.
+  // No-op when SENTRY_DSN is unset. SDK auto-captures uncaughtException /
+  // unhandledRejection once initialized.
+  initSentry();
   const app = express();
 
   // ── Security + perf middleware ────────────────────────────────────────────
@@ -90,7 +95,7 @@ async function startServer() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://js.stripe.com"],
-        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://api.stripe.com"],
+        connectSrc: ["'self'", "https://*.clerk.accounts.dev", "https://clerk.com", "https://api.stripe.com", "https://*.sentry.io"],
         frameSrc: ["'self'", "https://*.clerk.accounts.dev", "https://js.stripe.com", "https://hooks.stripe.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -180,6 +185,17 @@ async function startServer() {
   });
 
 
+
+  // ── Dev-only Sentry test route (B-2) ───────────────────────────────────
+  // Throws through the normal errorHandler so Jack can verify the Sentry
+  // funnel end-to-end with one curl once a DSN is set. 404 in production —
+  // never exposed. Mounted BEFORE resolveWorkspace (same pattern as the
+  // webhooks below) so the one-command check works without a Clerk JWT.
+  if (env.NODE_ENV !== 'production') {
+    app.get('/api/_sentry-test', (_req, _res, next) => {
+      next(new Error('Sentry test error'));
+    });
+  }
 
   // ── All inbound webhooks MUST be registered before resolveWorkspace ───────
   // These routes receive requests from Twilio, Microsoft, and Meta that do NOT

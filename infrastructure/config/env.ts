@@ -64,6 +64,10 @@ const envSchema = z.object({
   // node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   CHANNEL_ENCRYPTION_KEY: z.string().optional(),
 
+  // Sentry error monitoring (B-2) — optional; empty = monitoring disabled (no-op).
+  SENTRY_DSN: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+
   // Redis — consumed by bullmq and workflow queue
   REDIS_URL: z.string().optional(),
 }).superRefine((data, ctx) => {
