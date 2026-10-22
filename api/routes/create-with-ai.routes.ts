@@ -70,6 +70,12 @@ import {
 import { usedTokens } from '../services/email-marketing/fact-validator.js';
 import { db } from '../../infrastructure/database/client.js';
 import {
+  aiResultsSummary,
+  evaluateCampaignWinner,
+  getCreateWithAiResults,
+  planReadback,
+} from '../services/email-marketing/ab-test.service.js';
+import {
   createDraft,
   getDraft,
   listDrafts,
@@ -82,6 +88,8 @@ import {
   startSequence,
   startReactions,
   confirmReactions,
+  startAbTesting,
+  confirmAbTest,
   refreshSnapshot,
   InterviewError,
   type PhaseId,
@@ -761,6 +769,79 @@ router.post(
     try {
       const out = await generateReactionEmails(getWid(req), req.params.draftId);
       res.json({ created: out.map((e) => ({ id: e.id, order: e.order, purpose: e.purpose })) });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+// ── M6: A/B testing + results routes ─────────────────────────────────────
+
+router.post(
+  '/drafts/:draftId/start-ab-testing',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await startAbTesting(getWid(req), req.params.draftId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/drafts/:draftId/confirm-plan',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await confirmAbTest(getWid(req), req.params.draftId, String(req.body?.message || '')));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/drafts/:draftId/plan',
+  asyncHandler(async (req, res) => {
+    try {
+      const row = await db.campaignDraft.findFirst({ where: { id: req.params.draftId, workspaceId: getWid(req) } });
+      if (!row) { res.status(404).json({ error: 'Draft not found' }); return; }
+      const plan = (row.plan || null) as Record<string, unknown> | null;
+      res.json({ plan, planVersion: row.planVersion, readback: plan ? planReadback(plan) : null });
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/campaigns/:campaignId/results',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await getCreateWithAiResults(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.get(
+  '/campaigns/:campaignId/results-summary',
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await aiResultsSummary(getWid(req), req.params.campaignId));
+    } catch (err) {
+      m3Error(err, res);
+    }
+  }),
+);
+
+router.post(
+  '/campaigns/:campaignId/evaluate-winner',
+  asyncHandler(async (req, res) => {
+    try {
+      const out = await evaluateCampaignWinner(getWid(req), req.params.campaignId, new Date());
+      if (!out) { res.json({ evaluated: false, note: 'Not a testing Create-with-AI campaign (or it is paused).' }); return; }
+      res.json({ evaluated: true, ...out });
     } catch (err) {
       m3Error(err, res);
     }

@@ -27,13 +27,15 @@ import {
   startSequence,
   startReactions,
   confirmReactions,
+  startAbTesting,
+  confirmPlan,
   updateDraftSnapshot,
   type CampaignDraftState,
   type InterviewPhase,
   type BusinessProfile,
 } from '../../lib/createWithAiApi';
 
-const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions'];
+const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions', 'ab_testing'];
 
 function pickExample(pool: string[], key: string): string {
   let h = 0;
@@ -362,10 +364,17 @@ export default function InterviewFlow({
     draft.status === 'scheduled' ||
     draft.currentPhase === 'draft_refine' ||
     draft.currentPhase === 'review_send';
-  const pastInterview = reactionsDone;
+  const abDone =
+    draft.status === 'ab_confirmed' ||
+    draft.status === 'drafted' ||
+    draft.status === 'scheduled' ||
+    draft.currentPhase === 'draft_refine' ||
+    draft.currentPhase === 'review_send';
+  const pastInterview = abDone;
   const needsSequenceEntry = draft.status === 'brief_confirmed' && !hasSequence;
   const needsReactionsEntry =
     !reactionsDone && (draft.status === 'sequence_confirmed' || (draft.status === 'brief_confirmed' && hasSequence));
+  const needsAbEntry = !abDone && draft.status === 'reactions_confirmed';
 
   const handleStartSequence = async () => {
     if (sending) return;
@@ -375,6 +384,42 @@ export default function InterviewFlow({
       setDraft(next);
     } catch (err) {
       toast('error', 'Could not start Sequence and Timing', extractApiError(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleStartAbTesting = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const { draft: next } = await startAbTesting(draft.id);
+      setDraft(next);
+    } catch (err) {
+      toast('error', 'Could not start A/B Testing', extractApiError(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleConfirmPlan = async (text: string) => {
+    if (!draft || !text.trim() || sending) return;
+    setSending(true);
+    setAiError(null);
+    try {
+      const result = await confirmPlan(draft.id, text.trim());
+      setDraft(result.draft);
+      setInput('');
+    } catch (err) {
+      const e = err as { response?: { data?: { error?: string } }; message?: string };
+      setAiError(e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic);
+      try {
+        const { draft: fresh } = await getDraft(draft.id);
+        setDraft(fresh);
+      } catch {
+        // Keep the stale draft; Retry will surface the server state.
+      }
+      setInput('');
     } finally {
       setSending(false);
     }
@@ -505,6 +550,47 @@ export default function InterviewFlow({
     );
   }
 
+  // M6 Phase 6 entry card: reactions are confirmed but the plan is not
+  // yet. One action only — start the A/B testing interview. There is no
+  // "skip Phase 6" fork: answering "no test" in Phase 6 is itself a valid
+  // plan (B4a), and the Phase 6 escape hatch locks a plan from whatever
+  // the user has said.
+  if (needsAbEntry) {
+    return (
+      <div className="space-y-4">
+        <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
+          <p className="text-sm font-semibold text-text-main">Phase 6 of 8: A/B Testing</p>
+          <p className="text-sm text-text-main">
+            Your reactions are planned. Now decide whether to test two versions of something — and which one wins.
+          </p>
+          <p className="text-sm text-text-muted">
+            An A/B test sends two versions of one part of an email to two small groups, sees which gets more clicks,
+            then sends the better one to everyone else. With a small list, skipping the test is the right call.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={handleStartAbTesting} className="btn-primary text-sm" disabled={sending}>
+              Continue to A/B Testing
+            </button>
+            <button type="button" onClick={handleEditBrief} className="btn-secondary text-sm">
+              Edit Brief
+            </button>
+          </div>
+        </div>
+        <ProfileSidePanel
+          open={panelOpen}
+          profile={profile}
+          onClose={() => setPanelOpen(false)}
+          onSave={onSaveProfile}
+          saving={saving}
+          serverErrors={serverErrors}
+          inProgress
+          onRegenerate={() => handleSnapshot('regenerate')}
+          onKeep={() => handleSnapshot('keep')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <InterviewChat
@@ -525,6 +611,7 @@ export default function InterviewFlow({
         onCorrectRecap={handleCorrectRecap}
         onConfirmBrief={handleConfirmBrief}
         onConfirmReactions={handleConfirmReactions}
+        onConfirmPlan={handleConfirmPlan}
         profileChanged={profileChanged}
         onRegenerateProfile={() => handleSnapshot('regenerate')}
         onKeepProfile={() => handleSnapshot('keep')}

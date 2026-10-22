@@ -76,6 +76,7 @@ import {
 } from '../services/email-marketing/sequence-scheduler.service.js';
 import { processDueSequenceSteps } from '../services/email-marketing/sequence-runner.service.js';
 import { processDueReactions } from '../services/email-marketing/reaction-engine.service.js';
+import { processDueAbWinners, processHealthAutoPause } from '../services/email-marketing/ab-test.service.js';
 import {
   createSendingDomain,
   getSendingDomains,
@@ -93,6 +94,10 @@ setInterval(() => {
   // (which skip reaction-pending states) — same 30s tick, own try/catch.
   processDueReactions().catch(err => console.error('[ReactionEngine] Background runner error:', err));
   processDueSequenceSteps().catch(err => console.error('[SequenceRunner] Background runner error:', err));
+  // M6: A/B winner rollout + health auto-pause (own try/catch each; the
+  // winner tick skips PAUSED campaigns, so auto-pause stops rollouts too).
+  processDueAbWinners().catch(err => console.error('[ABWinner] Background runner error:', err));
+  processHealthAutoPause().catch(err => console.error('[HealthAutoPause] Background runner error:', err));
 }, 30_000);
 
 import { ConsentSource } from '@prisma/client';

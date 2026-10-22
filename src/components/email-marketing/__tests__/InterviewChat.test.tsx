@@ -76,6 +76,7 @@ function renderChat(draft: CampaignDraftState, extra: Record<string, unknown> = 
       onCorrectRecap={noop}
       onConfirmBrief={noop}
       onConfirmReactions={noop}
+      onConfirmPlan={noop}
       profileChanged={false}
       onRegenerateProfile={noop}
       onKeepProfile={noop}

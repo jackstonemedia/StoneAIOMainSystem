@@ -30,8 +30,13 @@ import {
   assembleReactionsFromChecklist,
   type AssembledReactions,
 } from './reaction-engine.service.js';
+import {
+  assembleAbTestFromChecklist,
+  planReadback,
+  type AbTestPlan,
+} from './ab-test.service.js';
 
-export type PhaseId = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions';
+export type PhaseId = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions' | 'ab_testing';
 export type PhaseStatus = 'missing' | 'vague' | 'complete' | 'placeholder';
 
 export interface ChecklistItem {
@@ -70,7 +75,7 @@ export type MessageKind = 'answer' | 'question' | 'recap' | 'transition' | 'brie
 export interface ChatMessage {
   role: 'user' | 'ai';
   text: string;
-  phase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed';
+  phase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'ab_confirm' | 'ab_confirmed';
   kind: MessageKind;
   /** For AI questions: the checklist item the question targets (attempts logic). */
   target?: string;
@@ -132,7 +137,7 @@ export interface BriefObject {
 export interface DraftState {
   id: string;
   workspaceId: string;
-  currentPhase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed';
+  currentPhase: PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'ab_confirm' | 'ab_confirmed';
   status: string;
   profileSnapshot: Record<string, unknown>;
   conversation: ChatMessage[];
@@ -141,6 +146,9 @@ export interface DraftState {
   briefVersion: number;
   /** M4 sequence object (Phase 4, spec §9) — null until Phase 4 completes. */
   sequence: Record<string, unknown> | null;
+  /** M6 locked Plan (Phase 6, spec §11) — null until Phase 6 confirms. */
+  plan: Record<string, unknown> | null;
+  planVersion: number;
   profileNotedAt: string | null;
   expiresAt: string;
   /**
@@ -151,21 +159,22 @@ export interface DraftState {
   reactionsAssembled?: AssembledReactions | null;
 }
 
-export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta', 'sequence', 'reactions'];
+export const PHASE_ORDER: PhaseId[] = ['goal', 'audience', 'cta', 'sequence', 'reactions', 'ab_testing'];
 export const PHASE_LABELS: Record<PhaseId, string> = {
   goal: 'Goal',
   audience: 'Audience',
   cta: 'Call to Action',
   sequence: 'Sequence and Timing',
   reactions: 'Reactions',
+  ab_testing: 'A/B Testing',
 };
 /** UI phase numbers: "Phase N of 8" (Phase 0 profile is not counted). */
-export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5 };
+export const PHASE_NUMBERS: Record<PhaseId, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5, ab_testing: 6 };
 
 /** Question caps (spec §5.5): 8 per phase for Phases 1–3, 4 per phase for
  * Phases 4–6, 24 across Phases 1–6. */
 export function phaseQuestionCap(phase: PhaseId): number {
-  return phase === 'sequence' || phase === 'reactions' ? 4 : 8;
+  return phase === 'sequence' || phase === 'reactions' || phase === 'ab_testing' ? 4 : 8;
 }
 export const QUESTIONS_PER_PHASE_CAP = 8;
 export const QUESTIONS_TOTAL_CAP = 24;
@@ -207,6 +216,16 @@ const BASE_ITEMS: Record<PhaseId, Array<{ id: string; label: string }>> = {
     { id: 'jobs', label: 'The job of each email' },
     { id: 'send_timing', label: 'Send timing' },
   ],
+  ab_testing: [
+    { id: 'test_decision', label: 'Whether to test' },
+    { id: 'audience_size', label: 'Roughly how many people' },
+    { id: 'variable', label: 'What to test (subject line or call-to-action wording)' },
+    { id: 'test_email', label: 'Which email carries the test' },
+    { id: 'variant_a', label: 'Version A' },
+    { id: 'variant_b', label: 'Version B' },
+    { id: 'win_metric', label: 'What counts as winning' },
+    { id: 'wait_hours', label: 'How long to wait before picking a winner' },
+  ],
   reactions: [
     { id: 'no_open', label: 'People who do not open' },
     { id: 'open_no_click', label: 'People who open but do not click' },
@@ -234,11 +253,12 @@ export function baseChecklist(phase: PhaseId): PhaseChecklist {
   };
 }
 
-export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirmed' {
+export function nextPhase(phase: PhaseId): PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirmed' | 'ab_confirmed' {
   if (phase === 'goal') return 'audience';
   if (phase === 'audience') return 'cta';
   if (phase === 'cta') return 'brief_confirm';
   if (phase === 'reactions') return 'reactions_confirmed';
+  if (phase === 'ab_testing') return 'ab_confirmed';
   return 'sequence_confirmed';
 }
 
@@ -550,6 +570,7 @@ export function phaseOpening(phase: PhaseId): string {
   if (phase === 'audience') return 'Now tell me about the people who will read this email.';
   if (phase === 'sequence') return "Now let's decide how many emails go out, and over how many days.";
   if (phase === 'reactions') return "Now let's decide what happens depending on what each person does with your emails. Open tracking is approximate, so I lean on clicks for important decisions and use opens only where they help.";
+  if (phase === 'ab_testing') return "Now let's decide whether to test two versions of something. An A/B test sends two versions of one part of an email, such as the subject line, to two small groups. It sees which version gets more clicks, then sends the better one to everyone else.";
   return "Now let's decide what you want readers to do after reading this.";
 }
 
@@ -563,9 +584,13 @@ export function transitionMessage(phase: PhaseId, recap: string, audienceThinNot
   const nextLabel =
     next === 'brief_confirm'
       ? 'the Campaign Brief confirmation'
-      : next === 'sequence_confirmed' || next === 'reactions_confirmed'
+      : next === 'sequence_confirmed'
         ? 'drafting your emails (Phase 7)'
-        : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
+        : next === 'reactions_confirmed'
+          ? 'Phase 6 of 8: A/B Testing'
+          : next === 'ab_confirmed'
+            ? 'drafting your emails (Phase 7)'
+            : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
   let msg =
     `Phase ${PHASE_NUMBERS[phase]} of 8 complete: ${PHASE_LABELS[phase]}. ` +
     `Here is what I understand so far: ${recap} Next up, ${nextLabel}.`;
@@ -771,6 +796,53 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
       ];
       return { draft: next, phaseCompleted: true, capped, audienceThin, aiText: reactMsg };
     }
+    if (phase === 'ab_testing') {
+      // Assemble BEFORE announcing completion (same defensive rule as the
+      // sequence and reactions gates): an unassemblable plan must never
+      // advance the phase. The plan itself locks only on typed
+      // confirmation (confirmAbTest re-assembles from the saved checklist,
+      // so no transient marker is needed).
+      const sequence = (draft.sequence || {}) as { count?: number };
+      const count = Number(sequence.count || 0);
+      if (!count) {
+        const clarification = 'A/B testing needs a confirmed sequence first — please complete Phase 4 before deciding the test.';
+        next.conversation = [
+          ...next.conversation,
+          { role: 'ai', text: clarification, phase, kind: 'question', at: nowIso },
+        ];
+        return { draft: next, phaseCompleted: false, capped, audienceThin, aiText: clarification };
+      }
+      const aasm = assembleAbTestFromChecklist(
+        mergedItems as unknown as Array<Record<string, unknown>>,
+        count,
+      );
+      if (!aasm.ok) {
+        const clarification = `I could not put that test together yet: ${aasm.error} Could you confirm or correct it?`;
+        next.conversation = [
+          ...next.conversation,
+          { role: 'ai', text: clarification, phase, kind: 'question', at: nowIso },
+        ];
+        return { draft: next, phaseCompleted: false, capped, audienceThin, aiText: clarification };
+      }
+      const abRecap = output.recap || recapFromChecklist(mergedItems);
+      let abMsg = transitionMessage(phase, abRecap, audienceThin);
+      if (capped) {
+        abMsg += ' I have asked enough questions for this phase, so I will move on with what you have shared.';
+      }
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: abMsg, phase, kind: 'transition', at: nowIso },
+      ];
+      next.currentPhase = 'ab_confirm';
+      const planMsg =
+        `Here is the plan as I understand it. ${aasm.assembled.plan.readback} ` +
+        `Type "looks good" to confirm, or tell me what to change.`;
+      next.conversation = [
+        ...next.conversation,
+        { role: 'ai', text: planMsg, phase: 'ab_confirm', kind: 'system', at: nowIso },
+      ];
+      return { draft: next, phaseCompleted: true, capped, audienceThin, aiText: abMsg };
+    }
     const recap = output.recap || recapFromChecklist(mergedItems);
     let msg = transitionMessage(phase, recap, audienceThin);
     if (capped) {
@@ -822,7 +894,7 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
 /** Escape hatch (spec §3 rule 7): mark every missing item a blocking placeholder. */
 export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState {
   const phase = draft.currentPhase;
-  if (phase === 'brief_confirm' || phase === 'sequence_confirmed' || phase === 'reactions_confirm' || phase === 'reactions_confirmed') return draft;
+  if (phase === 'brief_confirm' || phase === 'sequence_confirmed' || phase === 'reactions_confirm' || phase === 'reactions_confirmed' || phase === 'ab_confirm' || phase === 'ab_confirmed') return draft;
   const prev = draft.checklists[phase] || baseChecklist(phase);
   let audienceThin = false;
   const items = prev.items.map((i) => {
@@ -912,7 +984,7 @@ export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState 
         ...next.conversation,
         {
           role: 'ai',
-          text: `Continuing with what you have — reactions confirmed: ${rasm.assembled.readback} Next up, drafting your emails (Phase 7).`,
+          text: `Continuing with what you have — reactions confirmed: ${rasm.assembled.readback} Next up, A/B testing (Phase 6).`,
           phase: 'reactions_confirmed',
           kind: 'system',
           at: nowIso,
@@ -925,6 +997,51 @@ export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState 
         {
           role: 'ai',
           text: `I could not put those reactions together yet: ${rasm.error} Please correct what should happen for non-openers, non-clickers, and clickers and continue.`,
+          phase,
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    }
+  } else if (np === 'ab_confirmed') {
+    // Escape hatch for Phase 6: assemble from whatever facts exist and lock
+    // the Plan directly (mirrors the reactions hatch). A "no test"
+    // decision assembles cleanly; a "yes" with missing pieces stays and
+    // asks for the missing piece — the hatch never invents a test.
+    const sequence = (draft.sequence || {}) as { count?: number };
+    const count = Number(sequence.count || 0);
+    const aasm = assembleAbTestFromChecklist(
+      (next.checklists[phase] as PhaseChecklist).items as unknown as Array<Record<string, unknown>>,
+      count || 1,
+    );
+    if (aasm.ok) {
+      next.plan = {
+        sequence: draft.sequence,
+        // No rule count here: this is the pure hatch (no DB access), and
+        // overstating 0 would be worse than omitting the line — the
+        // confirm path (which does query rules) fills it in.
+        ab_test: aasm.assembled.plan as unknown as Record<string, unknown>,
+        timeline: aasm.assembled.timeline,
+      };
+      next.planVersion = draft.planVersion + 1;
+      next.status = 'ab_confirmed';
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `Continuing with what you have — plan confirmed: ${aasm.assembled.plan.readback} Next up, drafting your emails (Phase 7).`,
+          phase: 'ab_confirmed',
+          kind: 'system',
+          at: nowIso,
+        },
+      ];
+    } else {
+      next.currentPhase = phase;
+      next.conversation = [
+        ...next.conversation,
+        {
+          role: 'ai',
+          text: `I could not put that test together yet: ${aasm.error} Please correct what to test, the two versions, or the wait and continue.`,
           phase,
           kind: 'system',
           at: nowIso,
@@ -965,7 +1082,7 @@ export function applyReopen(draft: DraftState, phase: PhaseId, nowIso: string): 
  * Phase 3 (CTA) and Phase 4 (Sequence) — it is not a checklist phase, so it
  * is absent from PHASE_ORDER but present here for reopen ordering. The
  * reactions confirmation sits between Phase 5 and drafting the same way. */
-export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed'> = [
+export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'ab_confirm' | 'ab_confirmed'> = [
   'goal',
   'audience',
   'cta',
@@ -975,6 +1092,9 @@ export const INTERVIEW_ORDER: Array<PhaseId | 'brief_confirm' | 'sequence_confir
   'reactions',
   'reactions_confirm',
   'reactions_confirmed',
+  'ab_testing',
+  'ab_confirm',
+  'ab_confirmed',
 ];
 
 /** True when a reopen target is strictly before the current phase. */
@@ -1093,6 +1213,18 @@ export function buildSystemPrompt(phase: PhaseId, wordsToAvoid: string[]): strin
           '- Open caution (say it once, briefly): open tracking is approximate — some email apps mark every email as opened automatically — so lean on clicks for important decisions.',
           '- Fact formatting (so the plan can be assembled exactly): no_open fact = "action: send-next | resend | nothing; window: N days; email: N" (resend needs a new subject in quotes). open_no_click fact = "skip" unless the user insists (then record the insistence — the plan will still skip it and say why). clicked fact = "action: send-note | alert | tag | nothing; delay: N hours; link: <substring or none>; email: N". clicked_no_reply fact = "days: N; action: alert | nothing; email: N". reaction_jobs fact = numbered purposes, one per reaction email, in order (e.g. "1. Short thank-you note offering the free estimate."). owner_alerts fact = which events the owner hears about (clicks, replies) — alerts always go in-app and email.',
           '- If the user is unsure, recommend the smallest reaction set that does the job and say why.',
+        ].join('\n')
+      : '',
+    phase === 'ab_testing'
+      ? [
+          'A/B testing (spec §11) — recommend first, with a reason, then ask:',
+          '- Recommend whether to test FIRST, from the audience size, with a one-sentence reason, then ask the user to confirm or change it. Under 500 people: recommend skipping — results would mostly be noise — and suggest using a follow-up email to try a different subject line instead. 500 to 1,999: a 50/50 split for learning, no automatic winner, labeled "small sample, directional only". 2,000 or more: each version to 10% of the list, wait 24 hours by default, then the winner to the remaining 80% — and say plainly that about 80% of the list gets the first email a day later than the first group.',
+          '- One variable only, two versions only, differing in exactly one thing: the subject line OR the call-to-action wording. One test per campaign. Assignment is randomized.',
+          '- The winner is picked by clicks by default — never opens, because open tracking is approximate. The user may choose replies instead. Bookings cannot pick the winner: the platform does not track booking events (click-plus-no-reply within N days is the supported cousin). Winner rule: at least 20 total clicks and a relative difference of at least 10%; otherwise "no clear winner" and version A goes to the rest.',
+          '- Wait before picking a winner: default 24 hours, configurable from 4 to 72. The wait must end before any sequence deadline.',
+          '- The real list size at send time may differ from the estimate — Phase 8 re-selects the mode and explains any change, so never promise a mode as final.',
+          '- Fact formatting (so the plan can be assembled exactly): test_decision fact = "yes" or "no". audience_size fact = just the number. variable fact = "subject" or "cta". test_email fact = "email N" (default: email 1). variant_a / variant_b facts = the exact version text (subject line, or call-to-action wording). win_metric fact = "clicks" or "replies". wait_hours fact = "N hours" (default 24).',
+          '- If the user is unsure, recommend skipping the test unless the list is large enough for the result to mean something, and say why.',
         ].join('\n')
       : '',
     'When every item is complete or a placeholder, set phase_complete true, next_question null, and write a 2 to 4 sentence recap.',
@@ -1293,6 +1425,8 @@ function toDraftState(row: Record<string, unknown>): DraftState {
     brief: (row.brief as BriefObject | null) || null,
     briefVersion: (row.briefVersion as number) || 0,
     sequence: (row.sequence as Record<string, unknown> | null) || null,
+    plan: (row.plan as Record<string, unknown> | null) || null,
+    planVersion: (row.planVersion as number) || 0,
     profileNotedAt: row.profileNotedAt ? new Date(row.profileNotedAt as string).toISOString() : null,
     expiresAt: new Date(row.expiresAt as string).toISOString(),
   };
@@ -1322,6 +1456,8 @@ async function saveDraftState(draft: DraftState): Promise<void> {
       brief: toJson(draft.brief),
       briefVersion: draft.briefVersion,
       sequence: toJson(draft.sequence),
+      plan: toJson(draft.plan),
+      planVersion: draft.planVersion,
       profileNotedAt: draft.profileNotedAt ? new Date(draft.profileNotedAt) : null,
       expiresAt: expiryFromNow(),
     },
@@ -1428,7 +1564,13 @@ export async function runTurn(
     throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
   }
   if (phase === 'reactions_confirmed') {
-    throw new InterviewError('Reactions are confirmed — drafting comes next.', 400);
+    throw new InterviewError('Reactions are confirmed — A/B testing comes next.', 400);
+  }
+  if (phase === 'ab_confirm') {
+    throw new InterviewError('The plan is ready for confirmation — use confirm-plan.', 400);
+  }
+  if (phase === 'ab_confirmed') {
+    throw new InterviewError('The plan is confirmed — drafting comes next.', 400);
   }
   const text = (message || '').trim();
   if (!text) throw new InterviewError('Type your answer to continue.', 400);
@@ -1503,7 +1645,13 @@ export async function retryTurn(
     throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
   }
   if (phase === 'reactions_confirmed') {
-    throw new InterviewError('Reactions are confirmed — drafting comes next.', 400);
+    throw new InterviewError('Reactions are confirmed — A/B testing comes next.', 400);
+  }
+  if (phase === 'ab_confirm') {
+    throw new InterviewError('The plan is ready for confirmation — use confirm-plan.', 400);
+  }
+  if (phase === 'ab_confirmed') {
+    throw new InterviewError('The plan is confirmed — drafting comes next.', 400);
   }
   if (!checkAiRateLimit(workspaceId)) {
     throw new InterviewError('Too many AI requests for this workspace right now. Try again shortly.', 429, true);
@@ -1555,6 +1703,9 @@ export async function escapeHatch(workspaceId: string, draftId: string): Promise
   if (phase === 'reactions_confirm' || phase === 'reactions_confirmed') {
     throw new InterviewError('The reactions are already confirmed.', 400);
   }
+  if (phase === 'ab_confirm' || phase === 'ab_confirmed') {
+    throw new InterviewError('The plan is already confirmed.', 400);
+  }
   if (countUserAnswers(draft.conversation, phase) < 1) {
     throw new InterviewError('Type at least one answer in this phase first.', 400);
   }
@@ -1585,6 +1736,14 @@ export async function reopenPhase(workspaceId: string, draftId: string, phase: P
   // completes again.
   if (INTERVIEW_ORDER.indexOf(phase) < INTERVIEW_ORDER.indexOf('reactions')) {
     await db.reactionRule.deleteMany({ where: { workspaceId, draftId: draft.id } }).catch(() => null);
+  }
+  // A reopen before Phase 6 invalidates the locked Plan the same way: the
+  // sequence, reactions, or Brief it was built on may change, so a stale
+  // plan must never send. It is re-locked when Phase 6 confirms again.
+  // (Reopening TO Phase 6 itself keeps the plan until it is replaced.)
+  if (INTERVIEW_ORDER.indexOf(phase) < INTERVIEW_ORDER.indexOf('ab_testing')) {
+    next.plan = null;
+    await saveDraftState(next);
   }
   return next;
 }
@@ -1731,7 +1890,7 @@ export async function confirmReactions(
       conversation: [
         ...draft.conversation,
         { role: 'user', text, phase: 'reactions_confirm', kind: 'answer', at: nowIso },
-        { role: 'ai', text: 'Reactions confirmed. Next up, drafting your emails (Phase 7).', phase: 'reactions_confirmed', kind: 'system', at: nowIso },
+        { role: 'ai', text: 'Reactions confirmed. Next up, A/B testing (Phase 6).', phase: 'reactions_confirmed', kind: 'system', at: nowIso },
       ],
     };
     await saveDraftState(locked);
@@ -1743,6 +1902,94 @@ export async function confirmReactions(
   const withCorrection: DraftState = {
     ...reopened,
     conversation: [...reopened.conversation, { role: 'user', text, phase: 'reactions', kind: 'answer', at: nowIso }],
+  };
+  await saveDraftState(withCorrection);
+  const turn = await runTurnFromState(workspaceId, withCorrection, provider);
+  return { draft: turn.draft, turn };
+}
+
+export async function startAbTesting(workspaceId: string, draftId: string): Promise<DraftState> {
+  const draft = await getDraft(workspaceId, draftId);
+  if (draft.status !== 'reactions_confirmed' || draft.currentPhase !== 'reactions_confirmed') {
+    throw new InterviewError('Phase 6 starts from confirmed reactions (status reactions_confirmed).', 400);
+  }
+  if (!draft.sequence) {
+    throw new InterviewError('This draft has no sequence to test against.', 400);
+  }
+  const nowIso = new Date().toISOString();
+  const next: DraftState = {
+    ...draft,
+    currentPhase: 'ab_testing',
+    status: 'interviewing',
+    checklists: { ...draft.checklists, ab_testing: baseChecklist('ab_testing') },
+    conversation: [
+      ...draft.conversation,
+      { role: 'ai', text: `${phaseBanner('ab_testing')} ${phaseOpening('ab_testing')}`, phase: 'ab_testing', kind: 'question', at: nowIso },
+    ],
+  };
+  await saveDraftState(next);
+  return next;
+}
+
+/**
+ * Plan confirmation (typed only — no Approve buttons, spec default 7,
+ * mirroring confirmBrief / confirmReactions). "looks good" locks the Plan
+ * as a numbered version (sequence + reactions + A/B). Any other text is
+ * a correction: it re-opens Phase 6 and re-runs the interview from the
+ * correction. The plan is re-assembled from the saved checklist here, so
+ * no transient marker is needed between the gate and confirmation.
+ */
+export async function confirmAbTest(
+  workspaceId: string,
+  draftId: string,
+  confirmation: string,
+  provider: InterviewProvider = geminiTurn,
+): Promise<{ draft: DraftState; turn?: TurnResult }> {
+  const draft = await getDraft(workspaceId, draftId);
+  if (draft.currentPhase !== 'ab_confirm') {
+    throw new InterviewError('The plan is not ready for confirmation yet.', 400);
+  }
+  if (draft.status !== 'interviewing') {
+    throw new InterviewError('This plan is already confirmed.', 400);
+  }
+  const text = (confirmation || '').trim();
+  if (!text) throw new InterviewError('Type "looks good", or tell me what to change.', 400);
+  const nowIso = new Date().toISOString();
+  if (looksGood(text)) {
+    const sequence = (draft.sequence || {}) as { count?: number };
+    const items = (draft.checklists.ab_testing?.items || []) as unknown as Array<Record<string, unknown>>;
+    const asm = assembleAbTestFromChecklist(items, Number(sequence.count || 1));
+    if (!asm.ok) {
+      throw new InterviewError(`The plan no longer assembles: ${asm.error}`, 400);
+    }
+    const rules = await db.reactionRule.findMany({ where: { workspaceId, draftId: draft.id } }).catch(() => []);
+    const plan: Record<string, unknown> = {
+      sequence: draft.sequence,
+      reactions: { ruleCount: rules.length },
+      ab_test: asm.assembled.plan as unknown as Record<string, unknown>,
+      timeline: asm.assembled.timeline,
+    };
+    const locked: DraftState = {
+      ...draft,
+      status: 'ab_confirmed',
+      currentPhase: 'ab_confirmed',
+      plan,
+      planVersion: draft.planVersion + 1,
+      conversation: [
+        ...draft.conversation,
+        { role: 'user', text, phase: 'ab_confirm', kind: 'answer', at: nowIso },
+        { role: 'ai', text: `Plan confirmed (version ${draft.planVersion + 1}). ${planReadback(plan)} Next up, drafting your emails (Phase 7).`, phase: 'ab_confirmed', kind: 'system', at: nowIso },
+      ],
+    };
+    await saveDraftState(locked);
+    return { draft: locked };
+  }
+  // Corrections re-open Phase 6; the plan is re-locked (replacing the
+  // old one) when Phase 6 confirms again.
+  const reopened = applyReopen(draft, 'ab_testing', nowIso);
+  const withCorrection: DraftState = {
+    ...reopened,
+    conversation: [...reopened.conversation, { role: 'user', text, phase: 'ab_testing', kind: 'answer', at: nowIso }],
   };
   await saveDraftState(withCorrection);
   const turn = await runTurnFromState(workspaceId, withCorrection, provider);

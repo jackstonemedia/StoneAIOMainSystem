@@ -32,6 +32,7 @@ import {
 } from './fact-validator.js';
 import { getEmailOrThrow, assertLoadedEmailEditable } from './draft-generator.service.js';
 import { checkDomainDns, isReservedDomain } from './sending-domain.service.js';
+import { buildAbTestConfig, buildCtaVariantBody, effectiveAbMode, type AbTestPlan } from './ab-test.service.js';
 import { resolveRecipients, type ListHints, type RecipientSourceType } from './recipients.service.js';
 
 export class SendError extends Error {
@@ -48,6 +49,15 @@ export interface SendCheck {
   /** Link check results (only for links in the final HTML). */
   links: { url: string; ok: boolean; status?: number }[];
   domainAuth: { domain: string | null; spf: boolean; dkim: boolean; dmarc: boolean; verified: boolean; note: string };
+  /** M6: the locked A/B plan + its effective mode at this real count (null when no plan). */
+  abTest: {
+    planned: 'none' | 'split' | 'test_then_winner' | 'decide_at_send';
+    effective: 'none' | 'split' | 'test_then_winner';
+    variable: 'subject' | 'cta' | null;
+    testEmailOrder: number;
+    waitHours: number;
+    reason: string;
+  } | null;
 }
 
 function stripHtml(html: string): string {
@@ -162,6 +172,56 @@ export async function runSendChecks(
     blocking.push(err instanceof Error ? err.message : 'A reaction email is missing its draft.');
   }
 
+  // M6: A/B plan checks (spec §11). Only the TEST email carries them — the
+  // mode re-check warning applies to the campaign send, and a test naming
+  // a later sequence email blocks on that email (Email-1-only in M6).
+  let abTest: SendCheck['abTest'] = null;
+  const planRaw = (draft.plan || {}) as Record<string, unknown>;
+  const abPlan = (planRaw.ab_test || null) as AbTestPlan | null;
+  if (abPlan) {
+    const plannedMode = abPlan.decision === 'no' ? 'none' : abPlan.mode;
+    const eff = effectiveAbMode(abPlan, recipientCount > 0 ? recipientCount : null);
+    abTest = {
+      planned: plannedMode,
+      effective: eff.mode,
+      variable: abPlan.variable,
+      testEmailOrder: abPlan.testEmailOrder,
+      waitHours: abPlan.waitHours,
+      reason: eff.reason,
+    };
+    if (eff.changed) warnings.push(eff.reason);
+    if (abPlan.decision === 'yes' && abPlan.testEmailOrder === email.order) {
+      if (abPlan.testEmailOrder > 1) {
+        blocking.push('A/B testing a later sequence email is not supported in this version — move the test to Email 1 or remove it (reopen Phase 6).');
+      } else {
+        const subjectsHere = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((x: unknown): x is string => typeof x === 'string') as string[];
+        const picked = subjectsHere[email.subjectSelected ?? 0] || '';
+        if (abPlan.variable === 'subject') {
+          // Phase 7's picked subject becomes version A; version B comes
+          // from the plan. Identical versions cannot be tested.
+          if (picked && picked.toLowerCase() === abPlan.variantB.toLowerCase()) {
+            blocking.push('The picked subject matches version B of the A/B test — pick a different subject, or change version B in Phase 6.');
+          }
+        } else if (abPlan.variable === 'cta') {
+          const bodyHere = String(email.bodyHtml || '');
+          if (!abPlan.variantA || bodyHere.indexOf(abPlan.variantA) === -1) {
+            blocking.push(`The planned version-A call-to-action ("${abPlan.variantA}") does not appear in the email body — edit the draft so the call to action matches, or change the test in Phase 6.`);
+          }
+        }
+        if (eff.mode === 'test_then_winner' && sendAt) {
+          const seqDeadline = ((draft.sequence || {}) as Record<string, unknown>).deadlineUtc;
+          if (seqDeadline) {
+            const dl = new Date(String(seqDeadline));
+            const waitEnds = new Date(sendAt.getTime() + abPlan.waitHours * 3600_000);
+            if (!Number.isNaN(dl.getTime()) && waitEnds > dl) {
+              blocking.push(`The A/B wait ends (${waitEnds.toISOString().slice(0, 10)}) after the sequence deadline (${dl.toISOString().slice(0, 10)}) — shorten the wait in Phase 6 or move the deadline.`);
+            }
+          }
+        }
+      }
+    }
+  }
+
   const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const selectedSubject = subjects[email.subjectSelected ?? 0] || '';
   const html = String(email.bodyHtml || '');
@@ -224,7 +284,7 @@ export async function runSendChecks(
     }
   }
 
-  return { blocking, warnings, links: linkResults, domainAuth };
+  return { blocking, warnings, links: linkResults, domainAuth, abTest };
 }
 
 function unsubscribeUrlFor(workspaceId: string, contactId: string): string {
@@ -484,6 +544,30 @@ export async function confirmSend(
 
   const subjects = (Array.isArray(email.subjectVariants) ? email.subjectVariants : []).filter((s: unknown): s is string => typeof s === 'string') as string[];
   const brief = (draft.brief || {}) as Record<string, any>;
+  // M6: A/B config for the Email-1 campaign (the existing sendCampaign
+  // branch understands it: splitPercentage 100 → 50/50, 20 → 10/10 + HOLD).
+  // Phase 7's picked subject becomes version A; version B comes from the
+  // plan. For CTA tests both subjects are the picked subject and the
+  // bodies differ in the call-to-action wording only.
+  let abTestConfig: Record<string, any> | undefined;
+  const abDetail = checks.abTest;
+  const planForSend = ((draft.plan || {}) as Record<string, unknown>).ab_test as AbTestPlan | null;
+  if (planForSend && planForSend.decision === 'yes' && abDetail && abDetail.effective !== 'none' && abDetail.testEmailOrder === email.order && email.order === 1) {
+    const pickedSubject = subjects[email.subjectSelected ?? 0] || 'Campaign email';
+    const bodyA = String(email.bodyHtml || '');
+    const bodyB = planForSend.variable === 'cta' ? buildCtaVariantBody(bodyA, planForSend.variantA, planForSend.variantB) : bodyA;
+    const cfg = buildAbTestConfig(
+      { ...planForSend, variantA: planForSend.variable === 'subject' ? pickedSubject : planForSend.variantA },
+      abDetail.effective,
+      bodyA,
+      bodyB,
+      draft.id,
+    );
+    // Subject fields: the worker reads subjectA/subjectB for variants.
+    cfg.subjectA = pickedSubject;
+    cfg.subjectB = planForSend.variable === 'subject' ? planForSend.variantB : pickedSubject;
+    abTestConfig = cfg;
+  }
   const campaign = await db.campaign.create({
     data: {
       workspaceId,
@@ -506,6 +590,7 @@ export async function confirmSend(
       recipientCount: contactIds.length,
       sendWindow: { timeZone, start: sendAt.toISOString() },
       idempotencyKey: input.idempotencyKey,
+      ...(abTestConfig ? { abTestConfig } : {}),
     },
   });
 

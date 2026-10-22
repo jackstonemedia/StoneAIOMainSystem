@@ -505,7 +505,7 @@ export async function generateEmail(
   opts?: { order?: number; purpose?: string; earlierTexts?: string[] },
 ): Promise<EmailState> {
   const draft = await getDraftOrThrow(workspaceId, draftId);
-  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed' && draft.status !== 'reactions_confirmed') {
+  if (draft.status !== 'brief_confirmed' && draft.status !== 'drafted' && draft.status !== 'sequence_confirmed' && draft.status !== 'reactions_confirmed' && draft.status !== 'ab_confirmed') {
     throw new DraftError('Confirm the Brief before drafting (Phase 7 needs a locked Brief).', 400);
   }
   const order = opts?.order ?? 1;

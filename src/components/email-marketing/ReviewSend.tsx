@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import ReactionPaths from './ReactionPaths';
+import CampaignResults from './CampaignResults';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import {
   cancelCampaignAction,
@@ -241,6 +242,9 @@ export default function ReviewSend({
             </div>
           </div>
           <ReactionPaths draftId={draft.id} emails={[email]} />
+          {campaignState.campaign.id && (
+            <CampaignResults campaignId={campaignState.campaign.id} sampleTitle={campaignState.campaign.name} sampleContent={email.bodyText || undefined} />
+          )}
         </>
       ) : (
         <>
@@ -369,6 +373,15 @@ export default function ReviewSend({
                 {checks.warnings.map((w, i) => (
                   <p key={i} className="text-amber-300">{w}</p>
                 ))}
+                {checks.abTest && checks.abTest.planned !== 'none' && (
+                  <p className="text-text-muted text-xs">
+                    A/B test on Email {checks.abTest.testEmailOrder} ({checks.abTest.variable === 'subject' ? 'subject line' : 'call-to-action wording'}): planned {checks.abTest.planned}, effective {checks.abTest.effective} after the Phase 8 re-check
+                    {checks.abTest.reason ? ` — ${checks.abTest.reason}` : ''} (winner picked by clicks after {checks.abTest.waitHours} hours).
+                  </p>
+                )}
+                {checks.abTest && checks.abTest.planned === 'none' && (
+                  <p className="text-text-muted text-xs">No A/B test for this campaign.</p>
+                )}
                 <p className="text-text-muted text-xs">{checks.domainAuth.note}</p>
                 {checks.links.map((l, i) => (
                   <p key={i} className="text-text-muted text-xs">

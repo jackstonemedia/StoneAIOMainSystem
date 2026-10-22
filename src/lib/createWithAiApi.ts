@@ -121,8 +121,8 @@ export function fileToBase64(file: File): Promise<string> {
 
 /* ── Interview drafts (Milestone 2) ─────────────────────────────────────────── */
 
-export type InterviewPhase = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions';
-export type DraftPhase = InterviewPhase | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'draft_refine' | 'review_send';
+export type InterviewPhase = 'goal' | 'audience' | 'cta' | 'sequence' | 'reactions' | 'ab_testing';
+export type DraftPhase = InterviewPhase | 'brief_confirm' | 'sequence_confirmed' | 'reactions_confirm' | 'reactions_confirmed' | 'ab_confirm' | 'ab_confirmed' | 'draft_refine' | 'review_send';
 
 export type ChecklistItemState = {
   id: string;
@@ -308,6 +308,91 @@ export async function generateReactionEmails(
   return r.data;
 }
 
+export async function startAbTesting(draftId: string): Promise<{ draft: CampaignDraftState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/start-ab-testing`, {});
+  return r.data;
+}
+
+export async function confirmPlan(
+  draftId: string,
+  message: string,
+): Promise<{ draft: CampaignDraftState; turn?: TurnResultState }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/confirm-plan`, { message });
+  return r.data;
+}
+
+export type AbTestPlanState = {
+  decision: 'yes' | 'no';
+  variable: 'subject' | 'cta' | null;
+  testEmailOrder: number;
+  variantA: string;
+  variantB: string;
+  waitHours: number;
+  metric: 'clicks' | 'replies';
+  estimatedCount: number | null;
+  mode: 'none' | 'split' | 'test_then_winner' | 'decide_at_send';
+  readback: string;
+};
+
+export async function getPlan(draftId: string): Promise<{
+  plan: { sequence: unknown; reactions?: { ruleCount?: number }; ab_test: AbTestPlanState | null; timeline: string[] } | null;
+  planVersion: number;
+  readback: string | null;
+}> {
+  const r = await apiClient.get(`${DRAFTS}/${draftId}/plan`);
+  return r.data;
+}
+
+export type CampaignResultsState = {
+  campaignId: string;
+  campaignName: string;
+  status: string;
+  recipients: number;
+  sent: number;
+  delivered: number;
+  bounced: number;
+  uniqueClicks: number;
+  totalClicks: number;
+  clickRate: number;
+  replies: number;
+  unsubscribes: number;
+  complaints: number;
+  complaintsUnavailable: boolean;
+  approximateOpens: number;
+  uniqueOpens: number;
+  paths: { receivedOnlyFirst: number; nonClickerFollowup: number; clickReaction: number; exitedReply: number; exitedUnsubscribed: number; exitedBounced: number; completed: number };
+  ab: {
+    mode: string;
+    variable: string | null;
+    subjectA: string | null;
+    subjectB: string | null;
+    winner: string | null;
+    winnerRule: string | null;
+    clicksA: number;
+    clicksB: number;
+    sentA: number;
+    sentB: number;
+    testing: boolean;
+    waitEndsAt: string | null;
+  } | null;
+  health: { warnings: string[]; autoPause: boolean; bounceRate: number; complaintRate: number };
+};
+
+export async function getCampaignResults(campaignId: string): Promise<CampaignResultsState> {
+  const r = await apiClient.get(`${BASE}/campaigns/${campaignId}/results`);
+  return r.data;
+}
+
+export async function getResultsSummary(campaignId: string): Promise<{ summary: string; source: 'ai' | 'template' }> {
+  const r = await apiClient.get(`${BASE}/campaigns/${campaignId}/results-summary`);
+  return r.data;
+}
+
+export async function evaluateWinner(campaignId: string): Promise<{ evaluated: boolean; winner?: string; counts?: { clicksA: number; clicksB: number; sentA: number; sentB: number }; rolledOut?: number; failed?: number; mode?: string; note?: string }> {
+  const r = await apiClient.post(`${BASE}/campaigns/${campaignId}/evaluate-winner`, {});
+  return r.data;
+}
+
 export async function getPathSimulator(
   emailId: string,
   scenario?: string,
@@ -373,7 +458,15 @@ export type SendChecksState = {
   blocking: string[];
   warnings: string[];
   links: { url: string; ok: boolean; status?: number }[];
-  domainAuth: { domain: string | null; spf: boolean; dkim: boolean; verified: boolean; note: string };
+  domainAuth: { domain: string | null; spf: boolean; dkim: boolean; dmarc: boolean; verified: boolean; note: string };
+  abTest: {
+    planned: 'none' | 'split' | 'test_then_winner' | 'decide_at_send';
+    effective: 'none' | 'split' | 'test_then_winner';
+    variable: 'subject' | 'cta' | null;
+    testEmailOrder: number;
+    waitHours: number;
+    reason: string;
+  } | null;
 };
 
 export async function generateEmail(draftId: string): Promise<{ email: DraftEmailState }> {

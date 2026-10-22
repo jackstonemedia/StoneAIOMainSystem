@@ -14,14 +14,15 @@ import React from 'react';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import type { CampaignDraftState, ChatMessageState, InterviewPhase } from '../../lib/createWithAiApi';
 
-const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions'];
-const PHASE_NUMBERS: Record<InterviewPhase, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5 };
+const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions', 'ab_testing'];
+const PHASE_NUMBERS: Record<InterviewPhase, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5, ab_testing: 6 };
 const PHASE_NAMES: Record<InterviewPhase, string> = {
   goal: 'Goal',
   audience: 'Audience',
   cta: 'Call to Action',
   sequence: 'Sequence and Timing',
   reactions: 'Reactions',
+  ab_testing: 'A/B Testing',
 };
 
 export function phaseIndex(draft: CampaignDraftState): number {
@@ -29,8 +30,11 @@ export function phaseIndex(draft: CampaignDraftState): number {
   if (draft.currentPhase === 'sequence') return 3;
   if (draft.currentPhase === 'sequence_confirmed') return 4;
   if (draft.currentPhase === 'reactions' || draft.currentPhase === 'reactions_confirm') return 4;
-  if (draft.currentPhase === 'reactions_confirmed') return 6;
-  if (draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send') return 6;
+  if (draft.currentPhase === 'reactions_confirmed') return 5;
+  if (draft.currentPhase === 'ab_testing' || draft.currentPhase === 'ab_confirm') return 5;
+  if (draft.currentPhase === 'ab_confirmed') return 6;
+  if (draft.currentPhase === 'draft_refine') return 6;
+  if (draft.currentPhase === 'review_send') return 7;
   return PHASE_ORDER.indexOf(draft.currentPhase as InterviewPhase);
 }
 
@@ -52,6 +56,7 @@ export default function InterviewChat({
   onCorrectRecap,
   onConfirmBrief,
   onConfirmReactions,
+  onConfirmPlan,
   profileChanged,
   onRegenerateProfile,
   onKeepProfile,
@@ -74,6 +79,7 @@ export default function InterviewChat({
   onCorrectRecap: (phase: InterviewPhase) => void;
   onConfirmBrief: (text: string) => void;
   onConfirmReactions: (text: string) => void;
+  onConfirmPlan: (text: string) => void;
   profileChanged: boolean;
   onRegenerateProfile: () => void;
   onKeepProfile: () => void;
@@ -85,8 +91,9 @@ export default function InterviewChat({
   const briefConfirmed = draft.status === 'brief_confirmed';
   const inBriefConfirm = draft.currentPhase === 'brief_confirm' && !briefConfirmed;
   const inReactionsConfirm = draft.currentPhase === 'reactions_confirm' && draft.status !== 'reactions_confirmed';
+  const inAbConfirm = draft.currentPhase === 'ab_confirm' && draft.status !== 'ab_confirmed';
   const currentPhase =
-    draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'sequence_confirmed' || draft.currentPhase === 'reactions_confirm' || draft.currentPhase === 'reactions_confirmed' || draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send'
+    draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'sequence_confirmed' || draft.currentPhase === 'reactions_confirm' || draft.currentPhase === 'reactions_confirmed' || draft.currentPhase === 'ab_confirm' || draft.currentPhase === 'ab_confirmed' || draft.currentPhase === 'draft_refine' || draft.currentPhase === 'review_send'
       ? null
       : (draft.currentPhase as InterviewPhase);
   const userAnswersInPhase = currentPhase
@@ -105,6 +112,7 @@ export default function InterviewChat({
   const send = () => {
     if (inBriefConfirm) onConfirmBrief(input);
     else if (inReactionsConfirm) onConfirmReactions(input);
+    else if (inAbConfirm) onConfirmPlan(input);
     else onSend();
   };
 
@@ -151,6 +159,12 @@ export default function InterviewChat({
         <div className="border border-border rounded-lg p-3 bg-surface/40">
           <p className="text-sm font-semibold text-text-main">Reactions confirmation</p>
           <p className="text-sm text-text-muted mt-1">{copy.reactionsPrompt}</p>
+        </div>
+      )}
+      {inAbConfirm && (
+        <div className="border border-border rounded-lg p-3 bg-surface/40">
+          <p className="text-sm font-semibold text-text-main">Plan confirmation</p>
+          <p className="text-sm text-text-muted mt-1">{copy.abPrompt}</p>
         </div>
       )}
 
@@ -234,10 +248,10 @@ export default function InterviewChat({
             <textarea
               value={input}
               onChange={(e) => onInputChange(e.target.value)}
-              placeholder={inBriefConfirm || inReactionsConfirm ? 'Type looks good, or tell me what to change.' : examplePlaceholder}
+              placeholder={inBriefConfirm || inReactionsConfirm || inAbConfirm ? 'Type looks good, or tell me what to change.' : examplePlaceholder}
               rows={3}
               className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-bg text-text-main"
-              aria-label={inBriefConfirm ? 'Brief confirmation' : inReactionsConfirm ? 'Reactions confirmation' : 'Your answer'}
+              aria-label={inBriefConfirm ? 'Brief confirmation' : inReactionsConfirm ? 'Reactions confirmation' : inAbConfirm ? 'Plan confirmation' : 'Your answer'}
             />
             {micSupported && (
               <button type="button" onClick={onMic} className="btn-secondary text-xs" title={copy.micHint}>
@@ -263,7 +277,7 @@ export default function InterviewChat({
               </button>
             )}
           </div>
-          {!inBriefConfirm && !inReactionsConfirm && <p className="text-xs text-text-muted">{copy.requiredHint}</p>}
+          {!inBriefConfirm && !inReactionsConfirm && !inAbConfirm && <p className="text-xs text-text-muted">{copy.requiredHint}</p>}
         </div>
       )}
 

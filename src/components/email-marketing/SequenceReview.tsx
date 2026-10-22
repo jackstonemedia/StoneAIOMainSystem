@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import ReactionPaths from './ReactionPaths';
+import CampaignResults from './CampaignResults';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
@@ -308,6 +309,9 @@ export default function SequenceReview({
             )}
           </div>
           <ReactionPaths draftId={draft.id} emails={emails} />
+          {statusData.campaign?.id && (
+            <CampaignResults campaignId={statusData.campaign.id} sampleContent={emails[0]?.bodyText || undefined} />
+          )}
           <button type="button" onClick={onBack} className="btn-secondary text-sm">
             Back to drafts
           </button>
