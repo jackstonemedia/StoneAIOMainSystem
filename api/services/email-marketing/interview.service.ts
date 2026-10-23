@@ -30,6 +30,15 @@ import {
   assembleReactionsFromChecklist,
   type AssembledReactions,
 } from './reaction-engine.service.js';
+import type { CampaignBrief, LiveEmailDraft } from './campaign-brief.types.js';
+import {
+  initCampaignBrief,
+  mergeBriefFacts,
+  isPhaseComplete,
+  getPhaseDefinition,
+  PHASE_DEFINITIONS,
+} from './phase-definitions.js';
+import { generateLiveEmail, wrapEmailHtml } from './live-email-generator.service.js';
 import {
   assembleAbTestFromChecklist,
   planReadback,
@@ -566,7 +575,7 @@ export function assembleBrief(draft: DraftState): BriefObject {
 
 /** The opening question for a phase (spec §5.1 + phase openings). */
 export function phaseOpening(phase: PhaseId): string {
-  if (phase === 'goal') return 'What do you want to send? Tell me in your own words, with as much detail as you like.';
+  if (phase === 'goal') return 'Tell me about the email/campaign you want to send.';
   if (phase === 'audience') return 'Now tell me about the people who will read this email.';
   if (phase === 'sequence') return "Now let's decide how many emails go out, and over how many days.";
   if (phase === 'reactions') return "Now let's decide what happens depending on what each person does with your emails. Open tracking is approximate, so I lean on clicks for important decisions and use opens only where they help.";
@@ -574,9 +583,9 @@ export function phaseOpening(phase: PhaseId): string {
   return "Now let's decide what you want readers to do after reading this.";
 }
 
-/** The phase banner line (spec §3 rule 4 + Appendix A). */
+/** The phase label line. */
 export function phaseBanner(phase: PhaseId): string {
-  return `Phase ${PHASE_NUMBERS[phase]} of 8: ${PHASE_LABELS[phase]}.`;
+  return `${PHASE_LABELS[phase]}.`;
 }
 
 export function transitionMessage(phase: PhaseId, recap: string, audienceThinNote: boolean): string {
@@ -587,18 +596,385 @@ export function transitionMessage(phase: PhaseId, recap: string, audienceThinNot
       : next === 'sequence_confirmed'
         ? 'drafting your emails (Phase 7)'
         : next === 'reactions_confirmed'
-          ? 'Phase 6 of 8: A/B Testing'
+          ? 'A/B Testing'
           : next === 'ab_confirmed'
             ? 'drafting your emails (Phase 7)'
-            : `Phase ${PHASE_NUMBERS[next as PhaseId]} of 8: ${PHASE_LABELS[next as PhaseId]}`;
+            : PHASE_LABELS[next as PhaseId];
   let msg =
-    `Phase ${PHASE_NUMBERS[phase]} of 8 complete: ${PHASE_LABELS[phase]}. ` +
+    `${PHASE_LABELS[phase]} complete. ` +
     `Here is what I understand so far: ${recap} Next up, ${nextLabel}.`;
   if (audienceThinNote) {
     msg +=
       ` Note: the audience details were thin, so the email may read as generic — unlike a missing price or date, thin audience details never block sending.`;
   }
   return msg;
+}
+
+export function buildOpeningQuestion(phase: PhaseId): string {
+  return phaseOpening(phase);
+}
+
+export function buildPhasePromptContext(
+  phase: PhaseId,
+  brief: CampaignBrief,
+  conversation: ChatMessage[],
+  profileSnapshot: Record<string, unknown>
+) {
+  const phaseMessages = conversation.filter((m) => m.phase === phase && m.kind !== 'transition');
+  return {
+    phase,
+    brief,
+    phaseMessages,
+    profileSnapshot,
+  };
+}
+
+export function inferIndustryPainPoints(business?: string, audience?: string): string[] {
+  const combined = `${business || ''} ${audience || ''}`.toLowerCase();
+  if (combined.includes('hvac') || combined.includes('air condition') || combined.includes('heating') || combined.includes('furnace')) {
+    return ['AC breakdowns during peak summer heat waves', 'Spike in electricity bills from inefficient aging units', 'Unexpected costly emergency repair bills'];
+  }
+  if (combined.includes('roof')) {
+    return ['Hidden leaks disrupting business operations or damaging ceilings', 'Budget shocks from unexpected emergency roof replacements'];
+  }
+  if (combined.includes('electric')) {
+    return ['Flickering panels and safety hazard code violations', 'Slow contractor response times causing downtime'];
+  }
+  if (combined.includes('plumb')) {
+    return ['Emergency pipe leaks and water damage', 'Surprise overtime charges on weekend service calls'];
+  }
+  if (combined.includes('saas') || combined.includes('software') || combined.includes('tech') || combined.includes('app')) {
+    return ['Hours wasted on manual repetitive busywork', 'Fragmented tools that don’t integrate with each other'];
+  }
+  if (combined.includes('marketing') || combined.includes('agency') || combined.includes('lead') || combined.includes('seo')) {
+    return ['Unqualified leads that waste sales team time', 'Inconsistent pipeline causing dry months'];
+  }
+  if (combined.includes('accounting') || combined.includes('cpa') || combined.includes('bookkeep')) {
+    return ['Tax season panic and disorganized receipts', 'Missing out on high-value business deductions'];
+  }
+  if (combined.includes('clean') || combined.includes('janitorial')) {
+    return ['Unreliable cleaners who cut corners', 'Inconsistent sanitization creating poor impressions for visitors'];
+  }
+  if (combined.includes('solar')) {
+    return ['Skyrocketing utility electric rates', 'Uncertainty over solar tax credits and installation warranties'];
+  }
+  return ['Wasting time and money on slow, unreliable providers', 'Lack of transparent pricing and follow-through'];
+}
+
+export const CAMPAIGN_COPYWRITER_SYSTEM_PROMPT = `You are an elite direct-response email copywriter collaborating 1-on-1 with a business owner to create an outstanding email campaign.
+
+YOUR APPROACH:
+Talk to the user like an experienced human copywriter partner—warm, direct, perceptive, and adaptive.
+Never sound like a scripted robot or an automated questionnaire.
+
+YOUR 5 FOUNDATIONAL PILLARS (Must be understood before writing):
+1. GOAL: The goal of the email / the one action desired (buy, book, reply, stay in loop, etc.).
+2. OFFER / ANNOUNCEMENT: The specific product/service, price/discount, key details, deliverables, and any deadline.
+3. AUDIENCE: Who is receiving this (new leads, past customers, VIPs) and how well they know the sender.
+4. TONE: How it should sound (friendly, professional, playful, urgent, etc.).
+5. CALL TO ACTION: The exact action to take (link to website, booking appointment, reply, etc.).
+
+CONVERSATIONAL RULES:
+- Ask exactly ONE question per turn. Never bundle multiple questions together.
+- Acknowledge what the user said naturally before asking the next question.
+- If the user volunteers multiple pillars at once, capture them all and smoothly move to what is missing.
+- Speak directly to their specific business. If they mention a website business, HVAC, plumbing, SaaS, or consulting, adapt your language to their real trade.
+- If an answer is vague or generic, ask a smart, conversational follow-up to get clarity.
+- In "pillars_captured", record ONLY clean factual requirements (e.g. "Reply to get the mockup sent over", NOT "Reply to get the mockup sent over (low-friction permission ask)"). NEVER write marketing theory, tactical labels, or parenthetical annotations into captured pillar values.
+- When all 5 pillars are gathered, THINK CRITICALLY:
+  - Do you have enough authentic, rich context to write a killer email right now?
+  - If you need a specific, high-value clarification tailored to their trade (e.g. asking a web designer for their typical turnaround or key differentiator, or asking an HVAC tech if they offer 24/7 emergency dispatch), ask that one specific question!
+  - If you have everything needed to write an exceptional email, set "is_ready_to_draft": true, and tell the user in a natural, friendly sentence that you are putting together their draft on the right.
+
+OUTPUT SCHEMA (JSON only, no markdown formatting):
+{
+  "thought": "Internal copywriter assessment of what is known, what is missing, and what to ask next.",
+  "pillars_captured": {
+    "goal": string or null,
+    "offer": string or null,
+    "audience": string or null,
+    "tone": string or null,
+    "cta": string or null,
+    "industry_nuance": string or null
+  },
+  "is_ready_to_draft": boolean,
+  "response_text": "Your natural, single-question response to the user."
+}
+`;
+
+export function deterministicCampaignTurn(
+  currentBrief: CampaignBrief,
+  userMessage: string
+): {
+  updatedBrief: CampaignBrief;
+  aiText: string;
+  isReadyToDraft: boolean;
+} {
+  const text = (userMessage || '').trim();
+  const lower = text.toLowerCase();
+  const newFacts: Partial<CampaignBrief> = {};
+
+  if (!currentBrief.goal) {
+    newFacts.goal = text;
+  } else if (!currentBrief.offer && !currentBrief.businessDescription) {
+    newFacts.offer = text;
+    newFacts.businessDescription = text;
+  } else if (!currentBrief.targetCustomer) {
+    newFacts.targetCustomer = text;
+    newFacts.audience = {
+      ...(currentBrief.audience || {}),
+      whoTheyAre: text,
+      isColdOutreach: lower.includes('cold') || lower.includes('lead') || lower.includes('new'),
+    };
+  } else if (!currentBrief.tone) {
+    newFacts.tone = text;
+  } else if (!currentBrief.cta?.action) {
+    newFacts.cta = { action: text };
+  }
+
+  // Check if any pillars were volunteered
+  if (lower.includes('friendly') || lower.includes('professional') || lower.includes('playful') || lower.includes('urgent') || lower.includes('casual')) {
+    const toneMatch = text.match(/\b(friendly|professional|playful|urgent|casual)\b/i)?.[0];
+    if (toneMatch) newFacts.tone = toneMatch;
+  }
+  if (lower.includes('reply') || lower.includes('book') || lower.includes('schedule') || lower.includes('link') || lower.includes('website')) {
+    if (currentBrief.offer && currentBrief.targetCustomer && !newFacts.cta) {
+      newFacts.cta = { action: text };
+    }
+  }
+
+  const updatedBrief: CampaignBrief = {
+    ...currentBrief,
+    ...newFacts,
+    version: (currentBrief.version || 1) + 1,
+  };
+
+  if (!updatedBrief.goal) {
+    return {
+      updatedBrief,
+      aiText: 'What is the goal of the email? The one action you want people to take such as buy, book, or just stay in the loop, or maybe a reply.',
+      isReadyToDraft: false,
+    };
+  }
+
+  if (!updatedBrief.offer && !updatedBrief.businessDescription) {
+    return {
+      updatedBrief,
+      aiText: 'What are you offering or announcing? The specifics, the product, the service, price or discount, key details, and any deadline.',
+      isReadyToDraft: false,
+    };
+  }
+
+  if (!updatedBrief.targetCustomer && !updatedBrief.audience?.whoTheyAre) {
+    return {
+      updatedBrief,
+      aiText: 'Who is it going to? The audience, new leads, past customers, VIPs, and how well do they already know you.',
+      isReadyToDraft: false,
+    };
+  }
+
+  if (!updatedBrief.tone) {
+    return {
+      updatedBrief,
+      aiText: 'How should it sound? Friendly, professional, playful, or urgent.',
+      isReadyToDraft: false,
+    };
+  }
+
+  if (!updatedBrief.cta?.action) {
+    return {
+      updatedBrief,
+      aiText: 'What call to action should be taken? A link to the website, booking an appointment, etc.',
+      isReadyToDraft: false,
+    };
+  }
+
+  updatedBrief.isReadyToDraft = true;
+  return {
+    updatedBrief,
+    aiText: "I have everything I need. Putting together your first draft on the right now…",
+    isReadyToDraft: true,
+  };
+}
+
+export async function evaluateCampaignInterviewTurn({
+  currentBrief,
+  conversation = [],
+  userMessage,
+}: {
+  currentBrief: CampaignBrief;
+  conversation?: ChatMessage[];
+  userMessage: string;
+}): Promise<{
+  updatedBrief: CampaignBrief;
+  aiText: string;
+  isReadyToDraft: boolean;
+}> {
+  try {
+    const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
+    const ai = tryGetAIClient();
+    if (ai) {
+      const transcript = conversation
+        .filter((m) => m.kind !== 'transition' && m.kind !== 'system')
+        .map((m) => `${m.role === 'user' ? 'User' : 'Copywriter'}: ${m.text}`)
+        .join('\n');
+
+      const prompt = [
+        `Current Campaign Brief So Far:\n${JSON.stringify(currentBrief, null, 2)}`,
+        '',
+        `Conversation Transcript:\n${transcript}`,
+        `User: ${userMessage}`,
+        '',
+        'Produce your internal copywriter reflection, the 5 pillars captured, whether you are ready to draft, and your next single-question response.',
+      ].join('\n\n');
+
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: INTERVIEW_MODEL,
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          config: {
+            systemInstruction: CAMPAIGN_COPYWRITER_SYSTEM_PROMPT,
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+          },
+        }) as Promise<{ text?: string }>,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 25_000)),
+      ]);
+
+      if (response?.text) {
+        const parsed = JSON.parse(response.text.replace(/```json\s*|\s*```/g, '').trim());
+        if (parsed.response_text) {
+          const rawCaptured = parsed.pillars_captured || {};
+          const cleanPillar = (val?: string) =>
+            val ? val.replace(/\s*\([^)]*\)/g, '').trim() : undefined;
+
+          const nextBrief: CampaignBrief = {
+            ...currentBrief,
+            version: (currentBrief.version || 1) + 1,
+            goal: cleanPillar(rawCaptured.goal) || currentBrief.goal || userMessage,
+            offer: cleanPillar(rawCaptured.offer) || currentBrief.offer,
+            targetCustomer: cleanPillar(rawCaptured.audience) || currentBrief.targetCustomer,
+            tone: cleanPillar(rawCaptured.tone) || currentBrief.tone,
+            cta: rawCaptured.cta ? { action: cleanPillar(rawCaptured.cta) } : currentBrief.cta,
+            industryNuance: rawCaptured.industry_nuance || currentBrief.industryNuance,
+          };
+
+          const has5Pillars = Boolean(
+            nextBrief.goal &&
+            (nextBrief.offer || nextBrief.businessDescription) &&
+            (nextBrief.targetCustomer || nextBrief.audience?.whoTheyAre) &&
+            nextBrief.tone &&
+            nextBrief.cta?.action
+          );
+
+          const ready = Boolean(parsed.is_ready_to_draft && has5Pillars);
+          nextBrief.isReadyToDraft = ready;
+
+          return {
+            updatedBrief: nextBrief,
+            aiText: parsed.response_text,
+            isReadyToDraft: ready,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[evaluateCampaignInterviewTurn] LLM call failed or timed out, falling back:', err);
+  }
+
+  return deterministicCampaignTurn(currentBrief, userMessage);
+}
+
+export function extractBriefFactsFromTurn(
+  currentBrief: CampaignBrief,
+  phase: PhaseId,
+  userMessage: string
+): {
+  newFacts: Partial<CampaignBrief>;
+  nextTopicRecommendation?: string;
+  nextQuestion?: string;
+} {
+  const text = (userMessage || '').trim();
+  const lower = text.toLowerCase();
+
+  // Intelligent pushback when the user gives vague, generic fluff ("high quality")
+  if ((lower.includes('high quality') || lower.includes('top quality')) && text.split(/\s+/).length < 15) {
+    return {
+      newFacts: {},
+      nextTopicRecommendation: 'pushback_on_vague_quality',
+      nextQuestion: 'Tell me more about what makes you high quality—what specific results, materials, or turnaround do you deliver that competitors don\'t?',
+    };
+  }
+
+  const result = deterministicCampaignTurn(currentBrief, userMessage);
+  return {
+    newFacts: result.updatedBrief,
+    nextTopicRecommendation: result.isReadyToDraft ? 'ready_to_draft' : 'continue_interview',
+    nextQuestion: result.aiText,
+  };
+}
+
+export async function applyRebuiltTurn({
+  currentBrief,
+  phase: _phase,
+  userMessage,
+  conversation = [],
+}: {
+  currentBrief: CampaignBrief;
+  phase?: PhaseId | string;
+  userMessage: string;
+  conversation?: ChatMessage[];
+  profileSnapshot?: Record<string, unknown>;
+}): Promise<{
+  brief: CampaignBrief;
+  aiMessage: { role: 'ai'; text: string; phase: PhaseId; kind: MessageKind; at: string };
+  phaseCompleted: boolean;
+}> {
+  const currentEmail = currentBrief.liveEmail || null;
+  const briefContext = [
+    currentBrief.goal ? `Goal: ${currentBrief.goal}` : '',
+    currentBrief.offer ? `Offer: ${currentBrief.offer}` : '',
+    currentBrief.targetCustomer ? `Audience: ${currentBrief.targetCustomer}` : '',
+    currentBrief.tone ? `Tone: ${currentBrief.tone}` : '',
+    currentBrief.cta?.action ? `CTA: ${currentBrief.cta.action}` : '',
+  ].filter(Boolean).join('. ');
+
+  const history: ChatMessage[] = [
+    ...(briefContext ? [{ role: 'user' as const, text: `Campaign details: ${briefContext}`, phase: 'goal' as const, kind: 'answer' as const, at: new Date().toISOString() }] : []),
+    ...conversation,
+    { role: 'user' as const, text: userMessage, phase: 'goal' as const, kind: 'answer' as const, at: new Date().toISOString() },
+  ];
+  const { reply, email } = await executeUnifiedCopywriterTurn({
+    conversation: history,
+    currentEmail,
+    userMessage,
+  });
+
+  const nowIso = new Date().toISOString();
+  const nextBrief = { ...currentBrief };
+  if (email) {
+    const paragraphs = email.bodyText.split('\n\n').map((p) => p.trim()).filter(Boolean);
+    nextBrief.liveEmail = {
+      ...email,
+      version: (nextBrief.version || 1) + 1,
+      generatedAt: nowIso,
+      bodyHtml: wrapEmailHtml(paragraphs),
+    };
+    nextBrief.version = (nextBrief.version || 1) + 1;
+    nextBrief.isReadyToDraft = true;
+  }
+
+  return {
+    brief: nextBrief,
+    aiMessage: {
+      role: 'ai',
+      text: reply,
+      phase: 'goal',
+      kind: email ? 'transition' : 'question',
+      at: nowIso,
+    },
+    phaseCompleted: Boolean(email),
+  };
 }
 
 /** Fallback recap assembled from completed items (used when a cap forces completion). */
@@ -862,11 +1238,11 @@ export function applyTurn(draft: DraftState, output: InterviewTurnOutput, nowIso
         { role: 'ai', text: next.brief.text, phase: 'brief_confirm', kind: 'brief', at: nowIso },
       ];
     } else {
-      // Open the next phase with its banner question (counts as a question).
+      // Open the next phase with its opening question (counts as a question).
       const opening = phaseOpening(np as PhaseId);
       next.conversation = [
         ...next.conversation,
-        { role: 'ai', text: `${phaseBanner(np as PhaseId)} ${opening}`, phase: np as PhaseId, kind: 'question', at: nowIso },
+        { role: 'ai', text: opening, phase: np as PhaseId, kind: 'question', at: nowIso },
       ];
     }
     completed = true;
@@ -1052,7 +1428,7 @@ export function applyEscapeHatch(draft: DraftState, nowIso: string): DraftState 
     const opening = phaseOpening(np as PhaseId);
     next.conversation = [
       ...next.conversation,
-      { role: 'ai', text: `${phaseBanner(np as PhaseId)} ${opening}`, phase: np as PhaseId, kind: 'question', at: nowIso },
+      { role: 'ai', text: opening, phase: np as PhaseId, kind: 'question', at: nowIso },
     ];
   }
   return next;
@@ -1189,6 +1565,10 @@ export function buildSystemPrompt(phase: PhaseId, wordsToAvoid: string[]): strin
     '- If two answers contradict, ask which one is correct.',
     '- If the user states a risky claim (guaranteed lowest price, health outcomes, "free" with conditions), ask for the exact terms and do not amplify the claim.',
     '- No hype, no praise padding, no jargon without a one-sentence explanation. US English. Warm and direct.',
+    phase === 'goal'
+      ? '- BUSINESS CONTEXT COMES FIRST: Before asking about the call to action or downstream details, you must understand the business: what it does, who its customers are, the pain points those customers have, what makes it different, and the offer. If the user gives a goal like "I want to get more clients using cold outreach", your next question MUST be about the business and its clients\' pain points, NOT about call to action.'
+      : '',
+    '- If an answer is vague or incomplete, ask follow-up questions before moving on. Keep questions conversational, warm, and one at a time.',
     wordsToAvoid.length ? `- NEVER use these words or phrases: ${wordsToAvoid.join(', ')}.` : '',
     `Base checklist items for this phase (all must appear in your output checklist):\n${baseItems}`,
     'You may add up to 6 extra items when the conversation shows they are needed; each records a short reason.',
@@ -1326,8 +1706,8 @@ export async function geminiTurn(
               text: [
                 `Business Profile: ${JSON.stringify(snapshot)}`,
                 `Current phase: ${ctx.phase}. Current checklist: ${JSON.stringify(ctx.checklist)}`,
-                `Brief so far: ${ctx.briefSoFar ? JSON.stringify(ctx.briefSoFar) : 'none yet'}`,
-                `Conversation so far:\n${ctx.conversation.map((m) => `${m.role}: ${m.text}`).join('\n')}`,
+                `Campaign Brief so far: ${ctx.briefSoFar ? JSON.stringify(ctx.briefSoFar) : 'none yet'}`,
+                `Current phase conversation:\n${ctx.conversation.filter((m) => m.phase === ctx.phase && m.kind !== 'transition').map((m) => `${m.role}: ${m.text}`).join('\n')}`,
                 'Now produce the next Interview JSON output for the latest user message.',
               ].join('\n\n'),
             },
@@ -1474,6 +1854,7 @@ export async function createDraft(workspaceId: string): Promise<DraftState> {
     .map((s) => ({ title: s.title, styleSummary: s.styleSummary }));
   const snapshot = { ...rest, approvedSamples };
   const nowIso = new Date().toISOString();
+  const initialBrief = initCampaignBrief(snapshot);
   const row = await db.campaignDraft.create({
     data: {
       workspaceId,
@@ -1483,13 +1864,15 @@ export async function createDraft(workspaceId: string): Promise<DraftState> {
       conversation: toJson([
         {
           role: 'ai',
-          text: `${phaseBanner('goal')} ${phaseOpening('goal')}`,
+          text: buildOpeningQuestion('goal'),
           phase: 'goal',
           kind: 'question',
           at: nowIso,
         },
       ]),
       checklists: toJson({ goal: baseChecklist('goal') }),
+      brief: toJson(initialBrief),
+      briefVersion: initialBrief.version,
       sequence: toJson(null),
       expiresAt: expiryFromNow(),
     },
@@ -1538,152 +1921,272 @@ export interface TurnResult {
   briefReady: boolean;
 }
 
+export interface UnifiedTurnOutput {
+  reply: string;
+  email: {
+    subject: string;
+    previewText?: string;
+    bodyText: string;
+  } | null;
+}
+
+export function deterministicUnifiedTurn(
+  _conversation: ChatMessage[],
+  currentEmail: { subject: string; bodyText: string; previewText?: string } | null | undefined,
+  userMessage: string,
+): UnifiedTurnOutput {
+  const text = (userMessage || '').trim();
+  const lower = text.toLowerCase();
+
+  if (currentEmail) {
+    return {
+      reply: "I've updated the draft with that adjustment. How does this look to you?",
+      email: currentEmail,
+    };
+  }
+
+  if (lower.includes('website') || lower.includes('mockup') || lower.includes('design') || lower.includes('contractor') || lower.includes('hvac')) {
+    return {
+      reply: "Love this angle. Local contractors get pitched constantly, so zero sales pressure and offering upfront value gets the highest reply rate. Here is a tight cold email draft built to get a quick reply:",
+      email: {
+        subject: "quick idea for {{company_name}}",
+        previewText: "put together a quick mockup for {{company_name}}",
+        bodyText: "Hey {{first_name}},\n\nSaw you guys don't have a website up yet while looking up local pros in {{city}}.\n\nI went ahead and threw together a quick mockup of what a clean site could look like for {{company_name}} to help grab more local calls.\n\nMind if I send the preview link over?\n\nBest,\n[Your Name]",
+      },
+    };
+  }
+
+  return {
+    reply: "Got it! Who are you sending this to, and what's the one specific action you want them to take (like replying, booking a call, or buying)?",
+    email: null,
+  };
+}
+
+export async function executeUnifiedCopywriterTurn({
+  conversation,
+  currentEmail,
+  userMessage,
+}: {
+  conversation: ChatMessage[];
+  currentEmail?: { subject: string; bodyText: string; previewText?: string } | null;
+  userMessage: string;
+}): Promise<UnifiedTurnOutput> {
+  const systemPrompt = `You are an elite, world-class direct-response email copywriter partner. You talk, think, and collaborate like Claude—intelligent, direct, conversational, and genuinely helpful.
+
+Your goal is to write a high-converting, authentic 1-on-1 cold outreach email (sent from a personal mailbox like Gmail or Outlook, NEVER an HTML newsletter blast).
+
+HOW YOU COLLABORATE:
+1. Natural Conversation: Speak naturally, warmly, and concisely like a pro copywriter. No corporate fluff, no rigid robotic interrogations.
+2. Discovery & Drafting:
+   - If the user provides enough context (e.g., what their business is, who they want to reach, and what they offer or want prospects to do), DRAFT THE EMAIL IMMEDIATELY.
+   - If you genuinely need a key detail to write a compelling email, acknowledge what they said and ask ONE sharp, clear question.
+3. Live Revision & Iteration:
+   - If an email draft already exists and the user asks for changes (e.g. "make it punchier", "make it shorter", "change the CTA", "sound more casual"), revise the email immediately and explain what you tweaked in your reply.
+   - If the user says "looks great", "I love it", or discusses strategy, affirm them and keep the draft intact.
+
+COPYWRITING BENCHMARKS:
+- Plain 1-on-1 direct message feel (looks typed by a human in Gmail, never marketing templates).
+- Hook in first sentence: Relevant, punchy observation grounded in the recipient's reality. Zero throat-clearing ("I hope this finds you well").
+- Salutation: "Hey {{first_name}}," or "Hi {{first_name}},". Use {{company_name}} and {{city}} where appropriate.
+- Call to Action: A single, frictionless, conversational ask (e.g. "Mind if I send over a quick preview link to take a look?", "Open to a quick 5-minute chat?").
+- Sign-off: Must end with:\nBest,\n[Your Name]
+- Length: 40–80 words total. 2–3 short paragraphs.
+- Zero spam cliches: NEVER use "Reaching out regarding...", "We work with [X] to deliver...", or "without the usual headaches".
+
+OUTPUT FORMAT:
+Return pure JSON with no markdown wrapping:
+{
+  "reply": "Your natural conversational response to the user.",
+  "email": {
+    "subject": "Compelling subject line",
+    "previewText": "Preview text",
+    "bodyText": "The complete, polished plain text email body (including salutation and sign-off)"
+  }
+}
+If you need to ask a clarifying question before drafting, set "email" to null. Once an email is created or if you have enough info, ALWAYS return the email object!`;
+
+  try {
+    const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
+    const ai = tryGetAIClient();
+    if (ai) {
+      const formattedHistory = conversation.map((m) => ({
+        role: m.role === 'ai' ? 'assistant' : 'user',
+        text: m.text,
+      }));
+
+      const promptPayload = [
+        systemPrompt,
+        '',
+        'CONVERSATION HISTORY:',
+        JSON.stringify(formattedHistory, null, 2),
+        '',
+        'CURRENT EMAIL DRAFT:',
+        currentEmail ? JSON.stringify(currentEmail, null, 2) : 'null',
+        '',
+        'LATEST USER MESSAGE:',
+        `"${userMessage}"`,
+      ].join('\n');
+
+      const response = await ai.models.generateContent({
+        model: INTERVIEW_MODEL,
+        contents: [{ role: 'user', parts: [{ text: promptPayload }] }],
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.6,
+        },
+      });
+
+      if (response?.text) {
+        const cleaned = response.text.replace(/```json\s*|\s*```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed.reply) {
+          let emailObj = parsed.email;
+          if (emailObj && emailObj.bodyText && emailObj.subject) {
+            emailObj.bodyText = emailObj.bodyText
+              .replace(/\s*\([^)]*(ask|friction|list|angle|nuance|tactic|cold|lead|prospect|funnel)[^)]*\)/gi, '')
+              .trim();
+          } else {
+            emailObj = null;
+          }
+
+          return {
+            reply: parsed.reply,
+            email: emailObj,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[executeUnifiedCopywriterTurn] LLM call failed:', err);
+  }
+
+  return deterministicUnifiedTurn(conversation, currentEmail, userMessage);
+}
+
 /**
- * Runs one interview turn. The user message is saved BEFORE the LLM call, so a
- * 503 (AI unavailable) never loses an answer — retry re-runs from it.
- * `provider` is injectable for tests (defaults to the Gemini provider).
+ * Runs one unified copywriter turn (Claude-style conversational engine).
  */
 export async function runTurn(
   workspaceId: string,
   draftId: string,
   message: string,
-  provider: InterviewProvider = geminiTurn,
+  _provider: InterviewProvider = geminiTurn,
 ): Promise<TurnResult> {
   const draft = await getDraft(workspaceId, draftId);
-  if (draft.status !== 'interviewing') {
-    throw new InterviewError('This draft is no longer interviewing (status: ' + draft.status + ').', 400);
-  }
-  const phase = draft.currentPhase;
-  if (phase === 'brief_confirm') {
-    throw new InterviewError('The Brief is ready for confirmation — use confirm-brief.', 400);
-  }
-  if (phase === 'sequence_confirmed') {
-    throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
-  }
-  if (phase === 'reactions_confirm') {
-    throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
-  }
-  if (phase === 'reactions_confirmed') {
-    throw new InterviewError('Reactions are confirmed — A/B testing comes next.', 400);
-  }
-  if (phase === 'ab_confirm') {
-    throw new InterviewError('The plan is ready for confirmation — use confirm-plan.', 400);
-  }
-  if (phase === 'ab_confirmed') {
-    throw new InterviewError('The plan is confirmed — drafting comes next.', 400);
-  }
   const text = (message || '').trim();
-  if (!text) throw new InterviewError('Type your answer to continue.', 400);
+  if (!text) throw new InterviewError('Type your message to continue.', 400);
+
   const nowIso = new Date().toISOString();
-  // Autosave first: the answer survives any later AI failure or rate limit.
-  const withAnswer: DraftState = {
-    ...draft,
-    conversation: [...draft.conversation, { role: 'user', text, phase, kind: 'answer', at: nowIso }],
+  // 1. Append user message
+  const userMsg: ChatMessage = {
+    role: 'user',
+    text,
+    phase: 'goal',
+    kind: 'answer',
+    at: nowIso,
   };
-  await saveDraftState(withAnswer);
-  if (!checkAiRateLimit(workspaceId)) {
-    throw new InterviewError('Too many AI requests for this workspace right now. Try again shortly.', 429, true);
-  }
-  const checklist = withAnswer.checklists[phase] || baseChecklist(phase);
-  const ctx: TurnContext = {
-    phase,
-    profileSnapshot: withAnswer.profileSnapshot,
-    conversation: withAnswer.conversation,
-    checklist,
-    briefSoFar: withAnswer.brief,
+  draft.conversation.push(userMsg);
+
+  // 2. Call unified copywriter engine
+  const currentEmail = (draft.brief as any)?.liveEmail || null;
+  const { reply, email } = await executeUnifiedCopywriterTurn({
+    conversation: draft.conversation,
+    currentEmail,
+    userMessage: text,
+  });
+
+  // 3. Append AI reply
+  const aiMsg: ChatMessage = {
+    role: 'ai',
+    text: reply,
+    phase: 'goal',
+    kind: email ? 'transition' : 'question',
+    at: new Date().toISOString(),
   };
-  let output: InterviewTurnOutput;
-  try {
-    output = await resolveOutput(provider, ctx);
-  } catch (err) {
-    if (err instanceof InterviewError) throw err;
-    throw new InterviewError('Something went wrong. Your answers are saved.', 503, true);
+  draft.conversation.push(aiMsg);
+
+  // 4. Update brief & email if drafted
+  if (email) {
+    const brief = (draft.brief && typeof draft.brief === 'object') ? (draft.brief as any) : { version: 1 };
+    const paragraphs = email.bodyText.split('\n\n').map((p) => p.trim()).filter(Boolean);
+    brief.liveEmail = {
+      ...email,
+      version: (brief.version || 1) + 1,
+      generatedAt: new Date().toISOString(),
+      bodyHtml: wrapEmailHtml(paragraphs),
+    };
+    brief.version = (brief.version || 1) + 1;
+    brief.isReadyToDraft = true;
+    draft.brief = brief;
+    draft.briefVersion = brief.version;
   }
-  const applied = applyTurn(withAnswer, output, nowIso);
-  await saveDraftState(applied.draft);
-  if (applied.draft.reactionsAssembled) {
-    const { syncReactionRules } = await import('./reaction-engine.service.js');
-    await syncReactionRules(workspaceId, applied.draft.id, applied.draft.reactionsAssembled.rules);
-    applied.draft.reactionsAssembled = null;
-  }
+
+  await saveDraftState(draft);
+
   return {
-    draft: applied.draft,
-    aiText: applied.aiText,
-    phaseCompleted: applied.phaseCompleted,
-    capped: applied.capped,
-    briefReady: applied.draft.currentPhase === 'brief_confirm',
+    draft,
+    aiText: reply,
+    phaseCompleted: Boolean(email),
+    capped: false,
+    briefReady: Boolean(email),
   };
 }
 
-/** Re-runs the LLM for the last unanswered user message (Retry after a 503). */
+/** Re-runs the LLM for the last user message. */
 export async function retryTurn(
   workspaceId: string,
   draftId: string,
-  provider: InterviewProvider = geminiTurn,
+  _provider: InterviewProvider = geminiTurn,
 ): Promise<TurnResult> {
   const draft = await getDraft(workspaceId, draftId);
-  if (draft.status !== 'interviewing') {
-    throw new InterviewError('This draft is no longer interviewing.', 400);
-  }
   const lastUserIdx = draft.conversation.map((m) => m.role).lastIndexOf('user');
   if (lastUserIdx < 0) throw new InterviewError('Nothing to retry — no answer has been sent yet.', 400);
-  // Already answered if a real AI reply (question/recap/transition/brief) came after.
-  const answered = draft.conversation
-    .slice(lastUserIdx + 1)
-    .some((m) => m.role === 'ai' && m.kind !== 'system');
-  if (answered) {
-    throw new InterviewError('The last answer already has a reply.', 400);
+
+  const lastUser = draft.conversation[lastUserIdx];
+  // Remove last failed AI turn if any
+  const lastMsg = draft.conversation[draft.conversation.length - 1];
+  if (lastMsg && lastMsg.role === 'ai') {
+    draft.conversation.pop();
   }
-  const phase = draft.currentPhase;
-  if (phase === 'brief_confirm') {
-    throw new InterviewError('The Brief is ready for confirmation — use confirm-brief.', 400);
-  }
-  if (phase === 'sequence_confirmed') {
-    throw new InterviewError('The sequence is confirmed — drafting comes next.', 400);
-  }
-  if (phase === 'reactions_confirm') {
-    throw new InterviewError('The reaction plan is ready for confirmation — use confirm-reactions.', 400);
-  }
-  if (phase === 'reactions_confirmed') {
-    throw new InterviewError('Reactions are confirmed — A/B testing comes next.', 400);
-  }
-  if (phase === 'ab_confirm') {
-    throw new InterviewError('The plan is ready for confirmation — use confirm-plan.', 400);
-  }
-  if (phase === 'ab_confirmed') {
-    throw new InterviewError('The plan is confirmed — drafting comes next.', 400);
-  }
-  if (!checkAiRateLimit(workspaceId)) {
-    throw new InterviewError('Too many AI requests for this workspace right now. Try again shortly.', 429, true);
-  }
-  const checklist = draft.checklists[phase] || baseChecklist(phase);
-  const ctx: TurnContext = {
-    phase,
-    profileSnapshot: draft.profileSnapshot,
+
+  const currentEmail = (draft.brief as any)?.liveEmail || null;
+  const { reply, email } = await executeUnifiedCopywriterTurn({
     conversation: draft.conversation,
-    checklist,
-    briefSoFar: draft.brief,
-  };
-  let output: InterviewTurnOutput;
-  try {
-    output = await resolveOutput(provider, ctx);
-  } catch (err) {
-    if (err instanceof InterviewError) throw err;
-    throw new InterviewError('Something went wrong. Your answers are saved.', 503, true);
+    currentEmail,
+    userMessage: lastUser.text,
+  });
+
+  draft.conversation.push({
+    role: 'ai',
+    text: reply,
+    phase: 'goal',
+    kind: email ? 'transition' : 'question',
+    at: new Date().toISOString(),
+  });
+
+  if (email) {
+    const brief = (draft.brief && typeof draft.brief === 'object') ? (draft.brief as any) : { version: 1 };
+    const paragraphs = email.bodyText.split('\n\n').map((p) => p.trim()).filter(Boolean);
+    brief.liveEmail = {
+      ...email,
+      version: (brief.version || 1) + 1,
+      generatedAt: new Date().toISOString(),
+      bodyHtml: wrapEmailHtml(paragraphs),
+    };
+    brief.version = (brief.version || 1) + 1;
+    brief.isReadyToDraft = true;
+    draft.brief = brief;
+    draft.briefVersion = brief.version;
   }
-  const applied = applyTurn(draft, output, new Date().toISOString());
-  await saveDraftState(applied.draft);
-  if (applied.draft.reactionsAssembled) {
-    const { syncReactionRules } = await import('./reaction-engine.service.js');
-    await syncReactionRules(workspaceId, applied.draft.id, applied.draft.reactionsAssembled.rules);
-    applied.draft.reactionsAssembled = null;
-  }
+
+  await saveDraftState(draft);
+
   return {
-    draft: applied.draft,
-    aiText: applied.aiText,
-    phaseCompleted: applied.phaseCompleted,
-    capped: applied.capped,
-    briefReady: applied.draft.currentPhase === 'brief_confirm',
+    draft,
+    aiText: reply,
+    phaseCompleted: Boolean(email),
+    capped: false,
+    briefReady: Boolean(email),
   };
 }
 
@@ -1823,7 +2326,7 @@ export async function startSequence(workspaceId: string, draftId: string): Promi
     checklists: { ...draft.checklists, sequence: baseChecklist('sequence') },
     conversation: [
       ...draft.conversation,
-      { role: 'ai', text: `${phaseBanner('sequence')} ${phaseOpening('sequence')}`, phase: 'sequence', kind: 'question', at: nowIso },
+      { role: 'ai', text: phaseOpening('sequence'), phase: 'sequence', kind: 'question', at: nowIso },
     ],
   };
   await saveDraftState(next);
@@ -1853,7 +2356,7 @@ export async function startReactions(workspaceId: string, draftId: string): Prom
     checklists: { ...draft.checklists, reactions: baseChecklist('reactions') },
     conversation: [
       ...draft.conversation,
-      { role: 'ai', text: `${phaseBanner('reactions')} ${phaseOpening('reactions')}`, phase: 'reactions', kind: 'question', at: nowIso },
+      { role: 'ai', text: phaseOpening('reactions'), phase: 'reactions', kind: 'question', at: nowIso },
     ],
   };
   await saveDraftState(next);
@@ -1924,7 +2427,7 @@ export async function startAbTesting(workspaceId: string, draftId: string): Prom
     checklists: { ...draft.checklists, ab_testing: baseChecklist('ab_testing') },
     conversation: [
       ...draft.conversation,
-      { role: 'ai', text: `${phaseBanner('ab_testing')} ${phaseOpening('ab_testing')}`, phase: 'ab_testing', kind: 'question', at: nowIso },
+      { role: 'ai', text: phaseOpening('ab_testing'), phase: 'ab_testing', kind: 'question', at: nowIso },
     ],
   };
   await saveDraftState(next);

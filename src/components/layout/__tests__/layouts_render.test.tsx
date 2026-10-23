@@ -1,8 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+vi.mock('@clerk/clerk-react', () => ({
+  SignedIn: ({ children }: { children: React.ReactNode }) => children,
+  SignedOut: () => null,
+  RedirectToSignIn: () => null,
+  UserButton: () => null,
+  useUser: () => ({ user: { fullName: 'Test User' } }),
+}));
 import { ToastProvider } from '../../ui/Toast';
 import AppShell from '../AppShell';
 import CommandPalette from '../../ui/CommandPalette';

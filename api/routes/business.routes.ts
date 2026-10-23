@@ -7,6 +7,8 @@ import * as biz from '../services/business.service.js';
 
 import { emitTrigger } from '../services/trigger-emitter.service.js';
 import { db } from '../../infrastructure/database/client.js';
+import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
+import { stripQuotedReply } from '../utils/email-cleaner.js';
 
 const router = Router();
 
@@ -17,8 +19,11 @@ const err500 = (res: any, e: unknown) => {
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 router.get('/metrics', async (req, res) => {
-  try { res.json(await biz.getBusinessMetrics(req.workspaceId)); }
-  catch (e) { err500(res, e); }
+  try {
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    res.json(await biz.getBusinessMetrics(req.workspaceId, from, to));
+  } catch (e) { err500(res, e); }
 });
 
 
@@ -135,6 +140,185 @@ router.get('/conversations/:id', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
+// ── Outbound Dispatch Helper ──────────────────────────────────────────────────
+async function dispatchOutboundMessage({
+  workspaceId,
+  conversationId,
+  messageId,
+  channel,
+  toEmail,
+  subject,
+  body,
+  htmlBody,
+  channelConnectionId,
+}: {
+  workspaceId: string;
+  conversationId: string;
+  messageId: string;
+  channel?: string;
+  toEmail?: string;
+  subject?: string | null;
+  body: string;
+  htmlBody?: string | null;
+  channelConnectionId?: string | null;
+}) {
+  const convo = await db.conversation.findUnique({
+    where: { id: conversationId },
+    include: { contact: true },
+  });
+  const activeChannel = channel ?? convo?.channel;
+
+  if (activeChannel === 'email' || activeChannel === 'gmail' || activeChannel === 'outlook') {
+    let conn = (channelConnectionId || convo?.channelConnectionId)
+      ? await db.channelConnection.findFirst({
+          where: { id: channelConnectionId || convo?.channelConnectionId!, workspaceId, isActive: true },
+        })
+      : null;
+
+    if (!conn) {
+      conn = await db.channelConnection.findFirst({
+        where: {
+          workspaceId,
+          provider: { in: ['gmail', 'outlook'] },
+          isActive: true,
+        },
+      });
+    }
+
+    let recipientEmail = toEmail || convo?.contact?.email;
+    if (!recipientEmail && convo) {
+      const lastInbound = await db.conversationMessage.findFirst({
+        where: { conversationId, direction: 'inbound' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (lastInbound) {
+        if (lastInbound.attachments) {
+          try {
+            const meta = typeof lastInbound.attachments === 'string' ? JSON.parse(lastInbound.attachments) : lastInbound.attachments;
+            const fromStr = meta.fromEmail || meta.from || '';
+            recipientEmail = fromStr.match(/<([^>]+)>/)?.[1] || (fromStr.includes('@') ? fromStr.trim() : '');
+          } catch {}
+        }
+        if (!recipientEmail && lastInbound.sender) {
+          recipientEmail = lastInbound.sender.match(/<([^>]+)>/)?.[1] || (lastInbound.sender.includes('@') ? lastInbound.sender.trim() : '');
+        }
+      }
+    }
+
+    if (recipientEmail && !convo?.contactId) {
+      let contact = await db.contact.findFirst({
+        where: { workspaceId, email: recipientEmail },
+      });
+      if (!contact) {
+        contact = await db.contact.create({
+          data: {
+            workspaceId,
+            email: recipientEmail,
+            firstName: recipientEmail.split('@')[0],
+            lastName: '',
+            status: 'Lead',
+          },
+        }).catch(() => null);
+      }
+      if (contact) {
+        await db.conversation.update({
+          where: { id: conversationId },
+          data: { contactId: contact.id },
+        }).catch(() => null);
+      }
+    }
+
+    const emailSubject = subject || convo?.subject || '(no subject)';
+
+    if (!conn) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'No active Gmail or Outlook connection found. Please connect your inbox in Settings.' },
+      }).catch(() => null);
+      throw new Error('No active Gmail or Outlook account connected. Please connect an inbox in Settings > Email Outreach.');
+    }
+
+    if (!recipientEmail) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'Recipient has no valid email address.' },
+      }).catch(() => null);
+      throw new Error('Recipient has no valid email address.');
+    }
+
+    if (subject && subject !== convo?.subject) {
+      await db.conversation.update({ where: { id: conversationId }, data: { subject } }).catch(() => null);
+    }
+    const now = new Date().toUTCString();
+    await db.conversationMessage.update({
+      where: { id: messageId },
+      data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: htmlBody ?? null }) },
+    }).catch(() => null);
+
+    try {
+      if (conn.provider === 'outlook') {
+        const { sendOutlookMessage } = await import('../services/channels/outlook.service.js');
+        const sent = await sendOutlookMessage(
+          conn.id,
+          recipientEmail,
+          emailSubject,
+          htmlBody ?? body.replace(/\n/g, '<br/>'),
+          convo?.externalId ?? undefined,
+        );
+        if (sent) {
+          await db.conversationMessage.update({
+            where: { id: messageId },
+            data: { status: 'delivered', externalId: sent.conversationId || undefined },
+          }).catch(() => null);
+          if (!convo?.externalId && sent.conversationId) {
+            await db.conversation.update({ where: { id: conversationId }, data: { externalId: sent.conversationId } }).catch(() => null);
+          }
+        }
+      } else {
+        const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+        const sent = await sendGmailMessage(
+          conn.id, recipientEmail, emailSubject, body,
+          convo?.externalId ?? undefined, htmlBody ?? undefined,
+        );
+        if (sent) {
+          await db.conversationMessage.update({
+            where: { id: messageId },
+            data: { status: 'delivered', externalId: sent.messageId },
+          }).catch(() => null);
+          if (!convo?.externalId && sent.threadId) {
+            await db.conversation.update({ where: { id: conversationId }, data: { externalId: sent.threadId } }).catch(() => null);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`[Outbound Email via ${conn.provider}] ❌ Failed to send:`, err.message);
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: err.message },
+      }).catch(() => null);
+      throw new Error(`Email sending failed: ${err.message}`);
+    }
+  } else if (activeChannel === 'sms') {
+    const conn = await db.channelConnection.findFirst({
+      where: { workspaceId, provider: 'twilio', isActive: true },
+    });
+    if (conn && convo?.contact?.phone) {
+      const { decryptJson } = await import('../services/channels/encryption.js');
+      const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
+      const twilio = (await import('twilio')).default;
+      const client = twilio(creds.accountSid, creds.authToken);
+      await client.messages.create({
+        body,
+        from: conn.twilioPhoneNumber!,
+        to: convo.contact.phone,
+      }).catch(console.error);
+      if (!convo?.externalId) {
+        await db.conversation.update({ where: { id: conversationId }, data: { externalId: convo.contact.phone } }).catch(() => null);
+      }
+    }
+  }
+}
+
 router.post('/conversations', async (req, res) => {
   try {
     const { contactId, channel, subject, body, to, fromChannelId } = req.body;
@@ -142,9 +326,8 @@ router.post('/conversations', async (req, res) => {
 
     let resolvedContactId = contactId ?? null;
     if (!resolvedContactId && to) {
-      // Find or create contact by email or phone
       const isEmail = to.includes('@');
-      const existingContact = await db.contact.findFirst({
+      let existingContact = await db.contact.findFirst({
         where: {
           workspaceId: req.workspaceId,
           OR: [
@@ -152,6 +335,17 @@ router.post('/conversations', async (req, res) => {
           ],
         },
       });
+      if (!existingContact && isEmail) {
+        existingContact = await db.contact.create({
+          data: {
+            workspaceId: req.workspaceId,
+            email: to,
+            firstName: to.split('@')[0],
+            lastName: '',
+            status: 'Lead',
+          },
+        });
+      }
       if (existingContact) {
         resolvedContactId = existingContact.id;
       }
@@ -174,7 +368,21 @@ router.post('/conversations', async (req, res) => {
     });
 
     if (body?.trim()) {
-      await biz.sendConversationMessage(convo.id, body.trim(), req.userId ?? 'agent', 'outbound');
+      const msg = await biz.sendConversationMessage(convo.id, body.trim(), req.userId ?? 'agent', 'outbound');
+      try {
+        await dispatchOutboundMessage({
+          workspaceId: req.workspaceId,
+          conversationId: convo.id,
+          messageId: msg.id,
+          channel: convo.channel,
+          toEmail: to,
+          subject: convo.subject,
+          body: body.trim(),
+          channelConnectionId: fromChannelId,
+        });
+      } catch (dispatchErr: any) {
+        console.error('[New Conversation Dispatch Error]:', dispatchErr.message);
+      }
     }
 
     res.json(convo);
@@ -188,7 +396,6 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
 router.post('/conversations/:id/messages', async (req, res) => {
   try {
-
     const {
       body: msgBody, sender, direction = 'outbound',
       channel: msgChannel, to: msgTo,
@@ -198,128 +405,21 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
     const msg = await biz.sendConversationMessage(req.params.id, msgBody, sender ?? 'agent', direction);
 
-    // ── Dispatch outbound messages via the real channel ──────────────────────
-    // NOTE: Wrapped in its own try/catch — dispatch failure must never fail the
-    // message-save. The message is already persisted in the DB at this point.
     if (direction === 'outbound') {
       try {
-        const convo = await db.conversation.findUnique({
-          where: { id: req.params.id },
-          include: { contact: true },
+        await dispatchOutboundMessage({
+          workspaceId: req.workspaceId,
+          conversationId: req.params.id,
+          messageId: msg.id,
+          channel: msgChannel,
+          toEmail: msgTo,
+          subject: msgSubject,
+          body: msgBody,
+          htmlBody: msgHtmlBody,
         });
-        const activeChannel = msgChannel ?? convo?.channel;
-
-        if (activeChannel === 'email' || activeChannel === 'gmail' || activeChannel === 'outlook') {
-          // ── Email outbound (Gmail or Outlook) ─────────────────────────────
-          let conn = convo?.channelConnectionId
-            ? await db.channelConnection.findFirst({
-                where: { id: convo.channelConnectionId, workspaceId: req.workspaceId, isActive: true },
-              })
-            : null;
-
-          if (!conn) {
-            conn = await db.channelConnection.findFirst({
-              where: {
-                workspaceId: req.workspaceId,
-                provider: { in: ['gmail', 'outlook'] },
-                isActive: true,
-              },
-            });
-          }
-
-          const recipientEmail = msgTo || convo?.contact?.email;
-          const emailSubject = msgSubject || convo?.subject || '(no subject)';
-
-          if (!conn) {
-            await db.conversationMessage.update({
-              where: { id: msg.id },
-              data: { status: 'failed', errorMsg: 'No active Gmail or Outlook connection found. Please connect your inbox in Settings.' },
-            }).catch(() => null);
-            return res.status(400).json({ error: 'No active Gmail or Outlook account connected. Please connect an inbox in Settings > Email Outreach.' });
-          }
-
-          if (!recipientEmail) {
-            await db.conversationMessage.update({
-              where: { id: msg.id },
-              data: { status: 'failed', errorMsg: 'Recipient has no valid email address.' },
-            }).catch(() => null);
-            return res.status(400).json({ error: 'Recipient has no valid email address.' });
-          }
-
-          if (msgSubject && msgSubject !== convo?.subject) {
-            await db.conversation.update({ where: { id: req.params.id }, data: { subject: msgSubject } }).catch(() => null);
-          }
-          const now = new Date().toUTCString();
-          await db.conversationMessage.update({
-            where: { id: msg.id },
-            data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: msgHtmlBody ?? null }) },
-          }).catch(() => null);
-
-          try {
-            if (conn.provider === 'outlook') {
-              const { sendOutlookMessage } = await import('../services/channels/outlook.service.js');
-              const sent = await sendOutlookMessage(
-                conn.id,
-                recipientEmail,
-                emailSubject,
-                msgHtmlBody ?? msgBody.replace(/\n/g, '<br/>'),
-                convo?.externalId ?? undefined,
-              );
-              if (sent) {
-                await db.conversationMessage.update({
-                  where: { id: msg.id },
-                  data: { status: 'delivered', externalId: sent.conversationId || undefined },
-                }).catch(() => null);
-                if (!convo?.externalId && sent.conversationId) {
-                  await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.conversationId } }).catch(() => null);
-                }
-              }
-            } else {
-              const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
-              const sent = await sendGmailMessage(
-                conn.id, recipientEmail, emailSubject, msgBody,
-                convo?.externalId ?? undefined, msgHtmlBody ?? undefined,
-              );
-              if (sent) {
-                await db.conversationMessage.update({
-                  where: { id: msg.id },
-                  data: { status: 'delivered', externalId: sent.messageId },
-                }).catch(() => null);
-                if (!convo?.externalId && sent.threadId) {
-                  await db.conversation.update({ where: { id: req.params.id }, data: { externalId: sent.threadId } }).catch(() => null);
-                }
-              }
-            }
-          } catch (err: any) {
-            console.error(`[Outbound Email via ${conn.provider}] ❌ Failed to send:`, err.message);
-            await db.conversationMessage.update({
-              where: { id: msg.id },
-              data: { status: 'failed', errorMsg: err.message },
-            }).catch(() => null);
-            return res.status(400).json({ error: `Email sending failed: ${err.message}` });
-          }
-        } else if (activeChannel === 'sms') {
-          // ── SMS / Twilio outbound ─────────────────────────────────────────
-          const conn = await db.channelConnection.findFirst({
-            where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
-          });
-          if (conn && convo?.contact?.phone) {
-            const { decryptJson } = await import('../services/channels/encryption.js');
-            const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
-            const twilio = (await import('twilio')).default;
-            const client = twilio(creds.accountSid, creds.authToken);
-            await client.messages.create({
-              body: msgBody,
-              from: conn.twilioPhoneNumber!,
-              to: convo.contact.phone,
-            }).catch(console.error);
-            if (!convo?.externalId) {
-              await db.conversation.update({ where: { id: req.params.id }, data: { externalId: convo.contact.phone } }).catch(() => null);
-            }
-          }
-        }
-      } catch (dispatchErr: unknown) {
-        console.error('[Outbound dispatch] Non-fatal error during channel dispatch:', dispatchErr);
+      } catch (dispatchErr: any) {
+        console.error('[Outbound dispatch] Channel dispatch error:', dispatchErr.message);
+        return res.status(400).json({ error: dispatchErr.message });
       }
     }
 
@@ -329,6 +429,12 @@ router.post('/conversations/:id/messages', async (req, res) => {
 
 router.patch('/conversations/:id', async (req, res) => {
   try {
+    const existing = await db.conversation.findFirst({
+      where: { id: req.params.id, workspaceId: req.workspaceId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
 
     const { status, starred, assignedUserId, subject } = req.body;
     const data: Record<string, unknown> = {};
@@ -337,7 +443,7 @@ router.patch('/conversations/:id', async (req, res) => {
     if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
     if (subject !== undefined) data.subject = subject;
     const updated = await db.conversation.update({
-      where: { id: req.params.id, workspaceId: req.workspaceId },
+      where: { id: req.params.id },
       data,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, color: true } },
@@ -350,23 +456,22 @@ router.patch('/conversations/:id', async (req, res) => {
 
 router.delete('/conversations/:id', async (req, res) => {
   try {
-
-    // Messages cascade-delete via the schema onDelete: Cascade
-    await db.conversation.delete({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    await db.conversationMessage.deleteMany({ where: { conversationId: req.params.id } });
+    await db.conversation.deleteMany({ where: { id: req.params.id, workspaceId: req.workspaceId } });
     res.json({ success: true });
   } catch (e) { err500(res, e); }
 });
 
 router.post('/conversations/:id/read-receipts', async (req, res) => {
   try {
-    await db.conversation.update({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 0 } });
+    await db.conversation.updateMany({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 0 } });
     res.json({ success: true });
   } catch (e) { err500(res, e); }
 });
 
 router.post('/conversations/:id/mark-unread', async (req, res) => {
   try {
-    await db.conversation.update({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 1 } });
+    await db.conversation.updateMany({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 1 } });
     res.json({ success: true });
   } catch (e) { err500(res, e); }
 });
@@ -394,6 +499,7 @@ router.patch('/conversations/bulk', async (req, res) => {
     } else if (action === 'assign') {
       await db.conversation.updateMany({ where, data: { assignedUserId: payload?.assignedUserId ?? null } });
     } else if (action === 'delete') {
+      await db.conversationMessage.deleteMany({ where: { conversationId: { in: conversationIds } } });
       await db.conversation.deleteMany({ where });
     }
 
@@ -475,6 +581,113 @@ router.get('/conversations/:id/export', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="conversation-${convo.id}.txt"`);
     res.send(exportText);
   } catch (e) { err500(res, e); }
+});
+
+// ── AI Copilot Conversation Reply Draft ──────────────────────────────────────
+router.post('/conversations/:id/ai-reply', async (req, res) => {
+  try {
+    const { prompt: userInstruction } = req.body as { prompt?: string };
+    const conversationId = req.params.id;
+    const workspaceId = req.workspaceId;
+
+    const convo = await db.conversation.findUnique({
+      where: { id: conversationId, workspaceId },
+      include: {
+        contact: true,
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 30,
+        },
+      },
+    });
+
+    if (!convo) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const contactName = convo.contact
+      ? `${convo.contact.firstName || ''} ${convo.contact.lastName || ''}`.trim() || convo.contact.email
+      : 'Customer';
+    const contactEmail = convo.contact?.email || '';
+
+    // Clean all messages to strip quoted email reply headers/history
+    const cleanHistory = convo.messages.map((m) => {
+      const isOut = m.direction === 'outbound';
+      const sender = isOut ? 'You (Stone AIO Team)' : `${contactName}`;
+      const cleanBody = stripQuotedReply(m.body || '');
+      return `[${sender}]: ${cleanBody}`;
+    });
+
+    // Find the latest inbound message
+    const inboundMessages = convo.messages.filter((m) => m.direction === 'inbound');
+    const latestInbound = inboundMessages[inboundMessages.length - 1];
+    const latestMessageText = latestInbound
+      ? stripQuotedReply(latestInbound.body || '')
+      : (convo.messages[convo.messages.length - 1]?.body || '');
+
+    const ai = getAIClient();
+
+    const systemInstruction = `You are an elite, highly professional AI email assistant for the Stone AIO business platform.
+Your job is to read the conversation thread and craft a natural, accurate, intelligent, and contextually appropriate email reply to the customer.
+Read the conversation carefully. The customer's latest message is the focus of your reply.
+Follow these rules:
+1. Address the customer's specific question or statement accurately and directly. Do NOT generate generic or placeholder replies.
+2. If the user provided a specific guidance instruction, follow it precisely while maintaining professional business tone.
+3. If they ask about platform access or getting started, provide a clear, warm next step (e.g., logging in with their registered account, sending over onboarding credentials, or setting up a walkthrough).
+4. Tone should be professional, polite, helpful, and concise. No robotic filler.
+5. Do NOT include email headers, "From:", "To:", or quoted thread history in your drafted response.
+6. Return valid JSON only with keys:
+   - "draft": The complete email body to send (including polite greeting and sign-off).
+   - "explanation": A concise, 1-sentence summary of what you addressed in this reply.`;
+
+    const userPrompt = `Conversation Subject: ${convo.subject || 'Direct Inquiry'}
+Customer Name: ${contactName}
+Customer Email: ${contactEmail}
+
+Full Conversation Thread:
+${cleanHistory.join('\n\n')}
+
+Latest Customer Message:
+"${latestMessageText}"
+
+${userInstruction?.trim() ? `User specific instruction: "${userInstruction.trim()}"` : 'Please draft the best appropriate response to the customer\'s latest message.'}
+
+Return JSON:
+{
+  "draft": "...",
+  "explanation": "..."
+}`;
+
+    const aiRes = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+        responseMimeType: 'application/json',
+      } as any,
+    });
+
+    let draft = '';
+    let explanation = '';
+    try {
+      const parsed = JSON.parse(aiRes.text || '{}');
+      draft = parsed.draft || '';
+      explanation = parsed.explanation || '';
+    } catch {
+      draft = aiRes.text || '';
+      explanation = 'Generated response based on your email thread.';
+    }
+
+    if (!draft) {
+      draft = `Hi ${convo.contact?.firstName || 'there'},\n\nThank you for reaching out. We have received your message regarding "${latestMessageText}" and are glad to help. Please let us know if you need anything else!\n\nBest regards,\nStone AIO Team`;
+      explanation = 'Drafted response acknowledging the customer inquiry.';
+    }
+
+    res.json({ draft, explanation });
+  } catch (e: any) {
+    err500(res, e);
+  }
 });
 
 // ── Templates / Canned Responses ─────────────────────────────────────────────

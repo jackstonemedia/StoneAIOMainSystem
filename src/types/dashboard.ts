@@ -41,6 +41,7 @@ export interface MetricWidgetConfig {
 }
 
 export type DateRange =
+  | 'today'
   | '7d'
   | '30d'
   | '90d'

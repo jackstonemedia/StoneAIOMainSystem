@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import {
+  Briefcase, BarChart3, Calendar, CheckSquare, Zap, Activity,
+  Mail, Target, Plus, Check, TrendingUp, Layers
+} from 'lucide-react';
 import type { MetricKey, WidgetType } from '../../types/dashboard';
 import { SlidePanel } from '../ui/SlidePanel';
 
@@ -9,63 +13,121 @@ interface AddWidgetModalProps {
   existingTypes: WidgetType[];
 }
 
-type Category = 'All' | 'CRM' | 'Email' | 'Metrics' | 'Productivity';
+type Category = 'All' | 'CRM & Pipeline' | 'Productivity' | 'Analytics & Health';
 
-const WIDGETS: {
+interface WidgetDef {
   type: WidgetType;
-  config?: { metricKey?: MetricKey; group?: string };
   name: string;
   description: string;
   category: Category;
-}[] = [
-  { type: 'metric', name: 'Revenue Metrics', description: 'Revenue, pipeline, contacts and conversion.', category: 'CRM' },
-  { type: 'metric', name: 'Email Volume', description: 'Sent and delivered email counts.', category: 'Email', config: { group: 'volume' } },
-  { type: 'metric', name: 'Engagement', description: 'Opens, clicks and engagement rates.', category: 'Email', config: { group: 'engagement' } },
-  { type: 'metric', name: 'Deliverability Risk', description: 'Bounces, complaints and unsubscribes.', category: 'Email', config: { group: 'risk' } },
-  { type: 'revenue_chart', name: 'Revenue Chart', description: 'Area chart of revenue over time.', category: 'Metrics' },
-  { type: 'pipeline_funnel', name: 'Pipeline Funnel', description: 'Visualize deals by pipeline stage.', category: 'CRM' },
-  { type: 'schedule', name: 'Schedule', description: "Today's upcoming appointments and calls.", category: 'Productivity' },
-  { type: 'tasks', name: 'Tasks', description: "Today's outstanding tasks with quick-complete.", category: 'Productivity' },
-  { type: 'leaderboard', name: 'Leaderboard', description: 'Top performing workflows by run volume.', category: 'Productivity' },
+  icon: React.ElementType;
+  config?: { metricKey?: MetricKey };
+  previewTag?: string;
+}
+
+const CRM_WIDGETS: WidgetDef[] = [
+  {
+    type: 'pipeline_funnel',
+    name: 'Pipeline Stage Funnel',
+    description: 'Track deals through Lead, Qualified, Proposal, and Won stages.',
+    category: 'CRM & Pipeline',
+    icon: Target,
+    previewTag: 'Live CRM Pipeline',
+  },
+  {
+    type: 'revenue_chart',
+    name: 'Revenue Performance Chart',
+    description: 'Visual area graph of closed-won deal revenue and growth over time.',
+    category: 'CRM & Pipeline',
+    icon: TrendingUp,
+    previewTag: 'Financial Trends',
+  },
+  {
+    type: 'schedule',
+    name: 'Upcoming Appointments',
+    description: "Real-time calendar view of scheduled meetings, calls, and slots.",
+    category: 'Productivity',
+    icon: Calendar,
+    previewTag: 'Live Calendar',
+  },
+  {
+    type: 'tasks',
+    name: 'CRM Action Items & Tasks',
+    description: 'Active to-dos and follow-up reminders with quick-complete buttons.',
+    category: 'Productivity',
+    icon: CheckSquare,
+    previewTag: 'Task Manager',
+  },
+  {
+    type: 'leaderboard',
+    name: 'Agent Automation Performance',
+    description: 'Workflow execution counts, run times, and success rates.',
+    category: 'Analytics & Health',
+    icon: Zap,
+    previewTag: 'AI & Automations',
+  },
+  {
+    type: 'activity_feed',
+    name: 'Real-Time Activity Stream',
+    description: 'Audit log of recent CRM updates, deal movements, and messages.',
+    category: 'Productivity',
+    icon: Activity,
+    previewTag: 'Telemetry Stream',
+  },
+  {
+    type: 'campaign_health',
+    name: 'Email Deliverability & Health',
+    description: 'Inbox open rates, click tracking, and deliverability metrics.',
+    category: 'Analytics & Health',
+    icon: Mail,
+    previewTag: 'Outreach Health',
+  },
+  {
+    type: 'conversion',
+    name: 'Conversion Velocity',
+    description: 'Stage-by-stage win rates and conversion cycle times.',
+    category: 'Analytics & Health',
+    icon: BarChart3,
+    previewTag: 'Stage Analytics',
+  },
+  {
+    type: 'quick_actions',
+    name: 'Quick Action Shortcuts',
+    description: 'One-click shortcuts to create deals, add contacts, or compose.',
+    category: 'Productivity',
+    icon: Layers,
+    previewTag: 'Productivity Bar',
+  },
 ];
-
-const EMAIL_METRIC_GROUPS: Record<string, MetricKey[]> = {
-  volume: ['email_sent', 'email_delivered'],
-  engagement: ['email_unique_opens', 'email_total_opens', 'email_unique_clicks', 'email_total_clicks', 'email_open_rate', 'email_click_rate'],
-  risk: ['email_hard_bounces', 'email_soft_bounces', 'email_complaints', 'email_unsubscribes'],
-};
-
-const CRM_METRICS: MetricKey[] = ['revenue', 'pipeline', 'contacts', 'conversion'];
 
 export function AddWidgetModal({ open, onClose, onAdd, existingTypes }: AddWidgetModalProps) {
   const [category, setCategory] = useState<Category>('All');
 
   const filtered = category === 'All'
-    ? WIDGETS
-    : WIDGETS.filter((w) => w.category === category);
+    ? CRM_WIDGETS
+    : CRM_WIDGETS.filter((w) => w.category === category);
 
   return (
     <SlidePanel
       open={open}
       onClose={onClose}
-      title="Add Widget"
-      subtitle="Choose a widget to add to your dashboard"
-      width="sm"
+      title="Add CRM Widget"
+      subtitle="Select real-time CRM telemetry and productivity widgets to monitor your workspace"
+      width="lg"
     >
-      <div className="px-5 py-4 border-b border-border bg-surface/60 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-[11px] text-text-muted">
-          <span className="uppercase tracking-[0.16em] font-semibold">Categories</span>
-        </div>
-        <div className="flex items-center gap-1 text-[12px]">
-          {(['All', 'CRM', 'Email', 'Metrics', 'Productivity'] as Category[]).map((cat) => (
+      {/* Category Pills Header */}
+      <div className="px-6 py-4 border-b border-border bg-surface/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10">
+        <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Categories</span>
+        <div className="flex items-center gap-1.5 text-[12px] flex-wrap">
+          {(['All', 'CRM & Pipeline', 'Productivity', 'Analytics & Health'] as Category[]).map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCategory(cat)}
-              className={`px-2.5 py-1 rounded-full border text-[12px] font-medium transition-colors ${
+              className={`px-3 py-1 rounded-lg border text-[12px] font-semibold transition-all ${
                 category === cat
-                  ? 'bg-primary/10 border-primary text-text-main'
-                  : 'bg-surface border-border text-text-muted hover:text-text-main hover:border-primary/60'
+                  ? 'bg-primary border-primary text-white shadow-xs'
+                  : 'bg-surface border-border/60 text-text-muted hover:text-text-main hover:border-border'
               }`}
             >
               {cat}
@@ -74,58 +136,61 @@ export function AddWidgetModal({ open, onClose, onAdd, existingTypes }: AddWidge
         </div>
       </div>
 
-      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filtered.map((w, index) => {
-          const metrics = w.config?.group ? EMAIL_METRIC_GROUPS[w.config.group] : w.type === 'metric' ? CRM_METRICS : undefined;
-          if (metrics) {
-            return (
-              <div
-                key={`${w.type}-${index}`}
-                className="card-surface border border-border rounded-xl p-4 shadow-[var(--shadow-card)]"
-              >
-                <div className="text-sm font-semibold text-text-main">{w.name}</div>
-                <div className="text-xs text-text-muted mt-0.5 mb-3 leading-relaxed">{w.description}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {metrics.map((metricKey) => (
-                    <button
-                      key={metricKey}
-                      type="button"
-                      onClick={() => onAdd('metric', { metricKey })}
-                      className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left text-[12px] text-text-muted transition-colors hover:border-primary hover:text-text-main"
-                    >
-                      Add {metricKey.replace(/^(email_)/, '').replace(/_/g, ' ')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          }
-          const disabled = existingTypes.includes(w.type);
+      {/* Widget Grid */}
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filtered.map((w) => {
+          const isAdded = existingTypes.includes(w.type);
+          const Icon = w.icon;
+
           return (
             <div
               key={w.type}
-              className="card-surface border border-border rounded-xl p-4 flex flex-col justify-between gap-3 shadow-[var(--shadow-card)]"
+              className="group rounded-xl border border-border/70 bg-surface/60 hover:bg-surface/90 hover:border-primary/40 p-5 flex flex-col justify-between transition-all duration-200 shadow-sm hover:shadow-md"
             >
               <div>
-                <div className="h-20 mb-3 rounded-lg bg-[color:var(--surface-hover)]/70 border border-[var(--border-subtle)]" />
-                <div className="text-sm font-semibold text-text-main">{w.name}</div>
-                <div className="text-xs text-text-muted mt-0.5 leading-relaxed">{w.description}</div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  {w.previewTag && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-hover border border-border text-text-muted">
+                      {w.previewTag}
+                    </span>
+                  )}
+                </div>
+
+                <h4 className="text-[14px] font-bold text-text-main mb-1 group-hover:text-primary transition-colors">
+                  {w.name}
+                </h4>
+                <p className="text-[12px] text-text-muted leading-relaxed mb-4">
+                  {w.description}
+                </p>
               </div>
-              <div className="flex justify-end">
+
+              <div className="pt-3 border-t border-border/40 flex items-center justify-between">
+                <span className="text-[11px] text-text-muted font-medium">
+                  {w.category}
+                </span>
+
                 <button
                   type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    if (disabled) return;
-                    onAdd(w.type);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 border transition-colors ${
-                    disabled
-                      ? 'border-border text-text-muted/60 bg-surface cursor-not-allowed'
-                      : 'border-primary text-text-main bg-primary/10 hover:bg-primary/20'
+                  disabled={isAdded}
+                  onClick={() => onAdd(w.type, w.config)}
+                  className={`px-3.5 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-1.5 transition-all ${
+                    isAdded
+                      ? 'bg-surface border border-border text-text-muted cursor-not-allowed opacity-60'
+                      : 'bg-primary text-white hover:bg-primary-hover shadow-xs active:scale-95'
                   }`}
                 >
-                  {disabled ? 'Added' : 'Add'}
+                  {isAdded ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" /> Added
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" /> Add Widget
+                    </>
+                  )}
                 </button>
               </div>
             </div>

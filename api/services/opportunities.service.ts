@@ -816,7 +816,8 @@ export async function importOpportunities(workspaceId: string, userId: string, r
     pipeline = await ensureDefaultPipeline(workspaceId);
   }
 
-  const stage = (defaultStageId && pipeline.stages.find(s => s.id === defaultStageId)) || pipeline.stages[0];
+  const stage = (defaultStageId && pipeline?.stages?.find(s => s.id === defaultStageId)) || pipeline?.stages?.[0];
+  if (!stage) throw new Error('No stage found for import');
 
   let imported = 0;
   let skipped = 0;
@@ -1082,6 +1083,36 @@ export async function ensureDefaultPipeline(workspaceId: string) {
       },
       include: { stages: { orderBy: { order: 'asc' } }, wonLostReasons: true },
     });
+  } else if (pipeline) {
+    const existingNames = new Set((pipeline.stages || []).map(s => s.name.trim().toLowerCase()));
+    const template = PIPELINE_TEMPLATES.sales;
+    let maxOrder = (pipeline.stages || []).reduce((max, s) => Math.max(max, s.order), -1);
+    let added = false;
+
+    for (const s of template.stages) {
+      if (!existingNames.has(s.name.trim().toLowerCase())) {
+        maxOrder++;
+        await db.pipelineStage.create({
+          data: {
+            pipelineId: pipeline.id,
+            name: s.name,
+            color: s.color,
+            order: maxOrder,
+            probability: s.probability,
+            isWon: s.isWon || false,
+            isLost: s.isLost || false,
+          }
+        });
+        added = true;
+      }
+    }
+
+    if (added) {
+      pipeline = await db.pipeline.findUnique({
+        where: { id: pipeline.id },
+        include: { stages: { orderBy: { order: 'asc' } }, wonLostReasons: true },
+      });
+    }
   }
 
   return pipeline;

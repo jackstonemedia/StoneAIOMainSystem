@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Plus, Filter, ChevronDown, Search, Settings, Edit2, Trash2,
+  Plus, Filter, ChevronDown, ChevronLeft, Search, Settings, Edit2, Trash2,
   Check, Clock, X, Phone, Mail, Video, Users, CheckSquare, FileText,
   Zap, Calendar, User, Building, Download
 } from 'lucide-react';
@@ -569,15 +569,6 @@ export default function CrmTasks() {
           <div className="w-[1px] h-5 bg-border mx-1" />
 
           <button
-            onClick={() => setPanelOpen('manage')}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors ml-1"
-          >
-            <Settings className="w-4 h-4" /> Manage Columns
-          </button>
-
-          <div className="w-[1px] h-5 bg-border mx-1" />
-
-          <button
             onClick={() => setPanelOpen('filter')}
             className="btn-secondary"
           >
@@ -686,35 +677,9 @@ export default function CrmTasks() {
         )}
       </AnimatePresence>
 
-      {/* ── Tabs Row ── */}
-      <div className="px-8 pt-4 flex items-center gap-4 shrink-0">
-        <div className="flex items-center gap-1">
-          {(['all', 'today', 'upcoming', 'completed'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setPage(1); }}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-colors ${
-                activeTab === tab
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-              }`}
-            >
-              {tab === 'all' && 'All Tasks'}
-              {tab === 'today' && 'Due Today'}
-              {tab === 'upcoming' && 'Upcoming'}
-              {tab === 'completed' && 'Completed'}
-              <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
-                activeTab === tab ? 'bg-white/20 text-white' : 'bg-surface text-text-muted'
-              }`}>
-                {tabCounts[tab]}
-              </span>
-            </button>
-          ))}
-        </div>
 
-      </div>
 
-      {/* ── Main Table ── */}
+      {/* ── Main Table or Task Form ── */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -965,6 +930,32 @@ export default function CrmTasks() {
           '--btn-border': 'transparent',
         } as React.CSSProperties}
       >
+        {/* Left: Tabs (All Tasks, Due Today, Upcoming, Completed) */}
+        <div className="flex items-center gap-1">
+          {(['all', 'today', 'upcoming', 'completed'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab); setPage(1); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                activeTab === tab
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+              }`}
+            >
+              {tab === 'all' && 'All Tasks'}
+              {tab === 'today' && 'Due Today'}
+              {tab === 'upcoming' && 'Upcoming'}
+              {tab === 'completed' && 'Completed'}
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                activeTab === tab ? 'bg-white/20 text-white' : 'bg-surface text-text-muted'
+              }`}>
+                {tabCounts[tab]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Right: Page size selector & Page Navigation */}
         <div className="flex items-center gap-4">
           {/* Page size selector */}
           <div className="relative">
@@ -1011,7 +1002,35 @@ export default function CrmTasks() {
             >
               Prev
             </button>
-            <span className="px-2 text-[12px] font-bold text-text-main">{page} / {totalPages}</span>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc: (number | string)[], p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                  acc.push('...');
+                }
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) => (
+                typeof p === 'number' ? (
+                  <button
+                    key={idx}
+                    onClick={() => setPage(p)}
+                    className={`min-w-[28px] h-7 px-2 rounded-[6px] text-[12px] font-bold transition-all ${
+                      page === p
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-border text-text-muted hover:text-text-main hover:bg-surface-hover'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ) : (
+                  <span key={idx} className="px-1 text-[12px] text-text-muted">...</span>
+                )
+              ))
+            }
+
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
@@ -1025,29 +1044,31 @@ export default function CrmTasks() {
 
       {/* ── SlideOver Panels ── */}
       <AnimatePresence>
-        {/* Create / Edit Task Panel */}
+        {/* Create / Edit Task SlideOver Panel */}
         {(panelOpen === 'new_task' || panelOpen === 'edit_task') && (
           <SlideOverPanel
             isOpen={true}
             onClose={() => { setPanelOpen(null); setEditingTask(null); setForm({ ...EMPTY_FORM }); setContactSearch(''); }}
             title={isEdit ? 'Edit Task' : 'Create New Task'}
-            width="w-[480px]"
+            width="w-[460px] sm:w-[500px]"
             footer={
-              <>
+              <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => { setPanelOpen(null); setEditingTask(null); setForm({ ...EMPTY_FORM }); setContactSearch(''); }}
-                  className="px-4 py-2 rounded-lg text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   disabled={!form.title.trim() || isPending}
                   onClick={submitForm}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-[13px] font-bold shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-[13px] font-bold shadow-sm disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   {isPending ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save Task' : 'Create Task')}
                 </button>
-              </>
+              </div>
             }
           >
             {renderFormBody()}

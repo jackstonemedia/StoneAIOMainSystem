@@ -198,13 +198,14 @@ export default function SmartLists() {
       {/* Table Content inside Frosted Glass Panel */}
       <div className="flex-1 overflow-auto mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex flex-col">
         {lists.length === 0 ? (
-          <div className="py-24 text-center text-text-muted">
-            <ListIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
-            <p className="text-[14px] font-bold text-text-main">No smart lists created</p>
-            <p className="text-[12px] text-text-muted mt-1">Create filtered segments of contacts that update dynamically in real time.</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-text-muted">
+            <h3 className="text-[17px] font-bold text-text-main mb-2">No smart lists created</h3>
+            <p className="text-[13px] text-text-muted max-w-sm mb-6 leading-relaxed">
+              Create filtered segments of contacts that update dynamically in real time.
+            </p>
             <button
               onClick={() => { resetPanel(); setPanelOpen(true); }}
-              className="mt-3 px-4 py-2 bg-primary text-white rounded-lg text-[13px] font-bold shadow-sm"
+              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-sm transition-all"
             >
               + Create Smart List
             </button>
@@ -316,8 +317,7 @@ export default function SmartLists() {
         } as React.CSSProperties}
       >
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-surface border border-border flex items-center gap-2 text-text-main">
-            <span className="w-2 h-2 rounded-full bg-primary" />
+          <span className="text-[13px] font-medium text-text-muted">
             {processedLists.length} Smart Lists
           </span>
         </div>

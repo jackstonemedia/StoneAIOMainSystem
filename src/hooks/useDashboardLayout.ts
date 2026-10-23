@@ -54,10 +54,17 @@ const DEFAULT_LAYOUT: DashboardLayout = {
   ],
 };
 
-function loadLayout(_storageKey: string): DashboardLayout {
-  // For now, always start from the canonical DEFAULT_LAYOUT so everyone
-  // sees the same structured dashboard (top stats row, chart+side panel,
-  // full-width table) without needing to clear localStorage.
+function loadLayout(storageKey: string): DashboardLayout {
+  if (typeof window === 'undefined') return DEFAULT_LAYOUT;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.widgets) && Array.isArray(parsed.gridLayout)) {
+        return parsed;
+      }
+    }
+  } catch {}
   return DEFAULT_LAYOUT;
 }
 

@@ -8,11 +8,10 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, Bot, FileText, ArrowLeft, RefreshCw, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
+import { FileText, ArrowLeft, RefreshCw, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
 import LiveEmailCanvas from './LiveEmailCanvas';
 import InterviewChat from './InterviewChat';
 import DraftReviewFlow from './DraftReviewFlow';
-import ProfileSidePanel from './ProfileSidePanel';
 import { profileToFormValues, type ProfileFormValues } from './ProfileForm';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
@@ -33,6 +32,7 @@ import {
   confirmPlan,
   updateDraftSnapshot,
   type CampaignDraftState,
+  type ChatMessageState,
   type InterviewPhase,
   type BusinessProfile,
 } from '../../lib/createWithAiApi';
@@ -132,12 +132,31 @@ export default function InterviewFlow({
 
   const handleSend = async () => {
     if (!draft || !input.trim() || sending) return;
+    const textToSend = input.trim();
+    setInput('');
     setSending(true);
     setAiError(null);
+
+    // Optimistically update conversation so message appears instantly
+    const optimisticMessage: ChatMessageState = {
+      role: 'user',
+      text: textToSend,
+      at: new Date().toISOString(),
+      kind: 'answer',
+      phase: draft.currentPhase,
+    };
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            conversation: [...prev.conversation, optimisticMessage],
+          }
+        : prev
+    );
+
     try {
-      const result = await sendTurn(draft.id, input.trim());
+      const result = await sendTurn(draft.id, textToSend);
       setDraft(result.draft);
-      setInput('');
     } catch (err) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };
       const msg = e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic;
@@ -151,7 +170,6 @@ export default function InterviewFlow({
       } catch {
         // Keep the stale draft; Retry will surface the server state.
       }
-      setInput('');
     } finally {
       setSending(false);
     }
@@ -223,12 +241,30 @@ export default function InterviewFlow({
 
   const handleConfirmBrief = async (text: string) => {
     if (!draft || !text.trim() || sending) return;
+    const textToSend = text.trim();
+    setInput('');
     setSending(true);
     setAiError(null);
+
+    const optimisticMessage: ChatMessageState = {
+      role: 'user',
+      text: textToSend,
+      at: new Date().toISOString(),
+      kind: 'answer',
+      phase: draft.currentPhase,
+    };
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            conversation: [...prev.conversation, optimisticMessage],
+          }
+        : prev
+    );
+
     try {
-      const result = await confirmBrief(draft.id, text.trim());
+      const result = await confirmBrief(draft.id, textToSend);
       setDraft(result.draft);
-      setInput('');
     } catch (err) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };
       setAiError(e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic);
@@ -239,7 +275,6 @@ export default function InterviewFlow({
       } catch {
         // Keep the stale draft; Retry will surface the server state.
       }
-      setInput('');
     } finally {
       setSending(false);
     }
@@ -247,12 +282,30 @@ export default function InterviewFlow({
 
   const handleConfirmReactions = async (text: string) => {
     if (!draft || !text.trim() || sending) return;
+    const textToSend = text.trim();
+    setInput('');
     setSending(true);
     setAiError(null);
+
+    const optimisticMessage: ChatMessageState = {
+      role: 'user',
+      text: textToSend,
+      at: new Date().toISOString(),
+      kind: 'answer',
+      phase: draft.currentPhase,
+    };
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            conversation: [...prev.conversation, optimisticMessage],
+          }
+        : prev
+    );
+
     try {
-      const result = await confirmReactions(draft.id, text.trim());
+      const result = await confirmReactions(draft.id, textToSend);
       setDraft(result.draft);
-      setInput('');
     } catch (err) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };
       setAiError(e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic);
@@ -262,7 +315,6 @@ export default function InterviewFlow({
       } catch {
         // Keep the stale draft; Retry will surface the server state.
       }
-      setInput('');
     } finally {
       setSending(false);
     }
@@ -328,8 +380,8 @@ export default function InterviewFlow({
       <div className="flex-1 flex items-center justify-center p-6 w-full h-full">
         <div className="w-full max-w-xl p-7 rounded-[18px] bg-surface/50 border border-border/70 backdrop-blur-xl shadow-luxury space-y-5 animate-in fade-in duration-300">
           <div className="flex items-center gap-3 pb-3 border-b border-border/50">
-            <div className="w-10 h-10 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-lg bg-surface border border-border/60 flex items-center justify-center text-text-muted">
+              <FileText className="w-4 h-4" />
             </div>
             <div>
               <h3 className="text-base font-bold text-text-main">{createWithAiCopy.flow.resume}</h3>
@@ -421,12 +473,30 @@ export default function InterviewFlow({
 
   const handleConfirmPlan = async (text: string) => {
     if (!draft || !text.trim() || sending) return;
+    const textToSend = text.trim();
+    setInput('');
     setSending(true);
     setAiError(null);
+
+    const optimisticMessage: ChatMessageState = {
+      role: 'user',
+      text: textToSend,
+      at: new Date().toISOString(),
+      kind: 'answer',
+      phase: draft.currentPhase,
+    };
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            conversation: [...prev.conversation, optimisticMessage],
+          }
+        : prev
+    );
+
     try {
-      const result = await confirmPlan(draft.id, text.trim());
+      const result = await confirmPlan(draft.id, textToSend);
       setDraft(result.draft);
-      setInput('');
     } catch (err) {
       const e = err as { response?: { data?: { error?: string } }; message?: string };
       setAiError(e?.response?.data?.error || e?.message || createWithAiCopy.errors.generic);
@@ -436,7 +506,6 @@ export default function InterviewFlow({
       } catch {
         // Keep the stale draft; Retry will surface the server state.
       }
-      setInput('');
     } finally {
       setSending(false);
     }
@@ -470,20 +539,13 @@ export default function InterviewFlow({
 
   if (pastInterview) {
     return (
-      <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
-        {/* Left Pane: AI Strategist & Campaign Strategy Blueprint */}
-        <div className="w-[42%] min-w-[380px] max-w-[500px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
-          <div className="px-5 py-4 border-b border-border/50 bg-surface/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-primary p-0.5 shadow-interactive">
-                <div className="w-full h-full bg-bg rounded-full flex items-center justify-center text-primary">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-text-main">AI Campaign Copilot</h3>
-                <p className="text-[11px] text-text-muted">Draft & Polish Stage</p>
-              </div>
+      <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full divide-x divide-border/60">
+        {/* Left Pane: Confirmed Brief & Settings */}
+        <div className="w-[420px] xl:w-[460px] shrink-0 flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-border/50 bg-surface/40 flex items-center justify-between shrink-0">
+            <div>
+              <h3 className="text-xs font-bold text-text-main uppercase tracking-wide">Campaign Brief</h3>
+              <p className="text-[11px] text-text-muted">Draft & Polish Stage</p>
             </div>
             <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
               Draft Ready
@@ -503,11 +565,8 @@ export default function InterviewFlow({
               </p>
             </div>
 
-            <div className="p-4 rounded-[12px] bg-primary/5 border border-primary/20 space-y-2">
-              <h4 className="text-xs font-bold text-text-main flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-                <span>AI Copywriter Insights</span>
-              </h4>
+            <div className="p-4 rounded-[12px] bg-surface/30 border border-border/50 space-y-1.5">
+              <h4 className="text-xs font-bold text-text-main">Campaign Insights</h4>
               <p className="text-xs text-text-muted leading-relaxed">
                 Your draft was created using your confirmed business profile and tone. Use the editor on the right to tweak copy, test subject lines, or send a test email.
               </p>
@@ -522,144 +581,59 @@ export default function InterviewFlow({
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Edit Campaign Brief (Reopen Interview)</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => setPanelOpen(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-border bg-surface/50 hover:bg-surface-hover rounded-[10px] text-xs font-medium text-text-muted hover:text-text-main transition-colors cursor-pointer"
-              >
-                <span>Edit Business Profile Details</span>
-              </button>
             </div>
           </div>
         </div>
 
         {/* Right Pane: DraftReviewFlow */}
-        <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
-          <div className="flex-1 overflow-y-auto p-6">
-            <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
-          </div>
+        <div className="flex-1 min-w-0 flex flex-col h-full bg-surface/10 min-h-0 overflow-y-auto p-6 sm:p-8">
+          <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
         </div>
-
-        <ProfileSidePanel
-          open={panelOpen}
-          profile={profile}
-          onClose={() => setPanelOpen(false)}
-          onSave={onSaveProfile}
-          saving={saving}
-          serverErrors={serverErrors}
-          inProgress
-          onRegenerate={() => handleSnapshot('regenerate')}
-          onKeep={() => handleSnapshot('keep')}
-        />
       </div>
     );
   }
 
-  // Phase transition entries (Sequence, Reactions, A/B testing)
-  if (needsSequenceEntry || needsReactionsEntry || needsAbEntry) {
-    const isSeq = needsSequenceEntry;
-    const isReact = needsReactionsEntry;
-    const phaseNum = isSeq ? 4 : isReact ? 5 : 6;
-    const phaseTitle = isSeq
-      ? 'Phase 4 of 8: Sequence and Timing'
-      : isReact
-      ? 'Phase 5 of 8: Reactions'
-      : 'Phase 6 of 8: A/B Testing';
-    const phaseDesc = isSeq
-      ? 'Your Brief is confirmed. Now decide how many emails go out, over how many days, and what each email is for.'
-      : isReact
-      ? 'Your sequence is planned. Now decide what happens after each email goes out — who gets a follow-up, and when.'
-      : 'Your reactions are planned. Now decide whether to test two subject variations to see which gets higher open rates.';
-    const actionBtn = isSeq
-      ? { label: 'Continue to Sequence and Timing', fn: handleStartSequence }
-      : isReact
-      ? { label: 'Continue to Reactions', fn: handleStartReactions }
-      : { label: 'Continue to A/B Testing', fn: handleStartAbTesting };
+  // Active Unified Copywriter Flow: Discovery Big Chat vs Two-Pane Studio
+  const isStudioMode = Boolean(draft.brief?.liveEmail);
 
+  if (!isStudioMode) {
     return (
-      <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
-        {/* Left Pane: Phase Transition Card */}
-        <div className="w-[44%] min-w-[420px] max-w-[560px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
-          <div className="px-5 py-4 border-b border-border/50 bg-surface/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-primary p-0.5 shadow-interactive">
-                <div className="w-full h-full bg-bg rounded-full flex items-center justify-center text-primary">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-text-main">Stone AI Strategist</h3>
-                <p className="text-[11px] text-text-muted">Campaign Progression</p>
-              </div>
-            </div>
-            <span className="text-[11px] font-semibold text-primary px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-              Phase {phaseNum} of 8
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center space-y-6">
-            <div className="p-6 rounded-[16px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/15 text-primary text-xs font-bold rounded-full">
-                <Layers className="w-3.5 h-3.5" />
-                <span>{phaseTitle}</span>
-              </div>
-
-              <h3 className="text-lg font-bold text-text-main leading-snug">
-                Ready for the Next Strategic Step
-              </h3>
-
-              <p className="text-xs text-text-muted leading-relaxed">
-                {phaseDesc}
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={actionBtn.fn}
-                  disabled={sending}
-                  className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-[10px] text-xs font-bold shadow-interactive transition-all cursor-pointer"
-                >
-                  <span>{actionBtn.label}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleEditBrief}
-                  className="px-4 py-2.5 border border-border bg-surface-hover hover:bg-surface rounded-[10px] text-xs font-semibold text-text-muted hover:text-text-main transition-colors cursor-pointer"
-                >
-                  Edit Brief
-                </button>
-              </div>
-            </div>
-          </div>
+      <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full bg-surface/10">
+        <div className="w-full flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
+          <InterviewChat
+            draft={draft}
+            input={input}
+            onInputChange={setInput}
+            sending={sending}
+            aiError={aiError}
+            examplePlaceholder={examplePlaceholder}
+            micSupported={micSupported}
+            listening={listening}
+            onMic={handleMic}
+            onSend={handleSend}
+            onRetry={handleRetry}
+            onBack={handleBack}
+            onEditProfile={() => {}}
+            onEscapeHatch={handleEscapeHatch}
+            onCorrectRecap={handleCorrectRecap}
+            onConfirmBrief={handleConfirmBrief}
+            onConfirmReactions={handleConfirmReactions}
+            onConfirmPlan={handleConfirmPlan}
+            profileChanged={false}
+            onRegenerateProfile={() => {}}
+            onKeepProfile={() => {}}
+            onStartNew={startNew}
+            isBigChat={true}
+          />
         </div>
-
-        {/* Right Pane: Live Email Canvas */}
-        <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
-          <LiveEmailCanvas draft={draft} profile={profile} />
-        </div>
-
-        <ProfileSidePanel
-          open={panelOpen}
-          profile={profile}
-          onClose={() => setPanelOpen(false)}
-          onSave={onSaveProfile}
-          saving={saving}
-          serverErrors={serverErrors}
-          inProgress
-          onRegenerate={() => handleSnapshot('regenerate')}
-          onKeep={() => handleSnapshot('keep')}
-        />
       </div>
     );
   }
 
-  // Active Interview (Phases 1-6) Two-Pane Studio
   return (
-    <div className="flex-1 flex overflow-hidden p-6 gap-6 min-h-0 w-full h-full">
-      {/* Left Pane: AI Chat Studio (~44% width) */}
-      <div className="w-[44%] min-w-[420px] max-w-[560px] flex flex-col h-full bg-surface/30 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden shrink-0">
+    <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full divide-x divide-border/60">
+      {/* Left Pane: Chat Studio */}
+      <div className="w-[440px] xl:w-[480px] shrink-0 flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
         <InterviewChat
           draft={draft}
           input={input}
@@ -673,35 +647,24 @@ export default function InterviewFlow({
           onSend={handleSend}
           onRetry={handleRetry}
           onBack={handleBack}
-          onEditProfile={() => setPanelOpen(true)}
+          onEditProfile={() => {}}
           onEscapeHatch={handleEscapeHatch}
           onCorrectRecap={handleCorrectRecap}
           onConfirmBrief={handleConfirmBrief}
           onConfirmReactions={handleConfirmReactions}
           onConfirmPlan={handleConfirmPlan}
-          profileChanged={profileChanged}
-          onRegenerateProfile={() => handleSnapshot('regenerate')}
-          onKeepProfile={() => handleSnapshot('keep')}
+          profileChanged={false}
+          onRegenerateProfile={() => {}}
+          onKeepProfile={() => {}}
           onStartNew={startNew}
+          isBigChat={false}
         />
       </div>
 
-      {/* Right Pane: Live Email Canvas (~56% width) */}
-      <div className="flex-1 flex flex-col h-full bg-surface/20 backdrop-blur-md border border-border/50 rounded-[16px] shadow-luxury overflow-hidden min-w-0">
-        <LiveEmailCanvas draft={draft} profile={profile} />
+      {/* Right Pane: Live Email Canvas */}
+      <div className="flex-1 min-w-0 flex flex-col h-full bg-surface/10 min-h-0 overflow-hidden">
+        <LiveEmailCanvas draft={draft} isGenerating={sending} />
       </div>
-
-      <ProfileSidePanel
-        open={panelOpen}
-        profile={profile}
-        onClose={() => setPanelOpen(false)}
-        onSave={onSaveProfile}
-        saving={saving}
-        serverErrors={serverErrors}
-        inProgress
-        onRegenerate={() => handleSnapshot('regenerate')}
-        onKeep={() => handleSnapshot('keep')}
-      />
     </div>
   );
 }

@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ExternalLink, ChevronUp, Plus, User, Mail, Phone,
-  MapPin, Building2, Globe, MessageSquare, Flame,
-  FileText, CheckSquare, Sparkles, X, Edit3, Check, Loader2,
-  Copy, Bot, Calendar, Tag, CheckCircle2, Clock, Send
+  ChevronUp, Plus, X, Check, Loader2, Send, Bot
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { conversationsApi } from '../../../lib/api/conversations';
@@ -12,17 +9,16 @@ import { crmApi } from '../../../lib/api/crm';
 import { queryKeys } from '../../../lib/queryKeys';
 import { useToast } from '../../../components/ui/Toast';
 import { apiFetch } from '../../../lib/apiClient';
+import { useConversationsCtx } from '../context/ConversationsContext';
 import type { Conversation } from '../../../types/conversation';
 import type { UpdateContactInput } from '../../../types/crm';
 
 function Accordion({
   title,
-  icon: Icon,
   children,
   defaultOpen = false,
 }: {
   title: string;
-  icon?: React.ElementType;
   children?: React.ReactNode;
   defaultOpen?: boolean;
 }) {
@@ -34,10 +30,7 @@ function Accordion({
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3 text-[12px] font-bold text-text-main hover:bg-surface-hover transition-colors"
       >
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="w-3.5 h-3.5 text-text-muted" />}
-          <span>{title}</span>
-        </div>
+        <span>{title}</span>
         {open ? <ChevronUp className="w-3.5 h-3.5 text-text-muted" /> : <Plus className="w-3.5 h-3.5 text-text-muted" />}
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
@@ -45,22 +38,48 @@ function Accordion({
   );
 }
 
-export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  timestamp: Date;
+}
+
+export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: Conversation; onClose?: () => void; initialTab?: 'contact' | 'notes' | 'ai' }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'contact' | 'notes' | 'copilot'>('contact');
-  const [hideEmptyFields, setHideEmptyFields] = useState(false);
+  const {
+    composerDraft, setComposerDraft,
+    composerSubject, setComposerSubject,
+    setIsComposerOpen,
+  } = useConversationsCtx();
+
+  const [tab, setTab] = useState<'contact' | 'notes' | 'ai'>(initialTab || 'contact');
+  useEffect(() => {
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
   const [tagInput, setTagInput] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [newInternalNote, setNewInternalNote] = useState('');
-  const [copilotOutput, setCopilotOutput] = useState<{ type: string; content: string } | null>(null);
-  const [isCopilotLoading, setIsCopilotLoading] = useState(false);
+
+  // AI Assistant Chat State
+  const [aiChatMessages, setAiChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'initial-draft',
+      role: 'assistant',
+      text: "I'm your AI Copilot. I read the full conversation thread to craft accurate, contextual replies. Click 'Draft Reply' or type an instruction below.",
+      timestamp: new Date(),
+    }
+  ]);
+  const [aiInput, setAiInput] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const contactId = conv.contactId || conv.contact?.id;
 
   // Fetch full CRM Contact details
-  const { data: crmContact, isLoading: contactLoading } = useQuery({
+  const { data: crmContact } = useQuery({
     queryKey: ['crm-contact', contactId],
     queryFn: () => (contactId ? crmApi.getContact(contactId) : null),
     enabled: !!contactId,
@@ -112,7 +131,7 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'internal_comment',
-          title: 'Added Internal Note',
+          title: 'Internal Note',
           content,
         })
       });
@@ -137,13 +156,9 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
   const displayName = fullName || rawContact?.email || conv.subject || 'Unknown Contact';
   const email = crmContact?.email ?? conv.contact?.email ?? '';
   const phone = crmContact?.phone ?? conv.contact?.phone ?? '';
-  const location = crmContact?.location ?? '';
-  const title = crmContact?.title ?? '';
   const companyName = crmContact?.company?.name ?? '';
   const leadScore = crmContact?.leadScore ?? 0;
   const contactStatus = crmContact?.status ?? 'Lead';
-  const source = crmContact?.source ?? '';
-  const preferredChannel = crmContact?.preferredChannel ?? conv.channel;
   const contactTags: string[] = crmContact?.tags ?? (Array.isArray(conv.tags) ? conv.tags : (conv.tagsJson ? JSON.parse(conv.tagsJson as any) : []));
 
   // Form state for editing contact details
@@ -178,6 +193,19 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
       });
     }
   }, [crmContact, conv.contact]);
+
+  // Set reply subject if empty on thread load
+  useEffect(() => {
+    if (!composerSubject && conv.subject) {
+      setComposerSubject(conv.subject.startsWith('Re:') ? conv.subject : `Re: ${conv.subject}`);
+    }
+  }, [conv.id, conv.subject]);
+
+  useEffect(() => {
+    if (tab === 'ai') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aiChatMessages.length, isAiGenerating, tab]);
 
   const handleSaveContactForm = (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,204 +254,194 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
     patchConv.mutate({ tags: newTags });
   };
 
-  const handleCopilotAction = (actionType: 'reply' | 'summary' | 'action_items') => {
-    setIsCopilotLoading(true);
-    setCopilotOutput(null);
+  // ── AI Assistant Real-Time Chat Handler ──────────────────────────────────────
+  const handleSendAiPrompt = async (promptText: string) => {
+    const prompt = promptText.trim();
+    if (!prompt || isAiGenerating) return;
 
-    setTimeout(() => {
-      setIsCopilotLoading(false);
-      if (actionType === 'reply') {
-        setCopilotOutput({
-          type: 'Smart Reply Draft',
-          content: `Hi ${firstName || 'there'},\n\nThank you for reaching out! We've reviewed your inquiry and our team is ready to assist you right away. Let us know what time works best for a quick follow-up.\n\nBest regards,\nStone AIO Team`
-        });
-      } else if (actionType === 'summary') {
-        setCopilotOutput({
-          type: 'Thread Summary',
-          content: `Customer (${displayName}) has contacted us regarding system workflows and integration timelines. Key priority is reviewing account settings. Last interaction received ${new Date().toLocaleDateString()}.`
-        });
-      } else {
-        setCopilotOutput({
-          type: 'Extracted Action Items',
-          content: `1. Verify CRM contact details for ${displayName}\n2. Schedule follow-up meeting\n3. Assign account manager and update pipeline`
-        });
+    const userMessage: ChatMessage = {
+      id: 'user-' + Date.now(),
+      role: 'user',
+      text: prompt,
+      timestamp: new Date(),
+    };
+
+    setAiChatMessages(prev => [...prev, userMessage]);
+    setAiInput('');
+    setIsAiGenerating(true);
+
+    try {
+      const data = await conversationsApi.generateAiReply(conv.id, prompt);
+
+      if (data?.draft) {
+        setComposerDraft(data.draft);
+        setIsComposerOpen(true);
+        if (!composerSubject && conv.subject) {
+          setComposerSubject(conv.subject.startsWith('Re:') ? conv.subject : `Re: ${conv.subject}`);
+        }
       }
-    }, 600);
-  };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast('info', `${label} copied to clipboard`);
+      setAiChatMessages(prev => [
+        ...prev,
+        {
+          id: 'ai-' + Date.now(),
+          role: 'assistant',
+          text: data?.explanation || "I've drafted a reply based on the conversation thread and updated your email composer.",
+          timestamp: new Date(),
+        }
+      ]);
+    } catch (e: any) {
+      console.error('AI reply generation failed:', e);
+      setAiChatMessages(prev => [
+        ...prev,
+        {
+          id: 'ai-' + Date.now(),
+          role: 'assistant',
+          text: "I was unable to generate an AI reply right now. Please verify your connection or AI key and try again.",
+          timestamp: new Date(),
+        }
+      ]);
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
-
-  const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'urgent'] as const;
 
   return (
     <div className="w-[340px] shrink-0 border-l border-border/60 bg-surface/85 flex flex-col h-full font-inter overflow-hidden backdrop-blur-md">
-      {/* Tabs matching CRM sub-panels */}
-      <div className="flex p-2 gap-1 bg-surface/60 border-b border-border/50 shrink-0">
-        <button
-          onClick={() => setTab('contact')}
-          className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            tab === 'contact' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-          }`}
-        >
-          <User className="w-3.5 h-3.5" />
-          Contact
-        </button>
-        <button
-          onClick={() => setTab('notes')}
-          className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            tab === 'notes' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" />
-          Notes {events.length > 0 && `(${events.length})`}
-        </button>
-        <button
-          onClick={() => setTab('copilot')}
-          className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-            tab === 'copilot' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5 text-primary-300" />
-          Copilot
-        </button>
+      {/* Panel Top Header: Tabs & Fold Button */}
+      <div className="flex items-center justify-between p-2 bg-surface/60 border-b border-border/50 shrink-0 gap-1">
+        <div className="flex flex-1 gap-1">
+          <button
+            onClick={() => setTab('contact')}
+            className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              tab === 'contact' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+            }`}
+          >
+            Contact
+          </button>
+          <button
+            onClick={() => setTab('notes')}
+            className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              tab === 'notes' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+            }`}
+          >
+            Notes
+          </button>
+          <button
+            onClick={() => setTab('ai')}
+            className={`flex-1 py-1.5 text-[12px] font-bold rounded-lg transition-all text-center ${
+              tab === 'ai' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+            }`}
+          >
+            AI Assistant
+          </button>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors shrink-0"
+            title="Fold panel"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
         {/* ─── CONTACT TAB ────────────────────────────────────────── */}
         {tab === 'contact' && (
-          <>
-            {/* Contact profile header card */}
+          <div className="flex flex-col flex-1">
+            {/* Contact profile header card (no photo avatar, no lead badge, moved over) */}
             <div className="p-4 border-b border-border/40 bg-surface/40">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="w-11 h-11 rounded-full bg-surface-hover border border-border flex items-center justify-center text-text-main font-bold text-sm overflow-hidden shrink-0 shadow-xs">
-                  {(rawContact as any)?.avatarUrl
-                    ? <img src={(rawContact as any).avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-                    : displayName[0]?.toUpperCase() ?? '?'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-[14px] font-bold text-text-main leading-tight truncate">{displayName}</h3>
-                  </div>
-                  <p className="text-[11px] text-text-muted mt-0.5 truncate">
-                    {title || 'Unknown Title'} {companyName ? `at ${companyName}` : '· No Company'}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                      {contactStatus || 'Lead'}
-                    </span>
-                    {leadScore > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
-                        <Flame className="w-2.5 h-2.5" /> {leadScore}
-                      </span>
-                    )}
-                  </div>
-                </div>
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-white leading-tight truncate">{displayName}</h3>
+                <p className="text-[12px] text-text-muted mt-0.5 truncate">
+                  {formData.title || 'No Title'} {companyName ? `at ${companyName}` : ''}
+                </p>
               </div>
 
-              {/* Quick Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border/30">
-                {contactId ? (
+              {/* Quick Action Buttons (No icons) */}
+              {contactId && (
+                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border/30">
                   <button
                     onClick={() => navigate(`/crm/contacts/${contactId}`)}
-                    className="col-span-2 py-1.5 px-3 text-[12px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                    className="col-span-2 py-1.5 px-3 text-[12px] font-semibold text-white bg-primary/20 hover:bg-primary/30 border border-primary/40 rounded-lg flex items-center justify-center transition-colors shadow-xs"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" /> View in CRM Contacts
+                    View in CRM Contacts
                   </button>
-                ) : (
-                  <div className="col-span-2 text-[11px] text-text-muted italic text-center py-1">
-                    No CRM record linked
-                  </div>
-                )}
-                {email && (
-                  <a
-                    href={`mailto:${email}`}
-                    className="py-1 px-2 text-[11px] font-medium text-text-muted hover:text-text-main bg-surface-hover hover:bg-surface border border-border rounded-md flex items-center justify-center gap-1 transition-colors"
-                  >
-                    <Mail className="w-3 h-3" /> Email
-                  </a>
-                )}
-                {phone && (
-                  <a
-                    href={`tel:${phone}`}
-                    className="py-1 px-2 text-[11px] font-medium text-text-muted hover:text-text-main bg-surface-hover hover:bg-surface border border-border rounded-md flex items-center justify-center gap-1 transition-colors"
-                  >
-                    <Phone className="w-3 h-3" /> Call
-                  </a>
-                )}
-              </div>
+                  {email && (
+                    <a
+                      href={`mailto:${email}`}
+                      className="py-1 px-2 text-[11px] font-medium text-slate-300 hover:text-white bg-[#242833] border border-white/10 rounded-md flex items-center justify-center transition-colors"
+                    >
+                      Email
+                    </a>
+                  )}
+                  {phone && (
+                    <a
+                      href={`tel:${phone}`}
+                      className="py-1 px-2 text-[11px] font-medium text-slate-300 hover:text-white bg-[#242833] border border-white/10 rounded-md flex items-center justify-center transition-colors"
+                    >
+                      Call
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Hide empty fields toggle matching CRM */}
-            <div
-              className="px-4 py-2.5 flex items-center gap-2 border-b border-border/40 cursor-pointer hover:bg-surface-hover/50 transition-colors bg-surface/20"
-              onClick={() => setHideEmptyFields(!hideEmptyFields)}
-            >
-              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${hideEmptyFields ? 'bg-primary border-primary text-white' : 'border-border bg-surface'}`}>
-                {hideEmptyFields && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-              </div>
-              <span className="text-[12px] font-medium text-text-muted">Hide empty fields</span>
-            </div>
-
-            {/* CRM Contact Form */}
+            {/* CRM Contact Form (No icons, no hide empty fields toggle) */}
             <form onSubmit={handleSaveContactForm} className="p-4 space-y-5">
               {/* Contact Details Fields */}
               <div className="space-y-3">
-                <span className="text-[13px] font-bold text-text-main flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-primary" /> Contact Details
+                <span className="text-[13px] font-bold text-text-main">
+                  Contact Details
                 </span>
 
                 {[
-                  { label: 'First Name', key: 'firstName', value: formData.firstName, type: 'text', placeholder: 'Unknown' },
-                  { label: 'Last Name', key: 'lastName', value: formData.lastName, type: 'text', placeholder: 'Unknown' },
-                  { label: 'Email', key: 'email', value: formData.email, type: 'email', placeholder: 'Unknown' },
-                  { label: 'Phone', key: 'phone', value: formData.phone, type: 'text', placeholder: 'Unknown' },
-                  { label: 'Date of Birth', key: 'dateOfBirth', value: formData.dateOfBirth, type: 'date', placeholder: 'Unknown' },
-                  { label: 'Contact Source', key: 'source', value: formData.source, type: 'text', placeholder: 'Unknown' },
+                  { label: 'First Name', key: 'firstName', value: formData.firstName, type: 'text', placeholder: 'First name' },
+                  { label: 'Last Name', key: 'lastName', value: formData.lastName, type: 'text', placeholder: 'Last name' },
+                  { label: 'Email', key: 'email', value: formData.email, type: 'email', placeholder: 'name@example.com' },
+                  { label: 'Phone', key: 'phone', value: formData.phone, type: 'text', placeholder: '+1 (555) 000-0000' },
+                  { label: 'Date of Birth', key: 'dateOfBirth', value: formData.dateOfBirth, type: 'date', placeholder: '' },
+                  { label: 'Contact Source', key: 'source', value: formData.source, type: 'text', placeholder: 'Website, referral...' },
                   { label: 'Contact Type', key: 'status', value: formData.status, type: 'text', placeholder: 'Lead' },
-                ]
-                  .filter(f => !hideEmptyFields || f.value)
-                  .map((field) => (
-                    <div key={field.key} className="space-y-1">
-                      <label className="text-[11px] font-semibold text-text-muted">{field.label}</label>
-                      <input
-                        type={field.type}
-                        value={field.value}
-                        placeholder={field.placeholder}
-                        onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
-                        className="w-full bg-surface-hover/80 border border-border text-text-main text-[12px] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50"
-                      />
-                    </div>
-                  ))}
+                ].map((field) => (
+                  <div key={field.key} className="space-y-1">
+                    <label className="text-[11px] font-semibold text-text-muted">{field.label}</label>
+                    <input
+                      type={field.type}
+                      value={field.value}
+                      placeholder={field.placeholder}
+                      onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
+                      className="w-full bg-white/10 border border-white/20 text-white text-[12px] px-3 py-2 rounded-lg focus:outline-none focus:border-white focus:bg-white/15 transition-colors placeholder:text-white/40"
+                    />
+                  </div>
+                ))}
               </div>
 
               {/* Advanced Details Fields */}
               <div className="space-y-3 pt-3 border-t border-border/40">
-                <span className="text-[13px] font-bold text-text-main flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-primary" /> Advanced Details
+                <span className="text-[13px] font-bold text-text-main">
+                  Advanced Details
                 </span>
 
                 {[
-                  { label: 'Business Name', key: 'businessName', value: formData.businessName, placeholder: 'Unknown' },
-                  { label: 'Job Title', key: 'title', value: formData.title, placeholder: 'Unknown' },
-                  { label: 'Website', key: 'website', value: formData.website, placeholder: 'Unknown' },
-                  { label: 'Location', key: 'location', value: formData.location, placeholder: 'Unknown' },
-                ]
-                  .filter(f => !hideEmptyFields || f.value)
-                  .map((field) => (
-                    <div key={field.key} className="space-y-1">
-                      <label className="text-[11px] font-semibold text-text-muted">{field.label}</label>
-                      <input
-                        type="text"
-                        value={field.value}
-                        placeholder={field.placeholder}
-                        onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
-                        className="w-full bg-surface-hover/80 border border-border text-text-main text-[12px] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary transition-colors placeholder:text-text-muted/50"
-                      />
-                    </div>
-                  ))}
+                  { label: 'Business Name', key: 'businessName', value: formData.businessName, placeholder: 'Company name' },
+                  { label: 'Job Title', key: 'title', value: formData.title, placeholder: 'Executive, Owner...' },
+                  { label: 'Website', key: 'website', value: formData.website, placeholder: 'https://example.com' },
+                  { label: 'Location', key: 'location', value: formData.location, placeholder: 'City, State' },
+                ].map((field) => (
+                  <div key={field.key} className="space-y-1">
+                    <label className="text-[11px] font-semibold text-text-muted">{field.label}</label>
+                    <input
+                      type="text"
+                      value={field.value}
+                      placeholder={field.placeholder}
+                      onChange={e => setFormData({ ...formData, [field.key]: e.target.value })}
+                      className="w-full bg-white/10 border border-white/20 text-white text-[12px] px-3 py-2 rounded-lg focus:outline-none focus:border-white focus:bg-white/15 transition-colors placeholder:text-white/40"
+                    />
+                  </div>
+                ))}
               </div>
 
               {contactId && (
@@ -439,7 +457,7 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
             </form>
 
             {/* Tags & Labels Accordion */}
-            <Accordion title="Tags & Labels" icon={Tag} defaultOpen>
+            <Accordion title="Tags & Labels" defaultOpen>
               <div className="flex flex-wrap gap-1.5 mb-2.5">
                 {contactTags.map(tag => (
                   <span
@@ -504,67 +522,39 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
                 <button
                   type="button"
                   onClick={() => setIsAddingTag(true)}
-                  className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                  className="text-[12px] font-semibold text-white hover:text-white/80 transition-colors flex items-center gap-1"
                 >
-                  <Plus className="w-3 h-3" /> Add Tag
+                  + Add Tag
                 </button>
               )}
             </Accordion>
 
-            {/* Conversation Settings Accordion */}
-            <Accordion title="Conversation Actions" icon={MessageSquare} defaultOpen>
-              <div className="space-y-3">
-                {/* Assignee */}
-                <div>
-                  <p className="text-[11px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Assignee</p>
-                  <select
-                    value={conv.assignedUserId ?? ''}
-                    onChange={e => patchConv.mutate({ assignedUserId: e.target.value || null })}
-                    className="w-full bg-surface-hover border border-border text-text-main text-[12px] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary shadow-xs"
-                  >
-                    <option value="">Unassigned</option>
-                    {conv.assignedUser && (
-                      <option value={conv.assignedUser.id}>{conv.assignedUser.name}</option>
-                    )}
-                  </select>
-                </div>
-
-                {/* Priority */}
-                <div>
-                  <p className="text-[11px] font-bold text-text-muted uppercase tracking-wide mb-1.5">Priority</p>
-                  <select
-                    value={conv.priority ?? ''}
-                    onChange={e => patchConv.mutate({ priority: (e.target.value || undefined) as any })}
-                    className="w-full bg-surface-hover border border-border text-text-main text-[12px] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary shadow-xs"
-                  >
-                    <option value="">None</option>
-                    {PRIORITY_OPTIONS.map(p => (
-                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                    ))}
-                  </select>
-                </div>
+            {/* Small subtle text at the bottom if no CRM record linked */}
+            {!contactId && (
+              <div className="px-4 py-4 mt-auto text-[11px] text-text-muted/60 text-center italic">
+                No CRM record linked
               </div>
-            </Accordion>
-          </>
+            )}
+          </div>
         )}
 
-        {/* ─── NOTES & ACTIVITY TAB ─────────────────────────────────── */}
+        {/* ─── NOTES TAB ─────────────────────────────────────────── */}
         {tab === 'notes' && (
-          <div className="p-4 space-y-4">
+          <div className="p-4 flex flex-col flex-1">
             {/* Create Internal Note Form */}
-            <div className="p-3.5 bg-surface/80 border border-border rounded-xl space-y-2.5 shadow-xs">
-              <div className="flex items-center gap-1.5 text-[12px] font-bold text-text-main">
-                <Edit3 className="w-3.5 h-3.5 text-primary" /> Leave Internal Note
-              </div>
+            <div className="p-3.5 bg-surface/80 border border-border/70 rounded-xl space-y-3 shadow-xs">
+              <span className="text-[12px] font-bold text-white block">
+                Write an internal note or account comment
+              </span>
               <textarea
                 value={newInternalNote}
                 onChange={e => setNewInternalNote(e.target.value)}
-                placeholder="Write an internal note or comment on this contact's account…"
+                placeholder="Write an internal note or account comment…"
                 rows={3}
-                className="w-full bg-surface-hover border border-border rounded-lg p-2.5 text-[12px] text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary resize-none"
+                className="w-full bg-surface-hover/80 border border-border/80 rounded-lg p-3 text-[12px] text-white placeholder:text-text-muted focus:outline-none focus:border-white/40 resize-none transition-colors"
               />
               <div className="flex justify-between items-center pt-1">
-                <span className="text-[10px] text-text-muted italic">Visible only to team members</span>
+                <span className="text-[10px] text-text-muted italic">Visible to team</span>
                 <button
                   onClick={() => {
                     if (newInternalNote.trim()) {
@@ -580,9 +570,9 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
               </div>
             </div>
 
-            {/* Events / Notes List */}
-            <div className="space-y-3 pt-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+            {/* Events / Notes List with generous spacing */}
+            <div className="mt-6 space-y-3.5 flex-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 block px-0.5">
                 Activity &amp; Notes History
               </span>
 
@@ -594,22 +584,22 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
 
               {!eventsLoading && events.length === 0 && (
                 <div className="p-6 text-center text-text-muted text-[12px] italic bg-surface/30 rounded-xl border border-border/40">
-                  No internal notes or activities logged for this contact yet.
+                  No internal notes logged for this contact yet.
                 </div>
               )}
 
               {events.map((ev: any) => (
-                <div key={ev.id} className="p-3 bg-surface border border-border/60 rounded-xl space-y-1 shadow-xs">
+                <div key={ev.id} className="p-3.5 bg-surface border border-border/70 rounded-xl space-y-1.5 shadow-xs">
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] font-bold text-sky-400 flex items-center gap-1.5">
-                      <FileText className="w-3 h-3" /> {ev.title || 'Internal Note'}
+                    <span className="text-[12px] font-bold text-white">
+                      {ev.title || 'Internal Note'}
                     </span>
                     <span className="text-[10px] text-text-muted">
                       {ev.createdAt ? new Date(ev.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                   </div>
                   <div
-                    className="text-[12px] text-text-main whitespace-pre-wrap leading-relaxed pt-1"
+                    className="text-[12px] text-white/90 whitespace-pre-wrap leading-relaxed pt-0.5"
                     dangerouslySetInnerHTML={{ __html: ev.content }}
                   />
                 </div>
@@ -618,81 +608,99 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
           </div>
         )}
 
-        {/* ─── COPILOT TAB ─────────────────────────────────────────── */}
-        {tab === 'copilot' && (
-          <div className="p-5 flex flex-col h-full space-y-4">
-            <div className="text-center pb-2">
-              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-2.5 border border-primary/20 shadow-xs">
-                <Bot className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-[14px] font-bold text-text-main mb-1">Stone AI Copilot</h3>
-              <p className="text-[12px] text-text-muted leading-relaxed">
-                Smart assistance, real-time draft generation & context summaries.
-              </p>
-            </div>
+        {/* ─── AI ASSISTANT CHAT TAB (Straight Chat Box) ──────────────── */}
+        {tab === 'ai' && (
+          <div className="flex flex-col flex-1 h-full min-h-0">
 
-            {/* Copilot Action Chips */}
-            <div className="space-y-2">
-              <button
-                onClick={() => handleCopilotAction('reply')}
-                disabled={isCopilotLoading}
-                className="w-full py-2 px-3 bg-surface hover:bg-surface-hover border border-border rounded-xl text-[12px] font-semibold text-text-main flex items-center gap-2.5 transition-colors shadow-xs"
-              >
-                <Sparkles className="w-4 h-4 text-primary shrink-0" />
-                <span className="text-left flex-1">Generate Suggested Reply</span>
-              </button>
-
-              <button
-                onClick={() => handleCopilotAction('summary')}
-                disabled={isCopilotLoading}
-                className="w-full py-2 px-3 bg-surface hover:bg-surface-hover border border-border rounded-xl text-[12px] font-semibold text-text-main flex items-center gap-2.5 transition-colors shadow-xs"
-              >
-                <FileText className="w-4 h-4 text-blue-400 shrink-0" />
-                <span className="text-left flex-1">Summarize Conversation</span>
-              </button>
-
-              <button
-                onClick={() => handleCopilotAction('action_items')}
-                disabled={isCopilotLoading}
-                className="w-full py-2 px-3 bg-surface hover:bg-surface-hover border border-border rounded-xl text-[12px] font-semibold text-text-main flex items-center gap-2.5 transition-colors shadow-xs"
-              >
-                <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="text-left flex-1">Extract Action Items</span>
-              </button>
-            </div>
-
-            {/* Loading Indicator */}
-            {isCopilotLoading && (
-              <div className="p-4 bg-surface/50 border border-border rounded-xl flex items-center justify-center gap-2 text-[12px] text-text-muted">
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                Thinking & generating...
-              </div>
-            )}
-
-            {/* Output Display */}
-            {copilotOutput && !isCopilotLoading && (
-              <div className="p-3.5 bg-surface border border-primary/30 rounded-xl space-y-2 shadow-xs animate-in fade-in">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3" /> {copilotOutput.type}
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard(copilotOutput.content, 'Copilot suggestion')}
-                    className="p-1 text-text-muted hover:text-text-main rounded transition-colors"
-                    title="Copy text"
+            {/* Chat Timeline */}
+            <div className="flex-1 p-3 space-y-2.5 overflow-y-auto custom-scrollbar">
+              {aiChatMessages.map(msg => (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div
+                    className={`max-w-[88%] px-3.5 py-2 rounded-2xl text-[12px] leading-relaxed shadow-xs ${
+                      msg.role === 'user'
+                        ? 'bg-white text-slate-900 font-medium rounded-tr-none'
+                        : 'bg-white/10 border border-white/20 text-white rounded-tl-none'
+                    }`}
                   >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
+                    {msg.text}
+                  </div>
+                  <span className="text-[9px] text-text-muted mt-0.5 px-1">
+                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                <div className="text-[12px] text-text-main leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar p-2 bg-surface-hover/60 rounded-lg border border-border/40 font-mono">
-                  {copilotOutput.content}
+              ))}
+
+              {isAiGenerating && (
+                <div className="flex items-center gap-2 p-2.5 bg-[#1e2029] border border-white/10 rounded-xl text-[11px] text-slate-300 w-fit">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  Updating email composer...
                 </div>
-              </div>
-            )}
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Quick Prompt Chips */}
+            <div className="px-3 py-2 flex flex-wrap gap-1.5 border-t border-border/40 bg-surface/40 shrink-0">
+              <button
+                type="button"
+                disabled={isAiGenerating}
+                onClick={() => handleSendAiPrompt("Draft a reply addressing the customer's latest message")}
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-primary/20 hover:bg-primary/30 text-white border border-primary/40 transition-colors disabled:opacity-50 flex items-center gap-1 shadow-xs cursor-pointer"
+              >
+                <Bot className="w-3 h-3 text-white" /> Draft Reply
+              </button>
+              <button
+                type="button"
+                disabled={isAiGenerating}
+                onClick={() => handleSendAiPrompt("Keep the email response short, concise, and direct")}
+                className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Make Concise
+              </button>
+              <button
+                type="button"
+                disabled={isAiGenerating}
+                onClick={() => handleSendAiPrompt("Draft an invitation for a quick 15-minute onboarding walkthrough")}
+                className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Propose Call
+              </button>
+            </div>
+
+            {/* Chat Input Bar */}
+            <div className="p-3 border-t border-border/40 bg-surface/80 shrink-0">
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  handleSendAiPrompt(aiInput);
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  placeholder="Ask AI Assistant to adjust email…"
+                  disabled={isAiGenerating}
+                  className="flex-1 bg-white/10 border border-white/20 text-white placeholder:text-white/40 text-[12px] px-3.5 py-2 rounded-lg focus:outline-none focus:border-white focus:bg-white/15 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={!aiInput.trim() || isAiGenerating}
+                  className="p-2 bg-primary hover:bg-primary-hover disabled:opacity-40 text-white rounded-lg transition-colors shadow-xs"
+                  title="Send to AI Assistant"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-

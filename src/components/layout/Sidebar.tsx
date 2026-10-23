@@ -69,7 +69,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Opportunities', path: '/crm/opportunities' },
             { name: 'Companies', path: '/crm/companies' },
             { name: 'Tasks', path: '/crm/tasks' },
-            { name: 'Documents', path: '/crm/documents' },
             { name: 'Smart Lists', path: '/crm/smart-lists' }
           ]
         },

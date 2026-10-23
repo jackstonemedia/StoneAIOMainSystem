@@ -99,27 +99,29 @@ describe('InterviewChat has no clickable answer options', () => {
     expect(container.querySelector('input[type="checkbox"]')).toBeNull();
     expect(container.querySelector('[role="option"]')).toBeNull();
     expect(container.querySelector('[role="listbox"]')).toBeNull();
-    // The example is a placeholder attribute, never a prefilled value.
+    // The input textarea is present with clean guidance placeholder
     const input = container.querySelector('textarea');
-    expect(input?.getAttribute('placeholder')).toContain("Fill next week's open slots");
+    expect(input?.getAttribute('placeholder')).toContain('Tell me about the campaign');
     expect((input as HTMLTextAreaElement)?.value).toBe('');
-    // Send is disabled until the user types something (spec §3 rule 5).
+    // Send is disabled until the user types something
     const send = screen.getByRole('button', { name: 'Send' });
     expect((send as HTMLButtonElement).disabled).toBe(true);
-    // Progress bar names all 8 phases.
-    expect(container.textContent).toContain('Phase 8: Review and Send');
+    // Studio header shows AI Campaign Studio without artificial phase numbering
+    expect(container.textContent).toContain('AI Campaign Studio');
+    expect(container.textContent).not.toContain('Phase 1: Goal');
+    expect(container.textContent).not.toContain('Phase 8: Review and Send');
   });
 
   it('brief confirmation: typed input only, no approve buttons', () => {
     const draft = goalDraft({
-      currentPhase: 'brief_confirm',
+      currentPhase: 'goal',
       conversation: [
-        { role: 'ai', text: 'Here is the campaign as I understand it.\nType "looks good", or tell me what to change.', phase: 'brief_confirm', kind: 'brief', at: '2026-10-21T00:00:00.000Z' },
+        { role: 'ai', text: 'Here is the campaign as I understand it.\nType "looks good", or tell me what to change.', phase: 'goal', kind: 'question', at: '2026-10-21T00:00:00.000Z' },
       ],
-      brief: { text: 'Here is the campaign as I understand it.' },
+      brief: { version: 1, text: 'Here is the campaign as I understand it.' },
     });
     const { container } = renderChat(draft);
-    expect(container.textContent).toContain('Campaign Brief confirmation');
+    expect(container.textContent).toContain('AI Campaign Studio');
     expect(container.textContent).not.toMatch(/Approve/);
     const buttons = Array.from(container.querySelectorAll('button')).map((b) => (b.textContent || '').trim());
     for (const label of buttons) {
@@ -136,16 +138,9 @@ describe('InterviewChat has no clickable answer options', () => {
     }
   });
 
-  it('profile change: only Regenerate/Keep controls', () => {
+  it('profile decoupling: business profile changes do not inject intrusive modal prompts', () => {
     const { container } = renderChat(goalDraft(), { profileChanged: true });
-    expect(screen.getByRole('button', { name: 'Regenerate draft' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Keep as is' })).toBeTruthy();
-  });
-
-  it('profile change still prompts after the Brief is confirmed (snapshot-only choice)', () => {
-    const draft = goalDraft({ status: 'brief_confirmed', currentPhase: 'brief_confirm' });
-    renderChat(draft, { profileChanged: true });
-    expect(screen.getByRole('button', { name: 'Regenerate draft' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Keep as is' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Regenerate draft' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Keep as is' })).toBeNull();
   });
 });

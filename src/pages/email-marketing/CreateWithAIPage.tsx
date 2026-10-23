@@ -109,14 +109,9 @@ export default function CreateWithAIPage() {
 
           <div className="h-4 w-[1px] bg-border/60" />
 
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <h2 className="text-sm font-extrabold text-text-main tracking-tight">
-              AI Campaign Studio
-            </h2>
-          </div>
+          <h2 className="text-sm font-bold text-text-main tracking-tight">
+            AI Campaign Studio
+          </h2>
         </div>
 
         {/* Center: Active Profile Pill & Quick Edit */}

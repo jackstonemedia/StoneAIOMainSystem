@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { AlertTriangle, X, Bot, Bell, Search, RefreshCw } from 'lucide-react';
+import { AlertTriangle, X, Bot, Bell, Search } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConversationsProvider, useConversationsCtx } from './context/ConversationsContext';
 import { useChannelConnections } from '../../hooks/useConversations';
@@ -94,16 +94,6 @@ function ConversationsTopBarActions() {
           </button>
         )}
       </div>
-
-      {/* Refresh */}
-      <button
-        onClick={() => qc.invalidateQueries({ queryKey: ['conversations'] })}
-        className="btn-secondary"
-        title="Refresh conversations"
-      >
-        <RefreshCw className="w-4 h-4" /> Refresh
-      </button>
-
     </div>
   );
 }

@@ -90,6 +90,11 @@ export const conversationsApi = {
   export: (id: string) =>
     apiClient.get<string>(`/business/conversations/${id}/export`, { responseType: 'blob' as any }).then((r) => r.data),
 
+  generateAiReply: (id: string, prompt?: string) =>
+    apiClient
+      .post<{ draft: string; explanation: string }>(`/business/conversations/${id}/ai-reply`, { prompt })
+      .then((r) => r.data),
+
   // ── Templates ─────────────────────────────────────────────────────────────
   listTemplates: (channel?: string) =>
     apiClient

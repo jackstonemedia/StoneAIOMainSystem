@@ -145,6 +145,41 @@ export type ChatMessageState = {
   at: string;
 };
 
+export interface LiveEmailDraft {
+  version: number;
+  subject: string;
+  previewText?: string;
+  bodyText: string;
+  bodyHtml: string;
+  ctaText?: string;
+  ctaUrl?: string;
+  rationale?: string;
+  generatedAt: string;
+}
+
+export interface CampaignBrief {
+  version: number;
+  businessName?: string;
+  businessDescription?: string;
+  campaignType?: string;
+  isReadyToDraft?: boolean;
+  services?: string[];
+  differentiators?: string[];
+  targetAudience?: Record<string, unknown>;
+  primaryGoal?: Record<string, unknown>;
+  offer?: Record<string, unknown>;
+  callToAction?: Record<string, unknown>;
+  voiceAndTone?: Record<string, unknown>;
+  sequenceStructure?: Record<string, unknown>;
+  reactions?: Record<string, unknown>;
+  abTest?: Record<string, unknown>;
+  liveEmail?: LiveEmailDraft;
+  rawVolunteeredFacts?: Record<string, string>;
+  text?: string;
+  lockedAt?: string;
+  [key: string]: unknown;
+}
+
 export type CampaignDraftState = {
   id: string;
   workspaceId: string;
@@ -166,7 +201,7 @@ export type CampaignDraftState = {
       }
     >
   >;
-  brief: Record<string, unknown> | null;
+  brief: CampaignBrief | null;
   briefVersion: number;
   sequence: Record<string, unknown> | null;
   profileNotedAt: string | null;

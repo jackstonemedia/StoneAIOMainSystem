@@ -16,6 +16,14 @@ interface ConversationsContextValue {
   // Active filter count (for badge)
   activeFilterCount: number;
 
+  // Composer & AI Assistant Sync
+  composerDraft: string;
+  setComposerDraft: React.Dispatch<React.SetStateAction<string>>;
+  composerSubject: string;
+  setComposerSubject: React.Dispatch<React.SetStateAction<string>>;
+  isComposerOpen: boolean;
+  setIsComposerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
   // Selection
   selectedId: string | null;
   setSelectedId: (id: string | null) => void;
@@ -58,6 +66,11 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  // Composer & AI Assistant Sync (Message box closed by default until opened)
+  const [composerDraft, setComposerDraft] = useState('');
+  const [composerSubject, setComposerSubject] = useState('');
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+
   const toggleSelected = (id: string) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -97,6 +110,9 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
   const value = useMemo<ConversationsContextValue>(() => ({
     channel, view, search, sort, statusFilter, assigneeFilter, tagFilter, isReadFilter, dateRangeFilter,
     activeFilterCount,
+    composerDraft, setComposerDraft,
+    composerSubject, setComposerSubject,
+    isComposerOpen, setIsComposerOpen,
     selectedId, setSelectedId,
     selectedIds, setSelectedIds, toggleSelected, clearSelection,
     setChannel, setView, setSearch, setSort, setStatusFilter,
@@ -105,7 +121,8 @@ export function ConversationsProvider({ children }: { children: React.ReactNode 
     queryFilters,
   }), [
     channel, view, search, sort, statusFilter, assigneeFilter, tagFilter, isReadFilter,
-    dateRangeFilter, activeFilterCount, selectedId, selectedIds, queryFilters,
+    dateRangeFilter, activeFilterCount, composerDraft, composerSubject, isComposerOpen,
+    selectedId, selectedIds, queryFilters,
   ]);
 
   return <ConversationsContext.Provider value={value}>{children}</ConversationsContext.Provider>;

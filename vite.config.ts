@@ -11,8 +11,9 @@ export default defineConfig(({mode: _mode}) => {
     ],
     resolve: {
       alias: [
+        { find: 'react', replacement: path.resolve(__dirname, 'node_modules/react') },
+        { find: 'react-dom', replacement: path.resolve(__dirname, 'node_modules/react-dom') },
         { find: '@', replacement: path.resolve(__dirname, '.') },
-        { find: /^react$/, replacement: path.resolve(__dirname, 'src/shims/react-shim.ts') },
         { find: /^use-sync-external-store(\/shim)?\/with-selector(\.js)?$/, replacement: path.resolve(__dirname, 'src/shims/use-sync-external-store-with-selector.ts') },
         { find: /^use-sync-external-store(\/shim)?(\/index(\.js)?)?$/, replacement: path.resolve(__dirname, 'src/shims/use-sync-external-store-shim.ts') },
       ],
@@ -29,7 +30,7 @@ export default defineConfig(({mode: _mode}) => {
     },
     optimizeDeps: {
       holdUntilCrawlEnd: true,
-      force: false, // set to true temporarily to bust cache if hooks crash
+      force: false,
       entries: ['./index.html', './src/main.tsx'],
       include: [
         'react',
@@ -74,6 +75,7 @@ export default defineConfig(({mode: _mode}) => {
     server: {
       host: true,
       port: 5173,
+      headers: { 'Cache-Control': 'no-store' },
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
         '/api': {

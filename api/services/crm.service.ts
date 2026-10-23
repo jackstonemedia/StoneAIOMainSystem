@@ -953,7 +953,8 @@ export async function listPipelines(workspaceId: string) {
         stages: {
           create: [
             { name: 'New Lead', color: '#818CF8', order: 0, probability: 20 },
-            { name: 'Close', color: '#34D399', order: 1, probability: 100 },
+            { name: 'Proposal Sent', color: '#FBBF24', order: 1, probability: 60 },
+            { name: 'Closed', color: '#34D399', order: 2, probability: 100, isWon: true },
           ],
         },
       },
@@ -961,29 +962,39 @@ export async function listPipelines(workspaceId: string) {
     });
     pipelines = [created];
   } else {
-    // Remove old auto-seeded stages that were added by previous code versions.
-    // Reassigns deals on legacy stages to 'New Lead' so only New Lead & Close remain by default.
-    const OLD_AUTO_SEEDED = new Set(['contacted', 'proposal sent', 'closed', 'new group', 'active deals', 'closed won']);
+    // Ensure default pipeline has the 3 standard stages: New Lead, Proposal Sent, Closed
     const defaultPipeline = pipelines.find(p => p.isDefault) || pipelines[0];
-    const newLeadStage = defaultPipeline?.stages.find(s => s.name.toLowerCase() === 'new lead');
-    const toDelete = (defaultPipeline?.stages || []).filter(s =>
-      OLD_AUTO_SEEDED.has(s.name.toLowerCase())
-    );
-    if (toDelete.length > 0) {
-      for (const stage of toDelete) {
-        if (newLeadStage) {
-          await db.deal.updateMany({
-            where: { pipelineStageId: stage.id },
-            data: { pipelineStageId: newLeadStage.id },
+    if (defaultPipeline) {
+      const existingNames = new Set(defaultPipeline.stages.map(s => s.name.trim().toLowerCase()));
+      const standardStages = [
+        { name: 'New Lead', color: '#818CF8', order: 0, probability: 20 },
+        { name: 'Proposal Sent', color: '#FBBF24', order: 1, probability: 60 },
+        { name: 'Closed', color: '#34D399', order: 2, probability: 100, isWon: true },
+      ];
+      let maxOrder = defaultPipeline.stages.reduce((max, s) => Math.max(max, s.order), -1);
+      let added = false;
+      for (const st of standardStages) {
+        if (!existingNames.has(st.name.trim().toLowerCase())) {
+          maxOrder++;
+          await db.pipelineStage.create({
+            data: {
+              pipelineId: defaultPipeline.id,
+              name: st.name,
+              color: st.color,
+              order: maxOrder,
+              probability: st.probability,
+              isWon: Boolean(st.isWon),
+            }
           });
+          added = true;
         }
-        await db.pipelineStage.delete({ where: { id: stage.id } }).catch(() => {});
       }
-      // Re-fetch after cleanup
-      pipelines = await db.pipeline.findMany({
-        where: { workspaceId },
-        include: { stages: { orderBy: { order: 'asc' } } },
-      });
+      if (added) {
+        pipelines = await db.pipeline.findMany({
+          where: { workspaceId },
+          include: { stages: { orderBy: { order: 'asc' } } },
+        });
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { db } from '../../../infrastructure/database/client.js';
+import { stripQuotedReply, stripQuotedReplyHtml } from '../../utils/email-cleaner.js';
 import { encryptJson, decryptJson } from './encryption.js';
 
 interface GmailCredentials {
@@ -217,11 +218,17 @@ export async function sendGmailMessage(
       });
       if (alreadyStored) continue;
 
-      const fullMsg = await gmail.users.messages.get({
-        userId: 'me',
-        id: msgId,
-        format: 'full',
-      });
+      let fullMsg: any;
+      try {
+        fullMsg = await gmail.users.messages.get({
+          userId: 'me',
+          id: msgId,
+          format: 'full',
+        });
+      } catch (getErr: any) {
+        if (getErr.code === 404 || getErr.status === 404) continue;
+        throw getErr;
+      }
 
       // Skip messages we sent
       if (fullMsg.data.labelIds?.includes('SENT')) continue;
@@ -233,23 +240,61 @@ export async function sendGmailMessage(
       ];
       if (SKIP_LABELS.some(l => fullMsg.data.labelIds?.includes(l))) continue;
 
-      const headers = fullMsg.data.payload?.headers ?? [];
+      const headers: Array<{ name: string; value: string }> = fullMsg.data.payload?.headers ?? [];
+
+      // Skip marketing, newsletters, or automated mailing lists
+      const hasListHeader = headers.some(h =>
+        ['list-unsubscribe', 'list-id', 'list-post', 'list-help', 'x-campaign', 'x-mailer'].includes(h.name.toLowerCase())
+      );
+      const precedence = headers.find(h => h.name.toLowerCase() === 'precedence')?.value?.toLowerCase();
+      const autoSubmitted = headers.find(h => h.name.toLowerCase() === 'auto-submitted')?.value?.toLowerCase();
+      if (hasListHeader || precedence === 'bulk' || precedence === 'list' || (autoSubmitted && autoSubmitted !== 'no')) {
+        continue;
+      }
+
       const from = headers.find(h => h.name === 'From')?.value ?? '';
       const subject = headers.find(h => h.name === 'Subject')?.value ?? '(no subject)';
       const threadId = fullMsg.data.threadId!;
+
+      const senderEmail = from.match(/<([^>]+)>/)?.[1] ?? (from.includes('@') ? from.trim() : '');
+
+      // Check sender for marketing/noreply/automated notification patterns or known automated domains
+      const isAutomatedSender = /(noreply|no-reply|notifications?|updates?|alerts?|billing|newsletters?|marketing|mailer-daemon|postmaster|donotreply|security|verify|digest|support@|accounts?@|info@|sales@|orders?@|receipts?@|bounce)/i.test(senderEmail);
+      const isKnownBotDomain = /(github\.com|xfinity\.com|render\.com|railway\.app|meta\.com|notion\.com|activecampaign\.com|mailchimp\.com|sendgrid\.net|hubspot\.com|slack\.com|intercom\.io)/i.test(senderEmail);
+      if (isAutomatedSender || isKnownBotDomain) {
+        continue;
+      }
+
       const { text: bodyText, html: bodyHtml } = extractGmailBody(fullMsg.data.payload);
-      const bodyStr = bodyText || htmlToText(bodyHtml);
+      const rawBody = bodyText || htmlToText(bodyHtml);
+      const bodyStr = stripQuotedReply(rawBody);
+      const cleanedHtml = bodyHtml ? stripQuotedReplyHtml(bodyHtml) : null;
 
       // Find or create conversation keyed by Gmail threadId
       let convo = await db.conversation.findFirst({
         where: { workspaceId: conn.workspaceId, externalId: threadId },
       });
 
+      let contact = senderEmail ? await db.contact.findFirst({
+        where: { workspaceId: conn.workspaceId, email: senderEmail },
+      }) : null;
+
+      if (!contact && senderEmail) {
+        const rawName = from.split('<')[0].trim().replace(/^"|"$/g, '');
+        const firstName = rawName.split(' ')[0] || senderEmail.split('@')[0];
+        const lastName = rawName.split(' ').slice(1).join(' ') || '';
+        contact = await db.contact.create({
+          data: {
+            workspaceId: conn.workspaceId,
+            email: senderEmail,
+            firstName,
+            lastName,
+            status: 'Lead',
+          },
+        }).catch(() => null);
+      }
+
       if (!convo) {
-        const senderEmail = from.match(/<(.+?)>/)?.[1] ?? from.trim();
-        const contact = await db.contact.findFirst({
-          where: { workspaceId: conn.workspaceId, email: senderEmail },
-        });
         convo = await db.conversation.create({
           data: {
             workspaceId: conn.workspaceId,
@@ -263,6 +308,11 @@ export async function sendGmailMessage(
             unreadCount: 1,
           },
         });
+      } else if (!convo.contactId && contact) {
+        await db.conversation.update({
+          where: { id: convo.id },
+          data: { contactId: contact.id },
+        }).catch(() => null);
       }
 
       const date = headers.find(h => h.name === 'Date')?.value ?? new Date().toISOString();
@@ -272,7 +322,7 @@ export async function sendGmailMessage(
         fromEmail: from,
         subject,
         date,
-        htmlBody: bodyHtml || null,
+        htmlBody: cleanedHtml,
       });
 
       await db.conversationMessage.create({

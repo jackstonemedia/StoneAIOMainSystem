@@ -1,167 +1,156 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  BarChart3, RefreshCw, TrendingUp, TrendingDown, Users, DollarSign,
-  Briefcase, MessageSquare, Activity, Plus, LayoutGrid, RotateCcw,
-  Target, ChevronRight, Check, Calendar, Phone, Mail, ArrowUpRight,
-  Bot, Bell
+  Users, DollarSign, Target, MessageSquare, Calendar, Mail,
+  Bot, Bell, RefreshCw, TrendingUp, TrendingDown, Clock,
+  AlertTriangle, CheckCircle2, XCircle, Send, Eye, MousePointer,
+  ChevronRight, Workflow, Activity, ArrowUpRight, ShieldAlert,
+  Inbox, UserCheck, Flame
 } from 'lucide-react';
 import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
-import { useDashboardLayout } from '../hooks/useDashboardLayout';
 import { useUnreadNotificationsCount } from '../hooks/useUnreadNotificationsCount';
-import { apiClient } from '../lib/apiClient';
 import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
-import { AddWidgetModal } from '../components/dashboard/AddWidgetModal';
-import { DashboardGrid } from '../components/dashboard/DashboardGrid';
 import CRMAIAssistant from '../components/crm/CRMAIAssistant';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
-// ─── Date range presets matching Ad Manager ──────────────────────────────────
+// ─── Timeframe Presets ────────────────────────────────────────────────────────
 const DATE_RANGES: { label: string; value: DateRange }[] = [
-  { label: 'Today',      value: '7d' },
+  { label: 'Today',     value: 'today' },
   { label: 'Last 7d',   value: '7d' },
   { label: 'Last 30d',  value: '30d' },
   { label: 'Last 90d',  value: '90d' },
   { label: 'This Year', value: '1y' },
 ];
 
-// ─── Native SVG Area Chart matching Ad Manager ───────────────────────────────
-function AreaChart({
-  data,
-  keys,
-  colors,
-  height = 200,
-}: {
-  data: Array<Record<string, number | string>>;
-  keys: string[];
-  colors: string[];
-  height?: number;
-}) {
-  const W = 100;
-  const H = height;
-  const pad = { t: 16, r: 8, b: 32, l: 56 };
+type SectionTab = 'all' | 'crm' | 'conversations' | 'calendar' | 'email' | 'automations' | 'activity';
 
-  const allVals = data.flatMap(d => keys.map(k => Number(d[k]) || 0));
-  const maxVal  = Math.max(...allVals, 1);
-
-  function toX(i: number) {
-    return pad.l + (i / Math.max(data.length - 1, 1)) * (W * 8 - pad.l - pad.r);
-  }
-  function toY(v: number) {
-    return pad.t + (1 - v / maxVal) * (H - pad.t - pad.b);
+// ─── SVG Contacts Over Time Line Chart ───────────────────────────────────────
+function ContactsChart({ data }: { data: Array<{ date: string; count: number }> }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-44 flex items-center justify-center text-text-muted text-xs">
+        No contacts recorded in this timeframe
+      </div>
+    );
   }
 
-  const viewBoxW = W * 8;
+  const W = 600;
+  const H = 160;
+  const pad = { t: 16, r: 16, b: 28, l: 36 };
 
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({
-    val: maxVal * f,
-    y: toY(maxVal * f),
-  }));
+  const values = data.map((d) => d.count);
+  const maxVal = Math.max(...values, 4);
 
+  const toX = (i: number) => pad.l + (i / Math.max(data.length - 1, 1)) * (W - pad.l - pad.r);
+  const toY = (v: number) => pad.t + (1 - v / maxVal) * (H - pad.t - pad.b);
+
+  const points = data.map((d, i) => `${toX(i)},${toY(d.count)}`).join(' ');
+  const areaPath = `M${toX(0)},${toY(0)} ${data.map((d, i) => `L${toX(i)},${toY(d.count)}`).join(' ')} L${toX(data.length - 1)},${toY(0)} Z`;
+
+  // X-axis sample labels (show up to 6 labels)
+  const step = Math.max(1, Math.floor(data.length / 5));
   const xLabels = data
-    .map((d, i) => ({ i, label: String(d.date ?? d.label ?? '').slice(5) || `Day ${i + 1}` }))
-    .filter((_, i) => i % Math.max(1, Math.floor(data.length / 6)) === 0);
+    .map((d, i) => ({ i, label: d.date.slice(5) }))
+    .filter((_, i) => i % step === 0 || i === data.length - 1);
 
   return (
-    <svg
-      viewBox={`0 0 ${viewBoxW} ${H}`}
-      preserveAspectRatio="none"
-      className="w-full"
-      style={{ height: H }}
-    >
-      {ticks.map((t, i) => (
-        <line key={i} x1={pad.l} x2={viewBoxW - pad.r} y1={t.y} y2={t.y}
-          stroke="currentColor" strokeOpacity={0.08} strokeWidth={1} />
-      ))}
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-44">
+        {/* Horizontal grid lines */}
+        {[0, 0.5, 1].map((f, idx) => {
+          const val = Math.round(maxVal * f);
+          const y = toY(val);
+          return (
+            <g key={idx}>
+              <line x1={pad.l} x2={W - pad.r} y1={y} y2={y} stroke="currentColor" strokeOpacity={0.08} strokeWidth={1} />
+              <text x={pad.l - 6} y={y + 3.5} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4} className="font-mono">
+                {val}
+              </text>
+            </g>
+          );
+        })}
 
-      {ticks.map((t, i) => (
-        <text key={i} x={pad.l - 6} y={t.y + 4} textAnchor="end"
-          fontSize={9} fill="currentColor" fillOpacity={0.4}
-          className="font-mono"
-        >
-          {t.val >= 1000 ? `$${(t.val / 1000).toFixed(0)}k` : t.val >= 100 ? `$${t.val.toFixed(0)}` : t.val.toFixed(0)}
-        </text>
-      ))}
+        {/* X labels */}
+        {xLabels.map(({ i, label }) => (
+          <text key={i} x={toX(i)} y={H - 6} textAnchor="middle" fontSize={9} fill="currentColor" fillOpacity={0.4} className="font-mono">
+            {label}
+          </text>
+        ))}
 
-      {xLabels.map(({ i, label }) => (
-        <text key={i} x={toX(i)} y={H - 6} textAnchor="middle"
-          fontSize={8.5} fill="currentColor" fillOpacity={0.4}
-        >{label}</text>
-      ))}
+        {/* Shaded Area & Line */}
+        <path d={areaPath} fill="#6366f1" fillOpacity={0.15} />
+        <polyline points={points} fill="none" stroke="#6366f1" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
 
-      {keys.map((key, ki) => {
-        const pts = data.map((d, i) => `${toX(i)},${toY(Number(d[key]) || 0)}`).join(' ');
-        const lastX = toX(data.length - 1);
-        const firstX = toX(0);
-        const bottomY = toY(0);
-        const areaPath = `M${firstX},${bottomY} ${data.map((d, i) => `L${toX(i)},${toY(Number(d[key]) || 0)}`).join(' ')} L${lastX},${bottomY} Z`;
-
-        return (
-          <g key={key}>
-            <path d={areaPath} fill={colors[ki]} fillOpacity={0.12} />
-            <polyline
-              points={pts}
-              fill="none"
-              stroke={colors[ki]}
-              strokeWidth={2}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          </g>
-        );
-      })}
-    </svg>
+        {/* Data points */}
+        {data.map((d, i) => (
+          <circle key={i} cx={toX(i)} cy={toY(d.count)} r={d.count > 0 ? 3 : 1.5} fill="#6366f1" />
+        ))}
+      </svg>
+    </div>
   );
 }
 
-// ─── KPI Card matching Ad Manager Signature Style ────────────────────────────
+// ─── KPI Card ────────────────────────────────────────────────────────────────
 function KPICard({
   label,
   value,
+  subvalue,
   delta,
   icon: Icon,
+  onClick,
   isLoading,
 }: {
   label: string;
   value: string;
+  subvalue?: string;
   delta?: number | null;
   icon: React.ElementType;
+  onClick?: () => void;
   isLoading?: boolean;
 }) {
-  const positive = delta != null && delta > 0;
-  const negative = delta != null && delta < 0;
+  const isPositive = delta != null && delta > 0;
+  const isNegative = delta != null && delta < 0;
 
   return (
-    <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col h-full">
-      {/* Top band */}
-      <div className="px-4 py-3 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center gap-2.5 shrink-0">
-        <div className="w-6 h-6 rounded-md bg-bg border border-border/50 flex items-center justify-center shrink-0 text-text-muted">
-          <Icon className="w-3.5 h-3.5" />
+    <div
+      onClick={onClick}
+      className={`rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col justify-between p-4 transition-all duration-150 ${
+        onClick ? 'cursor-pointer hover:bg-surface/50 hover:border-primary/40' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-8 h-8 rounded-lg bg-bg border border-border/60 flex items-center justify-center text-text-muted">
+          <Icon className="w-4 h-4" />
         </div>
-        <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">{label}</span>
+        {delta != null ? (
+          <span
+            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+              isPositive
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : isNegative
+                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                : 'bg-surface text-text-muted border border-border/50'
+            }`}
+          >
+            {isPositive ? <TrendingUp className="w-3 h-3" /> : isNegative ? <TrendingDown className="w-3 h-3" /> : null}
+            {isPositive ? `+${delta}%` : `${delta}%`}
+          </span>
+        ) : (
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-text-muted bg-surface/40 px-2 py-0.5 rounded-full border border-border/40">
+            Live
+          </span>
+        )}
       </div>
 
-      {/* Card body */}
-      <div className="px-4 pt-4 pb-4 flex-1 flex flex-col justify-between">
-        {isLoading
-          ? <div className="h-7 w-20 bg-border/40 rounded animate-pulse" />
-          : <div className="text-[28px] font-bold tracking-tight text-text-main leading-none">{value}</div>
-        }
-        <div className="mt-2">
-          {delta != null ? (
-            <span className={`text-[11px] font-medium flex items-center gap-1.5 ${
-              positive ? 'text-[#10B981]' : negative ? 'text-[#EF4444]' : 'text-text-muted'
-            }`}>
-              {positive ? <TrendingUp className="w-3 h-3" /> : negative ? <TrendingDown className="w-3 h-3" /> : null}
-              {positive ? 'Trending up ' : negative ? 'Trending down ' : 'Live '}
-              ({Math.abs(delta).toFixed(1)}%)
-            </span>
-          ) : (
-            <span className="text-[11px] font-medium text-text-muted">Tracking live</span>
-          )}
-        </div>
+      <div>
+        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">{label}</p>
+        {isLoading ? (
+          <div className="h-7 w-24 bg-border/40 rounded animate-pulse my-1" />
+        ) : (
+          <p className="text-2xl font-bold tracking-tight text-text-main mt-1">{value}</p>
+        )}
+        {subvalue && <p className="text-[12px] text-text-muted mt-1 truncate">{subvalue}</p>}
       </div>
     </div>
   );
@@ -169,191 +158,99 @@ function KPICard({
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<DateRange>('30d');
-  const [pipelineFilter, setPipelineFilter] = useState('all');
-  const [chartMetric, setChartMetric] = useState<'revenue' | 'leads'>('revenue');
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionTab>('all');
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
-  const { metrics, isLoading: isMetricsLoading } = useDashboardMetrics(dateRange);
+  const { metrics, isLoading, refetch } = useDashboardMetrics(dateRange);
 
-  const {
-    layout,
-    saveLayout,
-    addWidget,
-    removeWidget,
-    resetToDefault,
-    isEditing,
-    setIsEditing,
-  } = useDashboardLayout('primary');
-
-  // Fetch recent opportunities / contacts for live tables
-  const { data: recentDeals = [] } = useQuery({
-    queryKey: ['dashboard', 'recent-deals'],
-    queryFn: async () => {
-      try {
-        const { data } = await apiClient.get('/crm/opportunities');
-        return Array.isArray(data) ? data.slice(0, 5) : [];
-      } catch {
-        return [];
-      }
-    },
-  });
-
-  const { data: recentContacts = [] } = useQuery({
-    queryKey: ['dashboard', 'recent-contacts'],
-    queryFn: async () => {
-      try {
-        const res = await apiClient.get('/crm/contacts');
-        const list = Array.isArray(res.data) ? res.data : res.data?.contacts ?? [];
-        return list.slice(0, 5);
-      } catch {
-        return [];
-      }
-    },
-  });
-
-  const { data: outreachCapacity } = useQuery({
-    queryKey: ['email-marketing', 'outreach-capacity'],
-    queryFn: async () => {
-      try {
-        const res = await apiClient.get('/email-marketing/outreach/capacity');
-        return res.data;
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // KPI Calculations
-  const m = metrics as any;
-  const wonRevenue = metrics?.revenue?.current ?? m?.revenue_won ?? m?.opportunity_metrics?.won_revenue ?? 48500;
-  const pipelineVal = metrics?.pipeline?.value ?? m?.opportunity_metrics?.pipeline_value ?? 125000;
-  const totalContacts = metrics?.contacts?.total ?? m?.total_contacts ?? (recentContacts.length || 24);
-  const openConvs = m?.open_conversations ?? 8;
-  const activeDeals = m?.active_deals ?? m?.opportunity_metrics?.open_count ?? (recentDeals.length || 12);
-  const winRate = m?.win_rate ?? 68;
-
-  // Chart Data Generation
-  const chartData = useMemo(() => {
-    const days = dateRange === '7d' ? 7 : dateRange === '90d' ? 12 : dateRange === '1y' ? 12 : 14;
-    return Array.from({ length: days }, (_, i) => {
-      const dayNum = i + 1;
-      const baseRev = Math.max(1200, (wonRevenue / days) * (0.6 + Math.sin(i) * 0.4));
-      const baseLeads = Math.max(2, Math.round((totalContacts / days) * (0.8 + Math.cos(i) * 0.3)));
-      return {
-        date: `2026-08-${String(dayNum).padStart(2, '0')}`,
-        revenue: Math.round(baseRev),
-        leads: baseLeads,
-      };
-    });
-  }, [wonRevenue, totalContacts, dateRange]);
-
-  const chartSeries = useMemo(() => {
-    if (chartMetric === 'revenue') {
-      return {
-        keys: ['revenue'],
-        colors: ['#10B981'],
-        labels: ['Revenue ($)'],
-      };
-    }
-    return {
-      keys: ['leads'],
-      colors: ['#6366F1'],
-      labels: ['New Leads'],
-    };
-  }, [chartMetric]);
-
-  const stages = metrics?.pipeline_stages ?? [];
-  const totalStageCount = stages.reduce((s, st) => s + (st.count || 0), 0) || 1;
+  const headline = metrics?.headline;
+  const crm = metrics?.crm;
+  const conversations = metrics?.conversations;
+  const calendar = metrics?.calendar;
+  const emailMarketing = metrics?.emailMarketing;
+  const automations = metrics?.automations;
+  const activityFeed = metrics?.activityFeed || [];
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">
-      {/* Full-tab frosted glass overlay matching CRM / Ad Manager */}
+      {/* Background glass overlay */}
       <div className="absolute inset-0 bg-glass-bg backdrop-blur-[24px] pointer-events-none -z-10" />
 
-      {/* ── Top Header Bar matching CRM and other sections ── */}
-      <div 
-        className="w-full flex items-center justify-between pr-8 pl-0 pt-3 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm"
-        style={{ 
+      {/* ── Top Header Bar ── */}
+      <div
+        className="w-full flex items-center justify-between px-6 py-3 shrink-0 border-b z-10 sticky top-0 shadow-sm"
+        style={{
           background: 'var(--sidebar-bg)',
           borderColor: 'var(--sidebar-border)',
           color: 'var(--sidebar-text-main)',
-          '--text-main': '#ffffff',
-          '--text-muted': '#94a3b8',
-          '--border': 'rgba(255,255,255,0.15)',
-          '--surface': 'rgba(255,255,255,0.1)',
-          '--surface-hover': 'rgba(255,255,255,0.16)',
-          '--bg': 'var(--sidebar-bg)',
-          '--btn-bg': 'var(--primary)',
-          '--btn-hover': 'var(--primary-hover)',
-          '--btn-text': '#ffffff',
-          '--btn-border': 'transparent'
-        } as React.CSSProperties}
+        }}
       >
-        {/* Left: AI Assistant Button & Notification Bell */}
-        <div className="flex items-center gap-5 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+        {/* Left: AI Assistant & Notification Bell */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsAIOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface/40 hover:bg-surface/70 border border-white/10 text-white transition-all text-xs font-medium shadow-xs"
             title="AI Assistant"
           >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            <Bot className="w-4 h-4 text-white" />
+            <span>AI Assistant</span>
           </button>
-          
-          <div className="h-5 w-[1px] bg-border" />
+
+          <div className="h-5 w-[1px] bg-border/60" />
 
           <button
             onClick={() => setIsNotifOpen(true)}
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--text-main)] transition-colors relative"
+            className="p-1.5 rounded-lg hover:bg-surface/50 text-text-muted hover:text-white transition-colors relative"
             title="Notifications"
           >
-            <Bell className="w-[18px] h-[18px]" strokeWidth={2} />
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center border-2 border-[var(--sidebar-bg)]"
-                style={{ background: 'var(--primary)', color: '#ffffff' }}
-              >{unreadCount}</span>
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center bg-primary text-white border-2 border-[var(--sidebar-bg)]">
+                {unreadCount}
+              </span>
             )}
           </button>
-
-          {/* Pipeline filter pills */}
-          <div className="flex items-center gap-0.5 bg-surface/40 border border-border/40 rounded-lg p-0.5 ml-2">
-            <button
-              onClick={() => setPipelineFilter('all')}
-              className={`px-2.5 py-1 rounded-md text-[12px] font-semibold transition-colors ${
-                pipelineFilter === 'all' ? 'bg-surface text-text-main shadow-xs' : 'text-text-muted hover:text-text-main'
-              }`}
-            >
-              All Pipelines
-            </button>
-            {(stages.slice(0, 3)).map(st => (
-              <button
-                key={st.name}
-                onClick={() => setPipelineFilter(st.name)}
-                className={`px-2.5 py-1 rounded-md text-[12px] font-semibold transition-colors ${
-                  pipelineFilter === st.name ? 'bg-surface text-text-main shadow-xs' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {st.name}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-3 pb-3 min-h-[44px]">
-          {/* Date range pills */}
-          <div className="flex items-center gap-0.5 bg-surface/40 border border-border/40 rounded-lg p-0.5">
-            {DATE_RANGES.map(dr => (
+        {/* Center: Section Navigation Filter */}
+        <div className="hidden md:flex items-center gap-1 bg-surface/30 border border-border/50 rounded-lg p-0.5">
+          {[
+            { id: 'all', label: 'Overview' },
+            { id: 'crm', label: 'CRM & Pipeline' },
+            { id: 'conversations', label: 'Conversations' },
+            { id: 'calendar', label: 'Calendar' },
+            { id: 'email', label: 'Email Marketing' },
+            { id: 'automations', label: 'Automations' },
+            { id: 'activity', label: 'Activity' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSection(tab.id as SectionTab)}
+              className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                activeSection === tab.id
+                  ? 'bg-primary text-white shadow-xs'
+                  : 'text-text-muted hover:text-text-main hover:bg-surface/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Right: Timeframe Selector & Refresh */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 bg-surface/40 border border-border/50 rounded-lg p-0.5">
+            {DATE_RANGES.map((dr) => (
               <button
                 key={dr.label}
                 onClick={() => setDateRange(dr.value)}
-                className={`px-2.5 py-1 rounded-md text-[12px] font-semibold transition-colors ${
-                  dateRange === dr.value ? 'bg-surface text-text-main shadow-xs' : 'text-text-muted hover:text-text-main'
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                  dateRange === dr.value
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'text-text-muted hover:text-text-main'
                 }`}
               >
                 {dr.label}
@@ -362,376 +259,894 @@ export default function Dashboard() {
           </div>
 
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['dashboard_metrics'] })}
-            className="btn-secondary"
+            onClick={() => refetch()}
+            className="p-1.5 rounded-lg border border-border/60 hover:bg-surface/60 text-text-muted hover:text-text-main transition-colors"
+            title="Refresh metrics"
           >
-            <RefreshCw className="w-4 h-4" /> Refresh
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-
-          <button
-            type="button"
-            onClick={() => setIsAddOpen(true)}
-            className="btn-secondary"
-          >
-            <Plus className="w-4 h-4" /> Add Widget
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsEditing(!isEditing)}
-            className={isEditing ? 'btn-danger' : 'btn-primary'}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            <span>{isEditing ? 'Done' : 'Edit Layout'}</span>
-          </button>
-
-          {isEditing && (
-            <button
-              type="button"
-              onClick={resetToDefault}
-              className="p-2 rounded-lg border border-border text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-              title="Reset Layout"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </div>
 
-      <AddWidgetModal
-        open={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
-        onAdd={(type, config) => {
-          addWidget(type, config);
-          setIsAddOpen(false);
-        }}
-        existingTypes={layout.widgets.map((widget) => widget.type)}
-      />
+      {/* ── Scrollable Dashboard Content ── */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-7">
 
-      {/* ── Scrollable Content Area ─────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-8 mt-6 mb-8 space-y-5">
+        {/* ═════════════════════════════════════════════════════════════════════
+            1. TOP ROW: 5 HEADLINE NUMBERS (Change vs Previous Period)
+        ═════════════════════════════════════════════════════════════════════ */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Performance Headlines (vs Previous Period)
+            </h2>
+            <span className="text-[11px] text-text-muted">Direct verified telemetry</span>
+          </div>
 
-          {/* ── 6 KPI Cards Grid matching Ad Manager ────────────────── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* New contacts / leads */}
             <KPICard
-              label="Won Revenue"
-              value={formatCurrency(wonRevenue)}
-              delta={12.4}
-              icon={DollarSign}
-              isLoading={isMetricsLoading}
-            />
-            <KPICard
-              label="Total Contacts"
-              value={totalContacts.toLocaleString()}
-              delta={5.8}
+              label="New Contacts / Leads"
+              value={headline?.newContacts?.count != null ? headline.newContacts.count.toLocaleString() : '0'}
+              subvalue={`${headline?.newContacts?.total?.toLocaleString() ?? 0} total leads in CRM`}
+              delta={headline?.newContacts?.changePct}
               icon={Users}
-              isLoading={isMetricsLoading}
+              isLoading={isLoading}
+              onClick={() => navigate('/crm/contacts')}
             />
+
+            {/* Open opportunities */}
             <KPICard
-              label="Pipeline Value"
-              value={formatCurrency(pipelineVal)}
-              delta={8.2}
-              icon={Target}
-              isLoading={isMetricsLoading}
-            />
-            <KPICard
-              label="Active Deals"
-              value={String(activeDeals)}
+              label="Open Opportunities"
+              value={headline?.openOpportunities?.count != null ? `${headline.openOpportunities.count} deals` : '0 deals'}
+              subvalue={formatCurrency(headline?.openOpportunities?.value || 0) + ' active pipeline'}
               delta={null}
-              icon={Briefcase}
-              isLoading={isMetricsLoading}
+              icon={Target}
+              isLoading={isLoading}
+              onClick={() => navigate('/crm/opportunities')}
             />
+
+            {/* Won deals */}
             <KPICard
-              label="Open Messages"
-              value={String(openConvs)}
+              label="Won Deals"
+              value={formatCurrency(headline?.wonDeals?.value || 0)}
+              subvalue={`${headline?.wonDeals?.count ?? 0} won this period (${formatCurrency(headline?.wonDeals?.allTimeValue || 0)} all-time)`}
+              delta={headline?.wonDeals?.changePct}
+              icon={DollarSign}
+              isLoading={isLoading}
+              onClick={() => navigate('/crm/opportunities')}
+            />
+
+            {/* Unread conversations */}
+            <KPICard
+              label="Unread Conversations"
+              value={headline?.unreadConversations?.count != null ? `${headline.unreadConversations.count} unread` : '0 unread'}
+              subvalue={`${headline?.unreadConversations?.openThreads ?? 0} open customer threads`}
               delta={null}
               icon={MessageSquare}
-              isLoading={isMetricsLoading}
+              isLoading={isLoading}
+              onClick={() => navigate('/conversations')}
             />
+
+            {/* Appointments booked */}
             <KPICard
-              label="Win Rate"
-              value={`${Math.round(winRate)}%`}
-              delta={3.1}
-              icon={TrendingUp}
-              isLoading={isMetricsLoading}
+              label="Appointments Booked"
+              value={headline?.upcomingAppointments?.count != null ? `${headline.upcomingAppointments.count} upcoming` : '0 upcoming'}
+              subvalue="Live schedule synced"
+              delta={null}
+              icon={Calendar}
+              isLoading={isLoading}
+              onClick={() => navigate('/calendar')}
             />
           </div>
+        </div>
 
-          {/* ── Native Outreach Engine Live Capacity Pulse ─────────── */}
-          {outreachCapacity && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-surface/50 border border-border/60 backdrop-blur-md">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Mail className="w-4 h-4" />
-                </div>
+        {/* ═════════════════════════════════════════════════════════════════════
+            2. CRM / PIPELINE SECTION
+        ═════════════════════════════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'crm') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">CRM & Pipeline</h2>
+              </div>
+              <button
+                onClick={() => navigate('/crm/opportunities')}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Go to Opportunities <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Pipeline by Stage (Funnel / Bar) */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-text-main">Native Outreach Engine</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      outreachCapacity.activeMailboxesCount > 0
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                    }`}>
-                      {outreachCapacity.activeMailboxesCount > 0
-                        ? `${outreachCapacity.activeMailboxesCount} Inboxes Active`
-                        : 'No Inboxes Connected'}
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-sm font-semibold text-text-main">Pipeline by Stage</h3>
+                    <span className="text-[11px] font-mono text-text-muted">
+                      {crm?.pipelineStages?.reduce((acc, s) => acc + s.count, 0) || 0} Deals
                     </span>
                   </div>
-                  <div className="text-[11px] text-text-muted mt-0.5">
-                    {outreachCapacity.activeMailboxesCount > 0
-                      ? `${outreachCapacity.totalSentToday} / ${outreachCapacity.totalCapacity} emails sent today (${outreachCapacity.remainingCapacity} remaining) • 90–180s human pacing active`
-                      : 'Connect your Google Workspace or Outlook inbox in Settings to launch cold campaigns.'}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => navigate('/email-marketing/campaigns/new')}
-                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-colors shadow-xs"
-                >
-                  New Campaign
-                </button>
-                <button
-                  onClick={() => navigate('/settings?tab=outreach')}
-                  className="px-3 py-1.5 bg-surface border border-border hover:bg-surface-hover text-text-main rounded-lg text-xs font-semibold transition-colors"
-                >
-                  Manage Inboxes
-                </button>
-              </div>
-            </div>
-          )}
+                  <p className="text-[11px] text-text-muted mb-4">Deal count and dollar value per pipeline stage</p>
 
-          {/* ── Main Chart + Pipeline Funnel Split ─────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-            {/* Performance Area Chart */}
-            <div className="lg:col-span-3 rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center justify-between shrink-0">
-                <div>
-                  <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Performance Over Time</h3>
-                  <p className="text-[12px] text-text-muted mt-0.5">Won Revenue & Inbound Leads Growth</p>
-                </div>
-                <div className="flex items-center gap-0.5 bg-bg border border-border rounded-lg p-0.5">
-                  <button
-                    onClick={() => setChartMetric('revenue')}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                      chartMetric === 'revenue' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
-                    }`}
-                  >
-                    Revenue
-                  </button>
-                  <button
-                    onClick={() => setChartMetric('leads')}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                      chartMetric === 'leads' ? 'bg-surface text-text-main shadow-sm' : 'text-text-muted hover:text-text-main'
-                    }`}
-                  >
-                    Leads
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-5 flex-1">
-                {isMetricsLoading ? (
-                  <div className="h-[200px] flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                  </div>
-                ) : (
-                  <AreaChart
-                    data={chartData}
-                    keys={chartSeries.keys}
-                    colors={chartSeries.colors}
-                    height={200}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Pipeline Stage Distribution Card */}
-            <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md shrink-0">
-                <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Pipeline Distribution</h3>
-                <p className="text-[12px] text-text-muted mt-0.5">Deals by active stage</p>
-              </div>
-
-              <div className="p-5 flex flex-col gap-3.5 flex-1 justify-center">
-                {stages.length === 0 ? (
-                  <div className="text-center py-6 text-text-muted text-[12px]">
-                    No pipeline stages recorded yet
-                  </div>
-                ) : (
-                  stages.map((st, i) => {
-                    const pct = Math.round(((st.count || 0) / totalStageCount) * 100);
-                    const colors = ['#6366F1', '#3B82F6', '#10B981', '#F59E0B', '#EC4899'];
-                    const color = colors[i % colors.length];
-                    return (
-                      <div key={st.name} className="space-y-1">
-                        <div className="flex items-center justify-between text-[12px]">
-                          <span className="font-medium text-text-main">{st.name}</span>
-                          <span className="font-semibold text-text-muted font-mono">{st.count || 0} ({pct}%)</span>
-                        </div>
-                        <div className="h-2 bg-bg/80 border border-border/40 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%`, backgroundColor: color }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Recent Deals & Leads Activity Table ─────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Top Opportunities */}
-            <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center justify-between shrink-0">
-                <div>
-                  <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Recent Opportunities</h3>
-                  <p className="text-[12px] text-text-muted mt-0.5">Latest deals added to pipeline</p>
-                </div>
-                <button
-                  onClick={() => navigate('/crm/opportunities')}
-                  className="text-[12px] font-semibold text-primary hover:underline flex items-center gap-1"
-                >
-                  View all <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left">
-                  <thead className="border-b border-border/50 bg-surface/50 text-[11px] font-bold text-text-muted uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3 pl-5">Deal Name</th>
-                      <th className="p-3">Stage</th>
-                      <th className="p-3 pr-5 text-right">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/30 text-[13px]">
-                    {recentDeals.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-6 text-center text-text-muted text-[12px]">
-                          No active opportunities found
-                        </td>
-                      </tr>
+                  <div className="space-y-3">
+                    {(!crm?.pipelineStages || crm.pipelineStages.length === 0) ? (
+                      <p className="text-xs text-text-muted py-6 text-center">No active pipeline stages found</p>
                     ) : (
-                      recentDeals.map((deal: any) => (
-                        <tr
-                          key={deal.id}
-                          onClick={() => navigate(`/crm/opportunities/${deal.id}`)}
-                          className="hover:bg-surface-hover/50 cursor-pointer transition-colors"
-                        >
-                          <td className="p-3 pl-5 font-medium text-text-main">{deal.title || 'Untitled Deal'}</td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                              {deal.stageName || deal.stage?.name || 'Active'}
-                            </span>
-                          </td>
-                          <td className="p-3 pr-5 text-right font-bold text-emerald-400 font-mono">
-                            {formatCurrency(deal.amount || 0)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Recent Contacts */}
-            <div className="rounded-[8px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
-              <div className="px-5 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center justify-between shrink-0">
-                <div>
-                  <h3 className="text-[15px] font-semibold tracking-tight text-text-main">Recent Contacts</h3>
-                  <p className="text-[12px] text-text-muted mt-0.5">Latest leads entered into CRM</p>
-                </div>
-                <button
-                  onClick={() => navigate('/crm/contacts')}
-                  className="text-[12px] font-semibold text-primary hover:underline flex items-center gap-1"
-                >
-                  View all <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left">
-                  <thead className="border-b border-border/50 bg-surface/50 text-[11px] font-bold text-text-muted uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3 pl-5">Contact</th>
-                      <th className="p-3">Company / Email</th>
-                      <th className="p-3 pr-5 text-right">Added</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/30 text-[13px]">
-                    {recentContacts.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-6 text-center text-text-muted text-[12px]">
-                          No recent contacts found
-                        </td>
-                      </tr>
-                    ) : (
-                      recentContacts.map((c: any) => {
-                        const name = `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.name || 'Unknown';
+                      crm.pipelineStages.map((stage) => {
+                        const totalPipeline = crm.pipelineStages.reduce((sum, s) => sum + (s.value || 0), 0) || 1;
+                        const pct = Math.min(100, Math.round(((stage.value || 0) / totalPipeline) * 100));
                         return (
-                          <tr
-                            key={c.id}
-                            onClick={() => navigate(`/crm/contacts/${c.id}`)}
-                            className="hover:bg-surface-hover/50 cursor-pointer transition-colors"
-                          >
-                            <td className="p-3 pl-5">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-white text-zinc-950 font-bold text-[10px] flex items-center justify-center shrink-0 shadow-xs">
-                                  {name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="font-medium text-text-main truncate max-w-[140px]">{name}</span>
-                              </div>
-                            </td>
-                            <td className="p-3 text-text-muted text-[12px] truncate max-w-[180px]">
-                              {c.businessName || c.email || '—'}
-                            </td>
-                            <td className="p-3 pr-5 text-right text-text-muted text-[11px] font-mono">
-                              {c.createdAt ? new Date(c.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Today'}
-                            </td>
-                          </tr>
+                          <div key={stage.name} className="space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium text-text-main flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                                {stage.name} ({stage.count})
+                              </span>
+                              <span className="font-mono font-semibold text-text-muted">
+                                {formatCurrency(stage.value)}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-bg/80 border border-border/40 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${Math.max(pct, stage.count > 0 ? 8 : 0)}%`, backgroundColor: stage.color }}
+                              />
+                            </div>
+                          </div>
                         );
                       })
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                {/* Win Rate Card */}
+                <div className="mt-5 pt-4 border-t border-border/40 flex items-center justify-between bg-surface/40 p-3 rounded-lg">
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Win Rate</span>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {crm?.wonDealsCount || 0} won ÷ {(crm?.wonDealsCount || 0) + (crm?.lostDealsCount || 0)} closed
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xl font-bold font-mono text-emerald-400">
+                      {crm?.winRate != null ? `${crm.winRate}%` : 'No closed deals yet'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lead Source Breakdown */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-text-main mb-1">Lead Source Breakdown</h3>
+                  <p className="text-[11px] text-text-muted mb-4">Origins of new incoming contacts</p>
+
+                  <div className="space-y-3">
+                    {(!crm?.leadSources || crm.leadSources.length === 0) ? (
+                      <p className="text-xs text-text-muted py-6 text-center">No lead sources recorded yet</p>
+                    ) : (
+                      crm.leadSources.map((src) => (
+                        <div key={src.source} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-text-main capitalize">{src.source}</span>
+                            <span className="font-mono text-text-muted">{src.count} ({src.percentage}%)</span>
+                          </div>
+                          <div className="h-1.5 bg-bg/80 border border-border/40 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-primary transition-all duration-500"
+                              style={{ width: `${src.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-border/40 text-right">
+                  <button
+                    onClick={() => navigate('/crm/contacts')}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    View all contacts <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Stale Deals (Action Driver) */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <Flame className="w-4 h-4 text-amber-400" />
+                      <h3 className="text-sm font-semibold text-text-main">Stale Deals (&gt;14 Days Idle)</h3>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {crm?.staleDeals?.count ?? 0} at risk
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-text-muted mb-4">
+                    Open opportunities with no stage change in 14+ days
+                  </p>
+
+                  <div className="space-y-2">
+                    {(!crm?.staleDeals?.topStale || crm.staleDeals.topStale.length === 0) ? (
+                      <div className="p-6 text-center text-text-muted text-xs bg-surface/20 rounded-lg border border-border/30">
+                        <UserCheck className="w-6 h-6 mx-auto mb-1 text-emerald-400 opacity-80" />
+                        Zero stale deals! All opportunities are moving actively.
+                      </div>
+                    ) : (
+                      crm.staleDeals.topStale.map((deal) => (
+                        <div
+                          key={deal.id}
+                          onClick={() => navigate(`/crm/opportunities/${deal.id}`)}
+                          className="p-2.5 rounded-lg bg-surface/40 hover:bg-surface/70 border border-border/40 cursor-pointer transition-all flex items-center justify-between"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <p className="text-xs font-semibold text-text-main truncate">{deal.name}</p>
+                            <p className="text-[11px] text-text-muted truncate">
+                              {deal.contactName ? `${deal.contactName} • ` : ''}{deal.stage}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-xs font-mono font-bold text-amber-400">
+                              {formatCurrency(deal.amount || 0)}
+                            </span>
+                            <p className="text-[10px] font-mono text-text-muted">{deal.daysStale}d idle</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs text-text-muted">
+                  <span>Total value idle:</span>
+                  <span className="font-bold font-mono text-text-main">
+                    {formatCurrency(crm?.staleDeals?.value || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* New Contacts Over Time Line Chart */}
+            <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-text-main">New Contacts Over Time</h3>
+                  <p className="text-[11px] text-text-muted">Actual contact creation volume across current period</p>
+                </div>
+                <span className="text-xs font-mono font-bold text-primary">
+                  {headline?.newContacts?.count ?? 0} Total in Window
+                </span>
+              </div>
+              <ContactsChart data={crm?.contactsOverTime || []} />
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            3. CONVERSATIONS SECTION
+        ═════════════════════════════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'conversations') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">Conversations</h2>
+              </div>
+              <button
+                onClick={() => navigate('/conversations')}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Go to Inbox <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Unread & Volume Stats */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-text-main">Thread Status & Volume</h3>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Unread Messages</span>
+                    <p className="text-2xl font-bold text-text-main mt-1 font-mono">
+                      {conversations?.unreadCount ?? 0}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Open Threads</span>
+                    <p className="text-2xl font-bold text-text-main mt-1 font-mono">
+                      {conversations?.openThreads ?? 0}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-surface/40 rounded-lg border border-border/40 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-text-muted flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-primary" />
+                      Avg First-Response Time
+                    </span>
+                    <span className="font-bold font-mono text-text-main">
+                      {conversations?.avgFirstResponseMinutes != null
+                        ? conversations.avgFirstResponseMinutes < 60
+                          ? `${conversations.avgFirstResponseMinutes} mins`
+                          : `${Math.floor(conversations.avgFirstResponseMinutes / 60)}h ${conversations.avgFirstResponseMinutes % 60}m`
+                        : 'No replies yet'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-text-muted">Calculated strictly from inbound-to-outbound message timestamps</p>
+                </div>
+              </div>
+
+              {/* Messages Sent vs Received (Email & SMS Split) */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 space-y-3.5">
+                <h3 className="text-sm font-semibold text-text-main">Messages Sent vs Received</h3>
+                <p className="text-[11px] text-text-muted">Channel split for SMS & Email communication</p>
+
+                <div className="space-y-3 pt-1">
+                  {/* Email */}
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-medium">
+                      <span className="flex items-center gap-1.5 text-text-main">
+                        <Mail className="w-3.5 h-3.5 text-blue-400" /> Email Messages
+                      </span>
+                      <span className="text-text-muted font-mono">
+                        {(conversations?.messages?.emailSent ?? 0) + (conversations?.messages?.emailReceived ?? 0)} total
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-text-muted font-mono">
+                      <span>Sent: <strong className="text-text-main">{conversations?.messages?.emailSent ?? 0}</strong></span>
+                      <span>Received: <strong className="text-text-main">{conversations?.messages?.emailReceived ?? 0}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* SMS */}
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-medium">
+                      <span className="flex items-center gap-1.5 text-text-main">
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> SMS Messages
+                      </span>
+                      <span className="text-text-muted font-mono">
+                        {(conversations?.messages?.smsSent ?? 0) + (conversations?.messages?.smsReceived ?? 0)} total
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-text-muted font-mono">
+                      <span>Sent: <strong className="text-text-main">{conversations?.messages?.smsSent ?? 0}</strong></span>
+                      <span>Received: <strong className="text-text-main">{conversations?.messages?.smsReceived ?? 0}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conversations Awaiting Your Reply */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-sm font-semibold text-text-main">Awaiting Your Reply</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                      {conversations?.awaitingReply?.count ?? 0} pending
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-text-muted mb-3">Open threads where the customer sent the last message</p>
+
+                  <div className="space-y-2">
+                    {(!conversations?.awaitingReply?.items || conversations.awaitingReply.items.length === 0) ? (
+                      <p className="text-xs text-text-muted py-6 text-center">
+                        Inbox zero! No customer messages currently waiting for your reply.
+                      </p>
+                    ) : (
+                      conversations.awaitingReply.items.map((thread) => (
+                        <div
+                          key={thread.id}
+                          onClick={() => navigate('/conversations')}
+                          className="p-2.5 rounded-lg bg-surface/40 hover:bg-surface/70 border border-border/40 cursor-pointer transition-all"
+                        >
+                          <div className="flex items-center justify-between text-xs font-semibold text-text-main mb-0.5">
+                            <span className="truncate max-w-[160px]">{thread.contactName}</span>
+                            <span className="text-[10px] font-mono text-text-muted">
+                              {new Date(thread.lastMessageAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-muted truncate">{thread.snippet || thread.subject}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 text-right">
+                  <button
+                    onClick={() => navigate('/conversations')}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Open Conversations <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+        )}
 
-          {/* ── Custom Widget Grid (when user edits or has custom widgets) ── */}
-          {isEditing && (
-            <div className="pt-4 border-t border-border/50 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-[16px] font-bold text-text-main">Custom Widgets</h3>
-                  <p className="text-[12px] text-text-muted">Drag to rearrange or resize widgets</p>
+        {/* ═════════════════════════════════════════════════════════════════════
+            4. CALENDAR SECTION
+        ═════════════════════════════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'calendar') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">Calendar & Bookings</h2>
+              </div>
+              <button
+                onClick={() => navigate('/calendar')}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Go to Calendar <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Today's & This Week's Appointments */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-text-main">Appointments Schedule</h3>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Today</span>
+                    <p className="text-2xl font-bold text-text-main mt-1 font-mono">
+                      {calendar?.todayAppointmentsCount ?? 0}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">This Week</span>
+                    <p className="text-2xl font-bold text-text-main mt-1 font-mono">
+                      {calendar?.thisWeekAppointmentsCount ?? 0}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Status Breakdown: Booked vs Completed vs Cancelled */}
+                <div className="p-3 bg-surface/40 rounded-lg border border-border/40 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Status Breakdown</span>
+                  <div className="flex items-center justify-between text-xs pt-1 font-mono">
+                    <span className="text-emerald-400">Booked: <strong>{calendar?.statusBreakdown?.booked ?? 0}</strong></span>
+                    <span className="text-blue-400">Completed: <strong>{calendar?.statusBreakdown?.completed ?? 0}</strong></span>
+                    <span className="text-rose-400">Cancelled: <strong>{calendar?.statusBreakdown?.cancelled ?? 0}</strong></span>
+                  </div>
                 </div>
               </div>
-              <DashboardGrid
-                layout={layout}
-                metrics={metrics}
-                isMetricsLoading={isMetricsLoading}
-                dateRange={dateRange}
-                isEditing={isEditing}
-                onLayoutChange={saveLayout}
-                onRemoveWidget={removeWidget}
-              />
-            </div>
-          )}
 
-        </div>
+              {/* Next 5 Upcoming Appointments (Clickable List) */}
+              <div className="lg:col-span-2 rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-main">Next Upcoming Appointments</h3>
+                    <p className="text-[11px] text-text-muted">Click any appointment to open in Calendar</p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/calendar')}
+                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                  >
+                    View all <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {(!calendar?.upcomingAppointments || calendar.upcomingAppointments.length === 0) ? (
+                    <p className="text-xs text-text-muted py-6 text-center">
+                      No upcoming appointments scheduled.
+                    </p>
+                  ) : (
+                    calendar.upcomingAppointments.map((appt) => (
+                      <div
+                        key={appt.id}
+                        onClick={() => navigate('/calendar')}
+                        className="p-3 rounded-lg bg-surface/40 hover:bg-surface/70 border border-border/40 cursor-pointer transition-all flex items-center justify-between"
+                      >
+                        <div className="min-w-0 pr-4">
+                          <p className="text-xs font-semibold text-text-main truncate">{appt.title}</p>
+                          <p className="text-[11px] text-text-muted truncate">
+                            {appt.contactName ? `${appt.contactName} (${appt.contactEmail || ''})` : appt.type}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-mono font-medium text-text-main block">
+                            {new Date(appt.startTime).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {appt.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            5. EMAIL MARKETING SECTION (Prominent Room)
+        ═════════════════════════════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'email') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">Email Marketing & Outreach</h2>
+              </div>
+              <button
+                onClick={() => navigate('/email-marketing/campaigns')}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Go to Campaigns <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Top Metrics Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <Send className="w-3 h-3 text-primary" /> Sent
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.sent?.toLocaleString() ?? 0}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Delivered
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.delivered?.toLocaleString() ?? 0}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <Eye className="w-3 h-3 text-blue-400" /> Unique Opens
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.uniqueOpens?.toLocaleString() ?? 0}
+                  <span className="text-[11px] font-normal text-text-muted ml-1 font-sans">
+                    ({emailMarketing?.openRate ?? 0}%)
+                  </span>
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <MousePointer className="w-3 h-3 text-indigo-400" /> Unique Clicks
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.uniqueClicks?.toLocaleString() ?? 0}
+                  <span className="text-[11px] font-normal text-text-muted ml-1 font-sans">
+                    ({emailMarketing?.clickRate ?? 0}%)
+                  </span>
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" /> Bounces
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.bounces?.toLocaleString() ?? 0}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
+                  <XCircle className="w-3 h-3 text-rose-400" /> Unsubscribed
+                </span>
+                <p className="text-xl font-bold font-mono text-text-main mt-1">
+                  {emailMarketing?.unsubscribes?.toLocaleString() ?? 0}
+                </p>
+              </div>
+            </div>
+
+            {/* Last Campaign Card & List Growth */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Last Campaign Performance */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-text-main">Last Dispatched Campaign</h3>
+                    {emailMarketing?.lastCampaign && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Dispatched
+                      </span>
+                    )}
+                  </div>
+
+                  {!emailMarketing?.lastCampaign ? (
+                    <div className="py-8 text-center text-xs text-text-muted">
+                      No sent email campaigns recorded yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-1">
+                      <div>
+                        <p className="text-base font-bold text-text-main">{emailMarketing.lastCampaign.name}</p>
+                        <p className="text-xs text-text-muted mt-0.5">{emailMarketing.lastCampaign.subject}</p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2.5 pt-2">
+                        <div className="p-2.5 bg-surface/40 rounded-lg border border-border/40">
+                          <span className="text-[10px] text-text-muted block">Recipients</span>
+                          <span className="text-sm font-bold font-mono text-text-main">
+                            {emailMarketing.lastCampaign.totalRecipients.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-surface/40 rounded-lg border border-border/40">
+                          <span className="text-[10px] text-text-muted block">Open Rate</span>
+                          <span className="text-sm font-bold font-mono text-emerald-400">
+                            {emailMarketing.lastCampaign.openRate}%
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-surface/40 rounded-lg border border-border/40">
+                          <span className="text-[10px] text-text-muted block">Click Rate</span>
+                          <span className="text-sm font-bold font-mono text-indigo-400">
+                            {emailMarketing.lastCampaign.clickRate}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-border/40 text-right">
+                  <button
+                    onClick={() => navigate('/email-marketing/campaigns')}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    View campaign analytics <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* List Growth Card */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-text-main mb-1">List Growth</h3>
+                  <p className="text-[11px] text-text-muted mb-4">New audience subscribers minus unsubscribes</p>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">New Leads</span>
+                      <p className="text-xl font-bold font-mono text-emerald-400 mt-1">
+                        +{emailMarketing?.listGrowth?.newSubscribers ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Unsubscribes</span>
+                      <p className="text-xl font-bold font-mono text-rose-400 mt-1">
+                        -{emailMarketing?.listGrowth?.unsubscribes ?? 0}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Net Growth</span>
+                      <p className="text-xl font-bold font-mono text-primary mt-1">
+                        {(emailMarketing?.listGrowth?.netGrowth ?? 0) >= 0 ? '+' : ''}
+                        {emailMarketing?.listGrowth?.netGrowth ?? 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-border/40 text-right">
+                  <button
+                    onClick={() => navigate('/email-marketing/contacts')}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Manage audience lists <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            6. AUTOMATIONS SECTION (Active & Failures Tracked for Trust)
+        ═════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'automations') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Workflow className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">Automations & Workflows</h2>
+              </div>
+              <button
+                onClick={() => navigate('/automations')}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+              >
+                Go to Automations <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Active & Executions Summary */}
+              <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-text-main">Workflow Telemetry</h3>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Active Workflows</span>
+                    <p className="text-2xl font-bold text-text-main mt-1 font-mono">
+                      {automations?.activeWorkflows ?? 0}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-surface/40 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Success Rate</span>
+                    <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
+                      {automations?.successRate ?? 100}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-surface/40 rounded-lg border border-border/40 flex items-center justify-between text-xs font-mono">
+                  <span className="text-emerald-400">Succeeded: <strong>{automations?.succeededRuns ?? 0}</strong></span>
+                  <span className="text-rose-400">Failed: <strong>{automations?.failedRuns ?? 0}</strong></span>
+                  <span className="text-text-muted">Total: <strong>{automations?.totalRuns ?? 0}</strong></span>
+                </div>
+              </div>
+
+              {/* Recent Failed Runs (Visibility Drives Trust) */}
+              <div className="lg:col-span-2 rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                      <h3 className="text-sm font-semibold text-text-main">Recent Failed Automation Runs</h3>
+                    </div>
+                    <span className="text-[11px] font-mono text-text-muted">Direct links to run logs</span>
+                  </div>
+                  <p className="text-[11px] text-text-muted mb-3">
+                    Failures are fully visible so you can inspect and resolve execution errors instantly
+                  </p>
+
+                  <div className="space-y-2">
+                    {(!automations?.recentFailedRuns || automations.recentFailedRuns.length === 0) ? (
+                      <div className="p-6 text-center text-text-muted text-xs bg-surface/20 rounded-lg border border-border/30">
+                        <CheckCircle2 className="w-6 h-6 mx-auto mb-1 text-emerald-400 opacity-80" />
+                        Zero failed automation runs! Workflows executing with 100% stability.
+                      </div>
+                    ) : (
+                      automations.recentFailedRuns.map((run) => (
+                        <div
+                          key={run.id}
+                          onClick={() => navigate('/automations')}
+                          className="p-3 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 cursor-pointer transition-all flex items-center justify-between"
+                        >
+                          <div className="min-w-0 pr-3">
+                            <p className="text-xs font-semibold text-text-main truncate">{run.workflowName}</p>
+                            <p className="text-[11px] text-rose-400 truncate mt-0.5">{run.error}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] font-mono text-text-muted block">
+                              {new Date(run.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                            <span className="text-[10px] text-primary flex items-center gap-0.5 mt-0.5">
+                              Inspect <ArrowUpRight className="w-3 h-3" />
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 text-right">
+                  <button
+                    onClick={() => navigate('/automations')}
+                    className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Open Automation Builder <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═════════════════════════════════════════════════════════════════════
+            7. ACTIVITY FEED SECTION (Chronological Union of Real Events)
+        ═════════════════════════════════════════════ */}
+        {(activeSection === 'all' || activeSection === 'activity') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" />
+                <h2 className="text-[15px] font-semibold tracking-tight text-text-main">Workspace Activity Feed</h2>
+              </div>
+              <span className="text-xs text-text-muted font-mono">{activityFeed.length} Recent Events</span>
+            </div>
+
+            <div className="rounded-[10px] bg-surface/30 backdrop-blur-xl border border-border/50 shadow-luxury ring-1 ring-white/5 divide-y divide-border/30 overflow-hidden">
+              {activityFeed.length === 0 ? (
+                <div className="p-8 text-center text-text-muted text-xs">
+                  No workspace activity recorded yet.
+                </div>
+              ) : (
+                activityFeed.map((event) => {
+                  let Icon = Activity;
+                  let iconColor = 'text-primary';
+                  let iconBg = 'bg-primary/10';
+
+                  if (event.type === 'contact_created') {
+                    Icon = Users;
+                    iconColor = 'text-blue-400';
+                    iconBg = 'bg-blue-500/10';
+                  } else if (event.type === 'deal_won') {
+                    Icon = DollarSign;
+                    iconColor = 'text-emerald-400';
+                    iconBg = 'bg-emerald-500/10';
+                  } else if (event.type === 'appointment_booked') {
+                    Icon = Calendar;
+                    iconColor = 'text-purple-400';
+                    iconBg = 'bg-purple-500/10';
+                  } else if (event.type === 'campaign_sent') {
+                    Icon = Mail;
+                    iconColor = 'text-indigo-400';
+                    iconBg = 'bg-indigo-500/10';
+                  } else if (event.type === 'workflow_failed') {
+                    Icon = AlertTriangle;
+                    iconColor = 'text-rose-400';
+                    iconBg = 'bg-rose-500/10';
+                  }
+
+                  return (
+                    <div
+                      key={event.id}
+                      onClick={() => navigate(event.link)}
+                      className="p-3.5 hover:bg-surface-hover/60 cursor-pointer transition-colors flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 pr-4">
+                        <div className={`w-8 h-8 rounded-lg ${iconBg} ${iconColor} flex items-center justify-center shrink-0`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-text-main">{event.title}</p>
+                          <p className="text-[11px] text-text-muted truncate">{event.subtitle}</p>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-text-muted">
+                          {new Date(event.timestamp).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-text-muted" />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {/* Movable AI Assistant */}
+      {/* Floating CRM AI Assistant */}
       <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
-      
+
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
     </div>

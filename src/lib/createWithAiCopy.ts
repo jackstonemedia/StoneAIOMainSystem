@@ -209,7 +209,7 @@ export const createWithAiCopy = {
     generic: 'Something went wrong. Your answers are saved.',
   },
   draft: {
-    opening: 'Phase 7 of 8: Draft and Refine. I will write every email now.',
+    opening: 'Draft and Refine. I will write every email now.',
     generating: 'Writing your email…',
     generate: 'Write the email',
     regenerate: 'Regenerate',
@@ -231,7 +231,7 @@ export const createWithAiCopy = {
     whyNote: 'Why I wrote it this way',
   },
   review: {
-    opening: "Phase 8 of 8: Review and Send. Let's choose who receives this and make sure everything is ready.",
+    opening: "Review and Send. Let's choose who receives this and make sure everything is ready.",
     recipientLabel: 'Who receives this',
     segment: 'Saved segment',
     smartList: 'Smart list',

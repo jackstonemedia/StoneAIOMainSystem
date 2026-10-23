@@ -56,6 +56,20 @@ export default function NewConversationModal({ onClose }: { onClose: () => void 
     })
     .slice(0, 8);
 
+  useEffect(() => {
+    if (!fromConnectionId) {
+      if (channel === 'email' && emailConnections.length > 0) {
+        setFromConnectionId(emailConnections[0].id);
+      } else if (channel === 'sms' && smsConnections.length > 0) {
+        setFromConnectionId(smsConnections[0].id);
+      }
+    }
+  }, [channel, emailConnections, smsConnections, fromConnectionId]);
+
+  const effectiveRecipient = selectedContact
+    ? (selectedContact.email || selectedContact.phone || '')
+    : (rawRecipient.trim() || recipientSearch.trim());
+
   const createConv = useMutation({
     mutationFn: () =>
       conversationsApi.create({
@@ -63,7 +77,7 @@ export default function NewConversationModal({ onClose }: { onClose: () => void 
         channel,
         subject: channel === 'email' ? subject : undefined,
         body,
-        to: rawRecipient || undefined,
+        to: effectiveRecipient || undefined,
         fromChannelId: fromConnectionId || undefined,
       }),
     onSuccess: (conv) => {
@@ -82,12 +96,13 @@ export default function NewConversationModal({ onClose }: { onClose: () => void 
 
   const selectContact = (contact: any) => {
     setSelectedContact(contact);
+    setRawRecipient(contact.email || contact.phone || '');
     const name = `${contact.firstName ?? ''} ${contact.lastName ?? ''}`.trim() || contact.email || 'Contact';
     setRecipientSearch(name);
     setShowContactDropdown(false);
   };
 
-  const canSend = (selectedContact || rawRecipient.trim()) && (channel === 'sms' || subject.trim()) && body.trim();
+  const canSend = !!effectiveRecipient && (channel === 'sms' || subject.trim()) && body.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -253,6 +268,13 @@ export default function NewConversationModal({ onClose }: { onClose: () => void 
                 className="w-full px-3 py-2 bg-surface-hover border border-border rounded-lg text-[13px] text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary resize-none"
               />
             </div>
+
+            {/* Error display */}
+            {createConv.isError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[12px]">
+                {(createConv.error as any)?.response?.data?.error || (createConv.error as any)?.message || 'Failed to send message.'}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3 pt-1">

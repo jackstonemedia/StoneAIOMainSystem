@@ -1,35 +1,40 @@
 import React, { useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { setTokenGetter } from './apiClient';
 import { IS_DEV_AUTH_BYPASS } from './clerkConfig';
 
-function AuthTokenInner() {
-  const { getToken, isSignedIn } = useAuth();
-
+export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    if (isSignedIn) {
-      setTokenGetter(getToken);
-    } else {
-      setTokenGetter(null);
-    }
+    if (IS_DEV_AUTH_BYPASS) return;
+
+    const setupTokenGetter = () => {
+      const clerk = (window as any).Clerk;
+      if (clerk) {
+        setTokenGetter(async () => {
+          if (clerk.session) {
+            return await clerk.session.getToken();
+          }
+          return null;
+        });
+        if (typeof clerk.addListener === 'function') {
+          clerk.addListener((emission: any) => {
+            if (emission.session) {
+              setTokenGetter(async () => await emission.session.getToken());
+            } else {
+              setTokenGetter(null);
+            }
+          });
+        }
+      }
+    };
+
+    setupTokenGetter();
+    const timer = setTimeout(setupTokenGetter, 500);
 
     return () => {
+      clearTimeout(timer);
       setTokenGetter(null);
     };
-  }, [isSignedIn, getToken]);
+  }, []);
 
-  return null;
-}
-
-export function AuthTokenProvider({ children }: { children: React.ReactNode }) {
-  if (IS_DEV_AUTH_BYPASS) {
-    return <>{children}</>;
-  }
-
-  return (
-    <>
-      <AuthTokenInner />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }

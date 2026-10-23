@@ -3,17 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import {
   MessageSquare, Mail, Send, Paperclip, Bold, Italic,
   Link as LinkIcon, List, Loader2, CheckCheck, Check, AlertTriangle,
-  RotateCcw, ChevronDown, ChevronUp, ExternalLink,
+  RotateCcw, ChevronDown, ChevronUp,
   MoreHorizontal, Archive, Trash2, Ban, Download,
-  Clock, EyeOff, Eye,
+  PanelRightClose, PanelRightOpen,
+  User, FileText, Bot,
 } from 'lucide-react';
-import { format, addHours, addDays, nextMonday } from 'date-fns';
+import { format } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { conversationsApi } from '../../../lib/api/conversations';
 import { queryKeys } from '../../../lib/queryKeys';
 import { useConversationsCtx } from '../context/ConversationsContext';
 import type { ConversationMessage, EmailMessageMeta } from '../../../types/conversation';
 import { parseEmailMeta } from '../../../types/conversation';
+import { stripQuotedReply, stripQuotedReplyHtml } from '../utils/emailCleaner';
 import ThreadInfoPanel from './ThreadInfoPanel';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -52,15 +54,19 @@ function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
   const [expanded, setExpanded] = useState(false);
-  const MAX_COLLAPSED = 220;
+  const MAX_COLLAPSED = 650;
 
-  const content = html
+  const sanitizedHtml = html ? stripQuotedReplyHtml(html) : null;
+  const sanitizedPlain = stripQuotedReply(plain);
+
+  const content = sanitizedHtml
     ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
         body{margin:0;padding:8px 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.6;color:#e2e8f0;background:transparent;word-break:break-word;}
         a{color:#60a5fa;}img{max-width:100%;height:auto;}
         blockquote{border-left:3px solid #4b5563;margin:8px 0;padding-left:12px;color:#94a3b8;}
         pre,code{background:#1e293b;padding:2px 6px;border-radius:4px;font-size:12px;}
-      </style></head><body>${html}</body></html>`
+        blockquote, .gmail_quote, .gmail_quote_container, .gmail_attr, div.gmail_quote, #appendonsend, #divRplyFwdMsg { display: none !important; }
+      </style></head><body>${sanitizedHtml}</body></html>`
     : null;
 
   useEffect(() => {
@@ -76,7 +82,7 @@ function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }
   }, [content]);
 
   if (!content) {
-    return <pre className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-300 font-sans m-0">{plain}</pre>;
+    return <pre className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-300 font-sans m-0">{sanitizedPlain}</pre>;
   }
 
   const isLong = height > MAX_COLLAPSED;
@@ -120,22 +126,33 @@ function MessageBubble({
   const meta: EmailMessageMeta | null = parseEmailMeta(msg.attachments);
   const isFailed = msg.status === 'failed';
 
-  if (convChannel === 'email' && meta) {
-    const fromLabel = isOutbound ? `To: ${meta.toEmail ?? ''}` : `From: ${meta.fromEmail ?? msg.sender ?? ''}`;
+  if (convChannel === 'email') {
+    const fromLabel = isOutbound
+      ? `To: ${meta?.toEmail ?? 'Recipient'}`
+      : `From: ${meta?.fromEmail ?? msg.sender ?? 'Contact'}`;
+    const subject = meta?.subject;
+
     return (
       <div className={`flex flex-col gap-0 ${isOutbound ? 'items-end' : 'items-start'} mb-4`}>
-        <div className={`w-full max-w-[92%] rounded-[10px] border overflow-hidden shadow-sm ${isOutbound ? 'bg-primary/10 border-primary/30' : 'bg-surface border-border'}`}>
-          <div className={`flex items-center justify-between px-4 py-2.5 border-b ${isOutbound ? 'border-primary/20 bg-primary/5' : 'border-border bg-surface-hover/50'}`}>
+        <div className="w-full max-w-[92%] rounded-[10px] border border-primary/30 bg-primary/10 overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/20 bg-primary/5">
             <div className="min-w-0">
               <p className="text-[11px] font-bold text-text-muted truncate">{fromLabel}</p>
-              {meta.subject && <p className="text-[12px] font-semibold text-text-main truncate leading-tight mt-0.5">{meta.subject}</p>}
+              {subject && <p className="text-[12px] font-semibold text-text-main truncate leading-tight mt-0.5">{subject}</p>}
             </div>
-            <span className="text-[10px] text-text-muted shrink-0 ml-3">{formatTs(msg.createdAt)}</span>
+            <div className="flex items-center gap-2 shrink-0 ml-3">
+              {isFailed && isOutbound && (
+                <button onClick={onRetry} disabled={retrying} className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
+                  {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
+                </button>
+              )}
+              <span className="text-[10px] text-text-muted">{formatTs(msg.createdAt)}</span>
+            </div>
           </div>
           <div className="px-4 py-3 text-text-main">
-            <EmailHtmlViewer html={meta.htmlBody ?? null} plain={msg.body ?? ''} />
+            <EmailHtmlViewer html={meta?.htmlBody ?? null} plain={msg.body ?? ''} />
           </div>
-          {meta.files && meta.files.length > 0 && (
+          {meta?.files && meta.files.length > 0 && (
             <div className="px-4 pb-3 flex flex-wrap gap-2">
               {meta.files.map((f, i) => (
                 <a key={i} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-hover rounded-lg text-[12px] text-text-main hover:text-primary border border-border transition-colors">
@@ -145,45 +162,29 @@ function MessageBubble({
             </div>
           )}
         </div>
-        {isOutbound && (
-          <div className="flex items-center gap-1.5 px-1 mt-1">
-            <DeliveryIcon status={msg.status} channel="email" />
-            <span className="text-[10px] text-text-muted">Sent · {formatTs(msg.createdAt)}</span>
-            {isFailed && (
-              <button onClick={onRetry} disabled={retrying} className="ml-2 flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
-                {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
-              </button>
-            )}
-          </div>
-        )}
       </div>
     );
   }
 
-  // SMS / fallback bubble
+  // SMS / fallback bubble (matching uniform style)
   return (
-    <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} mb-4 group`}>
-      {!isOutbound && (
-        <div className="w-6 h-6 rounded-full bg-surface-hover border border-border flex items-center justify-center mr-2 mt-1 shrink-0 text-[10px] font-bold text-text-main shadow-xs">
-          {(msg.sender ?? '?')[0]?.toUpperCase()}
+    <div className={`flex flex-col gap-0 ${isOutbound ? 'items-end' : 'items-start'} mb-4`}>
+      <div className="w-full max-w-[85%] rounded-[10px] border border-primary/30 bg-primary/10 overflow-hidden shadow-sm backdrop-blur-md">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-primary/20 bg-primary/5">
+          <span className="text-[11px] font-bold text-text-muted truncate">
+            {isOutbound ? 'You' : (msg.sender ?? 'Contact')}
+          </span>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            {isFailed && isOutbound && (
+              <button onClick={onRetry} disabled={retrying} className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
+                {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
+              </button>
+            )}
+            <span className="text-[10px] text-text-muted">{formatTs(msg.createdAt)}</span>
+          </div>
         </div>
-      )}
-      <div className="max-w-[75%]">
-        <div className={`px-3.5 py-2.5 text-[13px] leading-relaxed rounded-2xl shadow-sm ${
-          isOutbound
-            ? 'bg-primary text-white rounded-tr-none'
-            : 'bg-surface border border-border text-text-main rounded-tl-none'
-        }`}>
-          {msg.body}
-        </div>
-        <div className={`flex items-center gap-1.5 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-          <span className="text-[10px] text-text-muted">{formatTs(msg.createdAt)}</span>
-          {isOutbound && <DeliveryIcon status={msg.status} channel="sms" />}
-          {isFailed && isOutbound && (
-            <button onClick={onRetry} disabled={retrying} className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
-              {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
-            </button>
-          )}
+        <div className="px-4 py-3 text-[13px] text-text-main whitespace-pre-wrap leading-relaxed">
+          {stripQuotedReply(msg.body)}
         </div>
       </div>
     </div>
@@ -200,21 +201,21 @@ function TemplatePicker({ channel, onInsert, onClose }: { channel: string; onIns
   const filtered = templates.filter(t => t.name.toLowerCase().includes(q.toLowerCase()) || t.body.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="absolute bottom-full mb-2 left-0 right-0 bg-surface border border-border shadow-luxury ring-1 ring-white/5 rounded-xl overflow-hidden z-50">
+    <div className="absolute bottom-full mb-2 left-0 right-0 bg-[#1a1c23] border border-border shadow-2xl ring-1 ring-white/10 rounded-xl overflow-hidden z-[100]">
       <div className="px-3 py-2 border-b border-border">
-        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search templates…" className="w-full bg-transparent text-[13px] text-text-main placeholder:text-text-muted focus:outline-none" />
+        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search templates…" className="w-full bg-transparent text-[13px] text-white placeholder:text-slate-400 focus:outline-none" />
       </div>
-      <div className="max-h-48 overflow-y-auto divide-y divide-border/30">
-        {filtered.length === 0 && <p className="text-center text-text-muted text-[13px] py-6">No templates found</p>}
+      <div className="max-h-48 overflow-y-auto divide-y divide-white/10">
+        {filtered.length === 0 && <p className="text-center text-slate-400 text-[13px] py-6">No templates found</p>}
         {filtered.map(t => (
-          <button key={t.id} onClick={() => { onInsert(t.body, t.subject ?? undefined); onClose(); }} className="w-full text-left px-4 py-3 hover:bg-surface-hover transition-colors">
-            <p className="text-[13px] font-semibold text-text-main">{t.name}</p>
-            <p className="text-[12px] text-text-muted truncate mt-0.5">{t.body}</p>
+          <button key={t.id} onClick={() => { onInsert(t.body, t.subject ?? undefined); onClose(); }} className="w-full text-left px-4 py-3 hover:bg-[#242833] transition-colors">
+            <p className="text-[13px] font-semibold text-white">{t.name}</p>
+            <p className="text-[12px] text-slate-400 truncate mt-0.5">{t.body}</p>
           </button>
         ))}
       </div>
-      <div className="px-3 py-1.5 border-t border-border bg-surface-hover/50">
-        <button onClick={onClose} className="text-[12px] text-text-muted hover:text-text-main">Close</button>
+      <div className="px-3 py-1.5 border-t border-border bg-[#242833]/50">
+        <button onClick={onClose} className="text-[12px] text-slate-400 hover:text-white">Close</button>
       </div>
     </div>
   );
@@ -222,54 +223,70 @@ function TemplatePicker({ channel, onInsert, onClose }: { channel: string; onIns
 
 function SmsComposer({ conversationId, onSent, onMinimize }: { conversationId: string; onSent?: () => void; onMinimize?: () => void }) {
   const qc = useQueryClient();
-  const [text, setText] = useState('');
+  const { composerDraft, setComposerDraft, setIsComposerOpen } = useConversationsCtx();
   const [showTemplates, setShowTemplates] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { chars, segs } = segmentCount(text);
+  const { chars, segs } = segmentCount(composerDraft);
 
   const send = useMutation({
     mutationFn: (body: string) => conversationsApi.sendMessage(conversationId, { body }),
     onSuccess: () => {
-      setText('');
+      setComposerDraft('');
+      setIsComposerOpen(false);
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
       qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
       onSent?.();
     },
   });
 
+  const [isAiDrafting, setIsAiDrafting] = useState(false);
+
+  const handleAiDraftReply = async () => {
+    if (isAiDrafting) return;
+    setIsAiDrafting(true);
+    try {
+      const res = await conversationsApi.generateAiReply(conversationId, 'Draft a concise SMS reply');
+      if (res?.draft) {
+        setComposerDraft(res.draft);
+      }
+    } catch (e) {
+      console.error('AI draft error:', e);
+    } finally {
+      setIsAiDrafting(false);
+    }
+  };
+
   useEffect(() => {
     const el = textareaRef.current;
     if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px'; }
-  }, [text]);
+  }, [composerDraft]);
 
   return (
     <div className="shrink-0 p-4 bg-surface/90 border-t border-border/50 backdrop-blur-md relative">
       <div className="rounded-xl border border-border bg-surface shadow-xs overflow-visible relative">
-        {onMinimize && (
-          <div className="flex items-center justify-between px-3 pt-2 pb-0">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">SMS Reply</span>
-            <button
-              type="button"
-              onClick={onMinimize}
-              className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
-              title="Hide reply bar to see messages better"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center justify-between px-3 pt-2 pb-0">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">SMS Reply</span>
+          <button
+            type="button"
+            onClick={onMinimize}
+            className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
+            title="Close reply box"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
         {showTemplates && (
-          <TemplatePicker channel="sms" onInsert={(body) => setText(body)} onClose={() => setShowTemplates(false)} />
+          <TemplatePicker channel="sms" onInsert={(body) => setComposerDraft(body)} onClose={() => setShowTemplates(false)} />
         )}
         <textarea
           ref={textareaRef}
-          value={text}
-          onChange={e => setText(e.target.value)}
+          value={composerDraft}
+          onChange={e => setComposerDraft(e.target.value)}
           placeholder="Send SMS… (/ for templates)"
           onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (text.trim()) send.mutate(text.trim()); }
-            if (e.key === '/' && text === '') { e.preventDefault(); setShowTemplates(true); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (composerDraft.trim()) send.mutate(composerDraft.trim()); }
+            if (e.key === '/' && composerDraft === '') { e.preventDefault(); setShowTemplates(true); }
           }}
           className="w-full bg-transparent p-4 pb-2 text-[13px] outline-none resize-none min-h-[64px] text-text-main placeholder:text-text-muted"
         />
@@ -281,14 +298,28 @@ function SmsComposer({ conversationId, onSent, onMinimize }: { conversationId: s
             <button className="p-2 hover:bg-surface-hover rounded-lg text-text-muted hover:text-text-main transition-colors" title="Attach">
               <Paperclip className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              disabled={isAiDrafting}
+              onClick={handleAiDraftReply}
+              className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-lg bg-surface-hover hover:bg-white/10 text-white border border-border/80 text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              title="Read thread and draft smart SMS reply"
+            >
+              {isAiDrafting ? (
+                <Loader2 className="w-3 h-3 animate-spin text-white" />
+              ) : (
+                <Bot className="w-3 h-3 text-white" />
+              )}
+              <span>AI Reply</span>
+            </button>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-text-muted">
               {chars}/{segs > 1 ? `${segs} SMS` : '160'}
             </span>
             <button
-              onClick={() => { if (text.trim()) send.mutate(text.trim()); }}
-              disabled={!text.trim() || send.isPending}
+              onClick={() => { if (composerDraft.trim()) send.mutate(composerDraft.trim()); }}
+              disabled={!composerDraft.trim() || send.isPending}
               className="btn-primary flex items-center gap-2"
             >
               {send.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -302,10 +333,9 @@ function SmsComposer({ conversationId, onSent, onMinimize }: { conversationId: s
 }
 
 // ── Email Composer ────────────────────────────────────────────────────────────
-function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMinimize }: { conversationId: string; subject: string; onSent?: () => void; onMinimize?: () => void }) {
+function EmailComposer({ conversationId, defaultSubject, onSent, onMinimize }: { conversationId: string; defaultSubject: string; onSent?: () => void; onMinimize?: () => void }) {
   const qc = useQueryClient();
-  const [body, setBody] = useState('');
-  const [subject, setSubject] = useState(defaultSubject ? `Re: ${defaultSubject}` : '');
+  const { composerDraft, setComposerDraft, composerSubject, setComposerSubject, setIsComposerOpen } = useConversationsCtx();
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -314,15 +344,41 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (!composerSubject && defaultSubject) {
+      setComposerSubject(defaultSubject.startsWith('Re:') ? defaultSubject : `Re: ${defaultSubject}`);
+    }
+  }, [defaultSubject]);
+
+  useEffect(() => {
     const el = textareaRef.current;
     if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px'; }
-  }, [body]);
+  }, [composerDraft]);
+
+  const [isAiDrafting, setIsAiDrafting] = useState(false);
+
+  const handleAiDraftReply = async () => {
+    if (isAiDrafting) return;
+    setIsAiDrafting(true);
+    try {
+      const res = await conversationsApi.generateAiReply(conversationId);
+      if (res?.draft) {
+        setComposerDraft(res.draft);
+        if (!composerSubject && defaultSubject) {
+          setComposerSubject(defaultSubject.startsWith('Re:') ? defaultSubject : `Re: ${defaultSubject}`);
+        }
+      }
+    } catch (e) {
+      console.error('AI draft error:', e);
+    } finally {
+      setIsAiDrafting(false);
+    }
+  };
 
   const doSend = (sendAndClose: boolean) => {
-    if (!body.trim()) return;
+    if (!composerDraft.trim()) return;
     const ccArr = cc.split(',').map(s => s.trim()).filter(Boolean);
     const bccArr = bcc.split(',').map(s => s.trim()).filter(Boolean);
-    send.mutate({ body, subject, sendAndClose, ccArr, bccArr });
+    send.mutate({ body: composerDraft, subject: composerSubject, sendAndClose, ccArr, bccArr });
   };
 
   const send = useMutation({
@@ -336,7 +392,8 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
         sendAndClose,
       }),
     onSuccess: () => {
-      setBody('');
+      setComposerDraft('');
+      setIsComposerOpen(false);
       qc.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) });
       qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
       onSent?.();
@@ -350,8 +407,8 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
           <TemplatePicker
             channel="email"
             onInsert={(tmplBody, tmplSubject) => {
-              setBody(tmplBody);
-              if (tmplSubject && !defaultSubject) setSubject(tmplSubject);
+              setComposerDraft(tmplBody);
+              if (tmplSubject && !defaultSubject) setComposerSubject(tmplSubject);
             }}
             onClose={() => setShowTemplates(false)}
           />
@@ -361,21 +418,19 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
         <div className="flex items-center px-3 py-2 border-b border-border/40 gap-2">
           <span className="text-[11px] text-text-muted font-bold uppercase tracking-wide w-12">Subject</span>
           <input
-            value={subject}
-            onChange={e => setSubject(e.target.value)}
+            value={composerSubject}
+            onChange={e => setComposerSubject(e.target.value)}
             className="flex-1 bg-transparent text-[13px] text-text-main placeholder:text-text-muted focus:outline-none"
             placeholder="Subject"
           />
-          {onMinimize && (
-            <button
-              type="button"
-              onClick={onMinimize}
-              className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
-              title="Hide reply bar to see emails better"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onMinimize}
+            className="p-1 text-text-muted hover:text-text-main hover:bg-surface-hover rounded transition-colors"
+            title="Close reply box"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
         </div>
 
         {/* CC / BCC */}
@@ -410,11 +465,11 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
         {/* Body */}
         <textarea
           ref={textareaRef}
-          value={body}
-          onChange={e => setBody(e.target.value)}
+          value={composerDraft}
+          onChange={e => setComposerDraft(e.target.value)}
           placeholder="Type your message… (/ for templates)"
           onKeyDown={e => {
-            if (e.key === '/' && body === '') { e.preventDefault(); setShowTemplates(true); }
+            if (e.key === '/' && composerDraft === '') { e.preventDefault(); setShowTemplates(true); }
           }}
           className="w-full bg-transparent p-4 text-[13px] outline-none resize-none min-h-[80px] text-text-main placeholder:text-text-muted"
         />
@@ -435,66 +490,58 @@ function EmailComposer({ conversationId, subject: defaultSubject, onSent, onMini
             >
               <span className="text-[12px] font-bold">Sig</span>
             </button>
+            <button
+              type="button"
+              disabled={isAiDrafting}
+              onClick={handleAiDraftReply}
+              className="flex items-center gap-1.5 px-3 py-1.5 ml-1.5 rounded-lg bg-surface-hover hover:bg-white/10 text-white border border-border/80 text-[12px] font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              title="Read thread & draft smart AI reply"
+            >
+              {isAiDrafting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Bot className="w-3.5 h-3.5 text-white" />
+              )}
+              <span>AI Reply</span>
+            </button>
           </div>
-          <div className="flex items-center gap-0 rounded-lg overflow-hidden shadow-xs">
+          <div className="flex items-center ml-auto">
             <button
               onClick={() => doSend(false)}
-              disabled={!body.trim() || send.isPending}
-              className="btn-primary flex items-center gap-2 rounded-r-none"
+              disabled={!composerDraft.trim() || send.isPending}
+              className="btn-primary flex items-center gap-2 px-4 py-2 rounded-lg ml-2 shadow-xs"
             >
               {send.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Send Email
             </button>
-            <button
-              onClick={() => doSend(true)}
-              disabled={!body.trim() || send.isPending}
-              className="px-2 py-2 bg-primary/80 hover:bg-primary text-white border-l border-white/20 disabled:opacity-40 transition-colors"
-              title="Send & Close"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Snooze picker (header) ────────────────────────────────────────────────────
-function SnoozeMenu({ onPick }: { onPick: (until: string) => void }) {
-  const [custom, setCustom] = useState('');
-  const opts = [
-    { label: '1 hour', fn: () => addHours(new Date(), 1).toISOString() },
-    { label: 'Tomorrow 9 AM', fn: () => { const d = addDays(new Date(), 1); d.setHours(9, 0, 0, 0); return d.toISOString(); } },
-    { label: 'Next week', fn: () => nextMonday(new Date()).toISOString() },
-  ];
-  return (
-    <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-surface border border-border shadow-luxury ring-1 ring-white/5 rounded-xl overflow-hidden text-[13px]">
-      {opts.map(o => (
-        <button key={o.label} onClick={() => onPick(o.fn())} className="w-full text-left px-4 py-2.5 text-text-main hover:bg-surface-hover transition-colors">{o.label}</button>
-      ))}
-      <div className="px-3 py-2 border-t border-border">
-        <input type="datetime-local" value={custom} onChange={e => setCustom(e.target.value)} className="w-full bg-surface-hover border border-border text-text-main text-[12px] px-2 py-1 rounded focus:outline-none" />
-        {custom && (
-          <button onClick={() => onPick(new Date(custom).toISOString())} className="mt-1.5 w-full py-1 bg-primary text-white text-[12px] font-semibold rounded">
-            Set snooze
-          </button>
+        {send.isError && (
+          <div className="px-4 pb-3">
+            <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[12px]">
+              {(send.error as any)?.response?.data?.error || (send.error as any)?.message || 'Failed to send email.'}
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
+
 // ── Thread Pane ───────────────────────────────────────────────────────────────
 export default function ThreadPane() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { selectedId, setSelectedId } = useConversationsCtx();
+  const {
+    selectedId, setSelectedId,
+    isComposerOpen, setIsComposerOpen,
+  } = useConversationsCtx();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showStatus, setShowStatus] = useState(false);
-  const [showSnooze, setShowSnooze] = useState(false);
   const [showActions, setShowActions] = useState(false);
-  const [isComposerHidden, setIsComposerHidden] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [infoPanelTab, setInfoPanelTab] = useState<'contact' | 'notes' | 'ai'>('contact');
+  const wasRightPanelOpenBeforeCompose = useRef(false);
 
   const { data: conv, isLoading: convLoading } = useQuery({
     queryKey: queryKeys.conversations.detail(selectedId!),
@@ -575,123 +622,42 @@ export default function ThreadPane() {
       ? (conv as any).twilioPhoneNumber ?? contact?.phone ?? ''
       : contact?.email ?? '';
 
-  const STATUS_OPTIONS: { value: string; label: string }[] = [
-    { value: 'open', label: 'Open' },
-    { value: 'closed', label: 'Closed' },
-    { value: 'archived', label: 'Archived' },
-  ];
-
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-surface/30 backdrop-blur-sm">
         {/* ── Thread header ── */}
-        <div className="h-[60px] border-b border-border/50 bg-surface/80 flex items-center px-5 gap-4 shrink-0 backdrop-blur-md">
+        <div className="min-h-[64px] border-b border-border/50 bg-surface/80 flex items-center px-5 py-2.5 gap-4 shrink-0 backdrop-blur-md relative z-30">
           {/* Contact info */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-surface-hover border border-border flex items-center justify-center text-text-main font-bold text-sm shrink-0 overflow-hidden shadow-xs">
-              {contact?.avatarUrl
-                ? <img src={contact.avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-                : displayName[0]?.toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-[14px] font-bold text-text-main truncate">{displayName}</h2>
-                {crmContactId && (
-                  <button
-                    onClick={() => navigate(`/crm/contacts/${crmContactId}`)}
-                    className="text-primary text-[12px] font-semibold flex items-center gap-1 hover:underline shrink-0"
-                  >
-                    View Profile <ExternalLink className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-              <p className="text-[11px] text-text-muted flex items-center gap-1.5">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-[14px] font-bold text-text-main truncate">{displayName}</h2>
+              <p className="text-[11px] text-text-muted flex items-center gap-1.5 mt-0.5">
                 {channelId === 'email' ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
                 {identifier || channelId}
               </p>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Toggle Composer / Hide Message Bar button */}
-            <button
-              onClick={() => setIsComposerHidden(p => !p)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface border border-border hover:border-primary/40 text-text-muted hover:text-text-main text-[12px] font-semibold rounded-lg transition-colors shadow-xs"
-              title={isComposerHidden ? "Show message bar" : "Hide message bar to see emails better"}
-            >
-              {isComposerHidden ? (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-primary" />
-                  <span className="hidden sm:inline">Show Message Bar</span>
-                </>
-              ) : (
-                <>
-                  <EyeOff className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Hide Message Bar</span>
-                </>
-              )}
-            </button>
-
-            {/* Status selector */}
-            <div className="relative">
+          {/* Actions: 3-dots at top right, Hide/Show Panel underneath in bottom left */}
+          <div className="flex flex-col items-end justify-between self-stretch shrink-0 gap-1.5 py-0.5">
+            {/* Top Right: Overflow actions 3 dots */}
+            <div className="relative self-end">
               <button
-                onClick={() => { setShowStatus(p => !p); setShowActions(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-surface border border-border hover:border-primary/40 text-text-main text-[12px] font-semibold rounded-lg transition-colors shadow-xs"
-              >
-                {conv.status.charAt(0).toUpperCase() + conv.status.slice(1)}
-                <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-              {showStatus && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => { setShowStatus(false); setShowSnooze(false); }} />
-                  <div className="absolute right-0 top-full mt-2 z-50 w-44 bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
-                    {STATUS_OPTIONS.map(o => (
-                      <button
-                        key={o.value}
-                        onClick={() => { patch.mutate({ status: o.value as any }); setShowStatus(false); }}
-                        className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center justify-between"
-                      >
-                        {o.label}
-                        {conv.status === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
-                      </button>
-                    ))}
-                    <div className="border-t border-border">
-                      <div className="relative">
-                        <button onClick={() => setShowSnooze(p => !p)} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5" /> Snooze…
-                        </button>
-                        {showSnooze && (
-                          <SnoozeMenu onPick={(until) => {
-                            patch.mutate({ status: 'snoozed', snoozedUntil: until });
-                            setShowSnooze(false);
-                            setShowStatus(false);
-                          }} />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Overflow actions menu */}
-            <div className="relative">
-              <button
-                onClick={() => { setShowActions(p => !p); setShowStatus(false); }}
-                className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                onClick={() => setShowActions(p => !p)}
+                className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                title="More actions"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
               {showActions && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
-                  <div className="absolute right-0 top-full mt-2 z-50 w-52 bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
-                    <button onClick={() => { patch.mutate({ status: 'archived' }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
+                  <div className="absolute right-0 top-full mt-1.5 z-[100] w-52 bg-[#1a1c23] border border-border/80 shadow-2xl ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
+                    <button onClick={() => { patch.mutate({ status: 'archived' }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-slate-300 hover:bg-[#242833] hover:text-white transition-colors flex items-center gap-2.5">
                       <Archive className="w-4 h-4" /> Archive
                     </button>
-                    <button onClick={() => { patch.mutate({ isBlocked: true }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5">
+                    <button onClick={() => { patch.mutate({ isBlocked: true }); setShowActions(false); }} className="w-full text-left px-4 py-2.5 text-[13px] text-slate-300 hover:bg-[#242833] hover:text-white transition-colors flex items-center gap-2.5">
                       <Ban className="w-4 h-4" /> Block contact
                     </button>
                     <button
@@ -701,16 +667,16 @@ export default function ThreadPane() {
                         const a = document.createElement('a'); a.href = url; a.download = `conversation-${selectedId}.txt`; a.click();
                         setShowActions(false);
                       }}
-                      className="w-full text-left px-4 py-2.5 text-[13px] text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors flex items-center gap-2.5"
+                      className="w-full text-left px-4 py-2.5 text-[13px] text-slate-300 hover:bg-[#242833] hover:text-white transition-colors flex items-center gap-2.5"
                     >
                       <Download className="w-4 h-4" /> Export thread
                     </button>
-                    <div className="border-t border-border">
+                    <div className="border-t border-white/10">
                       <button
                         onClick={() => {
                           if (confirm('Delete this conversation permanently?')) { del.mutate(); setShowActions(false); }
                         }}
-                        className="w-full text-left px-4 py-2.5 text-[13px] text-red-400 hover:bg-surface-hover hover:text-red-300 transition-colors flex items-center gap-2.5"
+                        className="w-full text-left px-4 py-2.5 text-[13px] text-red-400 hover:bg-[#242833] hover:text-red-300 transition-colors flex items-center gap-2.5"
                       >
                         <Trash2 className="w-4 h-4" /> Delete
                       </button>
@@ -742,33 +708,81 @@ export default function ThreadPane() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* ── Composer / Collapsible Message Bar ── */}
+        {/* ── Composer / Collapsible Message Bar (Closed by default, click anywhere to open and minimize right panel) ── */}
         <div className="shrink-0">
-          {isComposerHidden ? (
-            <div className="px-6 py-2.5 bg-surface/90 border-t border-border/50 backdrop-blur-md flex items-center justify-between z-10 transition-all">
-              <span className="text-[12px] text-text-muted italic flex items-center gap-2">
-                <EyeOff className="w-3.5 h-3.5 text-text-muted/70" />
-                Message bar hidden — email reading view expanded
+          {!isComposerOpen ? (
+            <div
+              onClick={() => {
+                wasRightPanelOpenBeforeCompose.current = isRightPanelOpen;
+                setIsComposerOpen(true);
+                setIsRightPanelOpen(false);
+              }}
+              className="px-6 py-3.5 bg-surface/90 hover:bg-surface-hover/80 border-t border-border/50 backdrop-blur-md flex items-center justify-center z-10 transition-colors cursor-pointer group"
+            >
+              <span className="text-[12px] text-text-muted group-hover:text-text-main transition-colors text-center font-medium">
+                Click to compose an email or reply
               </span>
-              <button
-                onClick={() => setIsComposerHidden(false)}
-                className="btn-secondary text-[12px] py-1 px-3 flex items-center gap-1.5"
-              >
-                <Eye className="w-3.5 h-3.5 text-primary" /> Show Reply Box
-              </button>
             </div>
           ) : (
             conv.channel === 'email' ? (
-              <EmailComposer conversationId={conv.id} subject={conv.subject ?? ''} onMinimize={() => setIsComposerHidden(true)} />
+              <EmailComposer
+                conversationId={conv.id}
+                defaultSubject={conv.subject ?? ''}
+                onMinimize={() => {
+                  setIsComposerOpen(false);
+                  if (wasRightPanelOpenBeforeCompose.current) {
+                    setIsRightPanelOpen(true);
+                  }
+                }}
+              />
             ) : (
-              <SmsComposer conversationId={conv.id} onMinimize={() => setIsComposerHidden(true)} />
+              <SmsComposer
+                conversationId={conv.id}
+                onMinimize={() => {
+                  setIsComposerOpen(false);
+                  if (wasRightPanelOpenBeforeCompose.current) {
+                    setIsRightPanelOpen(true);
+                  }
+                }}
+              />
             )
           )}
         </div>
       </div>
 
-      {/* ── Right info panel ── */}
-      <ThreadInfoPanel conv={conv} />
+      {/* ── Right info panel (Foldable or Minimized slim icon rail) ── */}
+      {isRightPanelOpen ? (
+        <ThreadInfoPanel
+          conv={conv}
+          initialTab={infoPanelTab}
+          onClose={() => setIsRightPanelOpen(false)}
+        />
+      ) : (
+        <div className="w-12 shrink-0 border-l border-border/50 bg-surface/85 backdrop-blur-md flex flex-col items-center py-3.5 gap-3 z-10">
+          <button
+            onClick={() => { setInfoPanelTab('contact'); setIsRightPanelOpen(true); }}
+            className="p-2 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+            title="Contact Profile"
+          >
+            <User className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setInfoPanelTab('notes'); setIsRightPanelOpen(true); }}
+            className="p-2 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+            title="Internal Notes"
+          >
+            <FileText className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setInfoPanelTab('ai'); setIsRightPanelOpen(true); }}
+            className="p-2 rounded-lg text-text-muted hover:text-white hover:bg-surface-hover transition-colors"
+            title="AI Assistant"
+          >
+            <Bot className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+

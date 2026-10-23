@@ -439,27 +439,12 @@ export default function Contacts() {
             />
           </div>
           
-          <button onClick={() => setImportModalOpen(true)} className="btn-secondary">
-            <Download className="w-4 h-4" /> Import
-          </button>
-          
           <div className="relative flex items-center gap-1">
             <button 
               onClick={() => setPanelOpen('new_contact')} 
               className="btn-secondary"
             >
               <Plus className="w-4 h-4" /> Add Contact
-            </button>
-          </div>
-
-          <div className="w-[1px] h-5 bg-border mx-1"></div>
-
-          <div className="relative flex items-center gap-2">
-            <button 
-              onClick={() => setPanelOpen('manage')} 
-              className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--sidebar-text-muted)] hover:text-white transition-colors ml-1"
-            >
-              <Settings className="w-4 h-4" /> Manage fields
             </button>
           </div>
 
@@ -705,6 +690,23 @@ export default function Contacts() {
           '--btn-border': 'transparent'
         } as React.CSSProperties}
       >
+        {/* Left: Manage fields & Import */}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setPanelOpen('manage')} 
+            className="btn-secondary flex items-center gap-1.5"
+          >
+            <Settings className="w-4 h-4" /> Manage fields
+          </button>
+          <button 
+            onClick={() => setImportModalOpen(true)} 
+            className="btn-secondary flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Import
+          </button>
+        </div>
+
+        {/* Right: Rows per page & Page Navigation */}
         <div className="flex items-center gap-4">
           {/* Rows Per Page Selector (Max 50) */}
           <div className="relative">

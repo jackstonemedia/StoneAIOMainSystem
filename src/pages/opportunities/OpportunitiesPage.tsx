@@ -58,7 +58,7 @@ export default function OpportunitiesPage() {
   const { toast } = useToast();
 
   // ── Navigation / View States ──────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [activePipelineId, setActivePipelineId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<string>('createdAt');
@@ -129,7 +129,15 @@ export default function OpportunitiesPage() {
     }
   }, [activePipeline, activePipelineId]);
 
-  const stages = activePipeline?.stages || [];
+  const DEFAULT_CUSTOMARY_STAGES: Stage[] = [
+    { id: 'stage-lead-default', name: 'New Lead', color: '#818CF8', order: 0, probability: 20 },
+    { id: 'stage-proposal-default', name: 'Proposal Sent', color: '#FBBF24', order: 1, probability: 60 },
+    { id: 'stage-closed-default', name: 'Closed', color: '#34D399', order: 2, probability: 100, isWon: true },
+  ];
+
+  const stages = (activePipeline?.stages && activePipeline.stages.length > 0)
+    ? activePipeline.stages
+    : DEFAULT_CUSTOMARY_STAGES;
 
   // Set default reassignment stage whenever stageToDelete is chosen
   React.useEffect(() => {
@@ -524,112 +532,23 @@ export default function OpportunitiesPage() {
             </button>
           </div>
 
-          {/* Filter Button */}
-          <button
-            onClick={() => setShowFilterDrawer(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-all ${
-              activeFiltersCount > 0
-                ? 'bg-primary/10 border-primary text-primary'
-                : 'bg-surface-hover/60 border-border text-text-muted hover:text-text-main'
-            }`}
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Filter</span>
-            {activeFiltersCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
-
-          {/* Sort Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSortMenu(o => !o)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[12px] font-semibold text-text-muted hover:text-text-main transition-colors"
-            >
-              <ArrowUpDown className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Sort</span>
-            </button>
-
-            <AnimatePresence>
-              {showSortMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  className="absolute right-0 top-full mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[190px]"
-                >
-                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1">
-                    Sort Opportunities
-                  </div>
-                  {[
-                    { id: 'value_desc', label: 'Value (High to Low)', field: 'amount', order: 'desc' },
-                    { id: 'value_asc', label: 'Value (Low to High)', field: 'amount', order: 'asc' },
-                    { id: 'created_desc', label: 'Created Date (Newest)', field: 'createdAt', order: 'desc' },
-                    { id: 'created_asc', label: 'Created Date (Oldest)', field: 'createdAt', order: 'asc' },
-                    { id: 'close_asc', label: 'Close Date (Earliest)', field: 'closeDate', order: 'asc' },
-                    { id: 'updated_desc', label: 'Last Updated', field: 'updatedAt', order: 'desc' },
-                    { id: 'name_asc', label: 'Alphabetical (A–Z)', field: 'title', order: 'asc' },
-                  ].map(opt => {
-                    const isSelected = sortBy === opt.field && sortOrder === opt.order;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          setSortBy(opt.field);
-                          setSortOrder(opt.order as any);
-                          setShowSortMenu(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 rounded-xl text-[12px] flex items-center justify-between transition-colors ${
-                          isSelected ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Import / Export Buttons */}
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors hidden sm:flex items-center"
-            title="Import Opportunities"
-          >
-            <Upload className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleExportAll}
-            className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors hidden sm:flex items-center"
-            title="Export CSV"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          {/* + New Opportunity Primary Button */}
+          {/* + New Opportunity Button */}
           <button
             onClick={() => {
               setCreateStageTargetId(undefined);
               setShowCreateModal(true);
             }}
-            className="px-4 py-1.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+            className="btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>New Opportunity</span>
           </button>
 
-          {/* Overflow Menu ("...") */}
+          {/* Overflow Menu ("...") with no border */}
           <div className="relative">
             <button
               onClick={() => setShowOverflowMenu(o => !o)}
-              className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover rounded-xl border border-border transition-colors"
+              className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface-hover/70 rounded-xl transition-colors border-0 shadow-none"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -689,83 +608,7 @@ export default function OpportunitiesPage() {
         </div>
       </HeaderPortal>
 
-      {/* ── Identity row: title + pipeline switcher stay in-page ── */}
-      <div className="px-6 py-2.5 border-b border-border bg-surface shrink-0 flex items-center gap-3 z-20">
-        {/* Left: Title + Pipeline Switcher */}
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-[18px] font-bold text-text-main shrink-0">Opportunities</h1>
 
-          {/* Pipeline Switcher Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowPipelineSwitcher(o => !o)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-surface-hover/60 hover:bg-surface-hover border border-border rounded-xl text-[13px] font-semibold text-text-main transition-colors"
-            >
-              <span>{activePipeline?.name || 'Sales Pipeline'}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-            </button>
-
-            <AnimatePresence>
-              {showPipelineSwitcher && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 4 }}
-                  className="absolute top-full left-0 mt-1 z-40 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[220px] max-h-72 overflow-y-auto"
-                >
-                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5">
-                    Select Pipeline
-                  </div>
-                  {pipelines.map(p => (
-                    <div
-                      key={p.id}
-                      onClick={() => {
-                        setActivePipelineId(p.id);
-                        setShowPipelineSwitcher(false);
-                      }}
-                      className={`px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors ${
-                        activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{p.name}</span>
-                        {p.isDefault && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-text-muted font-bold">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      {activePipeline?.id === p.id && <Check className="w-4 h-4" />}
-                    </div>
-                  ))}
-
-                  <div className="pt-1 mt-1 border-t border-border flex items-center justify-between gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPipelineSwitcher(false);
-                        setShowNewPipelineModal(true);
-                      }}
-                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-white" />
-                      <span>+ New Pipeline</span>
-                    </button>
-                    <Link
-                      to="/opportunities/settings/pipelines"
-                      onClick={() => setShowPipelineSwitcher(false)}
-                      className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
-                      title="Pipeline Settings"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
 
 
       {/* ── Main View Container ──────────────────────────────────────────────── */}
@@ -776,25 +619,6 @@ export default function OpportunitiesPage() {
               <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
               <span className="text-xs text-text-muted">Loading opportunities...</span>
             </div>
-          </div>
-        ) : opportunities.length === 0 && !searchQuery && activeFiltersCount === 0 && stages.length === 0 ? (
-          /* Empty Pipeline State */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
-              <Sparkles className="w-8 h-8" />
-            </div>
-            <div>
-              <h2 className="text-[20px] font-bold text-text-main">No stages yet in {activePipeline?.name}</h2>
-              <p className="text-[13px] text-text-muted max-w-sm mt-1">
-                Add your first sales stage to start tracking opportunities.
-              </p>
-            </div>
-            <button
-              onClick={() => setIsAddingNewStage(true)}
-              className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-semibold rounded-xl inline-flex items-center gap-2 shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" /> Add First Stage
-            </button>
           </div>
         ) : viewMode === 'board' ? (
           /* ── Board (Kanban) View with Add Stage on Right ─────────────────────── */
@@ -920,14 +744,14 @@ export default function OpportunitiesPage() {
                                         <div className="h-32 border-2 border-dashed border-border/50 rounded-xl flex flex-col items-center justify-center text-center p-4">
                                           <span className="text-[11px] text-slate-300">No opportunities in this stage</span>
                                           <button
+                                            type="button"
                                             onClick={() => {
                                               setCreateStageTargetId(stage.id);
                                               setShowCreateModal(true);
                                             }}
-                                            className="mt-2 text-xs font-semibold text-white bg-primary hover:bg-primary-hover px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                                            className="mt-2 text-xs font-semibold text-white/90 hover:text-white transition-colors cursor-pointer"
                                           >
-                                            <Plus className="w-3.5 h-3.5 text-white" />
-                                            <span className="text-white">Quick Add</span>
+                                            Quick Add
                                           </button>
                                         </div>
                                       ) : (
@@ -940,7 +764,7 @@ export default function OpportunitiesPage() {
                                             staleThresholdDays={activePipeline?.staleThresholdDays || 14}
                                             cardConfig={cardConfig}
                                             customFields={customFields}
-                                            onNavigate={() => navigate(`/opportunities/${deal.id}`)}
+                                            onNavigate={() => navigate(`/crm/opportunities/${deal.id}`)}
                                             onDelete={() => setDealToDelete(deal)}
                                             onMarkWon={() => setWonLostPromptDeal({ deal, type: 'won' })}
                                             onMarkLost={() => setWonLostPromptDeal({ deal, type: 'lost' })}
@@ -1279,7 +1103,7 @@ export default function OpportunitiesPage() {
                                               ref={drag.innerRef}
                                               {...draggablePropsWithoutStyle}
                                               style={style as React.CSSProperties}
-                                              onClick={() => navigate(`/opportunities/${deal.id}`)}
+                                              onClick={() => navigate(`/crm/opportunities/${deal.id}`)}
                                               className={`group/row cursor-pointer select-none transition-colors ${
                                                 dragSnapshot.isDragging
                                                   ? 'bg-surface shadow-2xl ring-2 ring-primary z-50'
@@ -1843,6 +1667,178 @@ export default function OpportunitiesPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Footer bar matching Contacts & Companies design */}
+      <div
+        className="px-8 py-4 border-t flex items-center justify-between text-[13px] shrink-0 z-20 sticky bottom-0 shadow-[0_-4px_16px_rgba(0,0,0,0.1)]"
+        style={{
+          background: 'var(--sidebar-bg)',
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text-main)',
+          '--text-main': '#ffffff',
+          '--text-muted': '#94a3b8',
+          '--border': 'rgba(255,255,255,0.15)',
+          '--surface': 'rgba(255,255,255,0.1)',
+          '--surface-hover': 'rgba(255,255,255,0.16)',
+          '--bg': 'var(--sidebar-bg)',
+          '--btn-bg': 'var(--primary)',
+          '--btn-hover': 'var(--primary-hover)',
+          '--btn-text': '#ffffff',
+          '--btn-border': 'transparent',
+        } as React.CSSProperties}
+      >
+        {/* Left: Filter & Sort */}
+        <div className="flex items-center gap-3">
+          {/* Filter Button */}
+          <button
+            onClick={() => setShowFilterDrawer(true)}
+            className={`btn-secondary flex items-center gap-1.5 ${
+              activeFiltersCount > 0 ? '!border-primary !text-primary' : ''
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span>Filter</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortMenu(o => !o)}
+              className="btn-secondary flex items-center gap-1.5"
+            >
+              <ArrowUpDown className="w-4 h-4" />
+              <span>Sort</span>
+            </button>
+
+            <AnimatePresence>
+              {showSortMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute bottom-full left-0 mb-1 z-50 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[200px]"
+                >
+                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1">
+                    Sort Opportunities
+                  </div>
+                  {[
+                    { id: 'value_desc', label: 'Value (High to Low)', field: 'amount', order: 'desc' },
+                    { id: 'value_asc', label: 'Value (Low to High)', field: 'amount', order: 'asc' },
+                    { id: 'created_desc', label: 'Created Date (Newest)', field: 'createdAt', order: 'desc' },
+                    { id: 'created_asc', label: 'Created Date (Oldest)', field: 'createdAt', order: 'asc' },
+                    { id: 'title_asc', label: 'Title (A-Z)', field: 'title', order: 'asc' },
+                    { id: 'title_desc', label: 'Title (Z-A)', field: 'title', order: 'desc' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setSortBy(opt.field);
+                        setSortOrder(opt.order as 'asc' | 'desc');
+                        setShowSortMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-[12px] flex items-center justify-between transition-colors ${
+                        sortBy === opt.field && sortOrder === opt.order
+                          ? 'bg-primary text-white font-semibold'
+                          : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {sortBy === opt.field && sortOrder === opt.order && (
+                        <Check className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Right: Sales Pipeline switcher + Summary / Status */}
+        <div className="flex items-center gap-3 text-text-muted text-[12px] font-medium">
+          {/* Sales Pipeline Switcher Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowPipelineSwitcher(o => !o)}
+              className="btn-secondary flex items-center gap-2 font-semibold text-[12px] py-1 px-3"
+            >
+              <span>{activePipeline?.name || 'Sales Pipeline'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+
+            <AnimatePresence>
+              {showPipelineSwitcher && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute bottom-full right-0 mb-1 z-50 bg-surface border border-border rounded-2xl shadow-2xl p-1.5 min-w-[220px] max-h-72 overflow-y-auto"
+                >
+                  <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5">
+                    Select Pipeline
+                  </div>
+                  {pipelines.map(p => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setActivePipelineId(p.id);
+                        setShowPipelineSwitcher(false);
+                      }}
+                      className={`px-3 py-2 rounded-xl text-[13px] flex items-center justify-between cursor-pointer transition-colors ${
+                        activePipeline?.id === p.id ? 'bg-primary text-white font-semibold' : 'text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{p.name}</span>
+                        {p.isDefault && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-text-muted font-bold">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      {activePipeline?.id === p.id && <Check className="w-4 h-4" />}
+                    </div>
+                  ))}
+
+                  <div className="pt-1 mt-1 border-t border-border flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPipelineSwitcher(false);
+                        setShowNewPipelineModal(true);
+                      }}
+                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <span>+ New Pipeline</span>
+                    </button>
+                    <Link
+                      to="/opportunities/settings/pipelines"
+                      onClick={() => setShowPipelineSwitcher(false)}
+                      className="p-1.5 rounded-xl text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"
+                      title="Pipeline Settings"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <span className="w-1 h-1 rounded-full bg-border" />
+          <span>{opportunities.length} opportunities</span>
+          <span className="w-1 h-1 rounded-full bg-border" />
+          <span className="text-text-main font-bold">
+            ${(summary?.totalValue || opportunities.reduce((sum, d) => sum + (Number(d.amount) || 0), 0)).toLocaleString()} pipeline value
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2010,15 +2006,11 @@ function KanbanCard({
             <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border/40 text-[11px] text-text-muted">
               {cardConfig.showDaysInStage && (
                 <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    isStale
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'bg-surface-hover text-text-muted'
-                  }`}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-text-muted"
                   title={`In stage for ${deal.daysInStage} days`}
                 >
-                  <Clock className="w-2.5 h-2.5" />
-                  {deal.daysInStage}d in stage
+                  <Clock className="w-3 h-3 text-text-muted" />
+                  <span>{deal.daysInStage} days in stage</span>
                 </span>
               )}
 

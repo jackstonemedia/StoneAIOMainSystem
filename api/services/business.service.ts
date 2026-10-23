@@ -7,26 +7,99 @@ import { emitTrigger } from './trigger-emitter.service.js';
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
-export async function getBusinessMetrics(workspaceId: string) {
+export async function getBusinessMetrics(workspaceId: string, from?: string, to?: string) {
   const now = new Date();
 
-  // Build last-12-months buckets for trend data
-  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  // Resolve time window: current period and previous comparison period
+  let currentFrom: Date;
+  let currentTo: Date;
 
-  const [allDeals, totalContacts, wonDealsByMonth, agentRuns, campaignRecipients, emailEvents] = await Promise.all([
-    db.deal.findMany({ where: { workspaceId }, include: { pipelineStage: true } }),
-    db.contact.count({ where: { workspaceId } }),
-    // Won deals in last 12 months for revenue trend
-    db.deal.findMany({
-      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: twelveMonthsAgo } },
-      select: { amount: true, updatedAt: true },
-    }),
-    // Real workflow run stats per agent
-    db.workflowRun.findMany({
+  if (from && to && !isNaN(new Date(from).getTime()) && !isNaN(new Date(to).getTime())) {
+    currentFrom = new Date(from);
+    currentTo = new Date(to);
+  } else {
+    currentTo = now;
+    currentFrom = new Date(now.getTime() - 30 * 86_400_000);
+  }
+
+  const durationMs = Math.max(currentTo.getTime() - currentFrom.getTime(), 86_400_000);
+  const prevFrom = new Date(currentFrom.getTime() - durationMs);
+  const prevTo = new Date(currentFrom.getTime());
+
+  // Fourteen days ago for stale deals
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 86_400_000);
+
+  // Today & This Week boundaries for Calendar
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const dayOfWeek = now.getDay();
+  const startOfWeek = new Date(now.getTime() - dayOfWeek * 86_400_000);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek.getTime() + 7 * 86_400_000 - 1);
+
+  // Parallel database queries
+  const [
+    contactsCurrent,
+    contactsPrev,
+    allContacts,
+    allDeals,
+    wonDealsCurrent,
+    wonDealsPrev,
+    unreadConvosCount,
+    openConvosCount,
+    allConvos,
+    allMessages,
+    allAppointments,
+    upcomingAppointments,
+    campaignRecipients,
+    emailEvents,
+    lastSentCampaign,
+    activeWorkflowsCount,
+    allWorkflows,
+    workflowRuns,
+  ] = await Promise.all([
+    db.contact.count({ where: { workspaceId, createdAt: { gte: currentFrom, lte: currentTo } } }),
+    db.contact.count({ where: { workspaceId, createdAt: { gte: prevFrom, lt: currentFrom } } }),
+    db.contact.findMany({
       where: { workspaceId },
-      select: { workflowId: true, status: true, durationMs: true },
-      orderBy: { startedAt: 'desc' },
-      take: 5000,
+      select: { id: true, firstName: true, lastName: true, email: true, source: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    db.deal.findMany({
+      where: { workspaceId },
+      include: { pipelineStage: true, contact: { select: { firstName: true, lastName: true, email: true } } },
+    }),
+    db.deal.findMany({
+      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: currentFrom, lte: currentTo } },
+    }),
+    db.deal.findMany({
+      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: prevFrom, lt: currentFrom } },
+    }),
+    db.conversation.count({ where: { workspaceId, unreadCount: { gt: 0 } } }),
+    db.conversation.count({ where: { workspaceId, status: 'open' } }),
+    db.conversation.findMany({
+      where: { workspaceId },
+      include: {
+        contact: { select: { firstName: true, lastName: true, email: true } },
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: 50,
+    }),
+    db.conversationMessage.findMany({
+      where: { conversation: { workspaceId } },
+      select: { channel: true, direction: true, createdAt: true },
+    }),
+    db.appointment.findMany({
+      where: { workspaceId },
+      include: { contact: { select: { firstName: true, lastName: true, email: true, phone: true } } },
+      orderBy: { startTime: 'desc' },
+    }),
+    db.appointment.findMany({
+      where: { workspaceId, startTime: { gte: now } },
+      include: { contact: { select: { firstName: true, lastName: true, email: true, phone: true } } },
+      orderBy: { startTime: 'asc' },
+      take: 5,
     }),
     db.campaignRecipient.findMany({
       where: { campaign: { workspaceId } },
@@ -34,79 +107,369 @@ export async function getBusinessMetrics(workspaceId: string) {
     }),
     db.emailEvent.findMany({
       where: { workspaceId },
-      select: { contactId: true, eventType: true, linkUrl: true },
+      select: { contactId: true, eventType: true, linkUrl: true, occurredAt: true },
+    }),
+    db.campaign.findFirst({
+      where: { workspaceId, status: 'SENT' },
+      orderBy: { updatedAt: 'desc' },
+    }),
+    db.workflow.count({ where: { workspaceId, status: 'ACTIVE' } }),
+    db.workflow.findMany({
+      where: { workspaceId },
+      select: { id: true, name: true },
+    }),
+    db.workflowRun.findMany({
+      where: { workspaceId },
+      include: { workflow: { select: { id: true, name: true } } },
+      orderBy: { startedAt: 'desc' },
+      take: 100,
     }),
   ]);
 
-  const wonDeals = allDeals.filter((d) => d.pipelineStage?.name === 'Won');
+  // 1. Headline Numbers
   const openDeals = allDeals.filter(
-    (d) => d.pipelineStage?.name !== 'Won' && d.pipelineStage?.name !== 'Lost',
+    (d) => d.pipelineStage?.name !== 'Won' && d.pipelineStage?.name !== 'Lost' && d.pipelineStage?.name !== 'Closed',
   );
-  const revenue = wonDeals.reduce((s, d) => s + d.amount, 0);
-  const pipeline = openDeals.reduce((s, d) => s + d.amount, 0);
+  const pipelineValue = openDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const wonCountCurrent = wonDealsCurrent.length;
+  const wonValueCurrent = wonDealsCurrent.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const wonCountPrev = wonDealsPrev.length;
+  const wonValuePrev = wonDealsPrev.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const wonValueChangePct = wonValuePrev > 0 ? Math.round(((wonValueCurrent - wonValuePrev) / wonValuePrev) * 100) : null;
+  const wonCountChangePct = wonCountPrev > 0 ? Math.round(((wonCountCurrent - wonCountPrev) / wonCountPrev) * 100) : null;
+  const contactsChangePct = contactsPrev > 0 ? Math.round(((contactsCurrent - contactsPrev) / contactsPrev) * 100) : null;
 
-  // Build 12-month revenue trend from real won-deal data
-  const revenueTrend = Array.from({ length: 12 }, (_, i) => {
-    const month = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
-    const next = new Date(now.getFullYear(), now.getMonth() - 10 + i, 1);
-    return wonDealsByMonth
-      .filter((d) => d.updatedAt >= month && d.updatedAt < next)
-      .reduce((s, d) => s + d.amount, 0);
-  });
+  // 2. CRM / Pipeline
+  const wonTotal = allDeals.filter((d) => d.pipelineStage?.name === 'Won').length;
+  const lostTotal = allDeals.filter((d) => d.pipelineStage?.name === 'Lost' || d.pipelineStage?.name === 'Closed').length;
+  const winRate = (wonTotal + lostTotal) > 0 ? Math.round((wonTotal / (wonTotal + lostTotal)) * 1000) / 10 : null;
 
   const STAGE_COLORS: Record<string, string> = {
-    Lead: '#64748b', Qualified: '#818cf8', Proposal: '#fbbf24',
-    Negotiation: '#a78bfa', Won: '#34d399',
+    'New Lead': '#64748b', Lead: '#64748b', Qualified: '#818cf8', Proposal: '#fbbf24',
+    'Proposal Sent': '#fbbf24', Negotiation: '#a78bfa', Won: '#34d399', Closed: '#34d399',
   };
-  const stageGroups = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won'].map((name) => {
-    const sd = allDeals.filter((d) => d.pipelineStage?.name === name);
-    return { name, count: sd.length, value: sd.reduce((s, d) => s + d.amount, 0), color: STAGE_COLORS[name] ?? '#52677D' };
+  const stageMap = new Map<string, { count: number; value: number; color: string }>();
+  allDeals.forEach((d) => {
+    const sName = d.pipelineStage?.name || 'Unassigned';
+    const entry = stageMap.get(sName) || { count: 0, value: 0, color: STAGE_COLORS[sName] || '#52677D' };
+    entry.count += 1;
+    entry.value += d.amount || 0;
+    stageMap.set(sName, entry);
+  });
+  const pipelineStages = Array.from(stageMap.entries()).map(([name, data]) => ({
+    name,
+    count: data.count,
+    value: data.value,
+    color: data.color,
+  }));
+
+  // Lead sources breakdown
+  const sourceMap: Record<string, number> = {};
+  allContacts.forEach((c) => {
+    const s = (c.source || 'Direct / Organic').trim();
+    sourceMap[s] = (sourceMap[s] || 0) + 1;
+  });
+  const leadSources = Object.entries(sourceMap).map(([source, count]) => ({
+    source,
+    count,
+    percentage: allContacts.length > 0 ? Math.round((count / allContacts.length) * 100) : 0,
+  }));
+
+  // Stale deals (open deals with updatedAt < fourteenDaysAgo)
+  const staleDealsList = openDeals.filter((d) => new Date(d.updatedAt) < fourteenDaysAgo);
+  const staleDeals = {
+    count: staleDealsList.length,
+    value: staleDealsList.reduce((sum, d) => sum + (d.amount || 0), 0),
+    topStale: staleDealsList.slice(0, 5).map((d) => ({
+      id: d.id,
+      name: d.title,
+      amount: d.amount,
+      daysStale: Math.floor((now.getTime() - new Date(d.updatedAt).getTime()) / 86_400_000),
+      stage: d.pipelineStage?.name || 'Open',
+      contactName: d.contact ? `${d.contact.firstName} ${d.contact.lastName || ''}`.trim() : null,
+    })),
+  };
+
+  // New contacts over time (buckets in selected range)
+  const daysInRange = Math.ceil(durationMs / 86_400_000);
+  const bucketCount = Math.min(Math.max(daysInRange, 7), 30);
+  const bucketSizeMs = durationMs / bucketCount;
+  const contactsOverTime = Array.from({ length: bucketCount }, (_, i) => {
+    const bStart = new Date(currentFrom.getTime() + i * bucketSizeMs);
+    const bEnd = new Date(currentFrom.getTime() + (i + 1) * bucketSizeMs);
+    const count = allContacts.filter((c) => c.createdAt >= bStart && c.createdAt < bEnd).length;
+    return {
+      date: bStart.toISOString().split('T')[0],
+      count,
+    };
   });
 
-  // Derive real agent performance from workflow run records
-  const runsByWorkflow = new Map<string, { total: number; succeeded: number; totalMs: number }>();
-  for (const run of agentRuns) {
-    const entry = runsByWorkflow.get(run.workflowId) ?? { total: 0, succeeded: 0, totalMs: 0 };
-    entry.total++;
-    if (run.status === 'SUCCEEDED') entry.succeeded++;
-    if (run.durationMs) entry.totalMs += run.durationMs;
-    runsByWorkflow.set(run.workflowId, entry);
-  }
-  const workflows = await db.workflow.findMany({
-    where: { workspaceId, id: { in: [...runsByWorkflow.keys()] } },
-    select: { id: true, name: true },
+  // 3. Conversations
+  const emailSent = allMessages.filter((m) => m.channel === 'email' && m.direction === 'outbound').length;
+  const emailReceived = allMessages.filter((m) => m.channel === 'email' && m.direction === 'inbound').length;
+  const smsSent = allMessages.filter((m) => m.channel === 'sms' && m.direction === 'outbound').length;
+  const smsReceived = allMessages.filter((m) => m.channel === 'sms' && m.direction === 'inbound').length;
+
+  let totalResponseMins = 0;
+  let respondedCount = 0;
+  allConvos.forEach((c) => {
+    const inbound = c.messages.find((m) => m.direction === 'inbound');
+    if (inbound) {
+      const outbound = c.messages.find((m) => m.direction === 'outbound' && new Date(m.createdAt) > new Date(inbound.createdAt));
+      if (outbound) {
+        totalResponseMins += (new Date(outbound.createdAt).getTime() - new Date(inbound.createdAt).getTime()) / 60000;
+        respondedCount++;
+      }
+    }
   });
-  const agentPerformance = workflows.map((wf) => {
-    const stats = runsByWorkflow.get(wf.id)!;
-    const successRate = stats.total > 0 ? Math.round((stats.succeeded / stats.total) * 1000) / 10 : 0;
-    const avgMs = stats.total > 0 ? Math.round(stats.totalMs / stats.total) : 0;
-    const avgTime = avgMs >= 1000 ? `${(avgMs / 1000).toFixed(1)}s` : `${avgMs}ms`;
-    return { name: wf.name, runs: stats.total, success: successRate, avgTime };
-  }).sort((a, b) => b.runs - a.runs).slice(0, 10);
+  const avgFirstResponseMinutes = respondedCount > 0 ? Math.round(totalResponseMins / respondedCount) : null;
+
+  const awaitingReplyList = allConvos
+    .filter((c) => {
+      if (c.status !== 'open' || c.messages.length === 0) return false;
+      const last = c.messages[c.messages.length - 1];
+      return last.direction === 'inbound';
+    })
+    .slice(0, 5)
+    .map((c) => ({
+      id: c.id,
+      subject: c.subject || 'Direct message',
+      contactName: c.contact ? `${c.contact.firstName} ${c.contact.lastName || ''}`.trim() : 'Customer',
+      lastMessageAt: c.lastMessageAt,
+      snippet: c.messages[c.messages.length - 1]?.body?.slice(0, 90) || '',
+    }));
+
+  // 4. Calendar
+  const todayAppointmentsCount = allAppointments.filter((a) => a.startTime >= startOfToday && a.startTime <= endOfToday).length;
+  const thisWeekAppointmentsCount = allAppointments.filter((a) => a.startTime >= startOfWeek && a.startTime <= endOfWeek).length;
+  const calendarStatusBreakdown = {
+    booked: allAppointments.filter((a) => a.status === 'confirmed' || a.status === 'booked' || a.status === 'scheduled').length,
+    completed: allAppointments.filter((a) => a.status === 'completed').length,
+    cancelled: allAppointments.filter((a) => a.status === 'cancelled' || a.status === 'no_show').length,
+  };
+  const upcomingAppointmentsList = upcomingAppointments.map((a) => ({
+    id: a.id,
+    title: a.title || 'Scheduled Appointment',
+    startTime: a.startTime,
+    endTime: a.endTime,
+    status: a.status,
+    type: a.type || 'Meeting',
+    contactName: a.contact ? `${a.contact.firstName} ${a.contact.lastName || ''}`.trim() : null,
+    contactEmail: a.contact?.email || null,
+  }));
+
+  // 5. Email Marketing
+  const emailSentCount = Math.max(
+    emailEvents.filter((e) => e.eventType === 'SENT').length,
+    campaignRecipients.filter((r) => r.status === 'SENT' || r.sentAt).length,
+  );
+  const emailDeliveredCount = emailEvents.filter((e) => e.eventType === 'DELIVERED').length || emailSentCount;
+  const uniqueOpens = new Set(emailEvents.filter((e) => e.eventType === 'OPENED').map((e) => e.contactId)).size;
+  const uniqueClicks = new Set(emailEvents.filter((e) => e.eventType === 'CLICKED').map((e) => e.contactId)).size;
+  const emailBouncedCount = emailEvents.filter((e) => e.eventType === 'BOUNCED').length;
+  const emailUnsubscribedCount = emailEvents.filter((e) => e.eventType === 'UNSUBSCRIBED').length;
+  const openRatePct = emailDeliveredCount > 0 ? Math.round((uniqueOpens / emailDeliveredCount) * 1000) / 10 : 0;
+  const clickRatePct = emailDeliveredCount > 0 ? Math.round((uniqueClicks / emailDeliveredCount) * 1000) / 10 : 0;
+
+  const lastCampaignCard = lastSentCampaign
+    ? {
+        id: lastSentCampaign.id,
+        name: lastSentCampaign.name,
+        subject: lastSentCampaign.subject,
+        sentAt: lastSentCampaign.updatedAt,
+        totalRecipients: lastSentCampaign.recipientCount || 0,
+        openRate: openRatePct,
+        clickRate: clickRatePct,
+      }
+    : null;
+
+  // 6. Automations
+  const runsInPeriod = workflowRuns.filter((r) => r.startedAt >= currentFrom && r.startedAt <= currentTo);
+  const succeededRuns = runsInPeriod.filter((r) => r.status === 'SUCCEEDED').length;
+  const failedRuns = runsInPeriod.filter((r) => r.status === 'FAILED').length;
+  const totalRuns = runsInPeriod.length;
+  const automationSuccessRate = totalRuns > 0 ? Math.round((succeededRuns / totalRuns) * 100) : 100;
+  const recentFailedRuns = workflowRuns
+    .filter((r) => r.status === 'FAILED')
+    .slice(0, 5)
+    .map((r) => ({
+      id: r.id,
+      workflowId: r.workflowId,
+      workflowName: r.workflow?.name || 'Automation Workflow',
+      startedAt: r.startedAt,
+      durationMs: r.durationMs,
+      error: r.errorMessage || 'Execution failed',
+    }));
+
+  // 7. Activity Feed (chronological union of real events)
+  const activityEvents: Array<{
+    id: string;
+    type: 'contact_created' | 'deal_won' | 'appointment_booked' | 'campaign_sent' | 'workflow_failed';
+    title: string;
+    subtitle: string;
+    timestamp: Date;
+    link: string;
+  }> = [];
+
+  allContacts.slice(0, 5).forEach((c) => {
+    activityEvents.push({
+      id: 'contact-' + c.id,
+      type: 'contact_created',
+      title: 'New lead added',
+      subtitle: `${c.firstName} ${c.lastName || ''} (${c.email || c.source || 'Direct'})`.trim(),
+      timestamp: c.createdAt,
+      link: `/crm/contacts/${c.id}`,
+    });
+  });
+
+  allDeals.filter((d) => d.pipelineStage?.name === 'Won').slice(0, 5).forEach((d) => {
+    activityEvents.push({
+      id: 'deal-' + d.id,
+      type: 'deal_won',
+      title: 'Deal won',
+      subtitle: `${d.title} (${(d.amount || 0).toLocaleString()})`,
+      timestamp: d.updatedAt,
+      link: '/opportunities',
+    });
+  });
+
+  allAppointments.slice(0, 5).forEach((a) => {
+    activityEvents.push({
+      id: 'appt-' + a.id,
+      type: 'appointment_booked',
+      title: 'Appointment booked',
+      subtitle: `${a.title || 'Meeting'}${a.contact ? ` with ${a.contact.firstName} ${a.contact.lastName || ''}` : ''}`,
+      timestamp: a.createdAt,
+      link: '/calendar',
+    });
+  });
+
+  if (lastSentCampaign) {
+    activityEvents.push({
+      id: 'campaign-' + lastSentCampaign.id,
+      type: 'campaign_sent',
+      title: 'Email campaign dispatched',
+      subtitle: `${lastSentCampaign.name} (${lastSentCampaign.recipientCount || 0} recipients)`,
+      timestamp: lastSentCampaign.updatedAt,
+      link: '/email-marketing/campaigns',
+    });
+  }
+
+  workflowRuns.filter((r) => r.status === 'FAILED').slice(0, 5).forEach((r) => {
+    activityEvents.push({
+      id: 'wf-' + r.id,
+      type: 'workflow_failed',
+      title: 'Automation failed',
+      subtitle: `${r.workflow?.name || 'Workflow'} encountered an execution error`,
+      timestamp: r.startedAt,
+      link: '/automations',
+    });
+  });
+
+  activityEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return {
-    revenue: { current: revenue, trend: revenueTrend },
-    pipeline: { value: pipeline },
-    contacts: { total: totalContacts },
-    pipeline_stages: stageGroups,
-
-    email: {
-      sent: Math.max(
-        emailEvents.filter((event) => event.eventType === 'SENT').length,
-        campaignRecipients.filter((recipient) => recipient.status === 'SENT' || recipient.sentAt).length,
-      ),
-      delivered: emailEvents.filter((event) => event.eventType === 'DELIVERED').length,
-      uniqueOpens: new Set(emailEvents.filter((event) => event.eventType === 'OPENED').map((event) => event.contactId)).size,
-      totalOpens: emailEvents.filter((event) => event.eventType === 'OPENED').length,
-      uniqueClicks: new Set(emailEvents.filter((event) => event.eventType === 'CLICKED').map((event) => event.contactId)).size,
-      totalClicks: emailEvents.filter((event) => event.eventType === 'CLICKED').length,
-      hardBounces: emailEvents.filter((event) => event.eventType === 'BOUNCED' && event.linkUrl === 'hard').length,
-      softBounces: emailEvents.filter((event) => event.eventType === 'BOUNCED' && event.linkUrl === 'soft').length,
-      complaints: emailEvents.filter((event) => event.eventType === 'COMPLAINED').length,
-      unsubscribes: emailEvents.filter((event) => event.eventType === 'UNSUBSCRIBED').length,
+    headline: {
+      newContacts: {
+        count: contactsCurrent,
+        total: allContacts.length,
+        changePct: contactsChangePct,
+      },
+      openOpportunities: {
+        count: openDeals.length,
+        value: pipelineValue,
+      },
+      wonDeals: {
+        count: wonCountCurrent,
+        value: wonValueCurrent,
+        changePct: wonValueChangePct,
+        wonCountChangePct,
+        allTimeValue: allDeals.filter((d) => d.pipelineStage?.name === 'Won').reduce((sum, d) => sum + (d.amount || 0), 0),
+      },
+      unreadConversations: {
+        count: unreadConvosCount,
+        openThreads: openConvosCount,
+      },
+      upcomingAppointments: {
+        count: upcomingAppointments.length,
+      },
     },
+    crm: {
+      pipelineStages,
+      winRate,
+      wonDealsCount: wonTotal,
+      lostDealsCount: lostTotal,
+      leadSources,
+      staleDeals,
+      contactsOverTime,
+    },
+    conversations: {
+      unreadCount: unreadConvosCount,
+      openThreads: openConvosCount,
+      messages: {
+        emailSent,
+        emailReceived,
+        smsSent,
+        smsReceived,
+        totalSent: emailSent + smsSent,
+        totalReceived: emailReceived + smsReceived,
+      },
+      avgFirstResponseMinutes,
+      awaitingReply: {
+        count: awaitingReplyList.length,
+        items: awaitingReplyList,
+      },
+    },
+    calendar: {
+      todayAppointmentsCount,
+      thisWeekAppointmentsCount,
+      statusBreakdown: calendarStatusBreakdown,
+      upcomingAppointments: upcomingAppointmentsList,
+    },
+    emailMarketing: {
+      sent: emailSentCount,
+      delivered: emailDeliveredCount,
+      uniqueOpens,
+      uniqueClicks,
+      bounces: emailBouncedCount,
+      unsubscribes: emailUnsubscribedCount,
+      openRate: openRatePct,
+      clickRate: clickRatePct,
+      lastCampaign: lastCampaignCard,
+      listGrowth: {
+        newSubscribers: contactsCurrent,
+        unsubscribes: emailUnsubscribedCount,
+        netGrowth: contactsCurrent - emailUnsubscribedCount,
+      },
+    },
+    automations: {
+      activeWorkflows: activeWorkflowsCount,
+      totalRuns,
+      succeededRuns,
+      failedRuns,
+      successRate: automationSuccessRate,
+      recentFailedRuns,
+    },
+    activityFeed: activityEvents.slice(0, 10),
 
-    agentPerformance,
+    // Backward-compat fields for existing hooks
+    revenue: { current: wonValueCurrent, trend: [] },
+    pipeline: { value: pipelineValue },
+    contacts: { total: allContacts.length },
+    open_conversations: openConvosCount,
+    pipeline_stages: pipelineStages,
+    email: {
+      sent: emailSentCount,
+      delivered: emailDeliveredCount,
+      uniqueOpens,
+      totalOpens: uniqueOpens,
+      uniqueClicks,
+      totalClicks: uniqueClicks,
+      hardBounces: emailBouncedCount,
+      softBounces: 0,
+      complaints: 0,
+      unsubscribes: emailUnsubscribedCount,
+    },
   };
 }
 

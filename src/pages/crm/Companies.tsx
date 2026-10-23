@@ -228,21 +228,8 @@ export default function Companies() {
             />
           </div>
 
-          <button onClick={handleExportCSV} className="btn-secondary">
-            <Download className="w-4 h-4" /> Export
-          </button>
-
           <button onClick={() => setPanelOpen('new_company')} className="btn-secondary">
             <Plus className="w-4 h-4" /> Add Account
-          </button>
-
-          <div className="w-[1px] h-5 bg-border mx-1" />
-
-          <button
-            onClick={() => setPanelOpen('manage')}
-            className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted hover:text-text-main transition-colors ml-1"
-          >
-            <Settings className="w-4 h-4" /> Manage fields
           </button>
 
           <div className="w-[1px] h-5 bg-border mx-1" />
@@ -500,6 +487,23 @@ export default function Companies() {
           '--btn-border': 'transparent',
         } as React.CSSProperties}
       >
+        {/* Left: Manage fields & Export */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setPanelOpen('manage')}
+            className="btn-secondary flex items-center gap-1.5"
+          >
+            <Settings className="w-4 h-4" /> Manage fields
+          </button>
+          <button 
+            onClick={handleExportCSV} 
+            className="btn-secondary flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Export
+          </button>
+        </div>
+
+        {/* Right: Rows per page & Pagination buttons */}
         <div className="flex items-center gap-4">
           {/* Rows per page */}
           <div className="relative">
@@ -545,7 +549,35 @@ export default function Companies() {
             >
               Prev
             </button>
-            <span className="px-2 text-[12px] font-bold text-text-main">{page} / {totalPages}</span>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce((acc: (number | string)[], p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                  acc.push('...');
+                }
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) => (
+                typeof p === 'number' ? (
+                  <button
+                    key={idx}
+                    onClick={() => setPage(p)}
+                    className={`min-w-[28px] h-7 px-2 rounded-[6px] text-[12px] font-bold transition-all ${
+                      page === p
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'border border-border text-text-muted hover:text-text-main hover:bg-surface-hover'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ) : (
+                  <span key={idx} className="px-1 text-[12px] text-text-muted">...</span>
+                )
+              ))
+            }
+
             <button
               disabled={page >= totalPages}
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}

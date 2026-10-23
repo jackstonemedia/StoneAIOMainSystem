@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { 
-  Bot, Sparkles, Send as SendIcon, ArrowLeft, Mic, 
-  RotateCcw, HelpCircle, Check, Lightbulb, MessageSquare, 
-  ChevronRight, Compass
+  Sparkles,
+  RotateCcw, Check
 } from 'lucide-react';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import type { CampaignDraftState, ChatMessageState, InterviewPhase } from '../../lib/createWithAiApi';
@@ -16,48 +15,6 @@ const PHASE_NAMES: Record<InterviewPhase, string> = {
   sequence: 'Sequence and Timing',
   reactions: 'Reactions',
   ab_testing: 'A/B Testing',
-};
-
-const PHASE_RATIONALES: Record<InterviewPhase, string> = {
-  goal: 'Establishes a single conversion objective so every word in your email drives readers toward one specific outcome.',
-  audience: 'Allows the AI to tailor terminology, value props, and emotional tone to who is actually reading.',
-  cta: 'Ensures readers know exactly what action to take next with zero friction.',
-  sequence: 'Plans whether a single email is enough, or if spaced follow-ups maximize your campaign return.',
-  reactions: 'Automates smart branches for readers who open, click, or ignore your initial email.',
-  ab_testing: 'Compares two variations to scientifically verify which one converts better before full deployment.',
-};
-
-const PHASE_THOUGHT_STARTERS: Record<InterviewPhase, string[]> = {
-  goal: [
-    'Re-engage past customers who haven’t booked in the last 6 months',
-    'Announce our seasonal promotion for next week’s open availability',
-    'Request customer reviews and feedback after completed services',
-  ],
-  audience: [
-    'Past clients who used our services within the last year',
-    'Cold leads who submitted inquiries but never scheduled an appointment',
-    'All active newsletter subscribers looking for seasonal maintenance',
-  ],
-  cta: [
-    'Book online directly through our appointment scheduling page',
-    'Call our office directly to speak with a specialist today',
-    'Reply directly to this email to claim a 15% discount code',
-  ],
-  sequence: [
-    'Send one high-impact, standalone announcement email',
-    'A 3-email series over 7 days with increasing urgency',
-    'A 2-part sequence: main announcement followed by a reminder',
-  ],
-  reactions: [
-    'If they click the link, notify our sales team immediately',
-    'If they open but do not click, send a reminder in 3 days',
-    'If unopened after 4 days, resend with a different subject line',
-  ],
-  ab_testing: [
-    'Test two different subject lines to see which gets higher open rates',
-    'No A/B test needed — send the single best version directly',
-    'Test an urgency-driven subject against a curiosity-driven subject',
-  ],
 };
 
 export function phaseIndex(draft: CampaignDraftState): number {
@@ -96,6 +53,7 @@ export default function InterviewChat({
   onRegenerateProfile,
   onKeepProfile,
   onStartNew,
+  isBigChat = false,
 }: {
   draft: CampaignDraftState;
   input: string;
@@ -119,6 +77,7 @@ export default function InterviewChat({
   onRegenerateProfile: () => void;
   onKeepProfile: () => void;
   onStartNew: () => void;
+  isBigChat?: boolean;
 }) {
   const copy = createWithAiCopy.interview;
   const phases = createWithAiCopy.flow.phases;
@@ -141,6 +100,11 @@ export default function InterviewChat({
     return items.some((i) => i.status === 'complete' || i.status === 'placeholder');
   });
   const transitions = draft.conversation.filter((m) => m.kind === 'transition');
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
+  }, [draft.conversation.length, sending]);
 
   const send = () => {
     if (inBriefConfirm) onConfirmBrief(input);
@@ -158,159 +122,28 @@ export default function InterviewChat({
     }
   };
 
-  const starters = currentPhase ? PHASE_THOUGHT_STARTERS[currentPhase] || [] : [];
-
   return (
-    <div className="flex flex-col h-full w-full bg-surface/30 backdrop-blur-md overflow-hidden relative" data-testid="interview-chat">
-      {/* Consultant Header */}
-      <div className="px-5 py-3.5 border-b border-border/50 bg-surface/50 backdrop-blur-md flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-primary p-0.5 shadow-interactive">
-              <div className="w-full h-full bg-bg rounded-full flex items-center justify-center text-primary">
-                <Sparkles className="w-4 h-4 text-primary" />
-              </div>
-            </div>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-bg" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-text-main">Stone AI Strategist</h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                Online
-              </span>
-            </div>
-            <p className="text-[11px] text-text-muted">Interactive Campaign Consultant</p>
-          </div>
+    <div className="flex flex-col h-full w-full bg-transparent overflow-hidden relative" data-testid="interview-chat">
+      {/* AI Assistant Studio Header */}
+      <div className="px-5 py-3 border-b border-border/50 bg-surface/20 shrink-0 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-xs font-bold text-text-main tracking-wide uppercase">
+            AI Campaign Studio
+          </span>
         </div>
 
-        {currentPhase && (
-          <div className="text-[11px] font-semibold text-primary px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-            Phase {PHASE_NUMBERS[currentPhase]} of 8
-          </div>
-        )}
-      </div>
-
-      {/* Progress Bar Ribbon */}
-      <div className="px-5 py-2.5 border-b border-border/40 bg-surface/20 shrink-0 overflow-x-auto scrollbar-none">
-        <ol className="flex items-center gap-2 text-xs min-w-max" aria-label="Interview phases">
-          {phases.map((name, i) => {
-            const done = i < currentIdx || briefConfirmed;
-            const current = i === currentIdx && !briefConfirmed;
-            return (
-              <li
-                key={name}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                  current
-                    ? 'bg-primary text-white shadow-interactive ring-1 ring-primary/30'
-                    : done
-                    ? 'bg-surface/80 text-text-main border border-border/60'
-                    : 'bg-surface/30 text-text-muted/60 border border-border/30'
-                }`}
-              >
-                {done ? '✓ ' : ''}Phase {i + 1}: {name}
-              </li>
-            );
-          })}
-        </ol>
+        <span className="text-[11px] font-semibold text-text-muted bg-surface/60 px-2.5 py-1 rounded-md border border-border/50">
+          {draft.brief?.liveEmail ? 'Email Drafted' : 'Discovery'}
+        </span>
       </div>
 
       {/* Scrollable Conversation Stream */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        {/* Active Question Spotlight Card */}
-        {currentPhase && (
-          <div className="p-5 rounded-[14px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-2.5 animate-in fade-in duration-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-                <span className="text-[11px] font-bold text-primary uppercase tracking-wider">
-                  Phase {PHASE_NUMBERS[currentPhase]}: {PHASE_NAMES[currentPhase]}
-                </span>
-              </div>
-              <span className="text-[11px] text-text-muted font-medium">Question for you</span>
-            </div>
-
-            <h4 className="text-[14px] font-bold text-text-main leading-snug">
-              {copy.openings[currentPhase]}
-            </h4>
-
-            <p className="text-xs text-text-muted leading-relaxed">
-              {PHASE_RATIONALES[currentPhase]}
-            </p>
-          </div>
-        )}
-
-        {inBriefConfirm && (
-          <div className="p-5 rounded-[14px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-2 animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h4 className="text-sm font-bold text-text-main">Campaign Brief confirmation</h4>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed">{copy.briefPrompt}</p>
-          </div>
-        )}
-
-        {inReactionsConfirm && (
-          <div className="p-5 rounded-[14px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-2 animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h4 className="text-sm font-bold text-text-main">Reactions Confirmation</h4>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed">{copy.reactionsPrompt}</p>
-          </div>
-        )}
-
-        {inAbConfirm && (
-          <div className="p-5 rounded-[14px] bg-gradient-to-br from-surface/80 via-surface/60 to-primary/10 border border-primary/30 shadow-luxury space-y-2 animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h4 className="text-sm font-bold text-text-main">Plan Confirmation</h4>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed">{copy.abPrompt}</p>
-          </div>
-        )}
-
-        {/* Phase Recaps */}
-        {transitions.map((t, i) => (
-          <div key={i} className="p-4 rounded-[12px] bg-surface/40 border border-border/70 shadow-sm space-y-2">
-            <div className="flex items-center gap-2">
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Phase Summary</span>
-            </div>
-            <p className="text-xs text-text-main leading-relaxed">{t.text}</p>
-            {!briefConfirmed && (
-              <button
-                type="button"
-                onClick={() => onCorrectRecap(t.phase as InterviewPhase)}
-                className="btn-secondary text-xs mt-2"
-              >
-                {copy.correctRecap}
-              </button>
-            )}
-          </div>
-        ))}
-
-        {/* Profile Changed Prompt */}
-        {profileChanged && (
-          <div className="p-4 rounded-[12px] bg-amber-500/10 border border-amber-500/30 space-y-3">
-            <p className="text-xs text-text-main font-medium">
-              Your profile changed. Regenerate your draft with the update, or keep it as is?
-            </p>
-            <div className="flex gap-2">
-              <button type="button" onClick={onRegenerateProfile} className="btn-primary text-xs">
-                Regenerate draft
-              </button>
-              <button type="button" onClick={onKeepProfile} className="btn-secondary text-xs">
-                Keep as is
-              </button>
-            </div>
-          </div>
-        )}
-
+      <div className={`flex-1 overflow-y-auto ${isBigChat ? 'p-6 lg:p-8 space-y-5' : 'p-5 space-y-4'}`}>
         {/* Conversation Message List */}
         <div className="space-y-3.5 pt-2">
           {draft.conversation
-            .filter((m) => m.kind !== 'transition')
+            .filter((m) => m.kind !== 'brief')
             .map((m: ChatMessageState, i: number) => {
               if (m.kind === 'system') {
                 return (
@@ -319,40 +152,37 @@ export default function InterviewChat({
                   </p>
                 );
               }
-              if (m.kind === 'brief') {
-                return (
-                  <div key={i} className="p-4 rounded-[12px] bg-surface/50 border border-border shadow-sm space-y-2">
-                    <div className="flex items-center gap-2 text-primary font-bold text-xs">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Synthesized Campaign Brief</span>
-                    </div>
-                    <p className="text-xs text-text-main whitespace-pre-line leading-relaxed">{m.text}</p>
-                  </div>
-                );
-              }
-
               const isUser = m.role === 'user';
-
               return (
-                <div key={i} className={`flex items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  {!isUser && (
-                    <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0 mb-0.5">
-                      <Bot className="w-3.5 h-3.5" />
-                    </div>
-                  )}
-
+                <div key={i} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={
+                    className={`max-w-[85%] px-4 py-2.5 text-xs rounded-2xl leading-relaxed whitespace-pre-wrap ${
                       isUser
-                        ? 'max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2.5 text-xs bg-primary text-white shadow-interactive leading-relaxed'
-                        : 'max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-2.5 text-xs bg-surface/70 text-text-main border border-border/70 shadow-sm leading-relaxed'
-                    }
+                        ? 'bg-primary text-white rounded-br-sm shadow-interactive'
+                        : 'bg-surface/70 text-text-main border border-border/70 rounded-bl-sm shadow-sm'
+                    }`}
                   >
                     {m.text}
                   </div>
                 </div>
               );
             })}
+
+          {/* AI Thinking Indicator */}
+          {sending && (
+            <div className="flex items-end justify-start animate-in fade-in duration-150">
+              <div
+                className={`${
+                  isBigChat ? 'max-w-[80%] px-5 py-3 text-[13px]' : 'max-w-[85%] px-4 py-2.5 text-xs'
+                } rounded-2xl rounded-bl-sm bg-surface/80 text-text-muted border border-border/70 shadow-sm flex items-center gap-2.5`}
+              >
+                <Sparkles className="w-4 h-4 text-primary animate-spin shrink-0" />
+                <span className="font-medium text-text-main animate-pulse">AI is thinking...</span>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
         </div>
 
         {/* AI Error & Retry */}
@@ -366,31 +196,9 @@ export default function InterviewChat({
         )}
       </div>
 
-      {/* Thought Starters & Bottom Console */}
+      {/* Bottom Console */}
       {!briefConfirmed && (
-        <div className="p-4 border-t border-border/50 bg-surface/70 backdrop-blur-xl shrink-0 space-y-3">
-          {/* Quick Idea Starters (Styled div chips — strictly avoids button tags for unit tests) */}
-          {starters.length > 0 && !input && (
-            <div className="space-y-1.5 animate-in fade-in">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-text-muted">
-                <Lightbulb className="w-3 h-3 text-amber-400" />
-                <span>Suggested thought starters:</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {starters.map((idea, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => onInputChange(idea)}
-                    className="px-2.5 py-1 rounded-full bg-surface-hover/80 hover:bg-surface border border-border/60 hover:border-primary/50 text-[11px] text-text-muted hover:text-text-main transition-all cursor-pointer truncate max-w-full"
-                    title={idea}
-                  >
-                    “{idea.slice(0, 48)}…”
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className={`${isBigChat ? 'p-5 lg:p-6' : 'p-4'} border-t border-border/50 bg-surface/70 backdrop-blur-xl shrink-0 space-y-3`}>
           {/* Textarea Input Box */}
           <div className="space-y-2">
             <div className="flex gap-2 items-start">
@@ -399,11 +207,11 @@ export default function InterviewChat({
                 onChange={(e) => onInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  inBriefConfirm || inReactionsConfirm || inAbConfirm
-                    ? 'Type looks good, or tell me what to change.'
-                    : examplePlaceholder
+                  draft.brief?.liveEmail
+                    ? "Tell me what you'd like to adjust (e.g. 'make it shorter', 'change the hook')..."
+                    : "Tell me about the campaign or email you want to send..."
                 }
-                rows={2}
+                rows={isBigChat ? 3 : 2}
                 className="flex-1 border border-border bg-surface-hover/80 text-text-main rounded-[12px] px-3.5 py-2.5 text-xs hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-text-muted/60 shadow-inner-sm resize-none"
                 aria-label={
                   inBriefConfirm
@@ -443,9 +251,6 @@ export default function InterviewChat({
                     {copy.back}
                   </button>
                 )}
-                <button type="button" onClick={onEditProfile} className="btn-secondary text-xs">
-                  {copy.editProfile}
-                </button>
                 {currentPhase && userAnswersInPhase >= 1 && (
                   <button type="button" onClick={onEscapeHatch} className="btn-secondary text-xs" disabled={sending}>
                     {copy.escapeHatch}

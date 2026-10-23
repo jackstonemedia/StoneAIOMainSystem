@@ -68,17 +68,17 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className={`w-[290px] bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl p-4 text-[13px] overflow-y-auto max-h-[calc(100vh-180px)] z-50 ${
+      <div className={`w-[290px] bg-[#1a1c23] border border-border/80 shadow-2xl ring-1 ring-white/10 rounded-xl p-4 text-[13px] overflow-y-auto max-h-[calc(100vh-180px)] z-[100] ${
         placement === 'top' ? 'absolute left-0 bottom-full mb-2' : 'absolute right-0 top-full mt-2'
       }`}>
         <div className="flex items-center justify-between mb-3">
-          <span className="font-bold text-text-main">Filters</span>
-          <button onClick={resetFilters} className="text-[12px] text-text-muted hover:text-text-main">Reset</button>
+          <span className="font-bold text-white">Filters</span>
+          <button onClick={resetFilters} className="text-[12px] text-slate-400 hover:text-white transition-colors">Reset</button>
         </div>
 
         {/* Status */}
         <div className="mb-3">
-          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">Status</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Status</p>
           <div className="flex flex-wrap gap-1">
             {statuses.map(s => (
               <button
@@ -86,8 +86,8 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
                 onClick={() => setStatusFilter(s)}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
                   statusFilter === s
-                    ? 'bg-primary border-primary text-white'
-                    : 'border-border text-text-muted hover:border-text-muted hover:text-text-main'
+                    ? 'bg-primary border-primary text-white shadow-xs'
+                    : 'border-white/10 bg-[#242833] text-slate-300 hover:border-slate-400 hover:text-white'
                 }`}
               >
                 {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -98,7 +98,7 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
 
         {/* Read/Unread */}
         <div className="mb-3">
-          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">Read state</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Read state</p>
           <div className="flex gap-1">
             {[
               { label: 'All', value: undefined },
@@ -110,8 +110,8 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
                 onClick={() => setIsReadFilter(opt.value)}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
                   isReadFilter === opt.value
-                    ? 'bg-primary border-primary text-white'
-                    : 'border-border text-text-muted hover:border-text-muted hover:text-text-main'
+                    ? 'bg-primary border-primary text-white shadow-xs'
+                    : 'border-white/10 bg-[#242833] text-slate-300 hover:border-slate-400 hover:text-white'
                 }`}
               >
                 {opt.label}
@@ -123,11 +123,11 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
         {/* Tag */}
         {tags.length > 0 && (
           <div className="mb-3">
-            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">Tag</p>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Tag</p>
             <select
               value={tagFilter}
               onChange={e => setTagFilter(e.target.value)}
-              className="w-full bg-surface-hover border border-border text-text-main rounded-lg px-2 py-1.5 text-[12px] focus:outline-none"
+              className="w-full bg-[#242833] border border-white/10 text-white rounded-lg px-2 py-1.5 text-[12px] focus:outline-none focus:border-primary"
             >
               <option value="">Any tag</option>
               {tags.map((t: any) => (
@@ -139,26 +139,26 @@ export function FilterPopover({ onClose, placement = 'bottom' }: { onClose: () =
 
         {/* Date range */}
         <div className="mb-1">
-          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">Date range</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Date range</p>
           <div className="flex gap-2">
             <input
               type="date"
               value={dateRangeFilter?.from ?? ''}
               onChange={e => setDateRangeFilter({ ...dateRangeFilter, from: e.target.value || undefined })}
-              className="flex-1 bg-surface-hover border border-border text-text-main rounded-lg px-2 py-1 text-[11px] focus:outline-none"
+              className="flex-1 bg-[#242833] border border-white/10 text-white rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:border-primary"
             />
             <input
               type="date"
               value={dateRangeFilter?.to ?? ''}
               onChange={e => setDateRangeFilter({ ...dateRangeFilter, to: e.target.value || undefined })}
-              className="flex-1 bg-surface-hover border border-border text-text-main rounded-lg px-2 py-1 text-[11px] focus:outline-none"
+              className="flex-1 bg-[#242833] border border-white/10 text-white rounded-lg px-2 py-1 text-[11px] focus:outline-none focus:border-primary"
             />
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="mt-3 w-full py-2 bg-primary hover:bg-primary-hover text-white font-semibold rounded-lg text-[13px] transition-colors"
+          className="mt-3 w-full py-2 bg-primary hover:bg-primary-hover text-white font-semibold rounded-lg text-[13px] transition-colors shadow-xs"
         >
           Apply
         </button>
@@ -229,8 +229,11 @@ export default function ConversationListPane() {
 
   const bulk = useMutation({
     mutationFn: (data: Parameters<typeof conversationsApi.bulk>[0]) => conversationsApi.bulk(data),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
+      if (vars.action === 'delete' && selectedId && vars.conversationIds.includes(selectedId)) {
+        setSelectedId(null);
+      }
       clearSelection();
     },
   });
@@ -275,10 +278,10 @@ export default function ConversationListPane() {
         <div className="shrink-0 border-b border-border/50 bg-surface/90 backdrop-blur-sm">
           {/* Title row */}
           <div className="h-[52px] flex items-center justify-between px-4">
-            {/* New Conversation Plus Button on the left */}
+            {/* New Conversation Plus Button on the left (Blue) */}
             <button
               onClick={() => setShowNewConv(true)}
-              className="p-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white shadow-xs transition-colors flex items-center justify-center"
+              className="p-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white shadow-xs transition-colors flex items-center justify-center cursor-pointer"
               title="New Conversation"
             >
               <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
@@ -298,17 +301,17 @@ export default function ConversationListPane() {
                 {showSort && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowSort(false)} />
-                    <div className="absolute right-0 top-full mt-2 z-50 w-44 bg-surface border border-border shadow-luxury ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
+                    <div className="absolute right-0 top-full mt-2 z-[100] w-48 bg-[#1a1c23] border border-border/80 shadow-2xl ring-1 ring-white/10 rounded-xl overflow-hidden py-1">
                       {SORT_OPTIONS.map(o => (
                         <button
                           key={o.value}
                           onClick={() => { setSort(o.value); setShowSort(false); }}
                           className={`w-full text-left px-4 py-2.5 text-[13px] flex items-center justify-between transition-colors ${
-                            sort === o.value ? 'text-primary font-bold bg-primary/10' : 'text-text-muted hover:bg-surface-hover hover:text-text-main'
+                            sort === o.value ? 'text-white font-bold bg-primary/20' : 'text-slate-300 hover:bg-[#242833] hover:text-white'
                           }`}
                         >
                           {o.label}
-                          {sort === o.value && <Check className="w-3.5 h-3.5" />}
+                          {sort === o.value && <Check className="w-3.5 h-3.5 text-primary" />}
                         </button>
                       ))}
                     </div>
@@ -342,22 +345,29 @@ export default function ConversationListPane() {
         {hasBulk && (
           <div className="px-4 py-2 bg-primary/10 border-b border-primary/30 flex items-center justify-between text-[12px] text-text-main shrink-0">
             <span className="font-semibold">{selectedIds.length} selected</span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => bulk.mutate({ conversationIds: selectedIds, action: 'mark_read' })}
-                className="px-2 py-1 hover:bg-surface-hover rounded transition-colors"
+                disabled={bulk.isPending}
+                className="px-2.5 py-1 font-medium hover:bg-surface-hover rounded transition-colors disabled:opacity-50"
               >
                 Mark Read
               </button>
               <button
                 onClick={() => bulk.mutate({ conversationIds: selectedIds, action: 'archive' })}
-                className="px-2 py-1 hover:bg-surface-hover rounded transition-colors"
+                disabled={bulk.isPending}
+                className="px-2.5 py-1 font-medium hover:bg-surface-hover rounded transition-colors disabled:opacity-50"
               >
                 Archive
               </button>
               <button
-                onClick={() => bulk.mutate({ conversationIds: selectedIds, action: 'delete' })}
-                className="px-2 py-1 text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                onClick={() => {
+                  if (confirm(`Delete ${selectedIds.length} conversations? This cannot be undone.`)) {
+                    bulk.mutate({ conversationIds: selectedIds, action: 'delete' });
+                  }
+                }}
+                disabled={bulk.isPending}
+                className="px-2.5 py-1 font-medium text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
               >
                 Delete
               </button>
@@ -481,7 +491,7 @@ function ConversationRow({
     >
       {/* Checkbox for bulk */}
       <div
-        className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 transition-opacity ${
+        className={`absolute left-2.5 top-3.5 z-10 transition-opacity ${
           hasBulk ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         }`}
       >
@@ -497,13 +507,12 @@ function ConversationRow({
 
       <button
         onClick={onSelect}
-        className="w-full text-left flex flex-col gap-1 px-3.5 py-3 transition-colors"
+        className={`w-full text-left flex flex-col gap-1 py-3 pr-3.5 transition-all duration-150 ${
+          hasBulk ? 'pl-9' : 'pl-3.5 group-hover:pl-9'
+        }`}
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-text-muted shrink-0">
-              <ChannelIcon channel={conv.channel} />
-            </span>
             <span className={`text-[13px] truncate ${isUnread ? 'font-bold text-text-main' : 'font-semibold text-text-main/90'}`}>
               {displayName}
             </span>
@@ -519,7 +528,7 @@ function ConversationRow({
           {preview || <span className="italic text-text-muted/50">No messages</span>}
         </p>
 
-        {/* Bottom row: tags + assignee */}
+        {/* Bottom row: tags + assignee + email/channel icon in bottom-right corner */}
         <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
           {tags.slice(0, 2).map((tag, i) => (
             <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-surface text-text-muted border border-border font-medium">
@@ -530,11 +539,16 @@ function ConversationRow({
             <span className="text-[10px] text-text-muted">+{tags.length - 2}</span>
           )}
 
-          {conv.assignedUser && (
-            <div className="ml-auto w-4.5 h-4.5 rounded-full bg-surface-hover flex items-center justify-center text-[9px] font-bold text-text-main border border-border shrink-0">
-              {(conv.assignedUser.name?.[0] ?? 'U').toUpperCase()}
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            {conv.assignedUser && (
+              <div className="w-4.5 h-4.5 rounded-full bg-surface-hover flex items-center justify-center text-[9px] font-bold text-text-main border border-border shrink-0">
+                {(conv.assignedUser.name?.[0] ?? 'U').toUpperCase()}
+              </div>
+            )}
+            <span className="text-text-muted/80 shrink-0" title={conv.channel}>
+              <ChannelIcon channel={conv.channel} />
+            </span>
+          </div>
         </div>
       </button>
 
