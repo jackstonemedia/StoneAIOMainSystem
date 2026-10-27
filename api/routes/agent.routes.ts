@@ -15,6 +15,12 @@ import {
   listConversations,
   getConversationHistory,
 } from '../services/agent/conversations.js';
+import {
+  listMemories,
+  createMemory,
+  updateMemory,
+  deleteMemory,
+} from '../services/agent/memories.js';
 
 const router = Router();
 
@@ -137,6 +143,58 @@ router.delete('/grants/:id', async (req: Request, res: Response) => {
     const revoked = await revokeGrant(db, workspaceId, req.params.id);
     if (!revoked) return res.status(404).json({ error: 'Grant not found' });
     return res.json({ revoked: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Phase 3: memories — workspace-scoped, user-attributed. No endpoint
+// serves a memory outside its workspace (404 for foreign ids).
+
+// GET /api/agent/memories — list, newest first
+router.get('/memories', async (req: Request, res: Response) => {
+  const workspaceId = (req as any).workspaceId || '';
+  try {
+    return res.json({ memories: await listMemories(db, workspaceId) });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/agent/memories — create ({ content, kind? })
+router.post('/memories', async (req: Request, res: Response) => {
+  const workspaceId = (req as any).workspaceId || '';
+  const userId = (req as any).userId || 'system';
+  try {
+    const memory = await createMemory(db, workspaceId, userId, req.body.kind ?? 'fact', req.body.content ?? '');
+    return res.json({ memory });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// PATCH /api/agent/memories/:id — edit content and/or kind
+router.patch('/memories/:id', async (req: Request, res: Response) => {
+  const workspaceId = (req as any).workspaceId || '';
+  try {
+    const memory = await updateMemory(db, workspaceId, req.params.id, {
+      content: req.body.content,
+      kind: req.body.kind,
+    });
+    if (!memory) return res.status(404).json({ error: 'Memory not found' });
+    return res.json({ memory });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /api/agent/memories/:id — delete by id (no fuzzy chat delete)
+router.delete('/memories/:id', async (req: Request, res: Response) => {
+  const workspaceId = (req as any).workspaceId || '';
+  try {
+    const deleted = await deleteMemory(db, workspaceId, req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Memory not found' });
+    return res.json({ deleted: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

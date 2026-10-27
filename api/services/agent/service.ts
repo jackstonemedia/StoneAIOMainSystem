@@ -21,6 +21,13 @@ import {
   appendMessage,
   getConversationHistory,
 } from './conversations.js';
+import {
+  parseRememberCommand,
+  parseCorrection,
+  createMemory,
+  listMemories,
+  formatMemoriesForPrompt,
+} from './memories.js';
 
 export interface TurnCallbacks {
   onText: (text: string) => void;
@@ -84,9 +91,39 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
     return { conversationId, mode: settings.mode, agentName: settings.name, queuedTools: [], executedTools: [], text };
   }
 
+  // 1b. Remember command — terminal, no LLM call, works with no key.
+  const remembered = parseRememberCommand(message);
+  if (remembered) {
+    const settings = await getAgentSettings(db, workspaceId);
+    const saved = await createMemory(db, workspaceId, userId, 'fact', remembered);
+    const text = `Remembered: ${saved.content}.`;
+    let conversationId: string | null = null;
+    if (input.conversationId) {
+      const conv = await getOrCreateConversation(db, workspaceId, userId, input.conversationId);
+      conversationId = conv.id;
+      cb.onConversation?.(conv.id);
+      await appendMessage(db, conv.id, 'user', message);
+      await appendMessage(db, conv.id, 'model', text);
+    }
+    cb.onText(text);
+    return { conversationId, mode: settings.mode, agentName: settings.name, queuedTools: [], executedTools: [], text };
+  }
+
   // 2. Settings + grants for this turn.
   const settings = await getAgentSettings(db, workspaceId);
   const granted = await listGrantedToolNames(db, workspaceId);
+
+  // 2b. Correction capture (Phase 3): record the distilled correction,
+  // then continue the turn. Non-fatal — a memory failure never blocks
+  // the answer.
+  const correction = parseCorrection(message);
+  if (correction) {
+    try {
+      await createMemory(db, workspaceId, userId, 'correction', correction);
+    } catch (memErr: any) {
+      console.error('[Agent] correction memory failed (non-fatal):', memErr.message);
+    }
+  }
 
   // 3. Conversation + history (persisted path) or stateless history (harness path).
   let conversationId: string | null = null;
@@ -100,13 +137,19 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
   }
 
   const contents = buildCleanContents(history, message);
+  // 2c. Memory injection (Phase 3): corrections first, capped. Only the
+  // count is logged, never memory content.
+  const memories = await listMemories(db, workspaceId);
+  console.info(`[Agent] Injected ${Math.min(memories.length, 50)} memories for workspace ${workspaceId}`);
+  const memoryBlock = formatMemoriesForPrompt(memories);
   const systemInstruction =
     `You are ${settings.name} — the intelligent copilot and autonomous workspace manager for Stone AIO. ` +
     (input.route ? `User is currently viewing page: ${input.route}. ` : '') +
     'You have direct live access to tools to manage contacts, deals, tasks, notes, messages (email/SMS), and email campaigns in the CRM. ' +
     'When the user asks you to view, find, search, create, update, or send anything in the CRM, ALWAYS call your tools to execute the action. ' +
     'Be helpful, dynamic, unique, and action-oriented. Format your responses with markdown, headers, and bulleted lists. ' +
-    MODE_LINES[settings.mode];
+    MODE_LINES[settings.mode] +
+    (memoryBlock ? `\n\n${memoryBlock}` : '');
 
   const ai = getAIClient();
   let fullText = '';

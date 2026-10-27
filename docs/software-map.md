@@ -739,3 +739,16 @@ Mode is a workspace property (`Workspace.agentMode`, default `approve`; `Workspa
 - No new tool modules beyond CRM (Conversations/inbox, calendar, deals pipelines beyond list/create, settings tools → Phase 4).
 - No persisted memory (Phase 3), no token metering (Phase 5), no grading loop/red-team (Phase 6).
 - No deletion of `/api/ai/chat`. No merge without Jack's approval. No SMS provider (honest error only). Real-send success, live Gemini copilot output, and voice live calls remain UNVERIFIED from dev (need Jack's environment/keys).
+
+### 12.8 Phase 3 — Memory (branch `agent/phase-3-memory`, built on Phase 2, unmerged)
+
+- Model: `AgentMemory` (`workspaceId, userId, kind, content, createdAt, updatedAt`, map `agent_memories`) + Workspace back-relation. Migration: `prisma/migrations/20261027_agent_phase3/migration.sql` (hand-authored; dev table via throwaway scaffolding SQL).
+- Kinds (server-validated): `correction | preference | fact | decision | rule`. Anything else → 400.
+- Curation is rule-based v1 (deterministic, no LLM, works with no key): `remember that X` / `remember: X` → `fact` memory, terminal confirmation; correction messages (starting with `correction:`, `actually,`, `i meant `, `wrong,`, `no,`) → `correction` memory (marker stripped, distilled), then the turn continues. Bare `no ` / `actually ` markers were REMOVED after unit tests showed they false-fire ("No worries", "Actually this is…") — a false memory steers future answers and is worse than a missed one.
+- Never raw conversation: only the user-authored remember-text or the marker-stripped correction is stored. Never auto-updated: the agent has no update path; only the user edits/deletes (API/UI). Conflicts resolve by recency (corrections first, newest first, prompt states later corrections override earlier ones).
+- Isolation: hard per workspace (every query filters `workspaceId`); `userId` is attribution, memories shared within a workspace. Per-user filtering inside a workspace is NOT built (product decision for Jack).
+- Injection: every agent turn appends a memories block to the system instruction (corrections first, cap 50, content truncated 500 chars). Only the COUNT is logged (`[Agent] Injected N memories`), never content.
+- API: `GET/POST /api/agent/memories`, `PATCH/DELETE /api/agent/memories/:id` (foreign ids 404). No chat `forget …` command by design (fuzzy delete risk); deletion is by id only.
+- UI: Settings → AI Agent tab, Memories card (list + kind badge + date, add with kind select, inline edit, delete).
+- NOT in Phase 3: vector retrieval/pgvector, LLM-based extraction (task outcomes/decisions only recorded if the user tells the agent or adds them), per-user filtering, tool-description runtime edits, a separate memory page (the agent tab card is the visible page for v1).
+- Tests: `api/services/agent/__tests__/memories.test.ts` (8 tests). Live-proven in dev: remember command with no key, correction recorded despite a key-error turn, injection-count log, full API CRUD + 400/404 paths, dev cleaned afterward. LLM actually USING an injected memory is UNVERIFIED without a key.

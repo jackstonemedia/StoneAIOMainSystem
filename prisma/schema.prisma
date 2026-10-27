@@ -26,6 +26,7 @@ model Workspace {
   autonomyGrants    AgentAutonomyGrant[]
   agentConversations AgentConversation[]
   agentAuditLogs    AgentAuditLog[]
+  agentMemories     AgentMemory[]
   agents            Agent[]
   contacts          Contact[]
   companies         Company[]
@@ -186,6 +187,23 @@ model AgentAuditLog {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("agent_audit_logs")
+}
+
+// Phase 3 (AI Agent): curated memories. Only distilled statements are
+// stored — never raw conversation. The agent never auto-updates a
+// memory; only the user edits or deletes one (API/UI). Workspace
+// isolation is hard: every query filters workspaceId.
+model AgentMemory {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  kind        String
+  content     String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("agent_memories")
 }
 
 // ─── Inbox Models ────────────────────────────────────────────────────────────

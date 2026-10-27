@@ -208,6 +208,13 @@ export default function SettingsPage() {
   const [agentGrants, setAgentGrants] = useState<any[]>([]);
   const [agentSaving, setAgentSaving] = useState(false);
 
+  // Phase 3: AI Agent memories — distilled facts/corrections the agent keeps.
+  const [agentMemories, setAgentMemories] = useState<any[]>([]);
+  const [newMemoryContent, setNewMemoryContent] = useState('');
+  const [newMemoryKind, setNewMemoryKind] = useState('fact');
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editingMemoryContent, setEditingMemoryContent] = useState('');
+
   const loadAgentSettings = async () => {
     try {
       const s = await apiFetch('/api/agent/settings').then(r => r.ok ? r.json() : null);
@@ -217,6 +224,8 @@ export default function SettingsPage() {
       }
       const g = await apiFetch('/api/agent/grants').then(r => r.ok ? r.json() : null);
       if (g) setAgentGrants(g.grants ?? []);
+      const m = await apiFetch('/api/agent/memories').then(r => r.ok ? r.json() : null);
+      if (m) setAgentMemories(m.memories ?? []);
     } catch { /* agent settings stay defaulted */ }
   };
 
@@ -250,6 +259,51 @@ export default function SettingsPage() {
       toast('success', 'Grant revoked — the agent will ask again for that kind of thing.');
     } catch {
       toast('error', 'Failed to revoke grant');
+    }
+  };
+
+  const addAgentMemory = async () => {
+    if (!newMemoryContent.trim()) return;
+    try {
+      const res = await apiFetch('/api/agent/memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: newMemoryContent, kind: newMemoryKind }),
+      });
+      if (!res.ok) throw new Error('Failed to add memory');
+      const body = await res.json();
+      setAgentMemories(prev => [body.memory, ...prev]);
+      setNewMemoryContent('');
+      toast('success', 'Memory saved.');
+    } catch {
+      toast('error', 'Failed to add memory');
+    }
+  };
+
+  const saveAgentMemoryEdit = async (id: string) => {
+    if (!editingMemoryContent.trim()) return;
+    try {
+      const res = await apiFetch(`/api/agent/memories/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editingMemoryContent }),
+      });
+      if (!res.ok) throw new Error('Failed to save memory');
+      const body = await res.json();
+      setAgentMemories(prev => prev.map(m => (m.id === id ? body.memory : m)));
+      setEditingMemoryId(null);
+    } catch {
+      toast('error', 'Failed to save memory');
+    }
+  };
+
+  const deleteAgentMemory = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/agent/memories/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete memory');
+      setAgentMemories(prev => prev.filter(m => m.id !== id));
+    } catch {
+      toast('error', 'Failed to delete memory');
     }
   };
 
@@ -362,6 +416,69 @@ export default function SettingsPage() {
               ))
             )}
             <p className="text-[12px] text-text-muted pt-1">Sends, publishing, money, deletes, and exports never appear here — they always need your exact approval.</p>
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Memories</h3>
+          </div>
+          <div className="p-6 space-y-3">
+            <p className="text-[12px] text-text-muted">Distilled facts and corrections the agent keeps and uses in every chat. The agent never stores raw conversation, and never changes a memory on its own — only you edit or delete here. Corrections are used first, newest first.</p>
+            <div className="flex gap-2">
+              <input
+                value={newMemoryContent}
+                onChange={e => setNewMemoryContent(e.target.value)}
+                placeholder="Something for the agent to remember…"
+                className="flex-1 px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
+              />
+              <select
+                value={newMemoryKind}
+                onChange={e => setNewMemoryKind(e.target.value)}
+                className="px-2 py-2 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none"
+              >
+                {(['fact', 'preference', 'correction', 'decision', 'rule'] as const).map(k => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+              <button
+                onClick={addAgentMemory}
+                disabled={!newMemoryContent.trim()}
+                className="px-4 py-2 rounded-[6px] text-[13px] font-semibold bg-text-main text-bg disabled:opacity-40"
+              >
+                Add
+              </button>
+            </div>
+            {agentMemories.length === 0 ? (
+              <p className="text-[13px] text-text-muted">No memories yet. Say “remember that …” in chat, or add one here.</p>
+            ) : (
+              agentMemories.map(m => (
+                <div key={m.id} className="rounded-[8px] border border-border px-4 py-3">
+                  {editingMemoryId === m.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        value={editingMemoryContent}
+                        onChange={e => setEditingMemoryContent(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
+                      />
+                      <button onClick={() => saveAgentMemoryEdit(m.id)} className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold bg-text-main text-bg">Save</button>
+                      <button onClick={() => setEditingMemoryId(null)} className="px-3 py-1.5 rounded-[6px] text-[12px] border border-border text-text-main">Cancel</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="inline-block text-[11px] px-1.5 py-0.5 rounded-md border mr-2" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>{m.kind}</span>
+                        <span className="text-[13px] text-text-main">{m.content}</span>
+                        <span className="block text-[12px] text-text-muted mt-0.5">{new Date(m.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => { setEditingMemoryId(m.id); setEditingMemoryContent(m.content); }} className="px-2.5 py-1 rounded-[6px] text-[12px] border border-border text-text-main hover:bg-black/5">Edit</button>
+                        <button onClick={() => deleteAgentMemory(m.id)} className="px-2.5 py-1 rounded-[6px] text-[12px] border border-border text-text-main hover:bg-black/5">Delete</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
