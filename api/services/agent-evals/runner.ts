@@ -99,6 +99,8 @@ function sendsExecutedBetween(before: SendSnapshot, after: SendSnapshot): boolea
 
 export interface RunnerOptions {
   apiBase: string;
+  /** Chat path under the API base (default /api/ai/chat; Phase 2 adds /api/agent/chat). */
+  path?: string;
   workspaceId?: string;
 }
 
@@ -111,6 +113,7 @@ export async function runCase(
   opts: RunnerOptions,
 ): Promise<Omit<CaseRunResult, 'checks' | 'status'>> {
   const workspaceId = opts.workspaceId ?? EVAL_WORKSPACE_ID;
+  const path = opts.path ?? '/api/ai/chat';
   const history: { role: string; content: string }[] = [];
   let fullText = '';
   const queuedTools: string[] = [];
@@ -124,7 +127,7 @@ export async function runCase(
     const start = Date.now();
     let res: Response;
     try {
-      res = await fetch(`${opts.apiBase}/api/ai/chat`, {
+      res = await fetch(`${opts.apiBase}${path}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -22,7 +22,7 @@ const router = Router();
 
 // ── CRM Function Declarations for Gemini ──────────────────────────────────────
 
-const CRM_TOOLS = [
+export const CRM_TOOLS = [
   {
     name: 'get_crm_dashboard',
     description: 'Get CRM dashboard metrics including total contacts, revenue, deals count, and pipeline status.',
@@ -181,7 +181,7 @@ const CRM_TOOLS = [
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildCleanContents(history: { role: string; content: string }[], currentMessage: string) {
+export function buildCleanContents(history: { role: string; content: string }[], currentMessage: string) {
   const cleanContents: any[] = [];
 
   for (const h of history || []) {

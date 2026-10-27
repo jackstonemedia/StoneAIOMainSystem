@@ -18,9 +18,14 @@ model Workspace {
   subscriptionStatus     String?            @default("inactive") @map("subscription_status")
   creditsUsed            Int                @default(0) @map("credits_used")
   creditsLimit           Int                @default(500) @map("credits_limit")
+  agentMode              String             @default("approve") @map("agent_mode")
+  agentName              String             @default("AI Agent") @map("agent_name")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]
+  autonomyGrants    AgentAutonomyGrant[]
+  agentConversations AgentConversation[]
+  agentAuditLogs    AgentAuditLog[]
   agents            Agent[]
   contacts          Contact[]
   companies         Company[]
@@ -121,6 +126,66 @@ model AIAction {
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("ai_actions")
+}
+
+// Phase 2 (AI Agent): per-workspace autonomy grants. One row per tool
+// the user has granted the agent in Autonomy mode; revokedAt null means
+// the grant is live. Sends/publishing are never grantable (see tools.ts).
+model AgentAutonomyGrant {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  toolName    String    @map("tool_name")
+  grantedAt   DateTime  @default(now()) @map("granted_at")
+  grantedBy   String    @map("granted_by")
+  revokedAt   DateTime? @map("revoked_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("agent_autonomy_grants")
+}
+
+// Phase 2 (AI Agent): persisted chat conversations for the agent panel.
+// Distinct from the legacy Agent/AgentMessage models (configured agents
+// with runs), which this does not touch.
+model AgentConversation {
+  id          String                     @id @default(uuid())
+  workspaceId String                     @map("workspace_id")
+  userId      String                     @map("user_id")
+  title       String?
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+  workspace   Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    AgentConversationMessage[]
+
+  @@map("agent_conversations")
+}
+
+model AgentConversationMessage {
+  id             String            @id @default(uuid())
+  conversationId String            @map("conversation_id")
+  role           String
+  content        String
+  createdAt      DateTime          @default(now()) @map("created_at")
+  conversation   AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("agent_conversation_messages")
+}
+
+// Phase 2 (AI Agent): audit trail for every executed mutating action —
+// what ran, with what args, in which mode, and whether a grant covered it.
+// Approval decisions themselves live in AIAction and are not duplicated here.
+model AgentAuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  toolName    String    @map("tool_name")
+  args        Json
+  result      Json?
+  mode        String
+  granted     Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("agent_audit_logs")
 }
 
 // ─── Inbox Models ────────────────────────────────────────────────────────────

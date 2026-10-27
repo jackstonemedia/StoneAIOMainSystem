@@ -48,6 +48,13 @@ export async function executeTool(workspaceId: string, name: string, args: any, 
       return { success: true, contact: updated };
     }
     case 'add_contact_note': {
+      // Phase 2 scoping fix: a note must never land on another
+      // workspace's contact. (The framework checks this too for the new
+      // route; this protects the old route and the approval path.)
+      const contact = await db.contact.findFirst({
+        where: { id: args.contactId, workspaceId },
+      });
+      if (!contact) return { error: 'Contact not found in this workspace' };
       const event = await db.contactEvent.create({
         data: { contactId: args.contactId, type: 'note', title: 'Internal Note', content: args.note },
       });

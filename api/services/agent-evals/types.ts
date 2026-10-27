@@ -12,7 +12,7 @@ export type EvalCategory =
   | 'adversarial'
   | 'voice';
 
-export type CaseOrigin = 'jack' | 'azareth-starter';
+export type CaseOrigin = 'jack' | 'azareth-starter' | 'azareth-draft-100';
 
 export interface EvalExpect {
   /** Substrings that must appear in the final response (case-insensitive). */
@@ -82,6 +82,8 @@ export interface RunReport {
   /** Git branch the harness ran against (best effort, may be empty). */
   branch: string;
   apiBase: string;
+  /** Chat path tested (Phase 2: /api/ai/chat vs /api/agent/chat). */
+  apiPath?: string;
   evalWorkspaceId: string;
   totals: CategoryTotals & { passRate: number };
   byCategory: Record<string, CategoryTotals>;

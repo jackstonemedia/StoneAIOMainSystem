@@ -6,7 +6,7 @@ import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
   Plug, Globe, Phone, Mail, Copy, Eye, EyeOff, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
-  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard
+  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard, Bot
 } from 'lucide-react';
 import Billing from './Billing';
 import { useTheme } from '../context/ThemeContext';
@@ -16,6 +16,7 @@ import { channelConnectionsApi } from '../lib/api/conversations';
 
 const TABS = [
   { id: 'general', label: 'General', icon: Building2 },
+  { id: 'agent', label: 'AI Agent', icon: Bot },
   { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'integrations', label: 'Integrations', icon: Plug },
@@ -201,6 +202,57 @@ export default function SettingsPage() {
     onError: () => toast('error', 'Failed to save settings'),
   });
 
+  // Phase 2: AI Agent settings — display name, latitude mode, grants.
+  const [agentDisplayName, setAgentDisplayName] = useState('AI Agent');
+  const [agentModeSetting, setAgentModeSetting] = useState('approve');
+  const [agentGrants, setAgentGrants] = useState<any[]>([]);
+  const [agentSaving, setAgentSaving] = useState(false);
+
+  const loadAgentSettings = async () => {
+    try {
+      const s = await apiFetch('/api/agent/settings').then(r => r.ok ? r.json() : null);
+      if (s) {
+        if (s.name) setAgentDisplayName(s.name);
+        if (s.mode) setAgentModeSetting(s.mode);
+      }
+      const g = await apiFetch('/api/agent/grants').then(r => r.ok ? r.json() : null);
+      if (g) setAgentGrants(g.grants ?? []);
+    } catch { /* agent settings stay defaulted */ }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'agent') loadAgentSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const saveAgentSettings = async () => {
+    setAgentSaving(true);
+    try {
+      const res = await apiFetch('/api/agent/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: agentDisplayName, mode: agentModeSetting }),
+      });
+      if (!res.ok) throw new Error('Failed to save agent settings');
+      toast('success', 'Agent settings saved!');
+    } catch {
+      toast('error', 'Failed to save agent settings');
+    } finally {
+      setAgentSaving(false);
+    }
+  };
+
+  const revokeAgentGrant = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/agent/grants/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to revoke grant');
+      setAgentGrants(prev => prev.filter(g => g.id !== id));
+      toast('success', 'Grant revoked — the agent will ask again for that kind of thing.');
+    } catch {
+      toast('error', 'Failed to revoke grant');
+    }
+  };
+
   const saveKey = useMutation({
     mutationFn: ({ provider, key }: { provider: string; key: string }) =>
       apiFetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
@@ -235,6 +287,85 @@ export default function SettingsPage() {
 
   const tabContent: Record<string, React.ReactNode> = {
     billing: <Billing />,
+    agent: (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-[18px] font-bold text-text-main mb-0.5">AI Agent</h2>
+          <p className="text-[13px] text-text-muted">Name, latitude mode, and what the agent may do on its own.</p>
+        </div>
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Identity</h3>
+          </div>
+          <div className="p-6 space-y-3">
+            <label className="block text-[12px] font-medium text-text-muted">Display name</label>
+            <input
+              value={agentDisplayName}
+              onChange={e => setAgentDisplayName(e.target.value)}
+              placeholder="AI Agent"
+              className="w-full px-3 py-2 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary"
+            />
+            <p className="text-[12px] text-text-muted">The name the agent greets you with in the chat panel.</p>
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Latitude mode</h3>
+          </div>
+          <div className="p-6 space-y-3">
+            {([
+              { id: 'approve', label: 'Approve', desc: 'The agent states its plan in chat and does exactly what you approve.' },
+              { id: 'autonomy', label: 'Autonomy', desc: 'The agent does granted things on its own. A new kind of thing needs approval once, then joins the granted set. Sends, posts, money, deletes, and exports always need your exact approval.' },
+              { id: 'read-only', label: 'Read-only', desc: 'The agent sees everything and drafts, but changes nothing on its own.' },
+            ] as const).map(m => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setAgentModeSetting(m.id)}
+                className={`w-full text-left rounded-[8px] border px-4 py-3 ${agentModeSetting === m.id ? 'border-primary' : 'border-border'}`}
+              >
+                <span className="block text-[13px] font-semibold text-text-main">{m.label}</span>
+                <span className="block text-[12px] text-text-muted mt-0.5">{m.desc}</span>
+              </button>
+            ))}
+            <button
+              onClick={saveAgentSettings}
+              disabled={agentSaving || !agentDisplayName.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-[6px] text-[13px] font-semibold bg-text-main text-bg disabled:opacity-40"
+            >
+              {agentSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Save agent settings
+            </button>
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Granted in Autonomy mode</h3>
+          </div>
+          <div className="p-6 space-y-2">
+            {agentGrants.length === 0 ? (
+              <p className="text-[13px] text-text-muted">Nothing granted yet. In Autonomy mode, approving a new kind of thing once adds it here. Revoking makes the agent ask again.</p>
+            ) : (
+              agentGrants.map(g => (
+                <div key={g.id} className="flex items-center justify-between rounded-[8px] border border-border px-4 py-3">
+                  <div>
+                    <span className="block text-[13px] font-medium text-text-main">{g.toolName}</span>
+                    <span className="block text-[12px] text-text-muted">Granted {new Date(g.grantedAt).toLocaleString()}</span>
+                  </div>
+                  <button
+                    onClick={() => revokeAgentGrant(g.id)}
+                    className="px-3 py-1.5 rounded-[6px] text-[12px] border border-border text-text-main hover:bg-black/5"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))
+            )}
+            <p className="text-[12px] text-text-muted pt-1">Sends, publishing, money, deletes, and exports never appear here — they always need your exact approval.</p>
+          </div>
+        </div>
+      </div>
+    ),
     general: (
       <div className="space-y-6">
         <div>

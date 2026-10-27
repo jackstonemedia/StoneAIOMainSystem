@@ -89,7 +89,7 @@ export function renderMarkdown(report: RunReport, prev: RunReport | null): strin
   out.push(`# Agent eval run — ${report.runId}`);
   out.push('');
   out.push(`- Started: ${report.startedAt} · Finished: ${report.finishedAt}`);
-  out.push(`- Branch: ${report.branch || '(unknown)'} · API: ${report.apiBase} · Workspace: ${report.evalWorkspaceId}`);
+  out.push(`- Branch: ${report.branch || '(unknown)'} · API: ${report.apiBase}${report.apiPath ?? ''} · Workspace: ${report.evalWorkspaceId}`);
   out.push(`- Overall: ${report.totals.pass}/${report.totals.pass + report.totals.fail} scored passed (${report.totals.passRate}%) · ` +
     `${report.totals.cases} cases · ${report.totals.infra_error} infra errors · ${report.totals.llm_error} llm errors`);
   out.push(`- Latency: total ${report.latencyMs.total}ms, avg ${report.latencyMs.avg}ms, max ${report.latencyMs.max}ms`);
