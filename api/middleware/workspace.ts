@@ -77,6 +77,26 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
 
     const userId = req.userId!;
 
+    // ── Dev-only eval workspace override (Phase 1 harness) ───────────────────
+    // Lets the eval runner act as the seeded eval workspace in dev. The
+    // header is IGNORED in production, and it is only honored when the dev
+    // user is actually a member of that workspace. A present-but-unmatched
+    // header fails loudly (400) instead of silently running as the wrong
+    // workspace, so harness misconfiguration can never masquerade as an
+    // eval result.
+    if (process.env.NODE_ENV !== 'production' && req.headers['x-eval-workspace']) {
+      const evalWorkspaceId = String(req.headers['x-eval-workspace']);
+      const evalMember = await db.workspaceMember.findFirst({
+        where: { userId, workspaceId: evalWorkspaceId },
+        select: { workspaceId: true },
+      });
+      if (!evalMember) {
+        return res.status(400).json({ error: 'Eval workspace override rejected: dev user is not a member of that workspace' });
+      }
+      req.workspaceId = evalMember.workspaceId;
+      return next();
+    }
+
     // ── Look up workspace via WorkspaceMember ─────────────────────────────────
     const member = await db.workspaceMember.findFirst({
       where: { userId },

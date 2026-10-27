@@ -224,8 +224,6 @@ router.post('/chat', async (req: Request, res: Response) => {
 
   if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
 
-  const ai = getAIClient();
-
   // SSE streaming headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -237,6 +235,12 @@ router.post('/chat', async (req: Request, res: Response) => {
   };
 
   try {
+    // getAIClient() lives INSIDE the try on purpose: when the key is
+    // missing it throws, and that must come back as the honest error SSE
+    // chunk below — not an uncaught exception that kills the process
+    // (the pre-Phase-1 behavior: the first key-error chat request took
+    // the whole dev server down).
+    const ai = getAIClient();
     const contents = buildCleanContents(history || [], message);
 
     const systemInstruction =
