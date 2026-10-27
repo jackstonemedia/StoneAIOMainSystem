@@ -58,6 +58,8 @@ import { resolveWorkspace }  from './api/middleware/workspace.js';
 import inboxRouter from './api/routes/inbox.routes.js';
 import inboxWidgetRouter from './api/routes/inbox-widget.routes.js';
 import inboxCopilotRouter from './api/routes/inbox-copilot.routes.js';
+import conversationCopilotRouter from './api/routes/conversation-copilot.routes.js';
+import voiceAgentsRouter from './api/routes/voice-agents.routes.js';
 import inboxWebhooksRouter from './api/routes/inbox-webhooks.routes.js';
 
 // ── Channel routes + webhook handlers + realtime ─────────────────────────────
@@ -265,6 +267,7 @@ async function startServer() {
   app.use('/api/ai',             aiLimiter, aiRouter);
   app.use('/api/ai/actions',     aiActionsRouter);
   app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
+  app.use('/api/conversations/copilot', aiLimiter, conversationCopilotRouter);
   app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
   app.use('/api/agents',         aiLimiter, agentsRouter);
@@ -286,6 +289,7 @@ async function startServer() {
   app.use('/api/leads',          leadsRouter);
   app.use('/api/inbox',          resolveWorkspace, inboxRouter);
   app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
+  app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Sparkles, Loader2, Maximize2, Minimize2, GripHorizontal, User, Paperclip } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Bot, X, Send, Sparkles, Loader2, Maximize2, Minimize2, GripHorizontal, User, Paperclip, Check, RefreshCw } from 'lucide-react';
 import { apiFetch } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLocation } from 'react-router-dom';
@@ -8,6 +8,14 @@ interface Message {
   id: string;
   role: 'user' | 'ai';
   content: string;
+}
+
+interface PendingAction {
+  id: string;
+  toolName: string;
+  label?: string;
+  status: string;
+  result?: unknown;
 }
 
 interface CRMAIAssistantProps {
@@ -24,6 +32,48 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+
+  // Phase 0: approvals live in chat. Pending AIAction rows, refreshed whenever
+  // the panel opens and after every completed chat response.
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [approvalsError, setApprovalsError] = useState('');
+
+  const fetchPending = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/ai/actions?status=pending');
+      if (!res.ok) throw new Error('Could not load pending approvals');
+      const body = await res.json();
+      setPendingActions(body.actions ?? []);
+      setApprovalsError('');
+    } catch (err: any) {
+      setApprovalsError(err.message || 'Could not load pending approvals');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) fetchPending();
+  }, [isOpen, fetchPending]);
+
+  const actOnAction = async (id: string, action: 'approve' | 'reject') => {
+    const target = pendingActions.find(a => a.id === id);
+    setActingId(id);
+    try {
+      const res = await apiFetch(`/api/ai/actions/${id}/${action}`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${action} failed`);
+      const label = target?.label || target?.toolName || 'action';
+      const outcome = action === 'approve'
+        ? (body?.result?.message || body?.result?.error || 'Done')
+        : 'Rejected — nothing was changed.';
+      setMessages(prev => [...prev, { id: `${Date.now()}`, role: 'ai', content: `${action === 'approve' ? 'Approved' : 'Rejected'}: ${label} — ${typeof outcome === 'string' ? outcome : JSON.stringify(outcome)}` }]);
+    } catch (err: any) {
+      setMessages(prev => [...prev, { id: `${Date.now()}`, role: 'ai', content: `Error: ${err.message || `${action} failed`}` }]);
+    } finally {
+      setActingId(null);
+      fetchPending();
+    }
+  };
   
   useEffect(() => {
     if (messagesEndRef.current && isOpen) {
@@ -100,6 +150,7 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
       );
     } finally {
       setIsLoading(false);
+      fetchPending();
     }
   };
 
@@ -187,6 +238,56 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
             )}
             <div ref={messagesEndRef} className="h-2" />
           </div>
+
+          {/* Pending approvals (Phase 0: approvals live in chat) */}
+          {(pendingActions.length > 0 || approvalsError) && (
+            <div className="px-4 pb-2 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[12px] font-semibold" style={{ color: 'var(--text-main)' }}>
+                  Pending approvals{pendingActions.length > 0 ? ` (${pendingActions.length})` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => fetchPending()}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-black/5"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Refresh approvals"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {approvalsError && (
+                <p className="text-[12px] mb-2" style={{ color: 'var(--text-muted)' }}>{approvalsError}</p>
+              )}
+              <div className="space-y-2">
+                {pendingActions.map((a) => (
+                  <div key={a.id} className="rounded-lg border p-2.5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+                    <p className="text-[13px] leading-snug" style={{ color: 'var(--text-main)' }}>{a.label || a.toolName}</p>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        type="button"
+                        disabled={actingId === a.id}
+                        onClick={() => actOnAction(a.id, 'approve')}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[12px] font-medium disabled:opacity-40"
+                        style={{ background: 'var(--text-main)', color: 'var(--bg)' }}
+                      >
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actingId === a.id}
+                        onClick={() => actOnAction(a.id, 'reject')}
+                        className="px-2.5 py-1 rounded-md text-[12px] border disabled:opacity-40"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-main)' }}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Input Form */}
           <div className="p-4 pt-1 shrink-0 bg-transparent" onPointerDown={(e) => e.stopPropagation()}>

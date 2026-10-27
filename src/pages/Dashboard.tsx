@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart3, RefreshCw, TrendingUp, TrendingDown, Users, DollarSign,
@@ -15,6 +15,7 @@ import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
 import { AddWidgetModal } from '../components/dashboard/AddWidgetModal';
 import { DashboardGrid } from '../components/dashboard/DashboardGrid';
+import { AIControlPanel } from '../components/dashboard/v2/AIControlPanel';
 import CRMAIAssistant from '../components/crm/CRMAIAssistant';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
@@ -257,6 +258,22 @@ export default function Dashboard() {
 
   const stages = metrics?.pipeline_stages ?? [];
   const totalStageCount = stages.reduce((s, st) => s + (st.count || 0), 0) || 1;
+
+  // Phase 0: ?tab=ai mounts the AI Control Panel (Sidebar links here).
+  const [searchParams] = useSearchParams();
+  const showAiPanel = searchParams.get('tab') === 'ai';
+
+  if (showAiPanel) {
+    return (
+      <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-6">
+          <AIControlPanel />
+        </div>
+        <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
+        <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">

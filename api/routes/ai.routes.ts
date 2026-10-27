@@ -282,7 +282,7 @@ router.post('/chat', async (req: Request, res: Response) => {
               chatContext: message,
             },
           });
-          writeChunk(`\n> ⏳ **Action queued for your approval:** *${label}*\n> Check the **AI Control Panel** in your Dashboard to approve or reject.\n\n`);
+          writeChunk(`\n> ⏳ **Action queued for your approval:** *${label}*\n> Approve or reject it in the approvals section below, or in the **AI Control Panel** on your Dashboard.\n\n`);
           res.write(`data: ${JSON.stringify({ action_proposal: queued })}\n\n`);
           toolResults.push({ name: call.name, result: { queued: true, actionId: queued.id, label } });
         } else {

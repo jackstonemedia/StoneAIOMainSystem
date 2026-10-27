@@ -226,29 +226,27 @@ export default function ThreadInfoPanel({ conv }: { conv: Conversation }) {
     patchConv.mutate({ tags: newTags });
   };
 
-  const handleCopilotAction = (actionType: 'reply' | 'summary' | 'action_items') => {
+  // Phase 0: real Gemini-backed copilot — the old setTimeout canned text is gone.
+  const handleCopilotAction = async (actionType: 'reply' | 'summary' | 'action_items') => {
     setIsCopilotLoading(true);
     setCopilotOutput(null);
-
-    setTimeout(() => {
+    try {
+      const endpoint = actionType === 'reply' ? 'draft' : actionType === 'summary' ? 'summarize' : 'action-items';
+      const res = await apiFetch(`/api/conversations/copilot/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: conv.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Copilot request failed');
+      const title = actionType === 'reply' ? 'Smart Reply Draft' : actionType === 'summary' ? 'Thread Summary' : 'Extracted Action Items';
+      const content = body.draft ?? body.summary ?? body.actionItems ?? '';
+      setCopilotOutput({ type: title, content });
+    } catch (err: any) {
+      setCopilotOutput({ type: 'Copilot error', content: err.message || 'Copilot request failed' });
+    } finally {
       setIsCopilotLoading(false);
-      if (actionType === 'reply') {
-        setCopilotOutput({
-          type: 'Smart Reply Draft',
-          content: `Hi ${firstName || 'there'},\n\nThank you for reaching out! We've reviewed your inquiry and our team is ready to assist you right away. Let us know what time works best for a quick follow-up.\n\nBest regards,\nStone AIO Team`
-        });
-      } else if (actionType === 'summary') {
-        setCopilotOutput({
-          type: 'Thread Summary',
-          content: `Customer (${displayName}) has contacted us regarding system workflows and integration timelines. Key priority is reviewing account settings. Last interaction received ${new Date().toLocaleDateString()}.`
-        });
-      } else {
-        setCopilotOutput({
-          type: 'Extracted Action Items',
-          content: `1. Verify CRM contact details for ${displayName}\n2. Schedule follow-up meeting\n3. Assign account manager and update pipeline`
-        });
-      }
-    }, 600);
+    }
   };
 
   const copyToClipboard = (text: string, label: string) => {

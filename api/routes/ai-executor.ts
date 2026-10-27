@@ -93,6 +93,21 @@ export async function executeTool(workspaceId: string, name: string, args: any, 
     case 'send_email': {
       const contact = await db.contact.findFirst({ where: { id: args.contactId, workspaceId } });
       if (!contact || !contact.email) return { error: 'Contact email not found' };
+      // Truthfulness (Phase 0): only report a send when Gmail actually accepts it.
+      // Resolve the workspace's active Gmail connection (same pattern as crm-actions).
+      let gmailConn = await db.channelConnection.findFirst({
+        where: { workspaceId, provider: 'gmail', isActive: true },
+      });
+      if (!gmailConn) {
+        gmailConn = await db.channelConnection.findFirst({
+          where: { provider: 'gmail', isActive: true },
+        });
+      }
+      if (!gmailConn) {
+        return { error: 'No active Gmail connection — email not sent. Connect Gmail in Settings.' };
+      }
+      const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+      const sent = await sendGmailMessage(gmailConn.id, contact.email, args.subject, args.body);
       const event = await db.contactEvent.create({
         data: {
           contactId: args.contactId,
@@ -102,21 +117,14 @@ export async function executeTool(workspaceId: string, name: string, args: any, 
         },
       });
       await db.contact.update({ where: { id: args.contactId }, data: { lastContactedAt: new Date() } });
-      return { success: true, message: `Email to ${contact.email} queued/sent`, event };
+      return { success: true, message: `Email sent via Gmail to ${contact.email}`, messageId: sent.messageId, event };
     }
     case 'send_sms': {
       const contact = await db.contact.findFirst({ where: { id: args.contactId, workspaceId } });
       if (!contact || !contact.phone) return { error: 'Contact phone not found' };
-      const event = await db.contactEvent.create({
-        data: {
-          contactId: args.contactId,
-          type: 'sms',
-          title: 'Outbound SMS',
-          content: args.message,
-        },
-      });
-      await db.contact.update({ where: { id: args.contactId }, data: { lastContactedAt: new Date() } });
-      return { success: true, message: `SMS to ${contact.phone} queued/sent`, event };
+      // Truthfulness (Phase 0): no SMS provider exists in this codebase, so a send
+      // must never be claimed. Record nothing and report the miss honestly.
+      return { error: 'SMS not sent — no SMS provider is configured for this workspace.' };
     }
     case 'list_campaigns': {
       return await getCampaigns(workspaceId);

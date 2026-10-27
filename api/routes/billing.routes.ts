@@ -160,6 +160,10 @@ router.post('/billing/verify-session', async (req: Request, res: Response) => {
 // ── 3. Dev / Sandbox Plan Switcher ───────────────────────────────────────────
 router.post('/billing/dev-set-plan', async (req: Request, res: Response) => {
   try {
+    // Phase 0: dev-only switcher — never settable from production.
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({ error: 'Dev plan switcher is disabled in production' });
+    }
     const { planId } = req.body;
     const workspaceId = (req as any).workspaceId || 'default';
     const normalizedPlan = planId?.toLowerCase() || 'free';
