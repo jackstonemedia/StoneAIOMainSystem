@@ -21,6 +21,10 @@ import {
   updateMemory,
   deleteMemory,
 } from '../services/agent/memories.js';
+import {
+  checkBudget,
+  getUsage,
+} from '../services/agent/metering.js';
 
 const router = Router();
 
@@ -46,9 +50,16 @@ router.post('/chat', async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify({ text })}\n\n`);
   };
 
+  // Phase 5: the dev-only eval header matched exactly when it equals
+  // the resolved workspace — and only outside production. The bypass
+  // skips the budget BLOCK for eval turns; usage is still recorded.
+  const meteringBypass =
+    process.env.NODE_ENV !== 'production' &&
+    req.headers['x-eval-workspace'] === workspaceId;
+
   try {
     await runAgentTurn(
-      { workspaceId, userId, message, route, history, conversationId },
+      { workspaceId, userId, message, route, history, conversationId, meteringBypass },
       {
         onText: writeChunk,
         onProposal: (action) => res.write(`data: ${JSON.stringify({ action_proposal: action })}\n\n`),
@@ -123,6 +134,27 @@ router.patch('/settings', async (req: Request, res: Response) => {
     return res.json(settings);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/agent/usage — Phase 5: this month's token usage + budget
+router.get('/usage', async (req: Request, res: Response) => {
+  const workspaceId = (req as any).workspaceId || '';
+  try {
+    const check = await checkBudget(db, workspaceId);
+    const usage = await getUsage(db, workspaceId, check.month);
+    return res.json({
+      month: check.month,
+      plan: check.plan,
+      budget: check.budget,
+      used: check.used,
+      input: usage.input,
+      output: usage.output,
+      remaining: Math.max(0, check.budget - check.used),
+      pct: check.pct,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

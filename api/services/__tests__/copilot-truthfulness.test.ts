@@ -14,6 +14,15 @@ vi.mock('../../../infrastructure/database/client.js', () => {
       conversation: {
         findUnique: vi.fn(),
       },
+      // Phase 5: copilot methods check the budget first. The stubbed
+      // workspace has no plan (lowest-tier budget) and no usage, so
+      // the check allows and the flow reaches the key error below.
+      workspace: {
+        findUnique: vi.fn().mockResolvedValue({ plan: null }),
+      },
+      agentTokenUsage: {
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
     },
   };
 });

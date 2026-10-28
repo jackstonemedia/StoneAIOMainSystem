@@ -1,5 +1,11 @@
 import { db } from '../../../infrastructure/database/client.js';
 import { getAIClient, DEFAULT_MODEL, SUMMARY_MODEL } from '../../../packages/ai/client.js';
+import {
+  checkBudget,
+  recordUsage,
+  extractUsage,
+  budgetExhaustedMessage,
+} from '../agent/metering.js';
 
 // Phase 0: real Gemini calls. getAIClient() throws when GOOGLE_AI_API_KEY is
 // missing — that honest failure replaces the old hardcoded mock replies. No
@@ -9,14 +15,25 @@ function historyText(messages: { senderType: string; content: string }[]): strin
   return messages.map((m) => `${m.senderType}: ${m.content}`).join('\n');
 }
 
-async function generate(prompt: string, systemInstruction: string, model: string): Promise<string> {
+async function generate(prompt: string, systemInstruction: string, model: string): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const ai = getAIClient();
   const res = await ai.models.generateContent({
     model,
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: { systemInstruction, temperature: 0.7 },
   });
-  return res.text ?? '';
+  const usage = extractUsage(res, prompt, res.text ?? '');
+  return { text: res.text ?? '', inputTokens: usage.input, outputTokens: usage.output };
+}
+
+// Phase 5: every copilot call checks the workspace budget first and
+// records its usage after. Public method signatures stay strings.
+async function meteredGenerate(workspaceId: string, prompt: string, systemInstruction: string, model: string): Promise<string> {
+  const budget = await checkBudget(db, workspaceId);
+  if (!budget.allowed) throw new Error(budgetExhaustedMessage(budget));
+  const out = await generate(prompt, systemInstruction, model);
+  await recordUsage(db, workspaceId, { input: out.inputTokens, output: out.outputTokens });
+  return out.text;
 }
 
 async function loadConversation(conversationId: string, workspaceId: string, take?: number) {
@@ -43,7 +60,7 @@ export class CopilotService {
   async generateDraftReply(conversationId: string, workspaceId: string): Promise<string> {
     const conversation = await loadConversation(conversationId, workspaceId, 20);
     const history = historyText(conversation.messages);
-    return generate(
+    return meteredGenerate(workspaceId, 
       `Draft a reply to the customer's last message based on this conversation history. Do not include placeholders like [Your Name]. Just the raw message.\n\n${history}`,
       'You are a helpful, professional customer support agent.',
       DEFAULT_MODEL,
@@ -56,7 +73,7 @@ export class CopilotService {
   async summarizeConversation(conversationId: string, workspaceId: string): Promise<string> {
     const conversation = await loadConversation(conversationId, workspaceId);
     const history = historyText(conversation.messages);
-    return generate(
+    return meteredGenerate(workspaceId, 
       `Summarize this conversation thread into 2-3 sentences, covering only what actually happened in it.\n\n${history}`,
       'You are a helpful, professional customer support agent.',
       SUMMARY_MODEL,
@@ -69,7 +86,7 @@ export class CopilotService {
   async extractActionItems(conversationId: string, workspaceId: string): Promise<string> {
     const conversation = await loadConversation(conversationId, workspaceId, 20);
     const history = historyText(conversation.messages);
-    return generate(
+    return meteredGenerate(workspaceId, 
       `Extract the concrete action items from this conversation thread as a short numbered list. Only list actions actually implied by the thread; if there are none, say so.\n\n${history}`,
       'You are a helpful, professional customer support agent.',
       DEFAULT_MODEL,

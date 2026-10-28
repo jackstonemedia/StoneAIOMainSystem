@@ -208,6 +208,9 @@ export default function SettingsPage() {
   const [agentGrants, setAgentGrants] = useState<any[]>([]);
   const [agentSaving, setAgentSaving] = useState(false);
 
+  // Phase 5: AI Agent token usage — this month's metered usage + budget.
+  const [agentUsage, setAgentUsage] = useState<any>(null);
+
   // Phase 3: AI Agent memories — distilled facts/corrections the agent keeps.
   const [agentMemories, setAgentMemories] = useState<any[]>([]);
   const [newMemoryContent, setNewMemoryContent] = useState('');
@@ -226,6 +229,8 @@ export default function SettingsPage() {
       if (g) setAgentGrants(g.grants ?? []);
       const m = await apiFetch('/api/agent/memories').then(r => r.ok ? r.json() : null);
       if (m) setAgentMemories(m.memories ?? []);
+      const u = await apiFetch('/api/agent/usage').then(r => r.ok ? r.json() : null);
+      if (u) setAgentUsage(u);
     } catch { /* agent settings stay defaulted */ }
   };
 
@@ -478,6 +483,30 @@ export default function SettingsPage() {
                   )}
                 </div>
               ))
+            )}
+          </div>
+        </div>
+        <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+          <div className="px-6 py-5 border-b border-border bg-surface-hover/20">
+            <h3 className="text-[13px] font-bold text-text-main">Token usage</h3>
+          </div>
+          <div className="p-6 space-y-3">
+            {!agentUsage ? (
+              <p className="text-[13px] text-text-muted">Usage loads with the rest of this tab.</p>
+            ) : (
+              <>
+                <p className="text-[13px] text-text-main">
+                  {agentUsage.used.toLocaleString()} of {agentUsage.budget.toLocaleString()} tokens used in {agentUsage.month}
+                  {agentUsage.plan ? ` · plan ${agentUsage.plan}` : ''}
+                </p>
+                <div className="h-2 rounded-full bg-black/10 overflow-hidden">
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, agentUsage.pct)}%` }} />
+                </div>
+                <p className="text-[12px] text-text-muted">
+                  {agentUsage.input.toLocaleString()} input · {agentUsage.output.toLocaleString()} output · {agentUsage.remaining.toLocaleString()} remaining.
+                  Budgets are provisional and reset on the 1st of each month. At 100% the agent pauses new chats until the reset.
+                </p>
+              </>
             )}
           </div>
         </div>

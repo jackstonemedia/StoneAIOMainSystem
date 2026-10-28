@@ -17,6 +17,15 @@ import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
 import { Type } from '@google/genai';
 import { db } from '../../infrastructure/database/client.js';
 import { executeTool, APPROVAL_REQUIRED_TOOLS, getActionLabel } from './ai-executor.js';
+import {
+  checkBudget,
+  getUsage,
+  recordUsage,
+  extractUsage,
+  crossedWarningThreshold,
+  budgetExhaustedMessage,
+  budgetWarningMessage,
+} from '../services/agent/metering.js';
 
 const router = Router();
 
@@ -376,6 +385,18 @@ router.post('/chat', async (req: Request, res: Response) => {
   };
 
   try {
+    // Phase 5 metering: block before any LLM call (and before the key
+    // check, so a blocked workspace gets the budget error even with no
+    // key). The eval bypass mirrors the new route: dev-only, and only
+    // when the eval header matched the resolved workspace.
+    const meteringBypass =
+      process.env.NODE_ENV !== 'production' &&
+      req.headers['x-eval-workspace'] === workspaceId;
+    const budgetCheck = await checkBudget(db, workspaceId, { bypass: meteringBypass });
+    if (!budgetCheck.allowed) {
+      throw new Error(budgetExhaustedMessage(budgetCheck));
+    }
+
     // getAIClient() lives INSIDE the try on purpose: when the key is
     // missing it throws, and that must come back as the honest error SSE
     // chunk below — not an uncaught exception that kills the process
@@ -405,6 +426,15 @@ router.post('/chat', async (req: Request, res: Response) => {
       });
     } catch (toolErr: any) {
       console.warn('[AI Chat] Tool pass failed, falling back to direct stream:', toolErr.message);
+    }
+
+    // Phase 5: record the tool-pass call.
+    if (firstRes) {
+      await recordUsage(db, workspaceId, extractUsage(
+        firstRes,
+        JSON.stringify(contents),
+        firstRes.text ?? JSON.stringify(firstRes.functionCalls ?? ''),
+      ));
     }
 
     const functionCalls = firstRes?.functionCalls;
@@ -470,9 +500,14 @@ router.post('/chat', async (req: Request, res: Response) => {
         config: { systemInstruction, temperature: 0.7 },
       });
 
+      let streamText = '';
+      let lastChunk: any = null;
       for await (const chunk of stream) {
-        if (chunk.text) writeChunk(chunk.text);
+        lastChunk = chunk;
+        if (chunk.text) { streamText += chunk.text; writeChunk(chunk.text); }
       }
+      // Phase 5: record the follow-up stream call.
+      await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
     } else {
       // Direct text streaming response
       const stream = await ai.models.generateContentStream({
@@ -481,9 +516,20 @@ router.post('/chat', async (req: Request, res: Response) => {
         config: { systemInstruction, temperature: 0.7 },
       });
 
+      let streamText = '';
+      let lastChunk: any = null;
       for await (const chunk of stream) {
-        if (chunk.text) writeChunk(chunk.text);
+        lastChunk = chunk;
+        if (chunk.text) { streamText += chunk.text; writeChunk(chunk.text); }
       }
+      // Phase 5: record the direct stream call.
+      await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
+    }
+
+    // Phase 5: warn once when this turn crossed the 80% line.
+    const usedAfter = (await getUsage(db, workspaceId)).total;
+    if (crossedWarningThreshold(budgetCheck.used, usedAfter, budgetCheck.budget)) {
+      writeChunk(`\n\n> ${budgetWarningMessage(usedAfter, budgetCheck.budget)}\n`);
     }
 
     res.write('data: [DONE]\n\n');

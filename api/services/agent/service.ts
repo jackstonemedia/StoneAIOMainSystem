@@ -28,6 +28,15 @@ import {
   listMemories,
   formatMemoriesForPrompt,
 } from './memories.js';
+import {
+  checkBudget,
+  getUsage,
+  recordUsage,
+  extractUsage,
+  crossedWarningThreshold,
+  budgetExhaustedMessage,
+  budgetWarningMessage,
+} from './metering.js';
 
 export interface TurnCallbacks {
   onText: (text: string) => void;
@@ -42,6 +51,12 @@ export interface TurnInput {
   route?: string;
   history?: { role: string; content: string }[];
   conversationId?: string;
+  /**
+   * Phase 5: skips the budget BLOCK only (usage is still recorded).
+   * Set only when the dev-only eval-workspace header matched, never in
+   * production.
+   */
+  meteringBypass?: boolean;
 }
 
 export interface TurnResult {
@@ -151,6 +166,14 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
     MODE_LINES[settings.mode] +
     (memoryBlock ? `\n\n${memoryBlock}` : '');
 
+  // 3b. Phase 5 metering: block before any LLM call (and before the
+  // key check, so a blocked workspace gets the budget error even with
+  // no key). Remember/mode-switch paths already returned above.
+  const budgetBefore = await checkBudget(db, workspaceId, { bypass: input.meteringBypass === true });
+  if (!budgetBefore.allowed) {
+    throw new Error(budgetExhaustedMessage(budgetBefore));
+  }
+
   const ai = getAIClient();
   let fullText = '';
   const emit = (t: string) => {
@@ -174,6 +197,15 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
     });
   } catch (toolErr: any) {
     console.warn('[Agent] Tool pass failed, falling back to direct stream:', toolErr.message);
+  }
+
+  // Phase 5: record the tool-pass call (its own prompt + output).
+  if (firstRes) {
+    await recordUsage(db, workspaceId, extractUsage(
+      firstRes,
+      JSON.stringify(contents),
+      firstRes.text ?? JSON.stringify(firstRes.functionCalls ?? ''),
+    ));
   }
 
   const functionCalls = firstRes?.functionCalls;
@@ -257,18 +289,34 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
       contents,
       config: { systemInstruction, temperature: 0.7 },
     });
+    let streamText = '';
+    let lastChunk: any = null;
     for await (const chunk of stream) {
-      if (chunk.text) emit(chunk.text);
+      lastChunk = chunk;
+      if (chunk.text) { streamText += chunk.text; emit(chunk.text); }
     }
+    // Phase 5: record the follow-up stream call (its own prompt + output).
+    await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
   } else {
     const stream = await ai.models.generateContentStream({
       model: DEFAULT_MODEL,
       contents,
       config: { systemInstruction, temperature: 0.7 },
     });
+    let streamText = '';
+    let lastChunk: any = null;
     for await (const chunk of stream) {
-      if (chunk.text) emit(chunk.text);
+      lastChunk = chunk;
+      if (chunk.text) { streamText += chunk.text; emit(chunk.text); }
     }
+    // Phase 5: record the direct stream call.
+    await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
+  }
+
+  // Phase 5: warn once when this turn crossed the 80% line.
+  const usedAfter = (await getUsage(db, workspaceId)).total;
+  if (crossedWarningThreshold(budgetBefore.used, usedAfter, budgetBefore.budget)) {
+    emit(`\n\n> ${budgetWarningMessage(usedAfter, budgetBefore.budget)}\n`);
   }
 
   if (conversationId) {
