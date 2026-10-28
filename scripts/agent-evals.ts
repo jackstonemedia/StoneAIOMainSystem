@@ -15,6 +15,7 @@ import { scoreCase } from '../api/services/agent-evals/scorer.js';
 import { buildReport, writeReport } from '../api/services/agent-evals/report.js';
 import { STARTER_CASES } from '../api/services/agent-evals/cases-starter.js';
 import { DRAFT100_CASES } from '../api/services/agent-evals/cases-draft100.js';
+import { PHASE4_CASES } from '../api/services/agent-evals/cases-phase4.js';
 import type { CaseRunResult, EvalCase } from '../api/services/agent-evals/types.js';
 
 function parseArgs(argv: string[]): { api: string; path: string; out: string; seed: boolean; cases: string } {
@@ -38,7 +39,8 @@ function parseArgs(argv: string[]): { api: string; path: string; out: string; se
 
 function selectCases(kind: string): { label: string; cases: EvalCase[] } {
   if (kind === 'draft100') return { label: 'draft100 (Azareth-drafted, for Jack review)', cases: DRAFT100_CASES };
-  if (kind === 'all') return { label: 'all (starter + draft100)', cases: [...STARTER_CASES, ...DRAFT100_CASES] };
+  if (kind === 'phase4') return { label: 'phase4 (Azareth-drafted slice)', cases: PHASE4_CASES };
+  if (kind === 'all') return { label: 'all (starter + draft100 + phase4)', cases: [...STARTER_CASES, ...DRAFT100_CASES, ...PHASE4_CASES] };
   return { label: 'starter (Azareth-drafted slice)', cases: STARTER_CASES };
 }
 

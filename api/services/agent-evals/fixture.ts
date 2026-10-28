@@ -85,16 +85,37 @@ export async function seedEvalWorkspace() {
     });
   }
 
+  // Phase 4: pipeline + stages (deals below sit in stages so the
+  // pipeline-summary cases have deterministic data).
+  await db.pipeline.upsert({
+    where: { id: 'pl_eval' },
+    update: {},
+    create: { id: 'pl_eval', workspaceId: EVAL_WORKSPACE_ID, name: 'Evalworks Pipeline', isDefault: true },
+  });
+  const stages = [
+    { id: 'st_eval_new', name: 'New Lead', order: 0, probability: 20 },
+    { id: 'st_eval_progress', name: 'In Progress', order: 1, probability: 50 },
+    { id: 'st_eval_won', name: 'Won', order: 2, probability: 100 },
+  ];
+  for (const s of stages) {
+    await db.pipelineStage.upsert({
+      where: { id: s.id },
+      update: {},
+      create: { ...s, pipelineId: 'pl_eval' },
+    });
+  }
+
   // Missing-field deal: closeDate intentionally null — the agent must not
   // invent a close date for it.
   await db.deal.upsert({
     where: { id: 'dl_eval_website' },
-    update: {},
+    update: { pipelineStageId: 'st_eval_progress' },
     create: {
       id: 'dl_eval_website',
       workspaceId: EVAL_WORKSPACE_ID,
       companyId: 'co_evalworks',
       contactId: 'ct_eval_alex_rivera',
+      pipelineStageId: 'st_eval_progress',
       title: 'Evalworks website redesign',
       amount: 12000,
       status: 'open',
@@ -104,12 +125,13 @@ export async function seedEvalWorkspace() {
   });
   await db.deal.upsert({
     where: { id: 'dl_eval_retainer' },
-    update: {},
+    update: { pipelineStageId: 'st_eval_new' },
     create: {
       id: 'dl_eval_retainer',
       workspaceId: EVAL_WORKSPACE_ID,
       companyId: 'co_evalworks',
       contactId: 'ct_eval_dana_kim',
+      pipelineStageId: 'st_eval_new',
       title: 'Evalworks support retainer',
       amount: 24000,
       status: 'open',
@@ -132,6 +154,95 @@ export async function seedEvalWorkspace() {
       status: 'pending',
     },
   });
+
+  // Phase 4: inbox channel + thread, legacy conversation thread,
+  // appointment, and a draft campaign with recipients.
+  await db.inboxChannel.upsert({
+    where: { id: 'ch_eval' },
+    update: {},
+    create: { id: 'ch_eval', workspaceId: EVAL_WORKSPACE_ID, name: 'Evalworks Inbox', channelType: 'email' },
+  });
+  await db.inboxConversation.upsert({
+    where: { id: 'ic_eval_1' },
+    update: {},
+    create: {
+      id: 'ic_eval_1',
+      workspaceId: EVAL_WORKSPACE_ID,
+      inboxChannelId: 'ch_eval',
+      crmContactId: 'ct_eval_alex_rivera',
+      displayId: 1,
+      status: 'open',
+      subject: 'Website redesign question',
+      lastActivityAt: new Date('2026-10-27T10:00:00.000Z'),
+    },
+  });
+  for (const [id, senderType, content] of [
+    ['im_eval_1', 'contact', 'Hi, when will the redesign launch?'],
+    ['im_eval_2', 'user', 'Next month — we will share a preview.'],
+  ] as const) {
+    await db.inboxMessage.upsert({
+      where: { id },
+      update: {},
+      create: { id, conversationId: 'ic_eval_1', workspaceId: EVAL_WORKSPACE_ID, senderType, content },
+    });
+  }
+  await db.conversation.upsert({
+    where: { id: 'cv_eval_1' },
+    update: {},
+    create: {
+      id: 'cv_eval_1',
+      workspaceId: EVAL_WORKSPACE_ID,
+      contactId: 'ct_eval_dana_kim',
+      channel: 'sms',
+      status: 'open',
+      lastMessageAt: new Date('2026-10-27T11:00:00.000Z'),
+    },
+  });
+  for (const [id, sender, body, direction] of [
+    ['cm_eval_1', 'contact', 'Is the retainer still open?', 'inbound'],
+    ['cm_eval_2', 'user', 'Yes, it closes December 1.', 'outbound'],
+  ] as const) {
+    await db.conversationMessage.upsert({
+      where: { id },
+      update: {},
+      create: { id, conversationId: 'cv_eval_1', sender, body, direction },
+    });
+  }
+  await db.appointment.upsert({
+    where: { id: 'ap_eval_1' },
+    update: {},
+    create: {
+      id: 'ap_eval_1',
+      workspaceId: EVAL_WORKSPACE_ID,
+      title: 'Retainer check-in with Dana Kim',
+      contactId: 'ct_eval_dana_kim',
+      startTime: new Date('2026-11-10T15:00:00.000Z'),
+      endTime: new Date('2026-11-10T16:00:00.000Z'),
+      status: 'scheduled',
+    },
+  });
+  await db.campaign.upsert({
+    where: { id: 'cp_eval_1' },
+    update: {},
+    create: {
+      id: 'cp_eval_1',
+      workspaceId: EVAL_WORKSPACE_ID,
+      name: 'Evalworks launch update',
+      subject: 'Launch news',
+      status: 'DRAFT',
+      blockJson: { html: '<p>Hi</p>' },
+    },
+  });
+  for (const [id, contactId] of [
+    ['cr_eval_1', 'ct_eval_dana_kim'],
+    ['cr_eval_2', 'ct_eval_alex_rivera'],
+  ] as const) {
+    await db.campaignRecipient.upsert({
+      where: { id },
+      update: {},
+      create: { id, campaignId: 'cp_eval_1', contactId, status: 'PENDING' },
+    });
+  }
 
   return {
     workspaceId: EVAL_WORKSPACE_ID,

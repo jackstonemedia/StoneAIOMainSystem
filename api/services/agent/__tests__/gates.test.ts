@@ -11,31 +11,44 @@ import {
 import { parseModeSwitch } from '../modes.js';
 
 describe('TOOL_REGISTRY', () => {
-  it('covers all 14 tools with the right kinds', () => {
+  it('covers all 27 tools with the right kinds (14 Phase 2 + 13 Phase 4)', () => {
     const names = Object.keys(TOOL_REGISTRY).sort();
     expect(names).toEqual(
       [
         'add_contact_note',
+        'create_appointment',
         'create_campaign',
         'create_contact',
         'create_deal',
         'create_task',
+        'draft_inbox_reply',
+        'get_campaign_details',
         'get_contact_details',
+        'get_conversation_messages',
         'get_crm_dashboard',
+        'get_inbox_messages',
+        'get_pipeline_summary',
+        'get_workspace_info',
+        'list_appointments',
         'list_campaigns',
+        'list_conversations',
         'list_deals',
+        'list_inbox_conversations',
+        'list_pipelines',
         'list_tasks',
         'search_contacts',
+        'send_campaign',
         'send_email',
         'send_sms',
         'update_contact',
+        'update_deal',
       ].sort(),
     );
     const kinds = Object.values(TOOL_REGISTRY).reduce<Record<string, number>>((acc, t) => {
       acc[t.kind] = (acc[t.kind] ?? 0) + 1;
       return acc;
     }, {});
-    expect(kinds).toEqual({ read: 6, write: 5, send: 3 });
+    expect(kinds).toEqual({ read: 16, write: 7, send: 4 });
   });
 
   it('only write tools are grantable', () => {

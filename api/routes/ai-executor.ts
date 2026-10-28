@@ -8,7 +8,10 @@
 
 import { db } from '../../infrastructure/database/client.js';
 import * as crm from '../services/crm.service.js';
-import { createCampaign as createEmailMarketingCampaign, getCampaigns } from '../services/email-marketing/campaigns.service.js';
+import { createCampaign as createEmailMarketingCampaign, getCampaigns, sendCampaign } from '../services/email-marketing/campaigns.service.js';
+import { listAppointments, createAppointment } from '../services/business.service.js';
+import { copilotService } from '../services/inbox/copilot.service.js';
+import { whitelistDealUpdate, validateAppointmentTimes } from '../services/agent/tools.js';
 
 export async function executeTool(workspaceId: string, name: string, args: any, userId?: string): Promise<any> {
   switch (name) {
@@ -144,6 +147,143 @@ export async function executeTool(workspaceId: string, name: string, args: any, 
       });
       return { success: true, campaign };
     }
+    // ── Phase 4: Conversations / Inbox ──────────────────────────────
+    case 'list_inbox_conversations': {
+      return await db.inboxConversation.findMany({
+        where: { workspaceId, ...(args.status ? { status: args.status } : {}) },
+        include: { messages: { take: 1, orderBy: { createdAt: 'desc' } } },
+        orderBy: { lastActivityAt: 'desc' },
+        take: 20,
+      });
+    }
+    case 'get_inbox_messages': {
+      const conv = await db.inboxConversation.findFirst({ where: { id: args.conversationId, workspaceId } });
+      if (!conv) return { error: 'Inbox conversation not found in this workspace' };
+      return await db.inboxMessage.findMany({
+        where: { conversationId: args.conversationId, workspaceId },
+        orderBy: { createdAt: 'asc' },
+        take: 50,
+      });
+    }
+    case 'list_conversations': {
+      return await db.conversation.findMany({
+        where: { workspaceId, ...(args.channel ? { channel: args.channel } : {}), ...(args.status ? { status: args.status } : {}) },
+        include: { contact: true },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 20,
+      });
+    }
+    case 'get_conversation_messages': {
+      const conv = await db.conversation.findFirst({ where: { id: args.conversationId, workspaceId } });
+      if (!conv) return { error: 'Conversation not found in this workspace' };
+      return await db.conversationMessage.findMany({
+        where: { conversationId: args.conversationId },
+        orderBy: { createdAt: 'asc' },
+        take: 50,
+      });
+    }
+    case 'draft_inbox_reply': {
+      const conv = await db.inboxConversation.findFirst({ where: { id: args.conversationId, workspaceId } });
+      if (!conv) return { error: 'Inbox conversation not found in this workspace' };
+      const draft = await copilotService.generateDraftReply(args.conversationId, workspaceId);
+      return { draft };
+    }
+    // ── Phase 4: Email marketing detail + send ───────────────────────
+    case 'get_campaign_details': {
+      const campaign = await db.campaign.findFirst({ where: { id: args.campaignId, workspaceId } });
+      if (!campaign) return { error: 'Campaign not found in this workspace' };
+      const counts = await db.campaignRecipient.groupBy({
+        by: ['status'],
+        where: { campaignId: args.campaignId },
+        _count: { status: true },
+      });
+      return {
+        campaign,
+        recipientCounts: counts.map((c) => ({ status: c.status, count: c._count.status })),
+      };
+    }
+    case 'send_campaign': {
+      const sent = await sendCampaign(workspaceId, args.campaignId);
+      return { success: true, ...sent };
+    }
+    // ── Phase 4: Calendar / Appointments ─────────────────────────────
+    case 'list_appointments': {
+      return await listAppointments(workspaceId, {
+        contactId: args.contactId,
+        startDate: args.startDate,
+        endDate: args.endDate,
+        search: args.search,
+      });
+    }
+    case 'create_appointment': {
+      const validated = validateAppointmentTimes(args.startTime, args.endTime);
+      if ('error' in validated) return validated;
+      const appt = await createAppointment(workspaceId, {
+        title: args.title,
+        description: args.description,
+        type: args.type,
+        location: args.location,
+        contactId: args.contactId ?? null,
+        startTime: validated.start.toISOString(),
+        endTime: validated.end.toISOString(),
+      });
+      return { success: true, appointment: appt };
+    }
+    // ── Phase 4: Deals / Pipelines full + Settings read + Reporting ──
+    case 'update_deal': {
+      // Whitelist only: anything else is dropped, never passed through.
+      const data = whitelistDealUpdate(args);
+      if (Object.keys(data).length === 0) {
+        return { error: 'update_deal needs at least one field to update' };
+      }
+      if (data.pipelineStageId) {
+        const stage = await db.pipelineStage.findFirst({
+          where: { id: data.pipelineStageId as string, pipeline: { workspaceId } },
+        });
+        if (!stage) return { error: 'Pipeline stage not found in this workspace' };
+      }
+      const updated = await crm.updateDeal(args.dealId, workspaceId, data);
+      return { success: true, deal: updated };
+    }
+    case 'list_pipelines': {
+      // Direct query, NOT crm.listPipelines: that service auto-creates a
+      // default pipeline when none exists, and a read tool must not
+      // have a write side effect.
+      return await db.pipeline.findMany({
+        where: { workspaceId },
+        include: { stages: { orderBy: { order: 'asc' } } },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+    case 'get_workspace_info': {
+      const ws = await db.workspace.findUnique({
+        where: { id: workspaceId },
+        select: { name: true, plan: true, agentMode: true, agentName: true, creditsUsed: true, creditsLimit: true },
+      });
+      if (!ws) return { error: 'Workspace not found' };
+      return { ...ws, creditsNote: 'Credits are displayed only and are not enforced (metering lands in Phase 5).' };
+    }
+    case 'get_pipeline_summary': {
+      const pipelines = await db.pipeline.findMany({
+        where: { workspaceId },
+        include: { stages: { orderBy: { order: 'asc' } } },
+      });
+      const deals = await db.deal.findMany({
+        where: { workspaceId },
+        select: { pipelineStageId: true, amount: true },
+      });
+      return pipelines.map((p) => ({
+        pipeline: p.name,
+        stages: p.stages.map((s) => {
+          const inStage = deals.filter((d) => d.pipelineStageId === s.id);
+          return {
+            stage: s.name,
+            deals: inStage.length,
+            value: inStage.reduce((sum, d) => sum + (d.amount ?? 0), 0),
+          };
+        }),
+      }));
+    }
     default:
       return { error: `Unknown tool ${name}` };
   }
@@ -158,6 +298,11 @@ export const APPROVAL_REQUIRED_TOOLS = new Set([
   'send_email',
   'send_sms',
   'create_campaign',
+  // Phase 4: every NEW write/send tool queues in the old route too, so
+  // the old route never executes a new tool without approval.
+  'update_deal',
+  'create_appointment',
+  'send_campaign',
 ]);
 
 /** Human-readable labels for tool calls */
@@ -170,6 +315,9 @@ export function getActionLabel(toolName: string, args: any): string {
     case 'send_email': return `Send email to contact ${args.contactId}: "${args.subject}"`;
     case 'send_sms': return `Send SMS to contact ${args.contactId}: "${args.message?.slice(0, 40)}..."`;
     case 'create_campaign': return `Create email campaign: "${args.name}"`;
+    case 'update_deal': return `Update deal ID: ${args.dealId}`;
+    case 'create_appointment': return `Create appointment: "${args.title ?? 'Meeting'}"`;
+    case 'send_campaign': return `Send campaign ID: ${args.campaignId}`;
     default: return toolName;
   }
 }
