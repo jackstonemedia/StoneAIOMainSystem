@@ -4,6 +4,7 @@
 // (ws_eval_stone_aio); the runner reaches it via the dev-only
 // x-eval-workspace header (see api/middleware/workspace.ts).
 import { db } from '../../../infrastructure/database/client.js';
+import { loadCorrections } from './corrections.js';
 
 export const EVAL_WORKSPACE_ID = 'ws_eval_stone_aio';
 export const EVAL_USER_ID = 'test_user_new';
@@ -241,6 +242,24 @@ export async function seedEvalWorkspace() {
       where: { id },
       update: {},
       create: { id, campaignId: 'cp_eval_1', contactId, status: 'PENDING' },
+    });
+  }
+
+  // Phase 6: Jack's correction rules become standing-rule memories in
+  // the eval workspace, so the agent under test runs WITH his rules.
+  // Deterministic ids keep re-runs idempotent.
+  for (const entry of loadCorrections()) {
+    if (!entry.rule) continue;
+    await db.agentMemory.upsert({
+      where: { id: `mem_rule_${entry.id}` },
+      update: { content: entry.rule },
+      create: {
+        id: `mem_rule_${entry.id}`,
+        workspaceId: EVAL_WORKSPACE_ID,
+        userId: EVAL_USER_ID,
+        kind: 'rule',
+        content: entry.rule,
+      },
     });
   }
 
