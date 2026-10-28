@@ -8,7 +8,7 @@ import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
 import TopBar from './TopBar';
 import CommandPalette from '../ui/CommandPalette';
 import NotificationPanel from '../ui/NotificationPanel';
-import AIAssistant from '../ai/AIAssistant';
+
 import { ToastProvider } from '../ui/Toast';
 
 function ContentFallback() {

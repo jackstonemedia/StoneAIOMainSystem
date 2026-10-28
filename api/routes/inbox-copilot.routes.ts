@@ -24,7 +24,7 @@ router.post('/summarize', async (req, res) => {
   try {
     const { conversationId } = req.body;
     const workspaceId = req.workspaceId;
-    
+
     if (!conversationId) {
       return res.status(400).json({ error: 'conversationId is required' });
     }
@@ -33,6 +33,23 @@ router.post('/summarize', async (req, res) => {
     res.json({ summary });
   } catch (err: any) {
     console.error('[InboxCopilot] summarize error:', err);
+    res.status(500).json({ error: err.message || 'Internal error' });
+  }
+});
+
+router.post('/action-items', async (req, res) => {
+  try {
+    const { conversationId } = req.body;
+    const workspaceId = req.workspaceId;
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId is required' });
+    }
+
+    const actionItems = await copilotService.extractActionItems(conversationId, workspaceId);
+    res.json({ actionItems });
+  } catch (err: any) {
+    console.error('[InboxCopilot] action-items error:', err);
     res.status(500).json({ error: err.message || 'Internal error' });
   }
 });

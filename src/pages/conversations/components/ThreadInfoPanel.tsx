@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ChevronUp, Plus, X, Check, Loader2, Send, Bot
+  ChevronUp, Plus, X, Check, Loader2, Send, Bot, Sparkles, FileText, CheckSquare
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { conversationsApi } from '../../../lib/api/conversations';
@@ -74,6 +74,8 @@ export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: C
   ]);
   const [aiInput, setAiInput] = useState('');
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [copilotOutput, setCopilotOutput] = useState<{ type: string; content: string } | null>(null);
+  const [isCopilotLoading, setIsCopilotLoading] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const contactId = conv.contactId || conv.contact?.id;
@@ -281,6 +283,7 @@ export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: C
         }
       }
 
+
       setAiChatMessages(prev => [
         ...prev,
         {
@@ -303,6 +306,34 @@ export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: C
       ]);
     } finally {
       setIsAiGenerating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast('info', `${label} copied to clipboard`);
+  };
+
+  // Phase 0: real Gemini-backed copilot — the old setTimeout canned text is gone.
+  const handleCopilotAction = async (actionType: 'reply' | 'summary' | 'action_items') => {
+    setIsCopilotLoading(true);
+    setCopilotOutput(null);
+    try {
+      const endpoint = actionType === 'reply' ? 'draft' : actionType === 'summary' ? 'summarize' : 'action-items';
+      const res = await apiFetch(`/api/conversations/copilot/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: conv.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Copilot request failed');
+      const title = actionType === 'reply' ? 'Smart Reply Draft' : actionType === 'summary' ? 'Thread Summary' : 'Extracted Action Items';
+      const content = body.draft ?? body.summary ?? body.actionItems ?? '';
+      setCopilotOutput({ type: title, content });
+    } catch (err: any) {
+      setCopilotOutput({ type: 'Copilot error', content: err.message || 'Copilot request failed' });
+    } finally {
+      setIsCopilotLoading(false);
     }
   };
 
@@ -642,6 +673,56 @@ export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: C
               )}
               <div ref={chatBottomRef} />
             </div>
+
+            {/* Copilot Actions (from the agent branch: draft / summary / action items via /api/conversations/copilot) */}
+            <div className="px-3 py-2 flex flex-wrap gap-1.5 border-t border-border/40 bg-surface/40 shrink-0">
+              <button
+                type="button"
+                disabled={isCopilotLoading}
+                onClick={() => handleCopilotAction('reply')}
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-primary/20 hover:bg-primary/30 text-white border border-primary/40 transition-colors disabled:opacity-50 flex items-center gap-1 shadow-xs cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3 text-white" /> Generate Suggested Reply
+              </button>
+              <button
+                type="button"
+                disabled={isCopilotLoading}
+                onClick={() => handleCopilotAction('summary')}
+                className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <FileText className="w-3 h-3" /> Summarize Conversation
+              </button>
+              <button
+                type="button"
+                disabled={isCopilotLoading}
+                onClick={() => handleCopilotAction('action_items')}
+                className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <CheckSquare className="w-3 h-3" /> Extract Action Items
+              </button>
+            </div>
+            {isCopilotLoading && (
+              <div className="px-3 py-2 text-[11px] text-slate-300 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> Thinking &amp; generating...
+              </div>
+            )}
+            {copilotOutput && !isCopilotLoading && (
+              <div className="mx-3 my-2 p-3 bg-surface border border-primary/30 rounded-xl space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3" /> {copilotOutput.type}
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard(copilotOutput.content, 'Copilot suggestion')}
+                    className="p-1 text-text-muted hover:text-text-main rounded transition-colors"
+                    title="Copy text"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="text-[12px] text-text-main whitespace-pre-wrap leading-relaxed">{copilotOutput.content}</p>
+              </div>
+            )}
 
             {/* Quick Prompt Chips */}
             <div className="px-3 py-2 flex flex-wrap gap-1.5 border-t border-border/40 bg-surface/40 shrink-0">

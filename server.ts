@@ -31,6 +31,7 @@ import tablesRouter        from './api/routes/tables.routes.js';
 import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
 import aiRouter            from './api/routes/ai.routes.js';
 import aiActionsRouter     from './api/routes/ai-actions.routes.js';
+import agentRouter         from './api/routes/agent.routes.js';
 import chatRouter          from './api/routes/chat.routes.js';
 import agentsRouter        from './api/routes/agents.routes.js';
 import crmActionsRouter    from './api/routes/crm-actions.routes.js';
@@ -59,6 +60,8 @@ import { resolveWorkspace }  from './api/middleware/workspace.js';
 import inboxRouter from './api/routes/inbox.routes.js';
 import inboxWidgetRouter from './api/routes/inbox-widget.routes.js';
 import inboxCopilotRouter from './api/routes/inbox-copilot.routes.js';
+import conversationCopilotRouter from './api/routes/conversation-copilot.routes.js';
+import voiceAgentsRouter from './api/routes/voice-agents.routes.js';
 import inboxWebhooksRouter from './api/routes/inbox-webhooks.routes.js';
 
 // ── Channel routes + webhook handlers + realtime ─────────────────────────────
@@ -150,7 +153,21 @@ async function startServer() {
     message: { error: 'Too many requests, please try again in a minute.' },
   });
   // AI endpoints: 20 req/min (expensive Gemini calls)
-  const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
+  // Phase 2 eval harness: dev-only skip for eval traffic. resolveWorkspace
+  // runs before this limiter and honors x-eval-workspace only when the dev
+  // user is a member of that workspace — so workspaceId equaling the header
+  // means the header was membership-checked. Production never skips: the
+  // header is ignored there, so the override can never take effect.
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) =>
+      process.env.NODE_ENV !== 'production' &&
+      typeof req.headers['x-eval-workspace'] === 'string' &&
+      (req as any).workspaceId === req.headers['x-eval-workspace'],
+  });
   // Webhook receivers: higher limit (Stripe/Twilio burst)
   const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
   app.use('/api', apiLimiter);
@@ -269,7 +286,9 @@ async function startServer() {
   // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
   app.use('/api/ai',             aiLimiter, aiRouter);
   app.use('/api/ai/actions',     aiActionsRouter);
+  app.use('/api/agent',          aiLimiter, agentRouter);
   app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
+  app.use('/api/conversations/copilot', aiLimiter, conversationCopilotRouter);
   app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
   if (FEATURES.agents) app.use('/api/agents',         aiLimiter, agentsRouter);
@@ -291,6 +310,7 @@ async function startServer() {
   if (FEATURES.leads) app.use('/api/leads',          leadsRouter);
   app.use('/api/inbox',          resolveWorkspace, inboxRouter);
   app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
+  app.use('/api/voice-agents',   voiceAgentsRouter);
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);

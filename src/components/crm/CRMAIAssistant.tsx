@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bot, X, Send, Sparkles, Loader2, Maximize2, Minimize2, GripHorizontal, User, Paperclip } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Bot, X, Send, Sparkles, Loader2, Maximize2, Minimize2, GripHorizontal, User, Paperclip, Check, RefreshCw, Plus, History } from 'lucide-react';
 import { apiFetch } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLocation } from 'react-router-dom';
@@ -8,6 +8,20 @@ interface Message {
   id: string;
   role: 'user' | 'ai';
   content: string;
+}
+
+interface PendingAction {
+  id: string;
+  toolName: string;
+  label?: string;
+  status: string;
+  result?: unknown;
+}
+
+interface PastConversation {
+  id: string;
+  updatedAt: string;
+  messages: { content: string }[];
 }
 
 interface CRMAIAssistantProps {
@@ -24,6 +38,110 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+
+  // Phase 0: approvals live in chat. Pending AIAction rows, refreshed whenever
+  // the panel opens and after every completed chat response.
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [actingId, setActingId] = useState<string | null>(null);
+  const [approvalsError, setApprovalsError] = useState('');
+
+  // Phase 2: agent service — persisted conversations, display name, mode.
+  const [agentName, setAgentName] = useState('AI Agent');
+  const [agentMode, setAgentMode] = useState('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [pastConversations, setPastConversations] = useState<PastConversation[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/agent/settings');
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body.name) {
+        setAgentName(body.name);
+        setMessages(prev =>
+          prev.length === 1 && prev[0].role === 'ai'
+            ? [{ ...prev[0], content: `Hi there! I am ${body.name}. Ask me to find contacts, summarize deals, or draft follow-up emails.` }]
+            : prev,
+        );
+      }
+      if (body.mode) setAgentMode(body.mode);
+    } catch { /* settings stay defaulted */ }
+  }, []);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/agent/conversations');
+      if (!res.ok) return;
+      const body = await res.json();
+      setPastConversations(body.conversations ?? []);
+    } catch { /* history stays hidden */ }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSettings();
+      fetchConversations();
+    }
+  }, [isOpen, fetchSettings, fetchConversations]);
+
+  const startNewChat = () => {
+    setConversationId(null);
+    setShowHistory(false);
+    setMessages([{ id: '1', role: 'ai', content: `Hi there! I am ${agentName}. Ask me to find contacts, summarize deals, or draft follow-up emails.` }]);
+  };
+
+  const loadConversation = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/agent/conversations/${id}`);
+      if (!res.ok) throw new Error('Could not load conversation');
+      const body = await res.json();
+      const loaded: Message[] = (body.messages ?? []).map((m: { role: string; content: string }, i: number) => ({
+        id: `${Date.now()}-${i}`,
+        role: m.role === 'model' ? 'ai' : 'user',
+        content: m.content,
+      }));
+      setMessages(loaded.length > 0 ? loaded : [{ id: '1', role: 'ai', content: `Hi there! I am ${agentName}.` }]);
+      setConversationId(id);
+      setShowHistory(false);
+    } catch { /* keep current messages */ }
+  };
+
+  const fetchPending = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/ai/actions?status=pending');
+      if (!res.ok) throw new Error('Could not load pending approvals');
+      const body = await res.json();
+      setPendingActions(body.actions ?? []);
+      setApprovalsError('');
+    } catch (err: any) {
+      setApprovalsError(err.message || 'Could not load pending approvals');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) fetchPending();
+  }, [isOpen, fetchPending]);
+
+  const actOnAction = async (id: string, action: 'approve' | 'reject') => {
+    const target = pendingActions.find(a => a.id === id);
+    setActingId(id);
+    try {
+      const res = await apiFetch(`/api/ai/actions/${id}/${action}`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `${action} failed`);
+      const label = target?.label || target?.toolName || 'action';
+      const outcome = action === 'approve'
+        ? (body?.result?.message || body?.result?.error || 'Done')
+        : 'Rejected — nothing was changed.';
+      setMessages(prev => [...prev, { id: `${Date.now()}`, role: 'ai', content: `${action === 'approve' ? 'Approved' : 'Rejected'}: ${label} — ${typeof outcome === 'string' ? outcome : JSON.stringify(outcome)}` }]);
+    } catch (err: any) {
+      setMessages(prev => [...prev, { id: `${Date.now()}`, role: 'ai', content: `Error: ${err.message || `${action} failed`}` }]);
+    } finally {
+      setActingId(null);
+      fetchPending();
+    }
+  };
   
   useEffect(() => {
     if (messagesEndRef.current && isOpen) {
@@ -41,11 +159,6 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
     const userMsgId = Date.now().toString();
     const aiMsgId = (Date.now() + 1).toString();
 
-    // Prepare clean history for Gemini
-    const history = messages
-      .filter(m => m.content && !m.content.startsWith('Error:'))
-      .map(m => ({ role: m.role === 'ai' ? 'model' : 'user', content: m.content }));
-
     setMessages(prev => [
       ...prev,
       { id: userMsgId, role: 'user', content: userText },
@@ -54,10 +167,30 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
     setIsLoading(true);
 
     try {
-      const res = await apiFetch('/api/ai/chat', {
+      // Phase 2: the agent service owns history via persisted
+      // conversations. Create one on first send; fall back to local
+      // history only if creation fails (stateless path).
+      let convId = conversationId;
+      if (!convId) {
+        try {
+          const created = await apiFetch('/api/agent/conversations', { method: 'POST' });
+          if (created.ok) {
+            const body = await created.json();
+            convId = body.conversation?.id ?? null;
+            if (convId) setConversationId(convId);
+          }
+        } catch { convId = null; }
+      }
+      const fallbackHistory = convId
+        ? undefined
+        : messages
+          .filter(m => m.content && !m.content.startsWith('Error:'))
+          .map(m => ({ role: m.role === 'ai' ? 'model' : 'user', content: m.content }));
+
+      const res = await apiFetch('/api/agent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText, route: location.pathname, history }),
+        body: JSON.stringify({ message: userText, route: location.pathname, conversationId: convId ?? undefined, history: fallbackHistory }),
       });
 
       if (!res.ok || !res.body) throw new Error('AI request failed');
@@ -83,15 +216,22 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
             doneReading = true;
             break;
           }
+          let parsed: any;
           try {
-            const { text, error } = JSON.parse(payload);
-            if (error) throw new Error(error);
-            if (text) {
-              setMessages(prev =>
-                prev.map(m => (m.id === aiMsgId ? { ...m, content: m.content + text } : m))
-              );
-            }
-          } catch { /* ignore malformed SSE chunks */ }
+            parsed = JSON.parse(payload);
+          } catch {
+            continue; // ignore malformed SSE chunks
+          }
+          // Errors must surface (previously the throw was swallowed by
+          // the JSON catch, leaving the panel stuck on dots).
+          if (parsed.error) throw new Error(parsed.error);
+          if (parsed.conversation_id) setConversationId(parsed.conversation_id);
+          // action_proposal events refresh via fetchPending below.
+          if (parsed.text) {
+            setMessages(prev =>
+              prev.map(m => (m.id === aiMsgId ? { ...m, content: m.content + parsed.text } : m))
+            );
+          }
         }
       }
     } catch (err: any) {
@@ -100,6 +240,9 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
       );
     } finally {
       setIsLoading(false);
+      fetchPending();
+      fetchSettings();
+      fetchConversations();
     }
   };
 
@@ -125,10 +268,31 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 cursor-move group/header" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
             <div className="flex items-center gap-2">
-              <h3 className="font-medium text-[13px]" style={{ color: 'var(--text-main)' }}>AI Assistant</h3>
+              <h3 className="font-medium text-[13px]" style={{ color: 'var(--text-main)' }}>{agentName}</h3>
+              {agentMode && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-md border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                  {agentMode}
+                </span>
+              )}
               <GripHorizontal className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover/header:opacity-40 transition-opacity ml-1" />
             </div>
             <div className="flex items-center gap-0.5 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-black/5 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                title="Past chats"
+              >
+                <History className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={startNewChat}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-black/5 transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                title="New chat"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
               <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-7 h-7 flex items-center justify-center rounded hover:bg-black/5 transition-colors"
@@ -145,6 +309,34 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
               </button>
             </div>
           </div>
+
+          {/* Past chats (Phase 2: history viewable) */}
+          {showHistory && (
+            <div className="px-4 pt-3 pb-1 shrink-0 max-h-[180px] overflow-y-auto custom-scrollbar" onPointerDown={(e) => e.stopPropagation()}>
+              {pastConversations.length === 0 ? (
+                <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>No past chats yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {pastConversations.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => loadConversation(c.id)}
+                      className="w-full text-left rounded-lg border px-2.5 py-2 hover:bg-black/5"
+                      style={{ borderColor: 'var(--border)' }}
+                    >
+                      <span className="block text-[13px] truncate" style={{ color: 'var(--text-main)' }}>
+                        {c.messages?.[0]?.content || 'Chat'}
+                      </span>
+                      <span className="block text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(c.updatedAt).toLocaleString()}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6 custom-scrollbar relative" onPointerDown={(e) => e.stopPropagation()}>
@@ -187,6 +379,56 @@ export default function CRMAIAssistant({ isOpen, onClose }: CRMAIAssistantProps)
             )}
             <div ref={messagesEndRef} className="h-2" />
           </div>
+
+          {/* Pending approvals (Phase 0: approvals live in chat) */}
+          {(pendingActions.length > 0 || approvalsError) && (
+            <div className="px-4 pb-2 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[12px] font-semibold" style={{ color: 'var(--text-main)' }}>
+                  Pending approvals{pendingActions.length > 0 ? ` (${pendingActions.length})` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => fetchPending()}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-black/5"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Refresh approvals"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {approvalsError && (
+                <p className="text-[12px] mb-2" style={{ color: 'var(--text-muted)' }}>{approvalsError}</p>
+              )}
+              <div className="space-y-2">
+                {pendingActions.map((a) => (
+                  <div key={a.id} className="rounded-lg border p-2.5" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+                    <p className="text-[13px] leading-snug" style={{ color: 'var(--text-main)' }}>{a.label || a.toolName}</p>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        type="button"
+                        disabled={actingId === a.id}
+                        onClick={() => actOnAction(a.id, 'approve')}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[12px] font-medium disabled:opacity-40"
+                        style={{ background: 'var(--text-main)', color: 'var(--bg)' }}
+                      >
+                        <Check className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actingId === a.id}
+                        onClick={() => actOnAction(a.id, 'reject')}
+                        className="px-2.5 py-1 rounded-md text-[12px] border disabled:opacity-40"
+                        style={{ borderColor: 'var(--border)', color: 'var(--text-main)' }}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Input Form */}
           <div className="p-4 pt-1 shrink-0 bg-transparent" onPointerDown={(e) => e.stopPropagation()}>

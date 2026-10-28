@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Users, DollarSign, Target, MessageSquare, Calendar, Mail,
   Bot, Bell, RefreshCw, TrendingUp, TrendingDown, Clock,
@@ -11,6 +11,7 @@ import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 import { useUnreadNotificationsCount } from '../hooks/useUnreadNotificationsCount';
 import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
+import { AIControlPanel } from '../components/dashboard/v2/AIControlPanel';
 import CRMAIAssistant from '../components/crm/CRMAIAssistant';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
@@ -173,6 +174,22 @@ export default function Dashboard() {
   const emailMarketing = metrics?.emailMarketing;
   const automations = metrics?.automations;
   const activityFeed = metrics?.activityFeed || [];
+
+  // Phase 0: ?tab=ai mounts the AI Control Panel (Sidebar links here).
+  const [searchParams] = useSearchParams();
+  const showAiPanel = searchParams.get('tab') === 'ai';
+
+  if (showAiPanel) {
+    return (
+      <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-6">
+          <AIControlPanel />
+        </div>
+        <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
+        <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">

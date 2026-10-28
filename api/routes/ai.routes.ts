@@ -17,12 +17,21 @@ import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
 import { Type } from '@google/genai';
 import { db } from '../../infrastructure/database/client.js';
 import { executeTool, APPROVAL_REQUIRED_TOOLS, getActionLabel } from './ai-executor.js';
+import {
+  checkBudget,
+  getUsage,
+  recordUsage,
+  extractUsage,
+  crossedWarningThreshold,
+  budgetExhaustedMessage,
+  budgetWarningMessage,
+} from '../services/agent/metering.js';
 
 const router = Router();
 
 // ── CRM Function Declarations for Gemini ──────────────────────────────────────
 
-const CRM_TOOLS = [
+export const CRM_TOOLS = [
   {
     name: 'get_crm_dashboard',
     description: 'Get CRM dashboard metrics including total contacts, revenue, deals count, and pipeline status.',
@@ -176,12 +185,153 @@ const CRM_TOOLS = [
       required: ['name', 'subject'],
     },
   },
+  // ── Phase 4 tools ──────────────────────────────────────────────────
+  {
+    name: 'list_inbox_conversations',
+    description: 'List inbox conversations with the latest message preview.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        status: { type: Type.STRING, description: 'Filter by status (e.g. open, resolved)' },
+      },
+    },
+  },
+  {
+    name: 'get_inbox_messages',
+    description: 'Get the messages of one inbox conversation.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The inbox conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'list_conversations',
+    description: 'List Conversations-domain threads (separate from Inbox).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        channel: { type: Type.STRING, description: 'Filter by channel (e.g. sms, email)' },
+        status: { type: Type.STRING, description: 'Filter by status (e.g. open, closed)' },
+      },
+    },
+  },
+  {
+    name: 'get_conversation_messages',
+    description: 'Get the messages of one Conversations-domain thread.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'draft_inbox_reply',
+    description: 'Draft reply text for an inbox conversation. Returns text only — it never sends anything.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The inbox conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'get_campaign_details',
+    description: 'Get one campaign with recipient counts by status. Does not send anything.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        campaignId: { type: Type.STRING, description: 'The campaign ID' },
+      },
+      required: ['campaignId'],
+    },
+  },
+  {
+    name: 'send_campaign',
+    description: 'Send an email campaign to its recipients. This is a real bulk send and always needs the user\'s exact approval first. An already-SENT campaign re-sends fresh (old recipient records are cleared).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        campaignId: { type: Type.STRING, description: 'The campaign ID to send' },
+      },
+      required: ['campaignId'],
+    },
+  },
+  {
+    name: 'list_appointments',
+    description: 'List appointments, optionally filtered by contact or date range.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'Filter by contact ID' },
+        startDate: { type: Type.STRING, description: 'Earliest start time (ISO date)' },
+        endDate: { type: Type.STRING, description: 'Latest start time (ISO date)' },
+        search: { type: Type.STRING, description: 'Search in appointment titles' },
+      },
+    },
+  },
+  {
+    name: 'create_appointment',
+    description: 'Create an appointment. startTime and endTime must be valid dates.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Appointment title' },
+        contactId: { type: Type.STRING, description: 'Contact ID for the appointment' },
+        startTime: { type: Type.STRING, description: 'Start time (ISO date-time)' },
+        endTime: { type: Type.STRING, description: 'End time (ISO date-time)' },
+        description: { type: Type.STRING, description: 'Notes' },
+        type: { type: Type.STRING, description: 'Appointment type (e.g. meeting)' },
+        location: { type: Type.STRING, description: 'Location' },
+      },
+      required: ['startTime', 'endTime'],
+    },
+  },
+  {
+    name: 'update_deal',
+    description: 'Update a deal. Only title, amount, status, pipelineStageId, contactId, priority, closeDate, and probability may change.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        dealId: { type: Type.STRING, description: 'The deal ID' },
+        title: { type: Type.STRING, description: 'Deal title' },
+        amount: { type: Type.NUMBER, description: 'Deal value' },
+        status: { type: Type.STRING, description: 'Deal status (e.g. open, won, lost)' },
+        pipelineStageId: { type: Type.STRING, description: 'Pipeline stage ID to move the deal to' },
+        contactId: { type: Type.STRING, description: 'Contact ID' },
+        priority: { type: Type.STRING, description: 'Priority (e.g. low, medium, high)' },
+        closeDate: { type: Type.STRING, description: 'Close date (ISO date)' },
+        probability: { type: Type.NUMBER, description: 'Win probability 0-100' },
+      },
+      required: ['dealId'],
+    },
+  },
+  {
+    name: 'list_pipelines',
+    description: 'List pipelines with their stages. Never creates anything.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_workspace_info',
+    description: 'Get the workspace name, plan, agent name and mode, and displayed credit counts. Credits are displayed only and are not enforced.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_pipeline_summary',
+    description: 'Summarize deals grouped by pipeline stage, with counts and total values.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
 ];
 
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildCleanContents(history: { role: string; content: string }[], currentMessage: string) {
+export function buildCleanContents(history: { role: string; content: string }[], currentMessage: string) {
   const cleanContents: any[] = [];
 
   for (const h of history || []) {
@@ -224,8 +374,6 @@ router.post('/chat', async (req: Request, res: Response) => {
 
   if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
 
-  const ai = getAIClient();
-
   // SSE streaming headers
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -237,6 +385,24 @@ router.post('/chat', async (req: Request, res: Response) => {
   };
 
   try {
+    // Phase 5 metering: block before any LLM call (and before the key
+    // check, so a blocked workspace gets the budget error even with no
+    // key). The eval bypass mirrors the new route: dev-only, and only
+    // when the eval header matched the resolved workspace.
+    const meteringBypass =
+      process.env.NODE_ENV !== 'production' &&
+      req.headers['x-eval-workspace'] === workspaceId;
+    const budgetCheck = await checkBudget(db, workspaceId, { bypass: meteringBypass });
+    if (!budgetCheck.allowed) {
+      throw new Error(budgetExhaustedMessage(budgetCheck));
+    }
+
+    // getAIClient() lives INSIDE the try on purpose: when the key is
+    // missing it throws, and that must come back as the honest error SSE
+    // chunk below — not an uncaught exception that kills the process
+    // (the pre-Phase-1 behavior: the first key-error chat request took
+    // the whole dev server down).
+    const ai = getAIClient();
     const contents = buildCleanContents(history || [], message);
 
     const systemInstruction =
@@ -262,6 +428,15 @@ router.post('/chat', async (req: Request, res: Response) => {
       console.warn('[AI Chat] Tool pass failed, falling back to direct stream:', toolErr.message);
     }
 
+    // Phase 5: record the tool-pass call.
+    if (firstRes) {
+      await recordUsage(db, workspaceId, extractUsage(
+        firstRes,
+        JSON.stringify(contents),
+        firstRes.text ?? JSON.stringify(firstRes.functionCalls ?? ''),
+      ));
+    }
+
     const functionCalls = firstRes?.functionCalls;
 
     if (functionCalls && functionCalls.length > 0) {
@@ -282,7 +457,7 @@ router.post('/chat', async (req: Request, res: Response) => {
               chatContext: message,
             },
           });
-          writeChunk(`\n> ⏳ **Action queued for your approval:** *${label}*\n> Check the **AI Control Panel** in your Dashboard to approve or reject.\n\n`);
+          writeChunk(`\n> ⏳ **Action queued for your approval:** *${label}*\n> Approve or reject it in the approvals section below, or in the **AI Control Panel** on your Dashboard.\n\n`);
           res.write(`data: ${JSON.stringify({ action_proposal: queued })}\n\n`);
           toolResults.push({ name: call.name, result: { queued: true, actionId: queued.id, label } });
         } else {
@@ -325,9 +500,14 @@ router.post('/chat', async (req: Request, res: Response) => {
         config: { systemInstruction, temperature: 0.7 },
       });
 
+      let streamText = '';
+      let lastChunk: any = null;
       for await (const chunk of stream) {
-        if (chunk.text) writeChunk(chunk.text);
+        lastChunk = chunk;
+        if (chunk.text) { streamText += chunk.text; writeChunk(chunk.text); }
       }
+      // Phase 5: record the follow-up stream call.
+      await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
     } else {
       // Direct text streaming response
       const stream = await ai.models.generateContentStream({
@@ -336,9 +516,20 @@ router.post('/chat', async (req: Request, res: Response) => {
         config: { systemInstruction, temperature: 0.7 },
       });
 
+      let streamText = '';
+      let lastChunk: any = null;
       for await (const chunk of stream) {
-        if (chunk.text) writeChunk(chunk.text);
+        lastChunk = chunk;
+        if (chunk.text) { streamText += chunk.text; writeChunk(chunk.text); }
       }
+      // Phase 5: record the direct stream call.
+      await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
+    }
+
+    // Phase 5: warn once when this turn crossed the 80% line.
+    const usedAfter = (await getUsage(db, workspaceId)).total;
+    if (crossedWarningThreshold(budgetCheck.used, usedAfter, budgetCheck.budget)) {
+      writeChunk(`\n\n> ${budgetWarningMessage(usedAfter, budgetCheck.budget)}\n`);
     }
 
     res.write('data: [DONE]\n\n');
