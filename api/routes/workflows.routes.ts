@@ -4,8 +4,17 @@ import { db } from '../../infrastructure/database/client.js';
 import { nodeRegistry } from '../services/workflow-engine/node-runner.js';
 import { encryptJson } from '../services/channels/encryption.js';
 import { scopedFindOrThrow } from '../middleware/tenant-guard.js';
+import { requirePlan } from '../middleware/plan-guard.js';
 
 const router = Router();
+
+// Billing Core: automations require Complete. Reads stay open; every
+// mutation (create/update/delete/publish/pause/test/duplicate and
+// folders/credentials/templates writes) goes through this gate.
+router.use((req, res, next) => {
+  if (req.method === 'GET') return next();
+  return requirePlan('complete')(req, res, next);
+});
 
 
 

@@ -141,6 +141,13 @@ async function startServer() {
   }));
 
   app.use(compression());
+  // Stripe webhooks MUST get the raw body (signature verification).
+  // These mounts run before express.json() for exactly that reason;
+  // the billing router no longer mounts its own webhook listener.
+  // Both paths are registered because the billing router is mounted
+  // at /api/billing and at /api.
+  app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+  app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
   app.use(express.json());
 
   // ── Rate limiting ─────────────────────────────────────────────────────────

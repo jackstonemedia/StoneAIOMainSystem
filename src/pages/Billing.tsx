@@ -64,6 +64,8 @@ export default function Billing() {
           planName: 'Free Plan',
           creditsUsed: 0,
           creditsLimit: 500,
+          tokenUsage: null,
+          trialEndsAt: null,
           subscription: null,
           paymentMethod: null,
         };
@@ -85,9 +87,12 @@ export default function Billing() {
   });
 
   const currentPlan = billingStatus?.plan || 'free';
-  const creditsUsed = billingStatus?.creditsUsed ?? 0;
-  const creditsLimit = billingStatus?.creditsLimit ?? 500;
-  const usagePercentage = Math.min(100, Math.round((creditsUsed / (creditsLimit || 1)) * 100));
+  // The enforced meter is AI token usage (Phase 5 metering); the legacy
+  // credits fields are display-only and nothing consumes them.
+  const tokenUsage = billingStatus?.tokenUsage ?? null;
+  const tokensUsed = tokenUsage?.used ?? 0;
+  const tokensBudget = tokenUsage?.budget ?? 0;
+  const usagePercentage = tokenUsage?.pct ?? 0;
 
   // Checkout Mutation
   const handleUpgrade = async (planId: string) => {
@@ -137,36 +142,36 @@ export default function Billing() {
       name: 'Free',
       price: '$0',
       period: 'forever',
-      desc: 'For exploring AI agent workflows.',
-      features: ['500 credits/month', '1 workflow agent', 'Community support', 'Basic templates'],
+      desc: 'For exploring the platform.',
+      features: ['100,000 AI tokens/month', 'AI Agent on every tier', 'CRM access', 'Community support'],
       color: 'border-border',
     },
     {
       id: 'basic',
       name: 'Basic',
-      price: '$10',
+      price: '$19',
       period: '/month',
-      desc: 'For creators building their first automations.',
-      features: ['5,000 credits/month', '5 agents (all types)', 'Email support', '200+ templates', 'CRM access'],
+      desc: 'For creators getting started.',
+      features: ['500,000 AI tokens/month', 'AI Agent on every tier', 'CRM access', 'Email support', '7-day free trial'],
       color: 'border-primary',
       popular: true,
     },
     {
-      id: 'pro',
-      name: 'Pro',
-      price: '$29',
+      id: 'plus',
+      name: 'Plus',
+      price: '$49',
       period: '/month',
       desc: 'For professionals and growing businesses.',
-      features: ['25,000 credits/month', 'Unlimited agents', 'Priority support', 'Autonomous SDR Agents', 'Autonomous agents', 'Cloud Computer', 'Advanced analytics'],
+      features: ['2,500,000 AI tokens/month', 'Everything in Basic', 'Priority support', 'Advanced analytics', 'Email marketing + automations require Complete'],
       color: 'border-purple',
     },
     {
-      id: 'ultra',
-      name: 'Ultra',
+      id: 'complete',
+      name: 'Complete',
       price: '$99',
       period: '/month',
-      desc: 'For teams that need scale and control.',
-      features: ['100,000 credits/month', 'Everything in Pro', 'Team workspaces', 'Custom integrations', 'SSO / SAML', 'Dedicated support', 'Custom image upload'],
+      desc: 'For teams that need everything.',
+      features: ['10,000,000 AI tokens/month', 'Everything in Plus', 'Email marketing + automations', 'Team workspaces', 'Dedicated support', '7-day free trial'],
       color: 'border-amber',
     },
   ];
@@ -191,7 +196,7 @@ export default function Billing() {
               <Sparkles className="w-6 h-6 text-primary" /> Billing & Subscriptions
             </h1>
             <p className="text-sm text-text-muted mt-0.5">
-              Manage your workspace subscription, Stripe payment methods, and live credit usage.
+              Manage your workspace subscription, Stripe payment methods, and live AI token usage. Paid plans include a 7-day free trial.
             </p>
           </div>
 
@@ -208,18 +213,18 @@ export default function Billing() {
         {/* Usage & Payment Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           
-          {/* Credits Metric Card */}
+          {/* AI Token Usage Card (the enforced meter) */}
           <div className="bg-surface/80 border border-border rounded-xl p-5 shadow-xs">
             <div className="flex items-center justify-between text-text-muted mb-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-wider">Credits Used</span>
+                <span className="text-xs font-semibold uppercase tracking-wider">AI Tokens Used{tokenUsage?.month ? ` · ${tokenUsage.month}` : ''}</span>
               </div>
               <span className="text-xs font-bold text-primary">{usagePercentage}%</span>
             </div>
             <div className="text-2xl font-bold text-text-main mb-2">
-              {creditsUsed.toLocaleString()}{' '}
-              <span className="text-sm font-normal text-text-muted">/ {creditsLimit.toLocaleString()}</span>
+              {tokensUsed.toLocaleString()}{' '}
+              <span className="text-sm font-normal text-text-muted">/ {tokensBudget.toLocaleString()}</span>
             </div>
             <div className="w-full bg-bg border border-border/50 rounded-full h-2 overflow-hidden">
               <div
@@ -240,7 +245,9 @@ export default function Billing() {
             </div>
             <div className="text-xs text-text-muted flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full inline-block ${currentPlan === 'free' ? 'bg-zinc-400' : 'bg-emerald-500 animate-pulse'}`} />
-              {currentPlan === 'free' ? 'Standard free tier' : 'Auto-renews monthly via Stripe'}
+              {billingStatus?.trialEndsAt
+                ? `Trial ends ${new Date(billingStatus.trialEndsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                : currentPlan === 'free' ? 'Standard free tier · paid plans include a 7-day free trial' : 'Auto-renews monthly via Stripe'}
             </div>
           </div>
 

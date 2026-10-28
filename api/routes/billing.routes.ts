@@ -6,6 +6,14 @@ import { emitTrigger } from '../services/trigger-emitter.service.js';
 import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
 import { validate } from '../middleware/validate.js';
 import { requireRole } from '../middleware/tenant-guard.js';
+import {
+  PLAN_CONFIGS,
+  normalizePlan,
+  isKnownPlan,
+  qualifiesForTrial,
+  TRIAL_DAYS,
+} from '../services/billing/plans.js';
+import { getUsage, budgetForPlan, monthKey } from '../services/agent/metering.js';
 
 const createCheckoutSchema = {
   body: z.object({
@@ -31,14 +39,8 @@ function getStripe() {
   return new Stripe(key, { apiVersion: '2026-04-22.dahlia' as any });
 }
 
-export const PLAN_CONFIGS: Record<string, { name: string; amount: number; creditsLimit: number }> = {
-  free: { name: 'Free Plan', amount: 0, creditsLimit: 500 },
-  basic: { name: 'Basic Plan', amount: 1000, creditsLimit: 5000 },
-  starter: { name: 'Basic Plan', amount: 1000, creditsLimit: 5000 },
-  pro: { name: 'Pro Plan', amount: 2900, creditsLimit: 25000 },
-  ultra: { name: 'Ultra Plan', amount: 9900, creditsLimit: 100000 },
-  team: { name: 'Ultra Plan', amount: 9900, creditsLimit: 100000 },
-};
+// Re-exported for existing importers (billing-security tests).
+export { PLAN_CONFIGS };
 
 // ── 1. Create Checkout Session for Subscriptions ────────────────────────────
 router.post('/billing/create-checkout-session', requireRole('admin', 'owner'), validate(createCheckoutSchema), async (req: Request, res: Response) => {
@@ -49,13 +51,20 @@ router.post('/billing/create-checkout-session', requireRole('admin', 'owner'), v
       return res.status(401).json({ error: 'Workspace context required' });
     }
     
-    if (!planId || !PLAN_CONFIGS[planId.toLowerCase()]) {
-      return res.status(400).json({ error: `Invalid plan ID: ${planId}. Supported: basic, pro, ultra.` });
+    if (!planId || !isKnownPlan(planId)) {
+      return res.status(400).json({ error: `Invalid plan ID: ${planId}. Supported: free, basic, plus, complete.` });
     }
 
-    const normalizedPlanId = planId.toLowerCase();
+    const normalizedPlanId = normalizePlan(planId);
     const planConfig = PLAN_CONFIGS[normalizedPlanId];
     const stripe = getStripe();
+
+    // 1-week free trial for paid plans, once per workspace.
+    const ws = await (db as any).workspace.findUnique({
+      where: { id: workspaceId },
+      select: { trialEndsAt: true, stripeSubscriptionId: true },
+    });
+    const trialEligible = normalizedPlanId !== 'free' && qualifiesForTrial(ws ?? {});
 
     const baseUrl = returnUrl || process.env.PUBLIC_APP_URL || process.env.VITE_APP_URL || 'http://localhost:5173';
     const successUrl = `${baseUrl}/settings?tab=billing&session_id={CHECKOUT_SESSION_ID}&success=true`;
@@ -93,12 +102,13 @@ router.post('/billing/create-checkout-session', requireRole('admin', 'owner'), v
       client_reference_id: workspaceId,
       metadata: {
         workspaceId,
-        planId,
+        planId: normalizedPlanId,
       },
       subscription_data: {
+        ...(trialEligible ? { trial_period_days: TRIAL_DAYS } : {}),
         metadata: {
           workspaceId,
-          planId,
+          planId: normalizedPlanId,
         },
       },
     });
@@ -129,8 +139,26 @@ router.post('/billing/verify-session', async (req: Request, res: Response) => {
 
     if (session.payment_status === 'paid' || session.status === 'complete') {
       const targetWsId = sessionWorkspaceId || workspaceId;
-      const planId = session.metadata?.planId?.toLowerCase() || 'pro';
-      const planConfig = PLAN_CONFIGS[planId] || { name: 'Pro Plan', creditsLimit: 25000 };
+      // A paid session with missing/unknown metadata keeps the old
+      // default paid tier (plus); known metadata normalizes to canonical.
+      const planId = session.metadata?.planId && isKnownPlan(session.metadata.planId)
+        ? normalizePlan(session.metadata.planId)
+        : 'plus';
+      const planConfig = PLAN_CONFIGS[planId];
+
+      // Prefer the live subscription's status (trialing vs active) and
+      // trial end when Stripe has them; fall back to active.
+      let subscriptionStatus = 'active';
+      let trialEndsAt: Date | undefined;
+      try {
+        if (typeof session.subscription === 'string' && session.subscription) {
+          const sub = await stripe.subscriptions.retrieve(session.subscription);
+          if (sub.status) subscriptionStatus = sub.status;
+          if (sub.trial_end) trialEndsAt = new Date(sub.trial_end * 1000);
+        }
+      } catch {
+        // Non-fatal: the workspace update below still records the plan.
+      }
 
       const updatedWs = await (db as any).workspace.update({
         where: { id: targetWsId },
@@ -138,7 +166,8 @@ router.post('/billing/verify-session', async (req: Request, res: Response) => {
           plan: planId,
           stripeCustomerId: (session.customer as string) || undefined,
           stripeSubscriptionId: (session.subscription as string) || undefined,
-          subscriptionStatus: 'active',
+          subscriptionStatus,
+          ...(trialEndsAt ? { trialEndsAt } : {}),
           creditsLimit: planConfig.creditsLimit,
         }
       }).catch((err: any) => {
@@ -182,9 +211,12 @@ router.post('/billing/dev-set-plan', requireRole('admin', 'owner'), async (req: 
     const { planId } = req.body;
     const workspaceId = (req as any).workspaceId;
     if (!workspaceId) return res.status(401).json({ error: 'Workspace context required' });
-    const normalizedPlan = planId?.toLowerCase() || 'free';
+    if (!isKnownPlan(planId)) {
+      return res.status(400).json({ error: `Invalid plan ID: ${planId}. Supported: free, basic, plus, complete.` });
+    }
+    const normalizedPlan = normalizePlan(planId);
 
-    const planConfig = PLAN_CONFIGS[normalizedPlan] || { name: 'Free Plan', creditsLimit: 500 };
+    const planConfig = PLAN_CONFIGS[normalizedPlan];
 
     const updated = await (db as any).workspace.update({
       where: { id: workspaceId },
@@ -270,14 +302,36 @@ router.get('/billing/subscription-status', async (req: Request, res: Response) =
       }
     }
 
-    const currentPlan = ws?.plan || 'free';
-    const config = PLAN_CONFIGS[currentPlan] || { name: 'Free Plan', amount: 0, creditsLimit: 500 };
+    const currentPlan = normalizePlan(ws?.plan);
+    const config = PLAN_CONFIGS[currentPlan];
+
+    // The enforced meter is token usage (Phase 5); legacy credits are
+    // display-only and nothing consumes them.
+    let tokenUsage = null;
+    try {
+      const usage = await getUsage(db as any, workspaceId);
+      const budget = budgetForPlan(currentPlan);
+      tokenUsage = {
+        month: monthKey(),
+        used: usage.total,
+        input: usage.input,
+        output: usage.output,
+        budget,
+        remaining: Math.max(0, budget - usage.total),
+        pct: budget > 0 ? Math.round((usage.total / budget) * 100) : 0,
+      };
+    } catch {
+      // Non-fatal: billing status still returns without usage.
+    }
 
     return res.json({
       plan: currentPlan,
       planName: config.name,
       creditsUsed: (ws as any)?.creditsUsed ?? 0,
       creditsLimit: (ws as any)?.creditsLimit ?? config.creditsLimit,
+      tokenUsage,
+      trialEndsAt: (ws as any)?.trialEndsAt ?? null,
+      subscriptionStatus: (ws as any)?.subscriptionStatus ?? null,
       subscription: activeSubscription,
       paymentMethod: paymentMethod?.card ? {
         brand: paymentMethod.card.brand,
@@ -380,31 +434,31 @@ router.post('/stripe/create-payment-intent', validate(createPaymentIntentSchema)
 });
 
 // ── 6. Standalone Public Webhook Handler ─────────────────────────────────────
+// SECURITY: in production, a missing/invalid signature is a 400 —
+// the handler NEVER processes an unverified body there (an attacker
+// could otherwise POST fake subscription events and activate plans).
+// The unverified path exists only in non-production, for local dev,
+// and logs a warning every time it fires. The webhook secret comes
+// from STRIPE_WEBHOOK_SECRET only; no fallback secret lives in code.
+// NOTE: server.ts mounts this handler with express.raw() BEFORE
+// express.json() — constructEvent needs the raw body, and a parsed
+// object body always fails verification.
 export async function stripeWebhookHandler(req: Request, res: Response) {
   const sig = req.headers['stripe-signature'];
-  const primarySecret = process.env.STRIPE_WEBHOOK_SECRET;
-  const secondarySecret = 'whsec_NeD7VNGrHGqZTLkBgPe02WYQCVs5pWW4';
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
   let event: Stripe.Event | null = null;
 
   try {
     const stripe = getStripe();
-    const secrets = [primarySecret, secondarySecret].filter(Boolean) as string[];
 
-    if (sig && secrets.length > 0) {
-      let lastErr: any = null;
-      for (const secret of secrets) {
-        try {
-          event = stripe.webhooks.constructEvent(req.body, sig, secret);
-          break;
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-      if (!event && lastErr) {
-        throw lastErr;
-      }
+    if (sig && secret) {
+      event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    } else if (process.env.NODE_ENV === 'production') {
+      console.error('[Stripe Webhook] Rejected: missing signature or webhook secret in production.');
+      return res.status(400).send('Webhook Error: signature verification required in production.');
     } else {
+      console.warn('[Stripe Webhook] Processing UNVERIFIED body (non-production only).');
       event = typeof req.body === 'string' || Buffer.isBuffer(req.body)
         ? JSON.parse(req.body.toString())
         : req.body;
@@ -432,19 +486,34 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const workspaceId = session.client_reference_id || session.metadata?.workspaceId;
-        const planId = session.metadata?.planId || 'pro';
+        const planId = session.metadata?.planId && isKnownPlan(session.metadata.planId)
+          ? normalizePlan(session.metadata.planId)
+          : 'plus';
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
         if (workspaceId) {
-          const planConfig = PLAN_CONFIGS[planId] || { creditsLimit: 25000 };
+          const planConfig = PLAN_CONFIGS[planId];
+          let subscriptionStatus = 'active';
+          let trialEndsAt: Date | undefined;
+          try {
+            const stripe = getStripe();
+            if (subscriptionId) {
+              const sub = await stripe.subscriptions.retrieve(subscriptionId);
+              if (sub.status) subscriptionStatus = sub.status;
+              if (sub.trial_end) trialEndsAt = new Date(sub.trial_end * 1000);
+            }
+          } catch {
+            // Non-fatal: the workspace update below still records the plan.
+          }
           await (db as any).workspace.update({
             where: { id: workspaceId },
             data: {
               plan: planId,
               stripeCustomerId: customerId || undefined,
               stripeSubscriptionId: subscriptionId || undefined,
-              subscriptionStatus: 'active',
+              subscriptionStatus,
+              ...(trialEndsAt ? { trialEndsAt } : {}),
               creditsLimit: planConfig.creditsLimit,
             },
           }).catch((e: any) => console.error('[Stripe Webhook] Workspace update error:', e));
@@ -463,10 +532,14 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         const customerId = sub.customer as string;
         const ws = customerId ? await (db as any).workspace.findFirst({ where: { stripeCustomerId: customerId } }) : null;
         if (ws) {
+          // Portal plan changes carry the plan in subscription metadata.
+          const metaPlan = (sub.metadata as any)?.planId;
           await (db as any).workspace.update({
             where: { id: ws.id },
             data: {
+              ...(metaPlan && isKnownPlan(metaPlan) ? { plan: normalizePlan(metaPlan) } : {}),
               subscriptionStatus: sub.status,
+              ...(sub.trial_end ? { trialEndsAt: new Date(sub.trial_end * 1000) } : {}),
             },
           }).catch(() => {});
         }
@@ -483,7 +556,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
             data: {
               plan: 'free',
               subscriptionStatus: 'canceled',
-              creditsLimit: 500,
+              creditsLimit: PLAN_CONFIGS.free.creditsLimit,
             },
           }).catch(() => {});
 
@@ -561,8 +634,5 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     return res.status(500).send('Server Error');
   }
 }
-
-// Router-level webhook listener fallback
-router.post('/stripe/webhook', stripeWebhookHandler);
 
 export default router;

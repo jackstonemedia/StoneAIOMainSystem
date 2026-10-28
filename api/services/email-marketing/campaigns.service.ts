@@ -65,6 +65,11 @@ export async function createCampaign(
     abTestConfig?: Record<string, any> | null;
   }
 ) {
+  // Billing Core: creating campaigns requires Complete (Plus and
+  // below exclude email marketing). Reads stay open; this gate
+  // covers routes, agent tools, and any other caller in one place.
+  const { assertPlan } = await import('../../middleware/plan-guard.js');
+  await assertPlan(workspaceId, 'complete');
   return db.campaign.create({
     data: {
       workspaceId,
@@ -425,6 +430,10 @@ export async function sendCampaign(
   workspaceId: string,
   campaignId: string
 ): Promise<{ queued: number; failed?: number; totalDays?: number; multiDay?: boolean }> {
+  // Billing Core: sending campaigns requires Complete. This covers
+  // routes, agent tools, and the scheduled cron in one place.
+  const { assertPlan } = await import('../../middleware/plan-guard.js');
+  await assertPlan(workspaceId, 'complete');
   const campaign = await db.campaign.findFirst({
     where: { id: campaignId, workspaceId },
   });

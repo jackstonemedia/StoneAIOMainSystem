@@ -16,6 +16,7 @@ model Workspace {
   stripeCustomerId       String?            @map("stripe_customer_id")
   stripeSubscriptionId   String?            @map("stripe_subscription_id")
   subscriptionStatus     String?            @default("inactive") @map("subscription_status")
+  trialEndsAt            DateTime?          @map("trial_ends_at")
   creditsUsed            Int                @default(0) @map("credits_used")
   creditsLimit           Int                @default(500) @map("credits_limit")
   agentMode              String             @default("approve") @map("agent_mode")

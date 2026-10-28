@@ -82,7 +82,7 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
 
       const res = await request(app)
         .post('/api/billing/dev-set-plan')
-        .send({ planId: 'scale' });
+        .send({ planId: 'plus' });
 
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('Forbidden');
@@ -96,7 +96,7 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
 
       const res = await request(app)
         .post('/api/billing/dev-set-plan')
-        .send({ planId: 'scale' });
+        .send({ planId: 'plus' });
 
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('Forbidden');
@@ -110,15 +110,15 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
 
       const res = await request(app)
         .post('/api/billing/dev-set-plan')
-        .send({ planId: 'scale' });
+        .send({ planId: 'plus' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.plan).toBe('scale');
+      expect(res.body.plan).toBe('plus');
       expect(mockWorkspaceUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'ws-test' },
-          data: expect.objectContaining({ plan: 'scale' }),
+          data: expect.objectContaining({ plan: 'plus' }),
         })
       );
     });
@@ -133,7 +133,7 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
         payment_status: 'paid',
         metadata: {
           workspaceId: 'ws-foreign',
-          planId: 'scale',
+          planId: 'plus',
         },
       });
 
@@ -158,7 +158,7 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
         subscription: 'sub_123',
         metadata: {
           workspaceId: 'ws-test',
-          planId: 'scale',
+          planId: 'plus',
         },
       });
 
@@ -170,12 +170,12 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.plan).toBe('scale');
+      expect(res.body.plan).toBe('plus');
       expect(mockWorkspaceUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'ws-test' },
           data: expect.objectContaining({
-            plan: 'scale',
+            plan: 'plus',
             stripeCustomerId: 'cus_123',
             stripeSubscriptionId: 'sub_123',
           }),
@@ -190,7 +190,7 @@ describe('Billing Security & Plan Guardrails (C2 & C7)', () => {
 
       const res = await request(app)
         .post('/api/billing/dev-set-plan')
-        .send({ planId: 'scale' });
+        .send({ planId: 'plus' });
 
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('Forbidden — insufficient permissions');
