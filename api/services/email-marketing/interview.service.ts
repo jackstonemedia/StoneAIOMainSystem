@@ -1931,12 +1931,18 @@ export interface UnifiedTurnOutput {
 }
 
 export function deterministicUnifiedTurn(
-  _conversation: ChatMessage[],
+  conversation: ChatMessage[],
   currentEmail: { subject: string; bodyText: string; previewText?: string } | null | undefined,
   userMessage: string,
 ): UnifiedTurnOutput {
-  const text = (userMessage || '').trim();
-  const lower = text.toLowerCase();
+  // The offline fallback used to scan ONLY the latest message, so a
+  // user saying "go ahead and draft it" after a complete discovery
+  // got no email (the brief context lives in the conversation
+  // history, e.g. the "Campaign details: ..." message applyRebuiltTurn
+  // prepends). Scan the whole conversation plus the latest message.
+  const lower = [...(conversation || []).map((m) => m.text || ''), userMessage || '']
+    .join(' ')
+    .toLowerCase();
 
   if (currentEmail) {
     return {

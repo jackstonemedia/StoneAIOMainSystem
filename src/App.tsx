@@ -4,7 +4,7 @@
  */
 
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -16,6 +16,8 @@ import { FEATURES } from './config/features';
 import AppShell from './components/layout/AppShell';
 // ── Eager imports (small, always needed) ──────────────────────────────────────
 import Landing from './pages/Landing';
+import TermsOfService from './pages/legal/TermsOfService';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import SSOCallback from './pages/SSOCallback';
@@ -126,6 +128,15 @@ function Protect({ children, withAuth }: { children: React.ReactNode; withAuth: 
 
 
 // ── Route tree ────────────────────────────────────────────────────────────────
+// <Navigate> does NOT interpolate route params, so the old
+// `/opportunities/:id` alias redirected to the literal URL
+// `/crm/opportunities/:id` (detail page for an opportunity literally
+// named ":id"). This wrapper reads the param and builds the real URL.
+function RedirectOpportunityDetail() {
+  const { id } = useParams();
+  return <Navigate to={`/crm/opportunities/${id}`} replace />;
+}
+
 function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
   return (
     <ErrorBoundary>
@@ -139,6 +150,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/book/:slug" element={<PublicBookingPage />} />
           <Route path="/book"       element={<PublicBookingPage />} />
+          <Route path="/terms"      element={<TermsOfService />} />
+          <Route path="/privacy"    element={<PrivacyPolicy />} />
 
           {/* ── Protected shell ────────────────────────────────────────────── */}
           <Route element={<AppShell />}>
@@ -213,7 +226,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
             {/* Opportunities Route Aliases */}
             <Route path="/opportunities"                    element={<Navigate to="/crm/opportunities" replace />} />
-            <Route path="/opportunities/:id"                element={<Navigate to="/crm/opportunities/:id" replace />} />
+            <Route path="/opportunities/:id"                element={<RedirectOpportunityDetail />} />
             <Route path="/opportunities/settings/pipelines" element={<Navigate to="/crm/opportunities/settings/pipelines" replace />} />
             <Route path="/opportunities/settings/fields"    element={<Navigate to="/crm/opportunities/settings/fields" replace />} />
             <Route path="/opportunities/settings/tags"      element={<Navigate to="/crm/opportunities/settings/tags" replace />} />

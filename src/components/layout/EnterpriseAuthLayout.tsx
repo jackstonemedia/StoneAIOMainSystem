@@ -26,8 +26,8 @@ export default function EnterpriseAuthLayout({ children }: { children: React.Rea
         {/* Footer */}
         <div className="text-xs font-medium text-white/40 flex items-center gap-4 animate-fade-up" style={{ animationDelay: '200ms' }}>
           <span>© 2026 Stone AI Platform</span>
-          <a href="#" className="hover:text-white/80 transition-colors">Privacy</a>
-          <a href="#" className="hover:text-white/80 transition-colors">Terms</a>
+          <a href="/privacy" className="hover:text-white/80 transition-colors">Privacy</a>
+          <a href="/terms" className="hover:text-white/80 transition-colors">Terms</a>
         </div>
       </div>
 
