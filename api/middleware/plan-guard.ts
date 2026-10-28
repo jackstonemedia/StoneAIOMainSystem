@@ -5,7 +5,7 @@
 // files apply it to mutating routes (or to non-GET methods).
 import type { Request, Response, NextFunction } from 'express';
 import { db } from '../../infrastructure/database/client.js';
-import { meetsPlan, type CanonicalPlan } from '../services/billing/plans.js';
+import { meetsPlan, normalizePlan, type CanonicalPlan } from '../services/billing/plans.js';
 
 export function requirePlan(required: CanonicalPlan) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -23,7 +23,7 @@ export function requirePlan(required: CanonicalPlan) {
           error: `This feature requires the ${required} plan or higher.`,
           code: 'PLAN_REQUIRED',
           requiredPlan: required,
-          currentPlan: ws?.plan ?? 'free',
+          currentPlan: normalizePlan(ws?.plan),
         });
       }
       return next();

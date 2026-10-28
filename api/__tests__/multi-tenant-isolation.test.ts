@@ -133,8 +133,13 @@ vi.mock('../../infrastructure/database/client.js', () => ({
       }),
     },
     workspace: {
+      // Complete plan so these tests exercise the tenant-scoping layer:
+      // the Billing Core plan gate runs before route handlers, and a
+      // gated plan would 403 before scoping ever runs (which also
+      // blocks the action, but is not what this suite measures).
+      // Plan gating itself is covered by plan-guard tests.
       findUnique: vi.fn().mockImplementation(({ where }) => {
-        return Promise.resolve({ id: where.id, plan: 'pro', ownerId: 'user-admin' });
+        return Promise.resolve({ id: where.id, plan: 'complete', ownerId: 'user-admin' });
       }),
       update: vi.fn().mockResolvedValue({ id: 'ws-tenant-a', plan: 'scale' }),
     },
