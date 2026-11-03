@@ -9,6 +9,7 @@ import { getAIClient, DEFAULT_MODEL } from '../../../packages/ai/client.js';
 import { CRM_TOOLS, buildCleanContents } from '../../routes/ai.routes.js';
 import { executeTool, getActionLabel } from '../../routes/ai-executor.js';
 import { decideGate, getToolDef, verifyWriteReferences, type AgentMode } from './tools.js';
+import { driveToolLoop } from './tool-loop.js';
 import {
   getAgentSettings,
   setAgentSettings,
@@ -91,6 +92,9 @@ export const EMAIL_FORMAT_RULE =
   'Do not give multiple subject options, preview text, markdown headers, dividers, section labels, follow-up variants, ' +
   'or offers to do more in the CRM. Do not invent details the user did not give — leave a [bracketed placeholder] ' +
   'where a fact is genuinely missing. Keep it tight and human, not a marketing template.';
+
+/** Follow-up tool rounds per turn (failure class #1 fix, 2026-11-03). */
+const MAX_FOLLOWUP_ROUNDS = 5;
 
 const SWITCH_CONFIRMATIONS: Record<AgentMode, string> = {
   approve:
@@ -224,66 +228,82 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
     ));
   }
 
+  // One call through the gate matrix, shared by the first pass and every
+  // follow-up round so gate behavior can't drift between rounds. Returns
+  // the functionResponse entry for this call (null for a nameless call).
+  const handleAgentCall = async (call: any): Promise<any> => {
+    if (!call.name) return null;
+    const def = getToolDef(call.name);
+    if (!def) {
+      return { name: call.name, result: { error: `Unknown tool ${call.name}` } };
+    }
+    const args = call.args ?? {};
+    // Ownership first: a foreign reference never reaches the queue or execution.
+    const refErr = await verifyWriteReferences(db, workspaceId, args);
+    if (refErr) {
+      return { name: call.name, result: { error: refErr } };
+    }
+    const decision = decideGate(settings.mode, call.name, granted);
+    if (decision === 'queue') {
+      const label = getActionLabel(call.name, args);
+      const queued = await (db as any).aIAction.create({
+        data: {
+          workspaceId,
+          toolName: call.name,
+          args,
+          label,
+          status: 'pending',
+          chatContext: message,
+        },
+      });
+      emit(
+        `\n> ⏳ **Action queued for your approval:** *${label}*\n> Approve or reject it in the approvals section below, or in the **AI Control Panel** on your Dashboard.\n\n`,
+      );
+      cb.onProposal(queued);
+      queuedTools.push(call.name);
+      return { name: call.name, result: { queued: true, actionId: queued.id, label } };
+    }
+    // No text emit here: the streamed text is rendered verbatim in the
+    // chat panel, so an internal "*Executing: `tool`...*" line shows up
+    // as confusing user-visible chatter (and, in one sample, was the
+    // entire reply). Tool execution + audit below are unchanged. The
+    // old /api/ai/chat route keeps its own marker for the eval harness,
+    // which parses markers from that route only.
+    try {
+      const result = await executeTool(workspaceId, call.name, args, userId);
+      await writeAudit(db, {
+        workspaceId,
+        userId,
+        toolName: call.name,
+        args,
+        result,
+        mode: settings.mode,
+        granted: settings.mode === 'autonomy' && granted.has(call.name),
+      });
+      executedTools.push(call.name);
+      return { name: call.name, result };
+    } catch (err: any) {
+      return { name: call.name, error: err.message };
+    }
+  };
+
+  // Never-empty fallback: if every round came back calls-only, say what
+  // was done/queued instead of ending the turn silent.
+  const fallbackSummary = () => {
+    const parts: string[] = [];
+    if (executedTools.length > 0) parts.push(`I ran: ${executedTools.join(', ')}`);
+    if (queuedTools.length > 0) parts.push(`queued for your approval: ${queuedTools.join(', ')}`);
+    return parts.length > 0
+      ? `${parts.join('. ')}. I couldn't compose a full reply from those results — ask me to summarize them and I'll put it in words.`
+      : `I couldn't produce a reply for that just now — please try again.`;
+  };
+
   const functionCalls = firstRes?.functionCalls;
   if (functionCalls && functionCalls.length > 0) {
     const toolResults: any[] = [];
     for (const call of functionCalls) {
-      if (!call.name) continue;
-      const def = getToolDef(call.name);
-      if (!def) {
-        toolResults.push({ name: call.name, result: { error: `Unknown tool ${call.name}` } });
-        continue;
-      }
-      const args = call.args ?? {};
-      // Ownership first: a foreign reference never reaches the queue or execution.
-      const refErr = await verifyWriteReferences(db, workspaceId, args);
-      if (refErr) {
-        toolResults.push({ name: call.name, result: { error: refErr } });
-        continue;
-      }
-      const decision = decideGate(settings.mode, call.name, granted);
-      if (decision === 'queue') {
-        const label = getActionLabel(call.name, args);
-        const queued = await (db as any).aIAction.create({
-          data: {
-            workspaceId,
-            toolName: call.name,
-            args,
-            label,
-            status: 'pending',
-            chatContext: message,
-          },
-        });
-        emit(
-          `\n> ⏳ **Action queued for your approval:** *${label}*\n> Approve or reject it in the approvals section below, or in the **AI Control Panel** on your Dashboard.\n\n`,
-        );
-        cb.onProposal(queued);
-        queuedTools.push(call.name);
-        toolResults.push({ name: call.name, result: { queued: true, actionId: queued.id, label } });
-      } else {
-        // No text emit here: the streamed text is rendered verbatim in the
-        // chat panel, so an internal "*Executing: `tool`...*" line shows up
-        // as confusing user-visible chatter (and, in one sample, was the
-        // entire reply). Tool execution + audit below are unchanged. The
-        // old /api/ai/chat route keeps its own marker for the eval harness,
-        // which parses markers from that route only.
-        try {
-          const result = await executeTool(workspaceId, call.name, args, userId);
-          await writeAudit(db, {
-            workspaceId,
-            userId,
-            toolName: call.name,
-            args,
-            result,
-            mode: settings.mode,
-            granted: settings.mode === 'autonomy' && granted.has(call.name),
-          });
-          executedTools.push(call.name);
-          toolResults.push({ name: call.name, result });
-        } catch (err: any) {
-          toolResults.push({ name: call.name, error: err.message });
-        }
-      }
+      const entry = await handleAgentCall(call);
+      if (entry) toolResults.push(entry);
     }
 
     const candidateContent = firstRes.candidates?.[0]?.content;
@@ -305,19 +325,44 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
       })),
     });
 
-    const stream = await ai.models.generateContentStream({
-      model: DEFAULT_MODEL,
+    // Multi-round follow-up (failure class #1 fix): the old code streamed
+    // ONE follow-up with no tools and read text only, so a second-hop
+    // function call ended the turn empty. Follow-up rounds now declare the
+    // tools and loop until a text-only round or the cap, with usage
+    // recorded per round as before.
+    await driveToolLoop({
       contents,
-      config: { systemInstruction, temperature: 0.7 },
+      maxRounds: MAX_FOLLOWUP_ROUNDS,
+      generate: async (roundContents, emitRound) => {
+        const stream = await ai.models.generateContentStream({
+          model: DEFAULT_MODEL,
+          contents: roundContents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+            tools: [{ functionDeclarations: CRM_TOOLS as any }],
+          },
+        });
+        let roundText = '';
+        let lastChunk: any = null;
+        const calls: any[] = [];
+        for await (const chunk of stream) {
+          lastChunk = chunk;
+          if (chunk.text) {
+            roundText += chunk.text;
+            emitRound(chunk.text);
+          }
+          const fc = (chunk as any).functionCalls;
+          if (fc && fc.length > 0) calls.push(...fc);
+        }
+        // Phase 5: record this round's stream call (its own prompt + output).
+        await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(roundContents), roundText));
+        return calls;
+      },
+      handleCall: handleAgentCall,
+      emit,
+      onEmpty: fallbackSummary,
     });
-    let streamText = '';
-    let lastChunk: any = null;
-    for await (const chunk of stream) {
-      lastChunk = chunk;
-      if (chunk.text) { streamText += chunk.text; emit(chunk.text); }
-    }
-    // Phase 5: record the follow-up stream call (its own prompt + output).
-    await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(contents), streamText));
   } else {
     const stream = await ai.models.generateContentStream({
       model: DEFAULT_MODEL,
