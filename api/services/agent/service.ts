@@ -68,9 +68,22 @@ export interface TurnResult {
   text: string;
 }
 
+/**
+ * Approve-mode tool rule (narrate-vs-queue fix, 2026-11-03): the scored
+ * eval baseline showed the agent narrating a plan ("Proposed Action",
+ * "I am ready to... please confirm") instead of queueing the tool in
+ * approve mode, so nothing was ever queued. In approve mode the queued
+ * tool IS the approval request — a written plan is not a substitute for
+ * calling the tool. Exported so tests can pin the rule.
+ */
+export const APPROVE_MODE_RULE =
+  'You are in approve mode: when the user asks you to do something that needs a tool, CALL the tool right away so it is queued for approval. ' +
+  'Do not write out a plan instead of calling the tool — a written plan ("Proposed Action", "I am ready to...") is not an approval request and queues nothing. ' +
+  "The queued tool appears in chat as the approval request; say briefly what you queued and wait for the user's approval. " +
+  'Then do exactly what was approved and nothing more. Every mutating or outbound action waits for approval.';
+
 const MODE_LINES: Record<AgentMode, string> = {
-  approve:
-    'You are in approve mode: state your plan in chat, then do exactly what the user approves and nothing more. Every mutating or outbound action waits for approval.',
+  approve: APPROVE_MODE_RULE,
   autonomy:
     'You are in autonomy mode: do your granted things on your own and always say clearly what you are doing on your own versus what is new. A new kind of thing needs approval once before it joins the granted set. Sending email/SMS, publishing, money, deletes, and bulk export ALWAYS need the user\'s exact approval first, even in autonomy mode.',
   'read-only':
