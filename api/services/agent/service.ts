@@ -77,6 +77,21 @@ const MODE_LINES: Record<AgentMode, string> = {
     'You are in read-only mode: you can see everything and draft anything, but you must not change anything on your own. Every change is a proposal that needs the user\'s explicit approval.',
 };
 
+/**
+ * Email output format (clean-output fix, 2026-11-02): the agent used to
+ * answer an email request with a marketing package — several subject
+ * options, preview text, headers, follow-up variants, and CRM upsell
+ * blocks — which read as ugly and confusing in the chat panel. An email
+ * request now gets exactly one email and nothing around it. Exported so
+ * tests can pin the rule.
+ */
+export const EMAIL_FORMAT_RULE =
+  'When the user asks you to write an email, reply with exactly ONE email and nothing else around it: ' +
+  'one Subject line, then the greeting, the body, and the sign-off. ' +
+  'Do not give multiple subject options, preview text, markdown headers, dividers, section labels, follow-up variants, ' +
+  'or offers to do more in the CRM. Do not invent details the user did not give — leave a [bracketed placeholder] ' +
+  'where a fact is genuinely missing. Keep it tight and human, not a marketing template.';
+
 const SWITCH_CONFIRMATIONS: Record<AgentMode, string> = {
   approve:
     'Switched to approve mode. I\'ll tell you what I plan to do in chat and only do exactly what you approve.',
@@ -163,6 +178,7 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
     'You have direct live access to tools to manage contacts, deals, tasks, notes, messages (email/SMS), and email campaigns in the CRM. ' +
     'When the user asks you to view, find, search, create, update, or send anything in the CRM, ALWAYS call your tools to execute the action. ' +
     'Be helpful, dynamic, unique, and action-oriented. Format your responses with markdown, headers, and bulleted lists. ' +
+    EMAIL_FORMAT_RULE +
     MODE_LINES[settings.mode] +
     (memoryBlock ? `\n\n${memoryBlock}` : '');
 
@@ -245,7 +261,12 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
         queuedTools.push(call.name);
         toolResults.push({ name: call.name, result: { queued: true, actionId: queued.id, label } });
       } else {
-        emit(`*Executing: \`${call.name}\`...*\n\n`);
+        // No text emit here: the streamed text is rendered verbatim in the
+        // chat panel, so an internal "*Executing: `tool`...*" line shows up
+        // as confusing user-visible chatter (and, in one sample, was the
+        // entire reply). Tool execution + audit below are unchanged. The
+        // old /api/ai/chat route keeps its own marker for the eval harness,
+        // which parses markers from that route only.
         try {
           const result = await executeTool(workspaceId, call.name, args, userId);
           await writeAudit(db, {
