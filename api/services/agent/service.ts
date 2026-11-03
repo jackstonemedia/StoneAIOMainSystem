@@ -346,8 +346,13 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
         let roundText = '';
         let lastChunk: any = null;
         const calls: any[] = [];
+        // Raw parts, verbatim: thoughtSignature lives on the part, so only
+        // the original parts keep a follow-up request valid (see tool-loop).
+        const modelParts: any[] = [];
         for await (const chunk of stream) {
           lastChunk = chunk;
+          const parts = (chunk as any).candidates?.[0]?.content?.parts;
+          if (parts && parts.length > 0) modelParts.push(...parts);
           if (chunk.text) {
             roundText += chunk.text;
             emitRound(chunk.text);
@@ -357,7 +362,7 @@ export async function runAgentTurn(input: TurnInput, cb: TurnCallbacks): Promise
         }
         // Phase 5: record this round's stream call (its own prompt + output).
         await recordUsage(db, workspaceId, extractUsage(lastChunk, JSON.stringify(roundContents), roundText));
-        return calls;
+        return { calls, modelParts };
       },
       handleCall: handleAgentCall,
       emit,

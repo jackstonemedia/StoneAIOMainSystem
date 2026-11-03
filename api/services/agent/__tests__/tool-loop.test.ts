@@ -7,6 +7,7 @@ import { driveToolLoop } from '../tool-loop.js';
 interface FakeRound {
   text?: string;
   calls?: Array<{ name: string; args?: Record<string, unknown> }>;
+  modelParts?: any[];
 }
 
 function setup(rounds: FakeRound[]) {
@@ -17,7 +18,7 @@ function setup(rounds: FakeRound[]) {
   const generate = async (_c: any[], emit: (t: string) => void) => {
     const round = queue.shift() ?? {};
     if (round.text) emit(round.text);
-    return round.calls ?? [];
+    return { calls: round.calls ?? [], modelParts: round.modelParts };
   };
   const handleCall = async (call: any) => {
     handled.push(call.name);
@@ -106,6 +107,27 @@ describe('driveToolLoop', () => {
     expect(s.handled).toEqual(['search_contacts', 'list_deals']);
     expect(onEmpty).toHaveBeenCalledTimes(1);
     expect(s.emitted).toEqual(['FALLBACK SUMMARY']);
+  });
+
+  it('pushes raw model parts verbatim, preserving part-level thoughtSignature', async () => {
+    const rawParts = [
+      { functionCall: { name: 'search_contacts', args: { query: 'Alex' } }, thoughtSignature: 'sig-abc' },
+    ];
+    const s = setup([
+      { calls: [{ name: 'search_contacts', args: { query: 'Alex' } }], modelParts: rawParts },
+      { text: 'ok' },
+    ]);
+    await driveToolLoop({
+      contents: s.contents,
+      maxRounds: 5,
+      generate: s.generate,
+      handleCall: s.handleCall,
+      emit: (t) => s.emitted.push(t),
+      onEmpty: () => 'FALLBACK',
+    });
+    // Verbatim, NOT reconstructed { functionCall } wrappers (which drop
+    // the part-level thoughtSignature and 400 the next request).
+    expect(s.contents[1]).toEqual({ role: 'model', parts: rawParts });
   });
 
   it('dedupes identical calls within one round and skips nameless calls', async () => {

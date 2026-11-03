@@ -34,11 +34,25 @@ export interface ToolLoopOutcome {
   textEmitted: boolean;
 }
 
+export interface ToolRoundResult {
+  calls: ToolCallLike[];
+  /**
+   * Raw model parts for this round, verbatim from the model. When provided
+   * these are pushed as the model content INSTEAD of reconstructed
+   * { functionCall } wrappers. This matters: thoughtSignature lives on the
+   * PART, not inside functionCall, and Gemini 3 rejects a follow-up request
+   * whose functionCall parts lack it (400 "missing a thought_signature" —
+   * all 70 infra errors in run-20261103-173320). Reconstructed wrappers
+   * drop it; raw parts preserve it.
+   */
+  modelParts?: any[];
+}
+
 export async function driveToolLoop(opts: {
   contents: any[];
   maxRounds: number;
-  /** Streams one round, emitting its text live; returns that round's calls. */
-  generate: (contents: any[], emit: (text: string) => void) => Promise<ToolCallLike[]>;
+  /** Streams one round, emitting its text live; returns calls + raw parts. */
+  generate: (contents: any[], emit: (text: string) => void) => Promise<ToolRoundResult>;
   /** Runs one call through the caller's gate/execute/queue path. */
   handleCall: (call: ToolCallLike) => Promise<ToolResultLike>;
   emit: (text: string) => void;
@@ -53,12 +67,12 @@ export async function driveToolLoop(opts: {
   };
 
   while (rounds < opts.maxRounds) {
-    const rawCalls = await opts.generate(opts.contents, emitTracked);
+    const round = await opts.generate(opts.contents, emitTracked);
     rounds++;
     // Nameless calls are skipped (as in the first pass); identical calls
     // within one round are deduped so a repeated chunk can't double-run.
     const seen = new Set<string>();
-    const calls = rawCalls.filter((c) => {
+    const calls = round.calls.filter((c) => {
       if (!c?.name) return false;
       const key = JSON.stringify({ name: c.name, args: c.args ?? {} });
       if (seen.has(key)) return false;
@@ -70,9 +84,13 @@ export async function driveToolLoop(opts: {
     for (const call of calls) {
       results.push(await opts.handleCall(call));
     }
+    // Raw parts when the caller collected them (preserves thoughtSignature);
+    // reconstructed wrappers only as a fallback for callers that don't.
     opts.contents.push({
       role: 'model',
-      parts: calls.map((call) => ({ functionCall: call })),
+      parts: round.modelParts && round.modelParts.length > 0
+        ? round.modelParts
+        : calls.map((call) => ({ functionCall: call })),
     });
     opts.contents.push({
       role: 'user',
