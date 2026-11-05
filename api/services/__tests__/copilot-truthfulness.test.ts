@@ -27,8 +27,13 @@ vi.mock('../../../infrastructure/database/client.js', () => {
   };
 });
 
-// Mock the AI client so getAIClient throws the real key-missing error
-vi.mock('../../packages/ai/client.js', () => {
+// Mock the AI client so getAIClient throws the real key-missing error.
+// NOTE (2026-11-03): this used to mock '../../packages/ai/client.js',
+// which resolves to the nonexistent api/packages/... — so the mock never
+// intercepted the real client and the tests only passed when no key was
+// present. The copilot modules import the repo-root client, so the mock
+// must use the repo-root specifier to actually apply regardless of .env.
+vi.mock('../../../packages/ai/client.js', () => {
   return {
     getAIClient: () => {
       throw new Error('GOOGLE_AI_API_KEY is not configured in environment variables.');

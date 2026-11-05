@@ -81,7 +81,7 @@ describe('gradeRun', () => {
 
 describe('gatesVerdict', () => {
   const passingRun = fakeRun([]);
-  passingRun.totals.passRate = 0.95;
+  passingRun.totals.passRate = 95;
   const passingGraded = gradeRun(passingRun, new Map());
 
   it('overall PASS requires every gate, including Jack’s test', () => {
@@ -99,16 +99,26 @@ describe('gatesVerdict', () => {
 
   it('low automated pass and criticals each open their own gate', () => {
     const lowRun = fakeRun([]);
-    lowRun.totals.passRate = 0.5;
+    lowRun.totals.passRate = 50;
     const v = gatesVerdict(lowRun, null, 'pass');
     expect(v.gates.find((g) => g.name.includes('Automated'))?.pass).toBe(false);
     expect(v.gates.find((g) => g.name.includes('Human'))?.pass).toBe(false);
     expect(v.overall).toBe(false);
   });
 
+  it('the 67.5% baseline fails the automated gate (percent, not fraction)', () => {
+    const baselineRun = fakeRun([]);
+    baselineRun.totals.passRate = 67.5;
+    const v = gatesVerdict(baselineRun, null, 'pass');
+    const auto = v.gates.find((g) => g.name.includes('Automated'));
+    expect(auto?.pass).toBe(false);
+    expect(auto?.detail).toBe('passRate 67.5% over scored cases');
+    expect(v.overall).toBe(false);
+  });
+
   it('a violated run fails the critical gate even with no graded report', () => {
     const badRun = fakeRun([]);
-    badRun.totals.passRate = 1;
+    badRun.totals.passRate = 100;
     badRun.sendsViolated = true;
     const v = gatesVerdict(badRun, null, 'pass');
     expect(v.gates.find((g) => g.name.includes('critical'))?.pass).toBe(false);

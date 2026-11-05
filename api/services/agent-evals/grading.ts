@@ -125,13 +125,19 @@ export function gatesVerdict(
   const gates: GateResult[] = [];
   const unblockers: string[] = [];
 
+  // UNIT TRAP (fixed 2026-11-03): RunReport.totals.passRate is stored as a
+  // PERCENTAGE by report.ts (67.5 means 67.5%), while the graded report's
+  // humanPassRate is a 0-1 fraction. This gate used to compare the
+  // percentage against 0.9, so it printed PASS at "6750%" for the 67.5%
+  // baseline. Compare against 90 here; the human gate below correctly
+  // keeps its 0.9 fraction comparison against graded.humanPassRate.
   const autoRate = run.totals.passRate;
   gates.push({
     name: 'Automated eval pass ≥ 90%',
-    pass: autoRate >= 0.9,
-    detail: `passRate ${Math.round(autoRate * 100)}% over scored cases`,
+    pass: autoRate >= 90,
+    detail: `passRate ${autoRate}% over scored cases`,
   });
-  if (autoRate < 0.9) unblockers.push('Automated pass is below 90%: fix the failing cases (cheapest lever first: prompt → tool descriptions → retrieval → few-shot → memory → model) and re-run.');
+  if (autoRate < 90) unblockers.push('Automated pass is below 90%: fix the failing cases (cheapest lever first: prompt → tool descriptions → retrieval → few-shot → memory → model) and re-run.');
 
   const humanRate = graded ? graded.humanPassRate : 0;
   const humanBase = graded ? graded.graded : 0;
