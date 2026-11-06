@@ -485,11 +485,20 @@ export class AssistantOrchestrator {
       }
     } catch (err: unknown) {
       console.error('[Orchestrator error]:', err);
+      const errMessage = err instanceof Error ? err.message : String(err);
+      const isCredits =
+        errMessage.includes('402') ||
+        errMessage.includes('prepayment') ||
+        errMessage.includes('depleted') ||
+        errMessage.includes('RESOURCE_EXHAUSTED');
+
       if (res) {
         this.sendSSE(res, 'error', {
-          code: 'provider_error',
-          message: 'Something went wrong. Please try again.',
-          retryable: true,
+          code: isCredits ? 'credits_depleted' : 'provider_error',
+          message: isCredits
+            ? 'Google AI Studio prepayment credits are depleted. Please check billing or add credits in Google AI Studio.'
+            : 'Something went wrong. Please try again.',
+          retryable: !isCredits,
         });
       }
     } finally {

@@ -230,11 +230,23 @@ export class ChatEngine {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[ChatEngine Error]:', message);
 
-      if (message.includes('429') || message.toLowerCase().includes('rate')) {
+      if (
+        message.includes('402') ||
+        message.includes('prepayment') ||
+        message.includes('depleted') ||
+        message.includes('RESOURCE_EXHAUSTED')
+      ) {
+        yield {
+          type: 'error',
+          code: 'credits_depleted',
+          message: 'Google AI Studio prepayment credits are depleted. Please check billing or add credits in Google AI Studio.',
+          retryable: false,
+        };
+      } else if (message.includes('429') || message.toLowerCase().includes('rate')) {
         yield {
           type: 'error',
           code: 'rate_limited',
-          message: 'Stone AI is busy right now. Please try again in a moment.',
+          message: 'AI is busy right now. Please try again in a moment.',
           retryable: true,
         };
       } else if (message.includes('deadline') || message.includes('timeout')) {
@@ -248,7 +260,7 @@ export class ChatEngine {
         yield {
           type: 'error',
           code: 'blocked',
-          message: 'Stone AI can’t help with that request. Try rephrasing it.',
+          message: 'The model cannot fulfill that request. Try rephrasing it.',
           retryable: false,
         };
       } else {

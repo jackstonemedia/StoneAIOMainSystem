@@ -47,7 +47,6 @@ export function AssistantSidebar({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
-  const [showAllChats, setShowAllChats] = useState(false);
   const modeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,48 +111,26 @@ export function AssistantSidebar({
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const sevenDaysStart = todayStart - 7 * 86400000;
 
-  // Split unpinned into Today, Previous 7 days, and Older
-  const allToday: AssistantConversation[] = [];
-  const allPrevious7Days: AssistantConversation[] = [];
-  const allOlder: AssistantConversation[] = [];
+  // Split unpinned into Today, Previous 7 days, and Older (flowing naturally with scroll)
+  const groups: Record<string, AssistantConversation[]> = {
+    Today: [],
+    'Previous 7 days': [],
+  };
+  const olderList: AssistantConversation[] = [];
 
   for (const convo of unpinnedList) {
     const time = new Date(convo.updatedAt).getTime();
     if (time >= todayStart) {
-      allToday.push(convo);
+      groups.Today.push(convo);
     } else if (time >= sevenDaysStart) {
-      allPrevious7Days.push(convo);
+      groups['Previous 7 days'].push(convo);
     } else {
-      allOlder.push(convo);
+      olderList.push(convo);
     }
   }
 
-  // Check if active conversation is in older chats; if so, expand automatically
-  const isActiveInOlder = activeConversationId
-    ? allOlder.some((c) => c.id === activeConversationId)
-    : false;
-  const isExpanded = showAllChats || isActiveInOlder || searchQuery.trim().length > 0;
-
-  // Limit default view to 18 conversations (between 15 and 20) across Today & Previous 7 days
-  const MAX_DEFAULT_RECENT = 18;
-  const visibleToday = isExpanded ? allToday : allToday.slice(0, MAX_DEFAULT_RECENT);
-  const remainingSlots = Math.max(0, MAX_DEFAULT_RECENT - visibleToday.length);
-  const visiblePrevious7Days = isExpanded ? allPrevious7Days : allPrevious7Days.slice(0, remainingSlots);
-
-  // Hidden chats count that aren't visible in the default view
-  const hiddenCount = isExpanded
-    ? 0
-    : (allToday.length - visibleToday.length) +
-      (allPrevious7Days.length - visiblePrevious7Days.length) +
-      allOlder.length;
-
-  const groups: Record<string, AssistantConversation[]> = {
-    Today: visibleToday,
-    'Previous 7 days': visiblePrevious7Days,
-  };
-
-  if (isExpanded && allOlder.length > 0) {
-    groups.Older = allOlder;
+  if (olderList.length > 0) {
+    groups.Older = olderList;
   }
 
   return (
@@ -283,39 +260,14 @@ export function AssistantSidebar({
           );
         })}
 
-        {hiddenCount > 0 && (
-          <div className="pt-2 pb-1 px-1">
+        {hasMore && (
+          <div className="pt-2 text-center">
             <button
               type="button"
-              onClick={() => {
-                setShowAllChats(true);
-                if (hasMore && onLoadMore) onLoadMore();
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11.5px] font-medium text-[#8A909A] hover:text-white hover:bg-[#232323] transition-colors border border-[#2C2C2C]"
+              onClick={onLoadMore}
+              className="text-xs text-primary hover:underline px-2 py-1 font-medium"
             >
-              <Archive className="w-3.5 h-3.5 opacity-70" />
-              <span>View all ({hiddenCount} older)</span>
-            </button>
-          </div>
-        )}
-
-        {isExpanded && !searchQuery && (allOlder.length > 0 || unpinnedList.length > MAX_DEFAULT_RECENT) && (
-          <div className="pt-2 pb-1 px-1 flex flex-col items-center gap-1">
-            {hasMore && (
-              <button
-                type="button"
-                onClick={onLoadMore}
-                className="text-xs text-primary hover:underline px-2 py-1 font-medium"
-              >
-                Load more
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowAllChats(false)}
-              className="text-[11px] text-[#8A909A] hover:text-white hover:underline px-2 py-1 cursor-pointer"
-            >
-              Show fewer
+              Load more
             </button>
           </div>
         )}

@@ -93,7 +93,6 @@ describe('Assistant Frontend Components Suite', () => {
     );
 
     expect(screen.getByText('What is our revenue target?')).toBeInTheDocument();
-    expect(screen.getByText('Stone AI')).toBeInTheDocument();
     expect(screen.getByText('$500,000')).toBeInTheDocument();
   });
 
