@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu,
-  Clock, Share2,
-  BarChart2, Mail, Users, FileText
+  Clock, Share2, Upload, PanelRight, ChevronDown
 } from 'lucide-react';
 import { AssistantSidebar } from '../../components/assistant/AssistantSidebar';
 import { AssistantThread } from '../../components/assistant/AssistantThread';
@@ -21,33 +20,6 @@ import {
   type AssistantSettings,
 } from '../../lib/api/assistant';
 import { FEATURES } from '../../config/features';
-
-const PROMPT_SUGGESTIONS = [
-  {
-    icon: BarChart2,
-    title: 'Pipeline Deal Summary',
-    description: 'Summarize active opportunities closing this quarter and list next steps.',
-    prompt: 'Summarize our active pipeline deals closing this quarter and highlight the highest-priority action items.',
-  },
-  {
-    icon: Mail,
-    title: 'Draft Client Check-In',
-    description: 'Compose a personalized, professional email to an engaged lead.',
-    prompt: 'Draft a personalized follow-up email to a warm lead checking in on their project status.',
-  },
-  {
-    icon: Users,
-    title: 'Find Uncontacted Leads',
-    description: 'Scan new contacts with no outreach logged in the last 7 days.',
-    prompt: 'Show me any contacts created recently that haven’t been reached out to in the past 7 days.',
-  },
-  {
-    icon: FileText,
-    title: 'Weekly Performance Audit',
-    description: 'Review closed deals, pending approvals, and scheduled automations.',
-    prompt: 'Generate an executive summary of this week’s closed deals, open tasks, and system activity.',
-  },
-];
 
 export default function AssistantPage() {
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -602,10 +574,10 @@ export default function AssistantPage() {
   }
 
   return (
-    <div className="flex h-full w-full text-sm font-sans relative z-0 bg-bg overflow-hidden">
+    <div className="flex h-full w-full text-sm font-sans relative z-0 bg-[#1E1E1E] text-[#ECECEC] overflow-hidden">
       {/* Toast */}
       {copyToast && (
-        <div className="fixed top-4 right-4 z-50 px-3.5 py-2 rounded-xl bg-surface-hover/90 backdrop-blur-md border border-border/60 text-xs font-semibold text-text-main shadow-luxury animate-in fade-in slide-in-from-top-2 flex items-center gap-2">
+        <div className="fixed top-4 right-4 z-50 px-3.5 py-2 rounded-xl bg-[#242830] border border-[#343944] text-xs font-semibold text-white shadow-luxury animate-in fade-in slide-in-from-top-2 flex items-center gap-2">
           <span>Chat link copied to clipboard</span>
         </div>
       )}
@@ -617,7 +589,7 @@ export default function AssistantPage() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <div className="relative w-[240px] h-full bg-[#121622] border-r border-border/60 z-10 animate-in slide-in-from-left">
+          <div className="relative w-[240px] h-full bg-[#16191D] border-r border-[#242830] z-10 animate-in slide-in-from-left">
             <AssistantSidebar
               conversations={conversations}
               activeConversationId={conversationId}
@@ -628,14 +600,16 @@ export default function AssistantPage() {
               onDeleteChat={handleDeleteChat}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
+              mode={mode}
+              onModeChange={setMode}
             />
           </div>
         </div>
       )}
 
-      {/* ── Main Full-Bleed Split View ── */}
+      {/* ── Main Full-Bleed Split View: Sidebar on Left, Chat Canvas on Right ── */}
       <div className="flex-1 flex overflow-hidden w-full relative z-10">
-        {/* Left Master Sidebar on Desktop */}
+        {/* Left Desktop Sidebar */}
         <div className="hidden lg:flex h-full shrink-0">
           <AssistantSidebar
             conversations={conversations}
@@ -647,58 +621,46 @@ export default function AssistantPage() {
             onDeleteChat={handleDeleteChat}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
+            mode={mode}
+            onModeChange={setMode}
           />
         </div>
 
         {/* Right Detail Chat Thread & Composer Canvas */}
-        <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0B0F17] overflow-hidden relative">
-          {/* Subtle floating controls in top right (borderless, no heavy top bar) */}
-          <div className="absolute top-3 right-4 z-20 flex items-center gap-2">
-            {/* Mobile menu trigger */}
-            <button
-              type="button"
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open conversation menu"
-              className="lg:hidden p-1.5 rounded-lg bg-surface/80 border border-border/50 text-text-muted hover:text-text-main shadow-xs cursor-pointer"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
+        <div className="flex-1 flex flex-col h-full min-w-0 bg-[#1E1E1E] overflow-hidden relative">
+          {/* Top Bar matching Claude */}
+          <div className="h-12 px-5 flex items-center justify-between shrink-0 z-20 select-none border-b border-transparent">
+            {/* Left: Mobile trigger & Conversation Title Dropdown */}
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                aria-label="Open conversation menu"
+                className="lg:hidden p-1.5 rounded-lg text-[#8E8E8D] hover:text-white hover:bg-[#2A2A2B] transition-colors"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
 
-            {/* Access Mode indicator pill */}
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface/60 border border-border/40 text-[11px] font-medium text-text-muted backdrop-blur-sm">
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  mode === 'full'
-                    ? 'bg-amber-400'
-                    : mode === 'draft'
-                    ? 'bg-blue-400'
-                    : 'bg-emerald-400'
-                }`}
-              />
-              <span className="capitalize">
-                {mode === 'full' ? 'Autonomous' : mode === 'draft' ? 'Ask first' : 'Read-only'}
-              </span>
+              {currentConversation && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-[#2A2A2B] text-[13.5px] font-medium text-[#ECECEC] transition-colors max-w-[280px] md:max-w-[460px] truncate cursor-pointer">
+                  <span className="truncate">{currentConversation.title || 'Greeting'}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-[#8E8E8D] shrink-0" />
+                </div>
+              )}
             </div>
 
-            {/* Activity & Approvals Button */}
-            <button
-              type="button"
-              onClick={() => setActivityModalOpen(true)}
-              aria-label="Activity and approvals"
-              title="Approvals & Activity Audit"
-              className="px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/40 bg-surface/60 hover:bg-surface-hover/80 text-text-muted hover:text-text-main backdrop-blur-sm transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Activity</span>
-              {pendingApprovalsCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">
-                  {pendingApprovalsCount}
-                </span>
-              )}
-            </button>
+            {/* Right: Panel toggle & Share Button */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActivityModalOpen(true)}
+                aria-label="Activity & Artifacts"
+                title="Activity & Approvals"
+                className="p-1.5 rounded-lg text-[#8E8E8D] hover:text-white hover:bg-[#2A2A2B] transition-colors cursor-pointer"
+              >
+                <PanelRight className="w-4 h-4" />
+              </button>
 
-            {/* Share Button (only if active conversation) */}
-            {currentConversation && (
               <button
                 type="button"
                 onClick={() => {
@@ -707,28 +669,26 @@ export default function AssistantPage() {
                   setTimeout(() => setCopyToast(false), 2000);
                 }}
                 aria-label="Share chat link"
-                title="Copy link to chat"
-                className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-text-muted hover:text-text-main bg-surface/60 hover:bg-surface-hover/80 backdrop-blur-sm transition-colors flex items-center gap-1.5 border border-border/40 cursor-pointer shadow-xs"
+                title="Share chat"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#3A3A3A] bg-[#222222] hover:bg-[#2A2A2A] text-xs font-medium text-[#ECECEC] transition-colors shadow-xs cursor-pointer"
               >
-                <Share2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Share</span>
+                <Upload className="w-3.5 h-3.5" />
+                <span>Share</span>
               </button>
-            )}
+            </div>
           </div>
 
           {/* Thread messages or Centered Empty State */}
           {isThreadEmpty ? (
-            <div className="flex-1 overflow-y-auto px-6 py-12 flex flex-col items-center justify-center select-none animate-in fade-in custom-scrollbar">
-              <div className="max-w-2xl w-full flex flex-col items-center">
-                <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2 text-center">
-                  How can Stone AI assist your business today?
-                </h2>
-                <p className="text-xs md:text-sm text-text-muted text-center max-w-md mb-8 leading-relaxed">
-                  Draft client follow-ups, summarize pipeline deals, audit approvals, or search CRM records.
-                </p>
+            <div className="flex-1 overflow-y-auto px-4 py-12 flex flex-col items-center justify-center select-none animate-in fade-in custom-scrollbar">
+              <div className="max-w-2xl md:max-w-3xl w-full flex flex-col items-center">
+                {/* Clean Claude serif heading */}
+                <h1 className="font-serif text-3xl md:text-4xl text-[#F0EEE6] font-normal tracking-tight mb-7 text-center select-none">
+                  What are we working on today?
+                </h1>
 
-                {/* Centered Thicker Message Composer */}
-                <div className="w-full mb-7 text-left">
+                {/* Centered Composer */}
+                <div className="w-full text-left">
                   <AssistantComposer
                     input={input}
                     setInput={setInput}
@@ -746,33 +706,6 @@ export default function AssistantPage() {
                     }}
                     isCenteredEmptyState={true}
                   />
-                </div>
-
-                {/* 4 Clean Quick Prompts */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
-                  {PROMPT_SUGGESTIONS.map((item, idx) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSend(item.prompt)}
-                        className="p-3 rounded-xl bg-surface/40 hover:bg-surface/80 border border-white/[0.06] hover:border-primary/40 transition-all text-left group cursor-pointer shadow-xs flex items-center gap-3"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-surface flex items-center justify-center text-primary group-hover:text-primary-hover border border-border/30 shrink-0">
-                          <Icon className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[12px] font-semibold text-text-main group-hover:text-white transition-colors truncate">
-                            {item.title}
-                          </div>
-                          <div className="text-[10.5px] text-text-muted leading-tight truncate">
-                            {item.description}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             </div>
@@ -805,7 +738,7 @@ export default function AssistantPage() {
                 isTemporary={isTemporary}
               />
 
-              {/* Composer at Bottom during active conversation */}
+              {/* Bottom Pinned Composer */}
               <AssistantComposer
                 input={input}
                 setInput={setInput}

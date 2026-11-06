@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Copy, Check, RotateCw, ThumbsUp, ThumbsDown,
+  Copy, Check, RotateCcw, ThumbsUp, ThumbsDown,
   Edit2, ArrowDown, AlertTriangle, ShieldAlert, Volume2, VolumeX
 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -173,7 +173,7 @@ export function AssistantThread({
                     </div>
                   ) : (
                     <>
-                      <div className="px-4 py-3 rounded-2xl rounded-tr-sm bg-[#22252c] text-white text-[14px] leading-relaxed shadow-sm border border-border/60 space-y-2">
+                      <div className="px-4 py-2.5 rounded-2xl bg-[#2D2D2E] text-[#ECECEC] text-[14.5px] leading-relaxed shadow-sm space-y-2">
                         {Array.isArray(m.parts) &&
                           m.parts.map((p, idx) =>
                             p.type === 'image' && p.data ? (
@@ -264,7 +264,7 @@ export function AssistantThread({
                     aria-label="Regenerate reply"
                     className="p-1.5 rounded-lg hover:bg-surface-hover hover:text-text-main transition-colors"
                   >
-                    <RotateCw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-3.5 h-3.5" />
                   </button>
                 )}
 
@@ -397,7 +397,7 @@ export function AssistantThread({
           type="button"
           onClick={scrollToBottom}
           aria-label="Jump to latest"
-          className="fixed bottom-28 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#262626] border border-border/60 shadow-lg flex items-center justify-center text-text-muted hover:text-text-main hover:bg-[#333333] transition-all z-20 cursor-pointer"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-[#2A2A2B] border border-[#3E3E3E] shadow-lg flex items-center justify-center text-[#8E8E8E] hover:text-white hover:bg-[#343435] transition-all z-20 cursor-pointer"
         >
           <ArrowDown className="w-4 h-4" />
         </button>

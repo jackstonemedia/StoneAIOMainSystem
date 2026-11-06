@@ -21,11 +21,24 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [upgradeExpanded, setUpgradeExpanded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isAssistant = location.pathname.startsWith('/assistant');
+  const [collapsed, setCollapsed] = useState(() => isAssistant);
+  const prevIsAssistantRef = useRef(isAssistant);
+  const userCollapsedOutsideAssistantRef = useRef(false);
+
+  useEffect(() => {
+    if (isAssistant && !prevIsAssistantRef.current) {
+      setCollapsed(true);
+    } else if (!isAssistant && prevIsAssistantRef.current) {
+      setCollapsed(userCollapsedOutsideAssistantRef.current);
+    }
+    prevIsAssistantRef.current = isAssistant;
+  }, [isAssistant]);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [upgradeExpanded, setUpgradeExpanded] = useState(false);
   const [searchParams] = useSearchParams();
   
   const queryClient = useQueryClient();
@@ -80,7 +93,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         ...(FEATURES.assistant ? [{
           name: 'AI Assistant',
           path: '/assistant',
-          icon: Sparkles,
+          icon: Bot,
         }] : []),
         ...(FEATURES.ads ? [{ 
           name: 'Ad Manager',   
@@ -313,7 +326,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             </div>
           )}
           <button
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => { const next = !collapsed; setCollapsed(next); if (!isAssistant) { userCollapsedOutsideAssistantRef.current = next; } }}
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-[var(--sidebar-active)] shrink-0"
             style={{ color: 'var(--sidebar-text-muted)' }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
