@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import {
-  ArrowUp, Square, ChevronDown, Sparkles, Brain, Plus,
+  ArrowUp, Square, ChevronDown, Brain, Plus,
   Mic, MicOff, X, FileText, Image as ImageIcon
 } from 'lucide-react';
 
@@ -216,8 +216,8 @@ export function AssistantComposer({
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`relative rounded-3xl border bg-[#242424] shadow-sm transition-all px-3 py-2 ${
-          isDragging ? 'border-primary ring-2 ring-primary/30' : 'border-border/50 focus-within:border-border/80'
+        className={`relative rounded-2xl border bg-[#181a22]/95 backdrop-blur-md shadow-luxury transition-all px-3.5 py-2.5 ${
+          isDragging ? 'border-primary ring-2 ring-primary/30' : 'border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20'
         }`}
       >
         {/* Hidden File Picker */}

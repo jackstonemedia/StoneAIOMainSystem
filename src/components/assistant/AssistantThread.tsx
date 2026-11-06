@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles, Copy, Check, RotateCw, ThumbsUp, ThumbsDown,
+  Copy, Check, RotateCw, ThumbsUp, ThumbsDown,
   Edit2, ArrowDown, AlertTriangle, ShieldAlert, Volume2, VolumeX
 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -173,7 +173,7 @@ export function AssistantThread({
                     </div>
                   ) : (
                     <>
-                      <div className="px-4 py-2.5 rounded-2xl bg-[#2a2a2a] text-[#ececec] text-[14.5px] leading-relaxed shadow-xs border border-white/5 space-y-2">
+                      <div className="px-4 py-3 rounded-2xl rounded-tr-sm bg-[#22252c] text-white text-[14px] leading-relaxed shadow-sm border border-border/60 space-y-2">
                         {Array.isArray(m.parts) &&
                           m.parts.map((p, idx) =>
                             p.type === 'image' && p.data ? (
@@ -219,19 +219,23 @@ export function AssistantThread({
           const isStopped = m.status === 'stopped';
 
           return (
-            <div key={m.id} className="w-full space-y-2 group">
+            <div key={m.id} className="w-full space-y-1.5 group">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                <span className="text-[12px] font-semibold text-white/90">Stone AI</span>
+              </div>
               {isStopped && (
                 <span className="text-[11px] font-normal text-text-muted px-1.5 py-0.5 rounded bg-surface-hover border border-border/40 inline-block mb-1">
                   Stopped
                 </span>
               )}
 
-              <div className="text-text-main text-[14.5px] leading-relaxed">
+              <div className="text-text-main text-[14px] leading-relaxed pl-7">
                 <MarkdownRenderer content={text} />
               </div>
 
               {/* Assistant Actions Row */}
-              <div className="flex items-center gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-text-muted">
+              <div className="flex items-center gap-1 pt-1 pl-7 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-text-muted">
                 <button
                   type="button"
                   onClick={() => handleCopy(m.id, text)}
@@ -332,14 +336,18 @@ export function AssistantThread({
 
         {/* Live Streaming Message */}
         {isStreaming && (
-          <div className="w-full space-y-2 animate-in fade-in">
+          <div className="w-full space-y-1.5 animate-in fade-in">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                <span className="text-[12px] font-semibold text-text-main">Stone AI</span>
+              </div>
             {streamingText ? (
-              <div className="text-text-main text-[14.5px] leading-relaxed" aria-live="polite">
+              <div className="text-text-main text-[14px] leading-relaxed pl-7" aria-live="polite">
                 <MarkdownRenderer content={streamingText} />
                 <span className="inline-block w-1.5 h-4 ml-1 bg-text-muted/60 animate-pulse align-middle" />
               </div>
             ) : (
-              <div className="text-xs text-text-muted/70 italic flex items-center gap-2">
+              <div className="text-xs text-text-muted/70 italic flex items-center gap-2 pl-7">
                 <span className="w-1.5 h-1.5 rounded-full bg-text-muted/60 animate-ping" />
                 <span>Thinking...</span>
               </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Menu, Sparkles, ShieldAlert,
-  MoreHorizontal, Edit3, Pin, Trash2, Clock, ChevronDown, Share2
+  Menu, ShieldAlert,
+  MoreHorizontal, Edit3, Pin, Trash2, Clock, ChevronDown, Share2,
+  BarChart2, Mail, Users, FileText, ArrowRight
 } from 'lucide-react';
 import { AssistantSidebar } from '../../components/assistant/AssistantSidebar';
 import { AssistantThread } from '../../components/assistant/AssistantThread';
@@ -20,6 +21,33 @@ import {
   type AssistantSettings,
 } from '../../lib/api/assistant';
 import { FEATURES } from '../../config/features';
+
+const PROMPT_SUGGESTIONS = [
+  {
+    icon: BarChart2,
+    title: 'Pipeline Deal Summary',
+    description: 'Summarize active opportunities closing this quarter and list next steps.',
+    prompt: 'Summarize our active pipeline deals closing this quarter and highlight the highest-priority action items.',
+  },
+  {
+    icon: Mail,
+    title: 'Draft Client Check-In',
+    description: 'Compose a personalized, professional email to an engaged lead.',
+    prompt: 'Draft a personalized follow-up email to a warm lead checking in on their project status.',
+  },
+  {
+    icon: Users,
+    title: 'Find Uncontacted Leads',
+    description: 'Scan new contacts with no outreach logged in the last 7 days.',
+    prompt: 'Show me any contacts created recently that haven’t been reached out to in the past 7 days.',
+  },
+  {
+    icon: FileText,
+    title: 'Weekly Performance Audit',
+    description: 'Review closed deals, pending approvals, and scheduled automations.',
+    prompt: 'Generate an executive summary of this week’s closed deals, open tasks, and system activity.',
+  },
+];
 
 export default function AssistantPage() {
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -589,21 +617,22 @@ export default function AssistantPage() {
   }
 
   return (
-    <div className="flex h-full w-full bg-bg overflow-hidden relative">
+    <div className="flex h-full w-full text-sm font-sans relative z-0 bg-bg overflow-hidden">
       {/* Toast */}
       {copyToast && (
-        <div className="fixed top-4 right-4 z-50 px-3 py-1.5 rounded-lg bg-surface-hover border border-border/60 text-xs font-medium text-text-main shadow-md animate-in fade-in slide-in-from-top-2">
-          Chat link copied to clipboard
+        <div className="fixed top-4 right-4 z-50 px-3.5 py-2 rounded-xl bg-surface-hover/90 backdrop-blur-md border border-border/60 text-xs font-semibold text-text-main shadow-luxury animate-in fade-in slide-in-from-top-2 flex items-center gap-2">
+          <span>Chat link copied to clipboard</span>
         </div>
       )}
+
       {/* Mobile Slide-over Drawer (< 1024px) */}
       {mobileSidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <div
-            className="fixed inset-0 bg-black/50 animate-in fade-in"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <div className="relative w-[280px] h-full bg-bg z-10 ml-auto animate-in slide-in-from-right">
+          <div className="relative w-[240px] h-full bg-surface border-r border-border/60 z-10 animate-in slide-in-from-left">
             <AssistantSidebar
               conversations={conversations}
               activeConversationId={conversationId}
@@ -619,51 +648,71 @@ export default function AssistantPage() {
         </div>
       )}
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-bg">
-        {/* Top Header Bar */}
-        <header className="h-14 border-b border-border/50 px-4 flex items-center justify-between shrink-0 bg-bg/80 backdrop-blur-sm z-10">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Conversation Title / Rename */}
-            {isRenamingHeader ? (
-              <input
-                type="text"
-                maxLength={120}
-                value={headerTitleInput}
-                onChange={(e) => setHeaderTitleInput(e.target.value)}
-                onBlur={handleSaveHeaderRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveHeaderRename();
-                  if (e.key === 'Escape') setIsRenamingHeader(false);
-                }}
-                autoFocus
-                className="px-2 py-0.5 rounded text-sm font-semibold bg-bg-card border border-primary text-text-main outline-none"
+      {/* ── Main Full-Bleed Split View ── */}
+      <div className="flex-1 flex overflow-hidden w-full relative z-10">
+        {/* Left Master Sidebar on Desktop */}
+        <div className="hidden lg:flex h-full shrink-0">
+          <AssistantSidebar
+            conversations={conversations}
+            activeConversationId={conversationId}
+            streamingConversationId={streamingConvoId}
+            onNewChat={handleNewChat}
+            onRenameChat={handleRenameChat}
+            onTogglePin={handleTogglePin}
+            onDeleteChat={handleDeleteChat}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        </div>
+
+        {/* Right Detail Chat Thread & Composer Canvas */}
+        <div className="flex-1 flex flex-col h-full min-w-0 bg-bg overflow-hidden relative">
+          {/* Subtle floating controls in top right (borderless, no heavy top bar) */}
+          <div className="absolute top-3 right-4 z-20 flex items-center gap-2">
+            {/* Mobile menu trigger */}
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open conversation menu"
+              className="lg:hidden p-1.5 rounded-lg bg-surface/80 border border-border/50 text-text-muted hover:text-text-main shadow-xs"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+
+            {/* Access Mode indicator pill */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface/60 border border-border/40 text-[11px] font-medium text-text-muted backdrop-blur-sm">
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  mode === 'full'
+                    ? 'bg-amber-400'
+                    : mode === 'draft'
+                    ? 'bg-blue-400'
+                    : 'bg-emerald-400'
+                }`}
               />
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentConversation) setIsRenamingHeader(true);
-                }}
-                className="text-sm font-semibold text-text-main truncate hover:text-text-muted transition-colors text-left flex items-center gap-1.5 group"
-                title="Click to rename"
-              >
-                <span>{currentConversation?.title || (isTemporary ? 'Temporary Chat' : 'Stone AI')}</span>
-                {currentConversation && (
-                  <ChevronDown className="w-3.5 h-3.5 text-text-muted/60 group-hover:text-text-main shrink-0" />
-                )}
-              </button>
-            )}
-
-            {isTemporary && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                Temporary
+              <span className="capitalize">
+                {mode === 'full' ? 'Autonomous' : mode === 'draft' ? 'Ask first' : 'Read-only'}
               </span>
-            )}
-          </div>
+            </div>
 
-          <div className="flex items-center gap-1.5">
-            {/* Share Button (from Claude layout) */}
+            {/* Activity & Approvals Button */}
+            <button
+              type="button"
+              onClick={() => setActivityModalOpen(true)}
+              aria-label="Activity and approvals"
+              title="Approvals & Activity Audit"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-medium border border-border/40 bg-surface/60 hover:bg-surface-hover/80 text-text-muted hover:text-text-main backdrop-blur-sm transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Activity</span>
+              {pendingApprovalsCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center">
+                  {pendingApprovalsCount}
+                </span>
+              )}
+            </button>
+
+            {/* Share Button */}
             {currentConversation && (
               <button
                 type="button"
@@ -674,181 +723,119 @@ export default function AssistantPage() {
                 }}
                 aria-label="Share chat link"
                 title="Copy link to chat"
-                className="py-1 px-2.5 rounded-lg text-xs font-medium text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors flex items-center gap-1.5 border border-border/50"
+                className="px-2.5 py-1 rounded-lg text-[11px] font-medium text-text-muted hover:text-text-main bg-surface/60 hover:bg-surface-hover/80 backdrop-blur-sm transition-colors flex items-center gap-1.5 border border-border/40 cursor-pointer shadow-xs"
               >
                 <Share2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Share</span>
               </button>
             )}
 
-            {/* Approvals & Activity Button */}
-            <button
-              type="button"
-              onClick={() => setActivityModalOpen(true)}
-              aria-label="Activity and approvals"
-              title="Approvals & Activity Audit"
-              className="p-2 rounded-xl text-xs font-medium border border-border/60 hover:bg-bg-secondary text-text-muted hover:text-text-main transition-colors flex items-center gap-1.5 relative"
-            >
-              <Clock className="w-4 h-4" />
-              <span className="hidden md:inline">Activity</span>
-              {pendingApprovalsCount > 0 && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 absolute top-1.5 right-1.5" />
-              )}
-            </button>
-
-            {/* Temporary Chat Toggle (Only on new chat) */}
+            {/* Temporary Chat Toggle */}
             {!conversationId && (
               <button
                 type="button"
                 onClick={() => setIsTemporary(!isTemporary)}
                 aria-label="Temporary chat"
                 title="Temporary chat"
-                className={`p-2 rounded-xl text-xs font-medium border transition-colors flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border backdrop-blur-sm transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs ${
                   isTemporary
-                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                    : 'text-text-muted hover:bg-bg-secondary border-border/60'
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    : 'text-text-muted hover:text-text-main bg-surface/60 hover:bg-surface-hover/80 border-border/40'
                 }`}
               >
-                <ShieldAlert className="w-4 h-4" />
+                <ShieldAlert className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Temporary</span>
               </button>
             )}
+          </div>
 
-            {/* Header Options Menu */}
-            {currentConversation && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
-                  aria-label="Conversation options"
-                  className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-bg-secondary transition-colors"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
+          {/* Thread messages or Enterprise Welcome Screen */}
+          {isThreadEmpty ? (
+            <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col items-center justify-center text-center select-none animate-in fade-in custom-scrollbar">
+              <h2 className="text-xl md:text-2xl font-bold text-text-main tracking-tight mb-2">
+                How can Stone AI assist your business today?
+              </h2>
+              <p className="text-xs md:text-sm text-text-muted max-w-lg mb-8 leading-relaxed">
+                Draft client follow-ups, summarize pipeline deals, audit pending approvals, or find uncontacted contacts across your CRM.
+              </p>
 
-                {headerMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-bg-card border border-border shadow-lg p-1 z-50 animate-in fade-in zoom-in-95 text-xs">
+              {/* 4 Enterprise Action Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full text-left">
+                {PROMPT_SUGGESTIONS.map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
                     <button
+                      key={idx}
                       type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        setIsRenamingHeader(true);
-                      }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-bg-secondary text-left text-text-main"
+                      onClick={() => handleSend(item.prompt)}
+                      className="p-3.5 rounded-xl bg-surface/60 hover:bg-surface-hover/80 border border-border/50 hover:border-primary/40 transition-all text-left group cursor-pointer shadow-xs hover:shadow-md flex flex-col justify-between"
                     >
-                      <Edit3 className="w-3.5 h-3.5 opacity-70" />
-                      <span>Rename</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-8 h-8 rounded-lg bg-surface flex items-center justify-center text-primary group-hover:text-primary-hover border border-border/40">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-semibold text-text-main group-hover:text-white transition-colors">
+                          {item.title}
+                        </div>
+                        <div className="text-[11px] text-text-muted leading-relaxed mt-0.5">
+                          {item.description}
+                        </div>
+                      </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        handleTogglePin(currentConversation.id, !!currentConversation.pinnedAt);
-                      }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-bg-secondary text-left text-text-main"
-                    >
-                      <Pin className="w-3.5 h-3.5 opacity-70" />
-                      <span>{currentConversation.pinnedAt ? 'Unpin' : 'Pin'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeaderMenuOpen(false);
-                        handleDeleteChat(currentConversation.id);
-                      }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 text-left"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                )}
+                  );
+                })}
               </div>
-            )}
-
-            {/* Mobile Menu Button to open right sidebar */}
-            <button
-              type="button"
-              onClick={() => setMobileSidebarOpen(true)}
-              aria-label="Open chats"
-              className="lg:hidden p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-bg-secondary"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-        </header>
-
-        {/* Empty Chat Greeting Screen (Spec Section 1.2) */}
-        {isThreadEmpty ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none animate-in fade-in">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center mb-5 shadow-sm">
-              <Sparkles className="w-7 h-7" />
             </div>
-            <h2 className="text-xl font-semibold text-text-main tracking-tight mb-2">
-              What can I help with?
-            </h2>
-          </div>
-        ) : (
-          <AssistantThread
-            messages={displayMessages}
+          ) : (
+            <AssistantThread
+              messages={displayMessages}
+              isStreaming={isStreaming}
+              streamingText={streamingText}
+              isThinking={isThinking}
+              actionCards={actionCards}
+              onSelectMode={async (newMode) => {
+                setMode(newMode as AccessMode);
+                if (conversationId) {
+                  await assistantApi.updateConversation(conversationId, { mode: newMode });
+                }
+                setActionCards((prev) => prev.filter((c) => c.cardType !== 'mode_prompt'));
+              }}
+              onActionComplete={() => {
+                loadPendingApprovals();
+                if (conversationId) {
+                  assistantApi.getConversation(conversationId).then((c) => setMessages(c.messages || []));
+                }
+              }}
+              onRegenerate={handleRegenerate}
+              onEditMessage={handleEditMessage}
+              onFeedback={(id, rating, comment) => assistantApi.sendFeedback(id, rating, comment)}
+              onRetryError={handleRegenerate}
+              lastError={lastError}
+              isTemporary={isTemporary}
+            />
+          )}
+
+          {/* Composer at Bottom */}
+          <AssistantComposer
+            input={input}
+            setInput={setInput}
+            onSend={handleSend}
+            onStop={handleStop}
             isStreaming={isStreaming}
-            streamingText={streamingText}
-            isThinking={isThinking}
-            actionCards={actionCards}
-            onSelectMode={async (newMode) => {
-              setMode(newMode as AccessMode);
+            mode={mode}
+            onModeChange={setMode}
+            thinking={thinking}
+            onThinkingChange={(newThinking) => {
+              setThinking(newThinking);
               if (conversationId) {
-                await assistantApi.updateConversation(conversationId, { mode: newMode });
-              }
-              setActionCards((prev) => prev.filter((c) => c.cardType !== 'mode_prompt'));
-            }}
-            onActionComplete={() => {
-              loadPendingApprovals();
-              if (conversationId) {
-                assistantApi.getConversation(conversationId).then((c) => setMessages(c.messages || []));
+                assistantApi.updateConversation(conversationId, { thinking: newThinking });
               }
             }}
-            onRegenerate={handleRegenerate}
-            onEditMessage={handleEditMessage}
-            onFeedback={(id, rating, comment) => assistantApi.sendFeedback(id, rating, comment)}
-            onRetryError={handleRegenerate}
-            lastError={lastError}
-            isTemporary={isTemporary}
           />
-        )}
-
-        {/* Composer at Bottom */}
-        <AssistantComposer
-          input={input}
-          setInput={setInput}
-          onSend={handleSend}
-          onStop={handleStop}
-          isStreaming={isStreaming}
-          mode={mode}
-          onModeChange={setMode}
-          thinking={thinking}
-          onThinkingChange={(newThinking) => {
-            setThinking(newThinking);
-            if (conversationId) {
-              assistantApi.updateConversation(conversationId, { thinking: newThinking });
-            }
-          }}
-        />
-      </div>
-
-      {/* Desktop Right Sidebar (260px) */}
-      <div className="hidden lg:block h-full shrink-0">
-        <AssistantSidebar
-          conversations={conversations}
-          activeConversationId={conversationId}
-          streamingConversationId={streamingConvoId}
-          onNewChat={handleNewChat}
-          onRenameChat={handleRenameChat}
-          onTogglePin={handleTogglePin}
-          onDeleteChat={handleDeleteChat}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-        />
+        </div>
       </div>
 
       {/* Activity & Approvals Modal */}

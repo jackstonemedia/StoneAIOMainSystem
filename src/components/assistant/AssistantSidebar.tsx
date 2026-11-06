@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus, Search, Pin, Trash2, Edit3, MoreHorizontal,
-  Settings, Loader2, Sparkles, Folder, Archive,
+  Settings, Loader2, Folder, Archive,
   Brain, CalendarClock, ShieldCheck
 } from 'lucide-react';
 import type { AssistantConversation } from '../../lib/api/assistant';
@@ -115,13 +115,13 @@ export function AssistantSidebar({
   }
 
   return (
-    <aside className="w-[260px] h-full flex flex-col border-l border-border/60 bg-surface/85 backdrop-blur-md shrink-0 select-none font-inter">
+    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-r border-border/50 bg-surface/85 backdrop-blur-md shrink-0 select-none font-inter overflow-hidden">
       {/* Top Header: Compact New Chat & Search */}
-      <div className="p-2.5 border-b border-border/50 space-y-1.5">
+      <div className="p-3 border-b border-border/50 space-y-2">
         <button
           type="button"
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white font-medium text-[12px] shadow-xs transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-primary hover:bg-primary-hover text-white font-semibold text-[12px] shadow-sm transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>New chat</span>
@@ -166,7 +166,7 @@ export function AssistantSidebar({
               : 'text-text-muted hover:text-text-main hover:bg-surface-hover/70'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5 opacity-80" />
+          <Brain className="w-3.5 h-3.5 opacity-80" />
           <span>Memory</span>
         </button>
       </div>
@@ -399,8 +399,8 @@ function ConversationRow({
     <div
       className={`group relative flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? 'bg-surface-hover text-text-main font-medium shadow-2xs'
-          : 'text-text-muted hover:text-text-main hover:bg-surface-hover/50'
+          ? 'bg-primary/15 text-white font-semibold border border-primary/25 shadow-xs'
+          : 'text-text-muted hover:text-white hover:bg-surface-hover/70 border border-transparent'
       }`}
       onClick={onClick}
     >
