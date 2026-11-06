@@ -12,6 +12,7 @@ import ForecastView from '../../components/crm/ForecastView';
 import { PipelinesTab } from '../../components/crm/PipelineConfig';
 import { apiClient } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
+import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
 
 type ViewMode = 'kanban' | 'list' | 'forecast';
 
@@ -284,6 +285,7 @@ export default function Opportunities() {
           >
             <Plus className="w-4 h-4" /> Add Deal
           </button>
+          <AssistantLauncher surface="crm" label="Ask Stone AI" />
           <div className="w-[1px] h-5 bg-border mx-1" />
           <button onClick={() => setPipelinesOpen(true)} className="btn-secondary">
             <Settings className="w-4 h-4" /> Pipeline Config

@@ -1,20 +1,9 @@
 /**
- * useAI — Frontend hook for all Stone AIO AI features.
- *
- * All calls go through /api/ai/* — the Gemini key never leaves the server.
+ * useAI — Frontend hook for content writing helpers (email generate, improve, subject lines).
  */
 
 import { useState, useCallback } from 'react';
 import { apiClient } from './apiClient';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export interface AIChatMessage {
-  role: 'user' | 'model';
-  content: string;
-}
-
-// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAI() {
   const [isLoading, setIsLoading] = useState(false);
@@ -22,58 +11,7 @@ export function useAI() {
 
   const clearError = () => setError(null);
 
-  // ── Streaming chat ───────────────────────────────────────────────────────
-  const streamChat = useCallback(async (
-    message: string,
-    history: AIChatMessage[],
-    onChunk: (text: string) => void,
-    onDone: () => void,
-  ) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Forward auth token from apiClient defaults
-          ...((apiClient.defaults.headers.common as any) || {}),
-        },
-        body: JSON.stringify({ message, history }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value);
-        for (const line of text.split('\n')) {
-          if (line.startsWith('data: ')) {
-            const payload = line.slice(6);
-            if (payload === '[DONE]') { onDone(); break; }
-            try {
-              const parsed = JSON.parse(payload);
-              if (parsed.text) onChunk(parsed.text);
-              if (parsed.error) throw new Error(parsed.error);
-            } catch { /* ignore parse errors for incomplete chunks */ }
-          }
-        }
-      }
-    } catch (err: any) {
-      setError(err.message || 'AI error');
-      onDone();
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // ── Email: generate from prompt ──────────────────────────────────────────
+  // ── Email: generate full email ───────────────────────────────────────────
   const generateEmail = useCallback(async (
     prompt: string,
     campaignName?: string,
@@ -158,7 +96,6 @@ export function useAI() {
     isLoading,
     error,
     clearError,
-    streamChat,
     generateEmail,
     improveEmail,
     generateSubjectLines,

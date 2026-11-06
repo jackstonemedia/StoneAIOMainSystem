@@ -54,11 +54,6 @@ async function gmailStepSender(args: SequenceStepSendArgs): Promise<{ messageId:
   let gmailConn = await db.channelConnection.findFirst({
     where: { workspaceId: args.workspaceId, provider: 'gmail', isActive: true },
   }).catch(() => null);
-  if (!gmailConn) {
-    gmailConn = await db.channelConnection.findFirst({
-      where: { provider: 'gmail', isActive: true },
-    }).catch(() => null);
-  }
   if (!gmailConn) throw new Error('No active Gmail connection found for this workspace. A connected Gmail account is required to send.');
   const { sendGmailMessage } = await import('../channels/gmail.service.js');
   const result = await sendGmailMessage(

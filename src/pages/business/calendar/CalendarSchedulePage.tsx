@@ -15,6 +15,7 @@ import { ConfirmDelete } from '../../../components/ui/ConfirmDelete';
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/apiClient';
 import type { Appointment } from '../../../types/business';
+import { AssistantLauncher } from '../../../components/assistant/AssistantLauncher';
 
 // ─── Constants & Configurations ───────────────────────────────────────────────
 
@@ -867,6 +868,7 @@ export default function CalendarSchedulePage() {
             <LinkIcon className="w-3.5 h-3.5 text-primary" /> Booking Link
           </button>
 
+          <AssistantLauncher surface="calendar" label="Ask Stone AI" />
           <button onClick={() => openCreateAppointment()} className="btn-secondary">
             <Plus className="w-4 h-4" /> Add Event
           </button>

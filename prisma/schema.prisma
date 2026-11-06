@@ -67,6 +67,17 @@ model Workspace {
   userLeadHistory UserLeadHistory[]
   dailyLeadQuotas DailyLeadQuota[]
 
+  // Assistant relations
+  assistantConversations     AssistantConversation[]
+  assistantToolCalls         AssistantToolCall[]
+  assistantSettings          AssistantSettings[]
+  assistantWorkspaceSettings AssistantWorkspaceSettings?
+  assistantUsage             AssistantUsage[]
+  assistantMemories          AssistantMemory[]
+  assistantScheduledTasks    AssistantScheduledTask[]
+  assistantTaskRuns          AssistantTaskRun[]
+  assistantProjects          AssistantProject[]
+
   // Inbox feature
   inboxToken              String?              @unique @map("inbox_token")
   inboxEnabled            Boolean              @default(false) @map("inbox_enabled")
@@ -2204,4 +2215,251 @@ model RecipientState {
   @@index([draftId])
   @@index([contactId])
   @@map("recipient_states")
+}
+
+// ── Assistant Models ────────────────────────────────────────────────────────
+model AssistantConversation {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  title       String   @default("New Conversation")
+  projectId   String?  @map("project_id")
+  pinnedAt    DateTime? @map("pinned_at")
+  mode        String   @default("unset") // 'unset', 'read_only', 'draft', 'full'
+  thinking    String   @default("auto")  // 'auto', 'extended'
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  AssistantMessage[]
+  toolCalls AssistantToolCall[]
+
+  @@index([workspaceId, userId])
+  @@index([workspaceId, updatedAt])
+  @@map("assistant_conversations")
+}
+
+model AssistantMessage {
+  id                String   @id @default(uuid())
+  workspaceId       String   @map("workspace_id")
+  conversationId    String   @map("conversation_id")
+  userId            String   @map("user_id")
+  role              String   // 'user', 'assistant', 'system'
+  parts             Json     // [{ type: 'text', text: '...' }, ...]
+  thoughtSignatures Json?    @map("thought_signatures")
+  status            String   @default("complete") // 'complete', 'stopped'
+  model             String?
+  inputTokens       Int      @default(0) @map("input_tokens")
+  outputTokens      Int      @default(0) @map("output_tokens")
+  feedback          Json?
+  searchableText    String?  @map("searchable_text") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  conversation AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([workspaceId, userId])
+  @@map("assistant_messages")
+}
+
+model AssistantToolCall {
+  id               String    @id @default(uuid())
+  workspaceId      String    @map("workspace_id")
+  userId           String    @map("user_id")
+  conversationId   String?   @map("conversation_id")
+  messageId        String?   @map("message_id")
+  taskRunId        String?   @map("task_run_id")
+  source           String    @default("chat") // 'chat', 'voice', 'scheduled'
+  toolName         String    @map("tool_name")
+  risk             String    // 'read', 'write', 'send', 'destructive', 'hardstop'
+  args             Json
+  status           String    @default("pending") // 'pending', 'approved', 'rejected', 'running', 'done', 'failed', 'blocked'
+  result           Json?
+  error            String?
+  approvedByUserId String?   @map("approved_by_user_id")
+  decidedAt        DateTime? @map("decided_at")
+  executedAt       DateTime? @map("executed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  workspace    Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation AssistantConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, status])
+  @@index([conversationId])
+  @@map("assistant_tool_calls")
+}
+
+model AssistantSettings {
+  id             String   @id @default(uuid())
+  workspaceId    String   @map("workspace_id")
+  userId         String   @map("user_id")
+  defaultMode    String   @default("ask") @map("default_mode")
+  thinking       String   @default("auto")
+  voice          String   @default("default")
+  speed          Float    @default(1.0)
+  memoryEnabled  Boolean  @default(true) @map("memory_enabled")
+  pastChatSearch Boolean  @default(true) @map("past_chat_search")
+  notify         Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("assistant_settings")
+}
+
+model AssistantWorkspaceSettings {
+  id                 String   @id @default(uuid())
+  workspaceId        String   @unique @map("workspace_id")
+  maxMode            String   @default("full") @map("max_mode")
+  fullAutonomyRoles  Json     @default("[\"owner\", \"admin\"]") @map("full_autonomy_roles")
+  requireApprovalFor Json     @default("{}") @map("require_approval_for")
+  bulkThreshold      Int      @default(25) @map("bulk_threshold")
+  dailyLimits        Json     @default("{}") @map("daily_limits")
+  enabled            Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("assistant_workspace_settings")
+}
+
+model AssistantUsage {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  userId       String   @map("user_id")
+  day          String   // 'YYYY-MM-DD'
+  messages     Int      @default(0)
+  searches     Int      @default(0)
+  researchRuns Int      @default(0) @map("research_runs")
+  images       Int      @default(0)
+  tokens       Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, day])
+  @@index([workspaceId, day])
+  @@map("assistant_usage")
+}
+
+
+model AssistantMemory {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  key         String
+  value       String   @db.Text
+  category    String   @default("general")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@map("assistant_memories")
+}
+
+
+model AssistantScheduledTask {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  userId      String    @map("user_id")
+  title       String
+  prompt      String    @db.Text
+  cron        String    @default("0 9 * * *")
+  mode        String    @default("read_only")
+  status      String    @default("active")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime? @map("next_run_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs      AssistantTaskRun[]
+
+  @@index([workspaceId, userId])
+  @@index([status, nextRunAt])
+  @@map("assistant_scheduled_tasks")
+}
+
+model AssistantTaskRun {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  taskId      String    @map("task_id")
+  status      String    @default("running") // 'running', 'completed', 'failed'
+  resultText  String?   @map("result_text") @db.Text
+  error       String?
+  inputTokens Int       @default(0) @map("input_tokens")
+  outputTokens Int      @default(0) @map("output_tokens")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task      AssistantScheduledTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, taskId])
+  @@map("assistant_task_runs")
+}
+
+model AssistantProject {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  userId       String    @map("user_id")
+  name         String
+  description  String?
+  color        String    @default("#3b82f6")
+  icon         String    @default("folder")
+  instructions String?   @db.Text
+  visibility   String    @default("private") // 'private', 'workspace'
+  archivedAt   DateTime? @map("archived_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  files     AssistantProjectFile[]
+  links     AssistantProjectLink[]
+
+  @@index([workspaceId, userId])
+  @@index([workspaceId, visibility])
+  @@map("assistant_projects")
+}
+
+model AssistantProjectFile {
+  id            String    @id @default(uuid())
+  workspaceId   String    @map("workspace_id")
+  projectId     String    @map("project_id")
+  fileName      String    @map("file_name")
+  mimeType      String    @map("mime_type")
+  size          Int       @default(0)
+  storageUrl    String?   @map("storage_url")
+  extractedText String?   @map("extracted_text") @db.Text
+  status        String    @default("ready") // 'processing', 'ready', 'failed'
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  project AssistantProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, projectId])
+  @@map("assistant_project_files")
+}
+
+model AssistantProjectLink {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  projectId   String   @map("project_id")
+  entityType  String   @map("entity_type") // 'contact', 'company', 'deal', 'campaign', 'workflow', 'smart_list'
+  entityId    String   @map("entity_id")
+  label       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project AssistantProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, projectId])
+  @@map("assistant_project_links")
 }

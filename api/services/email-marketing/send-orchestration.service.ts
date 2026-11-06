@@ -362,11 +362,6 @@ export async function testSendEmail(
     where: { workspaceId, provider: 'gmail', isActive: true },
   }).catch(() => null);
   if (!gmailConn) {
-    gmailConn = await db.channelConnection.findFirst({
-      where: { provider: 'gmail', isActive: true },
-    }).catch(() => null);
-  }
-  if (!gmailConn) {
     throw new SendError('Gmail is not connected for this workspace. Connect a Gmail account to send test emails.', 503);
   }
   const { sendGmailMessage } = await import('../channels/gmail.service.js');

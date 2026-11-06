@@ -8,7 +8,10 @@ import {
   getWorkspaceHistoricalPerformance,
 } from '../services/email-marketing/ai-copilot.service.js';
 
+import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
+
 const router = Router();
+router.use(trackLegacyAi('email_copilot'));
 
 // ── POST /api/email-marketing/ai-copilot/chat ─────────────────────────────────
 router.post('/chat', async (req: Request, res: Response) => {

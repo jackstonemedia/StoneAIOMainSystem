@@ -11,7 +11,8 @@ import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 import { useUnreadNotificationsCount } from '../hooks/useUnreadNotificationsCount';
 import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
-import CRMAIAssistant from '../components/crm/CRMAIAssistant';
+import { AssistantLauncher } from '../components/assistant/AssistantLauncher';
+import { AssistantApprovalsCard } from '../components/assistant/AssistantApprovalsCard';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
 // ─── Timeframe Presets ────────────────────────────────────────────────────────
@@ -160,7 +161,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRange>('30d');
   const [activeSection, setActiveSection] = useState<SectionTab>('all');
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
@@ -190,14 +190,7 @@ export default function Dashboard() {
       >
         {/* Left: AI Assistant & Notification Bell */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsAIOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface/40 hover:bg-surface/70 border border-white/10 text-white transition-all text-xs font-medium shadow-xs"
-            title="AI Assistant"
-          >
-            <Bot className="w-4 h-4 text-white" />
-            <span>AI Assistant</span>
-          </button>
+          <AssistantLauncher surface="dashboard" label="Ask Stone AI" />
 
           <div className="h-5 w-[1px] bg-border/60" />
 
@@ -339,6 +332,9 @@ export default function Dashboard() {
             />
           </div>
         </div>
+
+        {/* Assistant Approvals Card (Stage S8) */}
+        <AssistantApprovalsCard />
 
         {/* ═════════════════════════════════════════════════════════════════════
             2. CRM / PIPELINE SECTION
@@ -1143,9 +1139,6 @@ export default function Dashboard() {
         )}
 
       </div>
-
-      {/* Floating CRM AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
 
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />

@@ -14,6 +14,7 @@ export interface FeatureFlags {
   projects: boolean;
   reputation: boolean;
   inboxHelpCenter: boolean;
+  legacyAi: boolean;
 }
 
 export const FEATURES: FeatureFlags = {
@@ -26,4 +27,5 @@ export const FEATURES: FeatureFlags = {
   projects: process.env.FEATURE_PROJECTS === 'true',
   reputation: process.env.FEATURE_REPUTATION === 'true',
   inboxHelpCenter: process.env.FEATURE_HELP_CENTER === 'true',
+  legacyAi: process.env.FEATURE_LEGACY_AI === 'true',
 };

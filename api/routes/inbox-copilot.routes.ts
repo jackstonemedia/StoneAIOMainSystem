@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { copilotService } from '../services/inbox/copilot.service.js';
 
+import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
+
 const router = Router();
+router.use(trackLegacyAi('inbox_copilot'));
 
 router.post('/draft', async (req, res) => {
   try {

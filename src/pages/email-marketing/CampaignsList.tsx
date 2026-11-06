@@ -12,6 +12,7 @@ import {
   ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Crown, Sparkles,
   Eye, MousePointer
 } from 'lucide-react';
+import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
 
 interface Campaign {
@@ -324,9 +325,14 @@ export default function CampaignsList() {
             )}
           </div>
 
-          {/* AI Campaign Copilot Button */}
+          <AssistantLauncher
+            surface="email_marketing"
+            label="Ask Stone AI"
+            initialPrompt="Help me plan and draft a high-converting email marketing campaign."
+            initialMode="draft"
+          />
           <button
-            onClick={() => setShowAICopilotModal(true)}
+            style={{ display: 'none' }}
             className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600/90 to-primary/90 hover:from-purple-600 hover:to-primary text-white border border-purple-400/30 rounded-full px-3.5 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
             title="Create Campaign with AI Strategy Consultant"
           >
@@ -336,7 +342,7 @@ export default function CampaignsList() {
 
           {/* Build with AI Button (phased interview flow — Milestone 1+) */}
           <button
-            onClick={() => navigate('/email-marketing/create-with-ai')}
+            style={{ display: 'none' }}
             className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
             title="Build with AI — phased interview that writes the campaign"
           >
@@ -892,7 +898,7 @@ export default function CampaignsList() {
 
       {/* ── AI CAMPAIGN COPILOT MODAL ────────────────────────────────────── */}
       <AICampaignCopilotModal
-        isOpen={showAICopilotModal}
+        isOpen={false}
         onClose={() => setShowAICopilotModal(false)}
         onApplyCampaign={handleApplyAICampaignFromList}
       />

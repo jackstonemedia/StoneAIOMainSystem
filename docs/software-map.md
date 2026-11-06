@@ -659,3 +659,34 @@ Order: `processDueReactions` (reaction engine FIRST) → `processDueSequenceStep
 - **Cold (M7):** ramp 20/day days 1–3, 40/day days 4–7, 75/day week 2, 100/day after, enforced in `sendCampaign` + resume paths (at-cap recipients stay PENDING, never failed) and finished by `processColdDrip` (atomic PENDING → SENDING claims with sentAt at claim time, stale-claim reclaim >2h, window gate, exit/suppression re-check before every send, stop on reply, auto-replies do NOT stop). Cold sends are plain text only (no HTML part) via `buildGmailMime(..., textOnly)`. US-only is enforced by attestation (the ack checkbox) — Contacts/CSV carry no reliable country field, so there is no code-level country filter. Cold + A/B: a dripped sample recipient follows a decided winner (test-then-winner only, never split).
 - **Vestigial names (do NOT "fix" by renaming without a migration):** `CampaignRecipient.resendMessageId` holds the Gmail message id; `SendingDomain.resendDomainId` holds `local_<timestamp>` ids; `RESEND_RATE_LIMIT_PER_SECOND` is a plain send rate limit. The `resend` npm package is REMOVED (final cleanup `00e5dbf`); no code imports it.
 - **Known dev-only gaps (not app bugs):** no Gmail connection in dev (all sends fail honestly "No active Gmail connection"); dev app Gemini key is a stub (app AI 503 + saved; the connector key proves prompt/schema/model/key/capacity separately). Live-AI interview/drafting verification via the billing key was not re-confirmed in the M3 row update — treat as unverified, not as proven.
+
+---
+
+## 12. Stone AI Assistant & Universal Platform Operator
+
+Implemented November 2026 per `Stone AI Assistant Build Outline.md`. The Assistant serves as a general-purpose, full-quality AI operating partner with Claude-style minimalist aesthetics and deep platform tool integration across all Stone AIO modules.
+
+### 12.1 Security & Multi-Tenant Guarantees
+- **Tenant Isolation**: All database operations go through `withTenant(workspaceId, ...)` using parameterized tenant scoping. Cross-tenant and non-existent resource lookups return identical 404 responses.
+- **Cross-Workspace Safety**: Cross-workspace Gmail connection fallbacks are strictly eliminated; sending accounts are strictly verified against the authenticated workspace.
+- **Atomic Approval Claiming**: Approval execution claims pending tool actions atomically via `assistantToolCall.updateMany({ where: { id, status: 'pending' }, data: { status: 'running' } })` to guarantee idempotent, race-free single execution.
+- **Audit Logging**: Every tool execution is recorded in `AssistantToolCall` with status, approving user, timestamp, parameters, and result.
+
+### 12.2 Three-Level Permission System
+- **Read-only**: Tier 0 reads and searches execute. All changes and outreach are blocked with explicit explanations and an in-chat switch to Ask first.
+- **Ask first (Default)**: Tier 0 reads execute directly. Tier 1 changes and Tier 2 outreach generate interactive ActionCards requiring human approval or editing before running.
+- **Autonomous (Full)**: Tier 0 and Tier 1 execute automatically. Tier 2 outreach runs automatically up to workspace daily caps; exceeding daily limits or encountering untrusted content forces actions to queue for review. Tier 3 destructive actions (e.g. `delete_contact`) always require explicit approval.
+- **Untrusted-Content Rule**: If the conversation turn processes inbound external messages, SMS, or uploaded content, Tier 2 outreach tools automatically queue for human review to eliminate prompt injection risks.
+- **Workspace Ceiling & Pause Switch**: Workspace owners and admins enforce maximum access ceilings (e.g. capping members at Ask first) or pause the assistant globally, instantly forcing all users into Read-only mode.
+
+### 12.3 Dual-Store Memory & Projects
+- **Personal Memory**: Belonging exclusively to the active user (e.g. writing tone, personal preferences, sign-off rules). Invisible to other members within the workspace. Automatically learns user preferences from conversational feedback.
+- **Workspace Memory**: Shared business knowledge, policies, and facts injected across all member conversations in the workspace.
+- **Projects**: Dedicated collaborative and private knowledge contexts (`/assistant/projects`). Supports document uploads (PDF, text, CSV up to 25MB) with extraction, alongside live links to CRM entities (smart lists, contacts, deals).
+
+### 12.4 Deterministic Finders & Platform Tool Registry
+- **Deterministic Finders**: Pre-computed server-side queries (`find_stale_leads`, `find_unwelcomed_leads`, `find_stalled_deals`, `find_overdue_tasks`, `find_waiting_conversations`) returning exact match reasons and days since last touch.
+- **Whole-Platform Capabilities**: CRM entity management, tags, smart lists, appointment scheduling and rescheduling, unified inbox reply, SMS with DND compliance, email campaign drafting, automation workflow management, web search grounding, and the `explain_platform` navigation help index.
+- **Contextual Launchers**: Embedded `AssistantLauncher` across Contact Detail, Company Detail, Pipeline Deals, Conversation Threads, Campaign Builder, Calendar, and Dashboard.
+- **Shared Panel Upgrade**: Floating `CRMAIAssistant` delegates directly to `AssistantPanel`, eliminating dead controls and ensuring full feature parity across page layouts.
+

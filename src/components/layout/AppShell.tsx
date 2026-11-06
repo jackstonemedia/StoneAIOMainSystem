@@ -88,7 +88,8 @@ export default function AppShell() {
              !location.pathname.startsWith('/automations') &&
              !location.pathname.startsWith('/admin') &&
              !location.pathname.startsWith('/ads') &&
-             !location.pathname.startsWith('/dashboard') && (
+             !location.pathname.startsWith('/dashboard') &&
+             !location.pathname.startsWith('/assistant') && (
               <TopBar 
                 onOpenCommandPalette={() => setCommandPaletteOpen(true)}
                 onOpenNotifications={() => setNotificationPanelOpen(true)}

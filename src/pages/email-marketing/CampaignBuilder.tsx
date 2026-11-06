@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAI } from '../../lib/useAI';
 import { ABTestConfig } from '../../types/emailCampaign';
+import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
 import {
   analyzeEmailDeliverability,
@@ -1040,11 +1041,16 @@ export default function CampaignBuilder() {
 
           {/* Right: Actions Cluster */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* AI Campaign Copilot Button */}
+            <AssistantLauncher
+              surface="email_marketing"
+              entity={{ type: 'campaign', id: campaignId || 'new', name }}
+              label="Ask Stone AI"
+            />
+            {/* Legacy AI Copilot Hidden */}
             <button
               onClick={() => setShowAICopilotModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary/15 via-purple-500/15 to-primary/10 hover:from-primary/25 hover:to-purple-500/25 text-primary border border-primary/35 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 group whitespace-nowrap"
-              title="Open AI Campaign Copilot"
+              style={{ display: 'none' }}
             >
               <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform shrink-0" />
               <span>AI Copilot</span>
@@ -2628,7 +2634,7 @@ export default function CampaignBuilder() {
 
         {/* ── AI CAMPAIGN COPILOT MODAL ────────────────────────────────────── */}
         <AICampaignCopilotModal
-          isOpen={showAICopilotModal}
+          isOpen={false}
           onClose={() => setShowAICopilotModal(false)}
           onApplyCampaign={handleApplyAICampaign}
           currentDraft={{

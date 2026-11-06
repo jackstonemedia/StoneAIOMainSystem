@@ -32,7 +32,7 @@ import workflowAiRouter    from './api/routes/workflow-ai.routes.js';
 import aiRouter            from './api/routes/ai.routes.js';
 import aiActionsRouter     from './api/routes/ai-actions.routes.js';
 import chatRouter          from './api/routes/chat.routes.js';
-import agentsRouter        from './api/routes/agents.routes.js';
+import assistantRouter     from './api/routes/assistant.routes.js';
 import crmActionsRouter    from './api/routes/crm-actions.routes.js';
 import integrationsRouter  from './api/routes/integrations.routes.js';
 import { releasesRouter }  from './api/routes/releases.routes.js';
@@ -267,12 +267,12 @@ async function startServer() {
   app.use('/api', resolveWorkspace);
 
   // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
-  app.use('/api/ai',             aiLimiter, aiRouter);
-  app.use('/api/ai/actions',     aiActionsRouter);
-  app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
-  app.use('/api/conversations',  aiLimiter, chatRouter);
+  if (FEATURES.legacyAi) app.use('/api/ai',             aiLimiter, aiRouter);
+  if (FEATURES.legacyAi) app.use('/api/ai/actions',     aiActionsRouter);
+  if (FEATURES.legacyAi) app.use('/api/workflow-ai',    aiLimiter, workflowAiRouter);
+  if (FEATURES.legacyAi) app.use('/api/conversations',  aiLimiter, chatRouter);
   app.use('/api/crm/actions',    crmActionsRouter);
-  if (FEATURES.agents) app.use('/api/agents',         aiLimiter, agentsRouter);
+  if (FEATURES.assistant) app.use('/api/assistant', aiLimiter, assistantRouter);
   app.use('/api/integrations',   integrationsRouter);
   app.use('/api/releases',       releasesRouter);
 
@@ -290,7 +290,7 @@ async function startServer() {
   if (FEATURES.ads)   app.use('/api/ads',            adsRouter);
   if (FEATURES.leads) app.use('/api/leads',          leadsRouter);
   app.use('/api/inbox',          resolveWorkspace, inboxRouter);
-  app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
+  if (FEATURES.legacyAi) app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
   app.use('/api/widget',         inboxWidgetRouter);
   app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);
