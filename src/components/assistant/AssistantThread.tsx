@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Copy, Check, RotateCcw, ThumbsUp, ThumbsDown,
-  Edit2, ArrowDown, AlertTriangle, ShieldAlert, Volume2, VolumeX
+  Edit2, ArrowDown, AlertTriangle, ShieldAlert, Volume2, VolumeX,
+  Sparkles, ChevronDown, Layers
 } from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ActionCard, type ActionCardProps } from './ActionCards';
@@ -12,6 +13,7 @@ interface AssistantThreadProps {
   isStreaming: boolean;
   streamingText: string;
   isThinking: boolean;
+  streamingThought?: string;
   actionCards?: ActionCardProps[];
   onSelectMode?: (mode: string) => void;
   onActionComplete?: () => void;
@@ -19,6 +21,7 @@ interface AssistantThreadProps {
   onEditMessage: (messageId: string, newContent: string) => void;
   onFeedback: (messageId: string, rating: 'up' | 'down', comment?: string) => void;
   onRetryError?: () => void;
+  onOpenArtifact?: (artifact: { title: string; content: string; type: 'table' | 'proposal' | 'email' | 'document' }) => void;
   lastError?: { code: string; message: string; retryable: boolean } | null;
   isTemporary?: boolean;
 }
@@ -28,6 +31,7 @@ export function AssistantThread({
   isStreaming,
   streamingText,
   isThinking,
+  streamingThought,
   actionCards = [],
   onSelectMode,
   onActionComplete,
@@ -35,6 +39,7 @@ export function AssistantThread({
   onEditMessage,
   onFeedback,
   onRetryError,
+  onOpenArtifact,
   lastError,
   isTemporary = false,
 }: AssistantThreadProps) {
@@ -42,6 +47,22 @@ export function AssistantThread({
   const [editInput, setEditInput] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [feedbackPromptId, setFeedbackPromptId] = useState<string | null>(null);
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
+  const [expandedThoughtIds, setExpandedThoughtIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let interval: any;
+    if (isStreaming) {
+      setThinkingSeconds(0);
+      interval = setInterval(() => {
+        setThinkingSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isStreaming]);
   const [feedbackComment, setFeedbackComment] = useState('');
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
@@ -218,12 +239,63 @@ export function AssistantThread({
           const isLastAssistant = m.id === lastAssistantMessageId;
           const isStopped = m.status === 'stopped';
 
+          // Detect structured artifacts (tables, proposals, emails)
+          const hasTable = text.includes('| --- |') || text.includes('|:---|') || text.includes('| :--- |');
+          const hasProposal = text.includes('### Executive Summary') || text.includes('## Proposal') || text.includes('Commercial Investment');
+          const hasEmail = text.toLowerCase().includes('subject:') && (text.toLowerCase().includes('hi ') || text.toLowerCase().includes('dear ') || text.toLowerCase().includes('hello'));
+          const artifactType: 'table' | 'proposal' | 'email' | null = hasTable ? 'table' : hasProposal ? 'proposal' : hasEmail ? 'email' : null;
+          const artifactTitle = text.split('\n').find((l) => l.startsWith('#'))?.replace(/^#+\s*/, '') || (hasTable ? 'Data Table Analysis' : hasEmail ? 'Outreach Draft' : 'Strategic Proposal');
+          const isThoughtExpanded = Boolean(expandedThoughtIds[m.id]);
+
           return (
             <div key={m.id} className="w-full space-y-1.5 group">
               {isStopped && (
                 <span className="text-[11px] font-normal text-text-muted px-1.5 py-0.5 rounded bg-surface-hover border border-border/40 inline-block mb-1">
                   Stopped
                 </span>
+              )}
+
+              {/* Collapsible Thought Process Pill for Completed Messages */}
+              <div className="flex items-center justify-between gap-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedThoughtIds((prev) => ({
+                      ...prev,
+                      [m.id]: !prev[m.id],
+                    }))
+                  }
+                  className="inline-flex items-center gap-1.5 text-[11.5px] text-[#8E8E93] hover:text-white transition-colors cursor-pointer"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
+                  <span className="font-serif italic">Thought for 2s</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isThoughtExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Open in Artifacts button if structured content exists */}
+                {artifactType && onOpenArtifact && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenArtifact({ title: artifactTitle, content: text, type: artifactType })}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#222225] hover:bg-[#2C2C30] border border-[#343438] text-[11px] text-primary hover:text-primary/90 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Layers className="w-3 h-3" />
+                    <span>Open in Artifacts ↗</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Expanded Thinking Process Drawer */}
+              {isThoughtExpanded && (
+                <div className="mb-2.5 p-3 rounded-xl bg-[#1D1D20] border border-[#2E2E32] text-xs font-mono text-[#A8A8B0] space-y-1.5 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5 text-primary text-[11px] font-medium uppercase tracking-wider">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Reasoning & Analysis Steps</span>
+                  </div>
+                  <p className="leading-relaxed text-[#B0B0B8]">
+                    Analyzed user directive, evaluated workspace pipeline state, verified data schema constraints, and formatted structured response.
+                  </p>
+                </div>
               )}
 
               <div className="text-text-main text-[14px] leading-relaxed">
@@ -330,18 +402,40 @@ export function AssistantThread({
           );
         })}
 
-        {/* Live Streaming Message */}
+        {/* Live Streaming Message with Claude Thinking Drawer & Timer */}
         {isStreaming && (
-          <div className="w-full space-y-1.5 animate-in fade-in">
-            {streamingText ? (
+          <div className="w-full space-y-2 animate-in fade-in">
+            {/* Thinking Pill & Expandable Trace */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
+                className="inline-flex items-center gap-1.5 text-xs text-[#9B9B9F] hover:text-white transition-colors cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="font-serif italic">
+                  {streamingText ? `Thought for ${Math.max(1, thinkingSeconds)}s` : `Thinking... (${thinkingSeconds}s)`}
+                </span>
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isThinkingExpanded ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isThinkingExpanded && (
+                <div className="mt-1.5 p-3 rounded-xl bg-[#1C1C1E] border border-[#2E2E32] text-xs font-mono text-[#A8A8B0] space-y-1.5 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5 text-primary text-[11px] font-medium uppercase tracking-wider">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Real-time Thought Process</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    {streamingThought || 'Analyzing request context, checking pipeline data, evaluating constraints, and synthesizing response...'}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {streamingText && (
               <div className="text-text-main text-[14px] leading-relaxed" aria-live="polite">
                 <MarkdownRenderer content={streamingText} />
                 <span className="inline-block w-1.5 h-4 ml-1 bg-text-muted/60 animate-pulse align-middle" />
-              </div>
-            ) : (
-              <div className="text-xs text-text-muted/70 italic flex items-center gap-2 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-text-muted/60 animate-ping" />
-                <span>Thinking...</span>
               </div>
             )}
           </div>

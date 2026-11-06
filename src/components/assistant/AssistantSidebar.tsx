@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, Pin, Trash2, Edit3, MoreHorizontal,
   Settings, Loader2, Folder, Archive,
-  Brain, CalendarClock, ShieldCheck, ChevronDown, Check
+  Brain, CalendarClock, ShieldCheck, ChevronDown, Check,
+  Layers
 } from 'lucide-react';
 import type { AssistantConversation } from '../../lib/api/assistant';
 
@@ -47,6 +48,7 @@ export function AssistantSidebar({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
+  const [showAllOlder, setShowAllOlder] = useState(false);
   const modeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export function AssistantSidebar({
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const sevenDaysStart = todayStart - 7 * 86400000;
 
-  // Split unpinned into Today, Previous 7 days, and Older (flowing naturally with scroll)
+  // Split unpinned into Today and Previous 7 days only (Older is revealed via View All)
   const groups: Record<string, AssistantConversation[]> = {
     Today: [],
     'Previous 7 days': [],
@@ -127,10 +129,6 @@ export function AssistantSidebar({
     } else {
       olderList.push(convo);
     }
-  }
-
-  if (olderList.length > 0) {
-    groups.Older = olderList;
   }
 
   return (
@@ -190,6 +188,18 @@ export function AssistantSidebar({
         >
           <ShieldCheck className="w-3.5 h-3.5 opacity-80" />
           <span>Activity & Approvals</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/assistant/artifacts')}
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
+            location.pathname.startsWith('/assistant/artifacts')
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5 opacity-80" />
+          <span>Artifacts</span>
         </button>
       </div>
       {/* Conversations Scroll Area */}
@@ -259,6 +269,55 @@ export function AssistantSidebar({
             </div>
           );
         })}
+
+        {/* Older Chats - View All Expander */}
+        {olderList.length > 0 && (
+          <div className="pt-1.5 pb-2 px-1">
+            {showAllOlder ? (
+              <div className="space-y-0.5">
+                <div className="px-2 pb-0.5 pt-1 font-medium text-[10px] uppercase tracking-wider text-text-muted/60">
+                  Older
+                </div>
+                {olderList.map((convo) => (
+                  <ConversationRow
+                    key={convo.id}
+                    convo={convo}
+                    isActive={convo.id === activeConversationId}
+                    isStreaming={convo.id === streamingConversationId}
+                    isEditing={editingId === convo.id}
+                    editTitle={editTitle}
+                    setEditTitle={setEditTitle}
+                    onEditSave={handleSaveRename}
+                    onEditKeyDown={handleEditKeyDown}
+                    editInputRef={editInputRef}
+                    menuOpen={menuOpenId === convo.id}
+                    setMenuOpen={(open) => setMenuOpenId(open ? convo.id : null)}
+                    onStartRename={() => handleStartRename(convo)}
+                    onTogglePin={() => onTogglePin(convo.id, false)}
+                    onOpenDelete={() => setDeleteDialogId(convo.id)}
+                    onClick={() => navigate(`/assistant/c/${convo.id}`)}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowAllOlder(false)}
+                  className="w-full text-center py-1 text-[11px] text-[#8A909A] hover:text-white transition-colors cursor-pointer"
+                >
+                  Show fewer
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAllOlder(true)}
+                className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-[#222222] hover:bg-[#282828] text-[11px] text-[#CBD5E1] hover:text-white transition-colors cursor-pointer border border-[#2C2C2C]"
+              >
+                <span>View all ({olderList.length} older)</span>
+                <ChevronDown className="w-3 h-3 text-[#8A909A]" />
+              </button>
+            )}
+          </div>
+        )}
 
         {hasMore && (
           <div className="pt-2 text-center">

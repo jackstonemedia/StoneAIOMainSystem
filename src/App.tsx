@@ -47,6 +47,7 @@ const AssistantSettingsPage = lazy(() => import('./pages/assistant/AssistantSett
 const AssistantMemoryPage    = lazy(() => import('./pages/assistant/AssistantMemoryPage'));
 const AssistantScheduledPage = lazy(() => import('./pages/assistant/AssistantScheduledPage'));
 const AssistantActivityPage  = lazy(() => import('./pages/assistant/AssistantActivityPage'));
+const AssistantArtifactsPage = lazy(() => import('./pages/assistant/AssistantArtifactsPage'));
 
 // Modular Calendar module
 const CalendarLayout          = lazy(() => import('./pages/business/calendar/CalendarLayout'));
@@ -199,6 +200,10 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route
               path="/assistant/activity"
               element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantActivityPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/artifacts"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantArtifactsPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
             />
             <Route
               path="/assistant/c/:conversationId"

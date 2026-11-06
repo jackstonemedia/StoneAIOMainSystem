@@ -65,21 +65,29 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             </a>
           ),
           table: ({ children }) => (
-            <div className="overflow-x-auto my-3 rounded-lg border border-border">
-              <table className="min-w-full divide-y divide-border text-left text-xs">
+            <div className="overflow-x-auto my-3 rounded-xl border border-border/80 bg-bg-card/40 shadow-xs">
+              <table className="min-w-full divide-y divide-border/80 text-left text-xs">
                 {children}
               </table>
             </div>
           ),
+          thead: ({ children }) => (
+            <thead className="bg-[#22252B] sticky top-0 z-10">{children}</thead>
+          ),
           th: ({ children }) => (
-            <th className="px-3 py-2 bg-bg-secondary font-semibold text-text-main border-b border-border">
+            <th className="px-3.5 py-2.5 font-semibold text-text-main border-b border-border text-[12px] tracking-wide whitespace-nowrap">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 text-text-muted border-b border-border/50">
+            <td className="px-3.5 py-2.5 text-text-main/90 border-b border-border/40 text-[13px] leading-relaxed">
               {children}
             </td>
+          ),
+          tr: ({ children }) => (
+            <tr className="hover:bg-surface-hover/40 transition-colors odd:bg-transparent even:bg-surface-hover/15">
+              {children}
+            </tr>
           ),
         }}
       >

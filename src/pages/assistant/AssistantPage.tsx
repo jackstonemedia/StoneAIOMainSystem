@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu,
-  Clock, Share2, Upload, PanelRight, ChevronDown
+  Clock, Share2, Upload, PanelRight, ChevronDown, Layers
 } from 'lucide-react';
 import { AssistantSidebar } from '../../components/assistant/AssistantSidebar';
 import { AssistantThread } from '../../components/assistant/AssistantThread';
@@ -12,6 +12,8 @@ import {
   type ComposerAttachment,
 } from '../../components/assistant/AssistantComposer';
 import { AssistantActivityModal } from '../../components/assistant/AssistantActivityModal';
+import { ArtifactSidePanel } from '../../components/assistant/ArtifactSidePanel';
+import type { ArtifactItem } from './AssistantArtifactsPage';
 import type { ActionCardProps } from '../../components/assistant/ActionCards';
 import {
   assistantApi,
@@ -40,6 +42,7 @@ export default function AssistantPage() {
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
+  const [streamingThought, setStreamingThought] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [streamingConvoId, setStreamingConvoId] = useState<string | undefined>();
   const [lastError, setLastError] = useState<{ code: string; message: string; retryable: boolean } | null>(null);
@@ -48,6 +51,10 @@ export default function AssistantPage() {
   const [actionCards, setActionCards] = useState<ActionCardProps[]>([]);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  // Active Artifact side panel state
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactItem | null>(null);
+  const [isArtifactPanelOpen, setIsArtifactPanelOpen] = useState(false);
   const [copyToast, setCopyToast] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -157,6 +164,7 @@ export default function AssistantPage() {
     setIsStreaming(true);
     setIsThinking(true);
     setStreamingText('');
+    setStreamingThought('');
 
     abortControllerRef.current = new AbortController();
 
@@ -176,7 +184,9 @@ export default function AssistantPage() {
             settings?.thinking || 'auto',
             abortControllerRef.current.signal,
             (evt) => {
-              if (evt.type === 'delta') {
+              if (evt.type === 'thought_summary') {
+                setStreamingThought(evt.data.text || '');
+              } else if (evt.type === 'delta') {
                 setIsThinking(false);
                 tempAccumulatedText += (evt.data.text || '');
                 setStreamingText(tempAccumulatedText);
@@ -280,7 +290,9 @@ export default function AssistantPage() {
           signal: abortControllerRef.current?.signal,
         },
         (evt) => {
-          if (evt.type === 'delta') {
+          if (evt.type === 'thought_summary') {
+            setStreamingThought(evt.data.text || '');
+          } else if (evt.type === 'delta') {
             setIsThinking(false);
             accumulatedText += evt.data.text || '';
             setStreamingText(accumulatedText);
@@ -429,7 +441,9 @@ export default function AssistantPage() {
         conversationId,
         abortControllerRef.current.signal,
         (evt) => {
-          if (evt.type === 'delta') {
+          if (evt.type === 'thought_summary') {
+            setStreamingThought(evt.data.text || '');
+          } else if (evt.type === 'delta') {
             setIsThinking(false);
             accumulatedText += evt.data.text || '';
             setStreamingText(accumulatedText);
@@ -487,7 +501,9 @@ export default function AssistantPage() {
         newContent,
         abortControllerRef.current.signal,
         (evt) => {
-          if (evt.type === 'delta') {
+          if (evt.type === 'thought_summary') {
+            setStreamingThought(evt.data.text || '');
+          } else if (evt.type === 'delta') {
             setIsThinking(false);
             accumulatedText += evt.data.text || '';
             setStreamingText(accumulatedText);
@@ -549,6 +565,50 @@ export default function AssistantPage() {
     } catch (err) {
       console.error('Delete failed:', err);
     }
+  };
+
+  const handleOpenArtifact = (art: { title: string; content: string; type: 'table' | 'proposal' | 'email' | 'document' }) => {
+    const item: ArtifactItem = {
+      id: `art-${Date.now()}`,
+      title: art.title,
+      type: art.type,
+      content: art.content,
+      version: 1,
+      versions: [{ version: 1, content: art.content, createdAt: new Date().toISOString() }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      conversationId,
+    };
+    setActiveArtifact(item);
+    setIsArtifactPanelOpen(true);
+    try {
+      const existing = JSON.parse(localStorage.getItem('stone_aio_artifacts') || '[]');
+      localStorage.setItem('stone_aio_artifacts', JSON.stringify([item, ...existing]));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const handleUpdateArtifact = (updated: ArtifactItem) => {
+    setActiveArtifact(updated);
+    try {
+      const existing = JSON.parse(localStorage.getItem('stone_aio_artifacts') || '[]');
+      const idx = existing.findIndex((a: any) => a.id === updated.id);
+      let next;
+      if (idx >= 0) {
+        next = [...existing];
+        next[idx] = updated;
+      } else {
+        next = [updated, ...existing];
+      }
+      localStorage.setItem('stone_aio_artifacts', JSON.stringify(next));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const handleAskArtifactChanges = (promptText: string) => {
+    handleSend(promptText);
   };
 
   const displayMessages = isTemporary
@@ -649,8 +709,25 @@ export default function AssistantPage() {
               )}
             </div>
 
-            {/* Right: Panel toggle & Share Button */}
+            {/* Right: Artifacts toggle, Activity & Approvals, Share */}
             <div className="flex items-center gap-2 shrink-0">
+              {activeArtifact && (
+                <button
+                  type="button"
+                  onClick={() => setIsArtifactPanelOpen(!isArtifactPanelOpen)}
+                  aria-label="Toggle Artifact panel"
+                  title="Toggle Artifact panel"
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors shadow-xs cursor-pointer ${
+                    isArtifactPanelOpen
+                      ? 'border-primary/50 bg-primary/10 text-primary'
+                      : 'border-[#3A3A3A] bg-[#222222] hover:bg-[#2A2A2A] text-[#ECECEC]'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Artifact (v{activeArtifact.version || 1})</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setActivityModalOpen(true)}
@@ -716,6 +793,7 @@ export default function AssistantPage() {
                 isStreaming={isStreaming}
                 streamingText={streamingText}
                 isThinking={isThinking}
+                streamingThought={streamingThought}
                 actionCards={actionCards}
                 onSelectMode={async (newMode) => {
                   setMode(newMode as AccessMode);
@@ -734,6 +812,7 @@ export default function AssistantPage() {
                 onEditMessage={handleEditMessage}
                 onFeedback={(id, rating, comment) => assistantApi.sendFeedback(id, rating, comment)}
                 onRetryError={handleRegenerate}
+                onOpenArtifact={handleOpenArtifact}
                 lastError={lastError}
                 isTemporary={isTemporary}
               />
@@ -758,6 +837,15 @@ export default function AssistantPage() {
             </>
           )}
         </div>
+
+        {/* Interactive Artifact Side Panel */}
+        <ArtifactSidePanel
+          artifact={activeArtifact}
+          isOpen={isArtifactPanelOpen}
+          onClose={() => setIsArtifactPanelOpen(false)}
+          onUpdateArtifact={handleUpdateArtifact}
+          onAskChanges={handleAskArtifactChanges}
+        />
       </div>
 
       {/* Activity & Approvals Modal */}
