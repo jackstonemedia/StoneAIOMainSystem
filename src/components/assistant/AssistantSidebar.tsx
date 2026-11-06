@@ -157,9 +157,9 @@ export function AssistantSidebar({
   }
 
   return (
-    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-l border-r border-[#2E323A] bg-[#1A1D24] shrink-0 select-none font-inter overflow-hidden">
+    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-l border-r border-[#2C2C2C] bg-[#191919] shrink-0 select-none font-inter overflow-hidden">
       {/* Top Header: Search Chats at the very top */}
-      <div className="p-2.5 border-b border-[#262A34]">
+      <div className="p-2.5 border-b border-[#262626]">
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8A909A]" />
           <input
@@ -171,20 +171,20 @@ export function AssistantSidebar({
             }}
             placeholder="Search chats..."
             aria-label="Search chats"
-            className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-[12px] bg-[#14161C] text-white placeholder-[#8A909A] border border-[#262A34] outline-none focus:border-[#3E4452] transition-colors"
+            className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-[12px] bg-[#121212] text-white placeholder-[#8A909A] border border-[#262626] outline-none focus:border-[#3E3E3E] transition-colors"
           />
         </div>
       </div>
 
       {/* Nav List: Projects, Scheduled Tasks, Activity & Approvals (Exactly 3 items) */}
-      <div className="px-2 py-1.5 border-b border-[#262A34] space-y-0.5 text-[11.5px]">
+      <div className="px-2 py-1.5 border-b border-[#262626] space-y-0.5 text-[11.5px]">
         <button
           type="button"
           onClick={() => navigate('/assistant/projects')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/projects')
-              ? 'bg-[#242831] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
           }`}
         >
           <Folder className="w-3.5 h-3.5 opacity-80" />
@@ -195,8 +195,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/scheduled')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/scheduled')
-              ? 'bg-[#242831] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
           }`}
         >
           <CalendarClock className="w-3.5 h-3.5 opacity-80" />
@@ -207,8 +207,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/activity')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/activity')
-              ? 'bg-[#242831] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5 opacity-80" />
@@ -291,7 +291,7 @@ export function AssistantSidebar({
                 setShowAllChats(true);
                 if (hasMore && onLoadMore) onLoadMore();
               }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11.5px] font-medium text-[#8A909A] hover:text-white hover:bg-[#232731] transition-colors border border-[#2B2F3A]"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11.5px] font-medium text-[#8A909A] hover:text-white hover:bg-[#232323] transition-colors border border-[#2C2C2C]"
             >
               <Archive className="w-3.5 h-3.5 opacity-70" />
               <span>View all ({hiddenCount} older)</span>
@@ -322,14 +322,14 @@ export function AssistantSidebar({
       </div>
 
       {/* Bottom Hub Navigation: Mode Selector, Memory, Settings */}
-      <div className="p-1.5 border-t border-[#262A34] space-y-0.5">
+      <div className="p-1.5 border-t border-[#262626] space-y-0.5">
         {/* Access Mode Selector Click-in */}
         {mode && onModeChange && (
           <div ref={modeDropdownRef} className="relative">
             <button
               type="button"
               onClick={() => setModeDropdownOpen(!modeDropdownOpen)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-medium text-[#CBD5E1] hover:text-white hover:bg-[#22262E] transition-colors"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-medium text-[#CBD5E1] hover:text-white hover:bg-[#232323] transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span
@@ -347,7 +347,7 @@ export function AssistantSidebar({
             </button>
 
             {modeDropdownOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl bg-[#1A1D24] border border-[#2E323A] shadow-xl p-1 z-50 text-[11px] animate-in fade-in zoom-in-95">
+              <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl bg-[#191919] border border-[#2C2C2C] shadow-xl p-1 z-50 text-[11px] animate-in fade-in zoom-in-95">
                 {(['read_only', 'draft', 'full'] as const).map((m) => (
                   <button
                     key={m}
@@ -357,7 +357,7 @@ export function AssistantSidebar({
                       setModeDropdownOpen(false);
                     }}
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                      mode === m ? 'bg-[#242831] text-white font-semibold' : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+                      mode === m ? 'bg-[#282828] text-white font-semibold' : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -382,8 +382,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/memory')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
             location.pathname.startsWith('/assistant/memory')
-              ? 'bg-[#242831] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
           }`}
         >
           <Brain className="w-3.5 h-3.5 opacity-80" />
@@ -396,8 +396,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/settings')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
             location.pathname.startsWith('/assistant/settings')
-              ? 'bg-[#242831] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
+              ? 'bg-[#282828] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323]'
           }`}
         >
           <Settings className="w-3.5 h-3.5 opacity-80" />
@@ -412,7 +412,7 @@ export function AssistantSidebar({
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-dialog-title"
-            className="w-full max-w-sm rounded-2xl bg-[#181A20] border border-[#262A32] p-5 shadow-xl space-y-4"
+            className="w-full max-w-sm rounded-2xl bg-[#191919] border border-[#2C2C2C] p-5 shadow-xl space-y-4"
           >
             <h3 id="delete-dialog-title" className="text-base font-semibold text-white">
               Delete this chat?
@@ -508,7 +508,7 @@ function ConversationRow({
           onChange={(e) => setEditTitle(e.target.value)}
           onBlur={onEditSave}
           onKeyDown={onEditKeyDown}
-          className="w-full px-2 py-1 text-xs rounded bg-[#131519] border border-primary text-white outline-none"
+          className="w-full px-2 py-1 text-xs rounded bg-[#121212] border border-primary text-white outline-none"
         />
       </div>
     );
@@ -518,8 +518,8 @@ function ConversationRow({
     <div
       className={`group relative flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? 'bg-[#252932] text-white font-medium border border-[#323742] shadow-xs'
-          : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E] border border-transparent'
+          ? 'bg-[#282828] text-white font-medium border border-[#333333] shadow-xs'
+          : 'text-[#CBD5E1] hover:text-white hover:bg-[#232323] border border-transparent'
       }`}
       onClick={onClick}
     >

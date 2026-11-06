@@ -589,7 +589,7 @@ export default function AssistantPage() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <div className="relative w-[240px] h-full bg-[#1A1D24] border-r border-[#2E323A] z-10 animate-in slide-in-from-left">
+          <div className="relative w-[240px] h-full bg-[#191919] border-r border-[#2C2C2C] z-10 animate-in slide-in-from-left">
             <AssistantSidebar
               conversations={conversations}
               activeConversationId={conversationId}
