@@ -26,6 +26,7 @@ interface AssistantComposerProps {
   thinking?: 'auto' | 'extended';
   onThinkingChange?: (thinking: 'auto' | 'extended') => void;
   maxChars?: number;
+  isCenteredEmptyState?: boolean;
 }
 
 export function AssistantComposer({
@@ -40,6 +41,7 @@ export function AssistantComposer({
   thinking = 'auto',
   onThinkingChange,
   maxChars = 20000,
+  isCenteredEmptyState = false,
 }: AssistantComposerProps) {
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
@@ -207,7 +209,7 @@ export function AssistantComposer({
   const hasSendContent = (input.trim().length > 0 || attachments.length > 0) && !isOverLimit && !disabled;
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 pb-3">
+    <div className={`w-full ${isCenteredEmptyState ? 'max-w-2xl px-0' : 'max-w-3xl px-4 pb-3'} mx-auto`}>
       {/* Floating Capsule Input */}
       <div
         onDragOver={(e) => {
@@ -216,7 +218,9 @@ export function AssistantComposer({
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`relative rounded-2xl border bg-[#181a22]/95 backdrop-blur-md shadow-luxury transition-all px-3.5 py-2.5 ${
+        className={`relative rounded-2xl border bg-[#161a24]/95 backdrop-blur-md shadow-luxury transition-all ${
+          isCenteredEmptyState ? 'px-4 py-3.5 ring-1 ring-white/10' : 'px-3.5 py-2.5'
+        } ${
           isDragging ? 'border-primary ring-2 ring-primary/30' : 'border-border/60 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20'
         }`}
       >
@@ -285,9 +289,11 @@ export function AssistantComposer({
             onPaste={handlePaste}
             placeholder="Write a message..."
             aria-label="Write a message"
-            rows={1}
+            rows={isCenteredEmptyState ? 2 : 1}
             disabled={disabled}
-            className="flex-1 px-2 py-1 text-[14.5px] leading-relaxed bg-transparent text-text-main placeholder:text-text-muted/60 resize-none outline-none max-h-[200px] overflow-y-auto"
+            className={`flex-1 px-2 py-1 text-[14.5px] leading-relaxed bg-transparent text-text-main placeholder:text-text-muted/60 resize-none outline-none ${
+              isCenteredEmptyState ? 'min-h-[44px]' : ''
+            } max-h-[200px] overflow-y-auto`}
           />
 
           <div className="flex items-center gap-1 shrink-0">

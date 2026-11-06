@@ -115,7 +115,7 @@ export function AssistantSidebar({
   }
 
   return (
-    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-r border-border/50 bg-surface/85 backdrop-blur-md shrink-0 select-none font-inter overflow-hidden">
+    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-r border-white/[0.08] bg-[#121622] shrink-0 select-none font-inter overflow-hidden">
       {/* Top Header: Compact New Chat & Search */}
       <div className="p-3 border-b border-border/50 space-y-2">
         <button
