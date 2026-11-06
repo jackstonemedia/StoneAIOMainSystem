@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { AssistantComposer } from '../AssistantComposer';
 import { AssistantThread } from '../AssistantThread';
 import { MarkdownRenderer } from '../MarkdownRenderer';
@@ -11,35 +12,39 @@ describe('Assistant Frontend Components Suite', () => {
     const handleModeChange = vi.fn();
 
     render(
-      <AssistantComposer
-        input=""
-        setInput={vi.fn()}
-        onSend={handleSend}
-        isStreaming={false}
-        mode="read_only"
-        onModeChange={handleModeChange}
-      />
+      <MemoryRouter>
+        <AssistantComposer
+          input=""
+          setInput={vi.fn()}
+          onSend={handleSend}
+          isStreaming={false}
+          mode="read_only"
+          onModeChange={handleModeChange}
+        />
+      </MemoryRouter>
     );
 
-    expect(screen.getByPlaceholderText('Message Stone AI…')).toBeInTheDocument();
-    expect(screen.getByText('Read-only')).toBeInTheDocument();
-    expect(screen.getByText('Gemini 3.8 Flash')).toBeInTheDocument();
-    expect(screen.getByText('Stone AI can make mistakes. Check important information.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Reply')).toBeInTheDocument();
+    expect(screen.getByText('Auto')).toBeInTheDocument();
+    expect(screen.getByText('Sonnet 5.5')).toBeInTheDocument();
+    expect(screen.getByText(/Stone AI can make mistakes/)).toBeInTheDocument();
   });
 
   it('shows character counter when input is within 1,000 characters of the limit', () => {
     const longInput = 'A'.repeat(19500);
 
     render(
-      <AssistantComposer
-        input={longInput}
-        setInput={vi.fn()}
-        onSend={vi.fn()}
-        isStreaming={false}
-        mode="read_only"
-        onModeChange={vi.fn()}
-        maxChars={20000}
-      />
+      <MemoryRouter>
+        <AssistantComposer
+          input={longInput}
+          setInput={vi.fn()}
+          onSend={vi.fn()}
+          isStreaming={false}
+          mode="read_only"
+          onModeChange={vi.fn()}
+          maxChars={20000}
+        />
+      </MemoryRouter>
     );
 
     expect(screen.getByText(/19,500 \/ 20,000/)).toBeInTheDocument();

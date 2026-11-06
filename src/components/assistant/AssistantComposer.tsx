@@ -10,6 +10,14 @@ import { assistantApi, type AssistantProject } from '../../lib/api/assistant';
 export type AccessMode = 'read_only' | 'draft' | 'full';
 export type ThinkingMode = 'auto' | 'deep' | 'standard';
 
+const ROTATING_CAPABILITIES = [
+  'Draft a summary of recent activity...',
+  'Write a personalized follow-up email...',
+  'Audit active pipeline deals and revenue...',
+  'Find new leads needing outreach...',
+  'Review pending task approvals and automations...',
+];
+
 export interface ComposerAttachment {
   type: 'image' | 'file';
   name: string;
@@ -33,6 +41,7 @@ interface AssistantComposerProps {
   isCenteredEmptyState?: boolean;
   selectedProjectId?: string | null;
   onSelectProject?: (projectId: string | null) => void;
+  placeholder?: string;
 }
 
 export function AssistantComposer({
@@ -50,8 +59,14 @@ export function AssistantComposer({
   isCenteredEmptyState = false,
   selectedProjectId = null,
   onSelectProject,
+  placeholder,
 }: AssistantComposerProps) {
-  const navigate = useNavigate();
+  let navigate: any = null;
+  try {
+    navigate = useNavigate();
+  } catch {
+    navigate = null;
+  }
 
   // Attachments and recording
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
@@ -76,11 +91,28 @@ export function AssistantComposer({
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement>(null);
 
+  // Rotating placeholder capabilities
+  const [capabilityIndex, setCapabilityIndex] = useState(0);
+  const [fadeState, setFadeState] = useState<'visible' | 'fading'>('visible');
+
+  useEffect(() => {
+    if (input.length > 0) return;
+    const interval = setInterval(() => {
+      setFadeState('fading');
+      setTimeout(() => {
+        setCapabilityIndex((prev) => (prev + 1) % ROTATING_CAPABILITIES.length);
+        setFadeState('visible');
+      }, 350);
+    }, 3800);
+    return () => clearInterval(interval);
+  }, [input]);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
   const charCount = input.length;
+  const isNearLimit = charCount >= maxChars - 1000;
   const isOverLimit = charCount > maxChars;
 
   // Load projects list
@@ -250,200 +282,342 @@ export function AssistantComposer({
 
   return (
     <div className={`w-full ${isCenteredEmptyState ? 'max-w-2xl md:max-w-3xl' : 'max-w-3xl'} mx-auto px-4 pb-3`}>
-      {/* Card / Box Container */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
+      {/* Hidden File Picker */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        multiple
+        accept="image/*,application/pdf,text/csv,text/plain"
+        onChange={(e) => {
+          if (e.target.files) processFiles(e.target.files);
+          e.target.value = '';
         }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        className={`relative rounded-2xl md:rounded-[20px] bg-[#2A2A2B] border border-transparent focus-within:border-[#3E3E3E] transition-all p-4 shadow-sm flex flex-col justify-between ${
-          isCenteredEmptyState ? 'min-h-[140px] md:min-h-[155px]' : 'min-h-[100px]'
-        } ${isDragging ? 'border-primary ring-2 ring-primary/30' : ''}`}
-      >
-        {/* Hidden File Picker */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          multiple
-          accept="image/*,application/pdf,text/csv,text/plain"
-          onChange={(e) => {
-            if (e.target.files) processFiles(e.target.files);
-            e.target.value = '';
-          }}
-          className="hidden"
-        />
+        className="hidden"
+      />
 
-        {/* Attachment Chips Header */}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 pb-2 mb-2 border-b border-[#3E3E3E]/60">
-            {attachments.map((att, idx) => (
+      {isCenteredEmptyState ? (
+        /* Empty State Card Container (Less tall, same width) */
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`relative rounded-2xl md:rounded-[20px] bg-[#2A2A2B] border border-transparent focus-within:border-[#3E3E3E] transition-all p-3.5 md:p-4 shadow-sm flex flex-col justify-between min-h-[105px] md:min-h-[115px] ${
+            isDragging ? 'border-primary ring-2 ring-primary/30' : ''
+          }`}
+        >
+          {/* Attachment Chips Header */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 pb-2 mb-2 border-b border-[#3E3E3E]/60">
+              {attachments.map((att, idx) => (
+                <div
+                  key={idx}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333334] border border-[#444445] text-xs text-[#ECECEC] group"
+                >
+                  {att.type === 'image' ? (
+                    <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 text-amber-400" />
+                  )}
+                  <span className="truncate max-w-[140px] font-medium">{att.name}</span>
+                  <span className="text-[10px] text-[#8E8E8E]">
+                    ({Math.round(att.size / 1024)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    aria-label="Remove attachment"
+                    className="p-0.5 rounded-full hover:bg-white/10 text-[#8E8E8E] hover:text-white transition"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Textarea Area */}
+          <div className="relative flex-1 w-full min-h-[40px]">
+            {!input && (
               <div
-                key={idx}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333334] border border-[#444445] text-xs text-[#ECECEC] group"
+                className={`absolute top-0 left-0 pointer-events-none text-[#7A7A7D] text-[15px] leading-relaxed select-none transition-opacity duration-300 ${
+                  fadeState === 'fading' ? 'opacity-0' : 'opacity-100'
+                }`}
               >
-                {att.type === 'image' ? (
-                  <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
-                ) : (
-                  <FileText className="w-3.5 h-3.5 text-amber-400" />
-                )}
-                <span className="truncate max-w-[140px] font-medium">{att.name}</span>
-                <span className="text-[10px] text-[#8E8E8E]">
-                  ({Math.round(att.size / 1024)} KB)
-                </span>
+                {placeholder || ROTATING_CAPABILITIES[capabilityIndex]}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={placeholder || ROTATING_CAPABILITIES[capabilityIndex]}
+              aria-label={placeholder || ROTATING_CAPABILITIES[capabilityIndex]}
+              disabled={disabled}
+              className="w-full h-full bg-transparent text-[#ECECEC] text-[15px] leading-relaxed resize-none outline-none p-0 border-0 focus:ring-0 overflow-y-auto"
+            />
+          </div>
+
+          {/* Bottom Row INSIDE the Box: Plus on bottom left, Voice Mic on bottom right */}
+          <div className="flex items-center justify-between pt-2 mt-auto select-none">
+            {/* Plus sign at bottom left */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Add files"
+              title="Attach images, documents or files"
+              className="p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+
+            {/* Voice Microphone and Audio on bottom right */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleRecording}
+                aria-label={isRecording ? 'Stop voice recording' : 'Voice input'}
+                title={isRecording ? 'Listening... click to stop' : 'Voice input'}
+                className={`flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
+                  isRecording ? 'text-rose-400 animate-pulse' : ''
+                }`}
+              >
+                <Mic className="w-4 h-4" />
+                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleRecording}
+                aria-label="Voice conversation mode"
+                title="Voice conversation mode"
+                className="p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
+              >
+                <AudioLines className="w-4 h-4" />
+              </button>
+
+              {/* When text is entered or streaming, show enter/send button */}
+              {isStreaming ? (
                 <button
                   type="button"
-                  onClick={() => removeAttachment(idx)}
-                  aria-label="Remove attachment"
-                  className="p-0.5 rounded-full hover:bg-white/10 text-[#8E8E8E] hover:text-white transition"
+                  onClick={onStop}
+                  aria-label="Stop generating"
+                  className="w-5 h-5 rounded-md bg-white text-black flex items-center justify-center transition-opacity hover:opacity-90 ml-1 cursor-pointer"
                 >
-                  <X className="w-3 h-3" />
+                  <Square className="w-2.5 h-2.5 fill-current" />
                 </button>
-              </div>
-            ))}
+              ) : hasSendContent ? (
+                <button
+                  type="button"
+                  onClick={handleSendClick}
+                  aria-label="Send message"
+                  className="w-6 h-6 rounded-lg bg-white text-black hover:bg-neutral-200 flex items-center justify-center transition-all ml-1 cursor-pointer shadow-xs"
+                >
+                  <CornerDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+                </button>
+              ) : null}
+            </div>
           </div>
-        )}
-
-        {/* Textarea Area */}
-        <div className="relative flex-1 w-full min-h-[50px]">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={isCenteredEmptyState ? 'How can I help you today?' : 'Reply'}
-            aria-label={isCenteredEmptyState ? 'How can I help you today?' : 'Reply'}
-            disabled={disabled}
-            className="w-full h-full bg-transparent text-[#ECECEC] placeholder:text-[#7A7A7D] text-[15px] leading-relaxed resize-none outline-none p-0 border-0 focus:ring-0 overflow-y-auto"
-          />
         </div>
+      ) : (
+        /* Active Thread Compact Pill Container (Slim height, smaller reply button) */
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          className={`relative rounded-2xl bg-[#2A2A2B] border border-transparent focus-within:border-[#3E3E3E] transition-all px-4 py-2 shadow-sm flex items-center gap-2 min-h-[44px] ${
+            isDragging ? 'border-primary ring-2 ring-primary/30' : ''
+          }`}
+        >
+          {/* Attachment Chips Header if present */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 shrink-0 pr-1 border-r border-[#3E3E3E]/60">
+              {attachments.map((att, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#333334] text-[11px] text-[#ECECEC]"
+                >
+                  <span className="truncate max-w-[80px]">{att.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    aria-label="Remove attachment"
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
-        {/* Bottom Row INSIDE the Box: Plus on bottom left, Voice Mic on bottom right */}
-        <div className="flex items-center justify-between pt-3 mt-auto select-none">
-          {/* Plus sign at bottom left */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Add files"
-            title="Attach images, documents or files"
-            className="p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {/* Textarea inside slim pill */}
+          <div className="relative flex-1 w-full min-h-[24px] flex items-center">
+            {!input && (
+              <div className="absolute left-0 pointer-events-none text-[#7A7A7D] text-[14.5px] select-none">
+                {placeholder || 'Reply'}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              rows={1}
+              placeholder={placeholder || 'Reply'}
+              aria-label={placeholder || 'Reply'}
+              disabled={disabled}
+              className="w-full bg-transparent text-[#ECECEC] text-[14.5px] leading-snug resize-none outline-none p-0 border-0 focus:ring-0 max-h-[120px] overflow-y-auto"
+            />
+          </div>
 
-          {/* Voice Microphone and Audio on bottom right */}
-          <div className="flex items-center gap-2">
+          {/* Small Reply Button on right of the pill */}
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={onStop}
+              aria-label="Stop generating"
+              className="w-5 h-5 rounded-md bg-white text-black flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <Square className="w-2 h-2 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSendClick}
+              disabled={!hasSendContent}
+              aria-label="Send reply"
+              className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                hasSendContent
+                  ? 'bg-white text-black hover:bg-neutral-200 cursor-pointer'
+                  : 'text-[#555558] cursor-default'
+              }`}
+            >
+              <CornerDownLeft className="w-3.5 h-3.5 stroke-[2.2]" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Outer Bottom Row: Tools/Project on Bottom Left, Disclaimer in Center (Active thread), Model & Mode on Bottom Right */}
+      <div className="flex items-center justify-between text-xs text-[#8A8A8D] px-2 pt-2.5 select-none">
+        {/* Bottom Left: Project Dropdown (Empty State) or Tools Row (Active Thread) */}
+        {isCenteredEmptyState ? (
+          <div ref={projectMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setProjectMenuOpen(!projectMenuOpen)}
+              className="flex items-center gap-1.5 text-[12px] font-medium text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
+            >
+              <span>{selectedProject ? selectedProject.name : 'Project'}</span>
+              <ChevronDown className={`w-3 h-3 text-[#8A8A8D] transition-transform ${projectMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {projectMenuOpen && (
+              <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-[#2A2A2B] border border-[#3E3E3E] shadow-xl p-1 z-50 text-xs animate-in fade-in zoom-in-95">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentProjectId(null);
+                    onSelectProject?.(null);
+                    setProjectMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                    !currentProjectId ? 'bg-[#3A3A3B] text-white font-medium' : 'text-[#8A8A8D] hover:text-white hover:bg-[#343435]'
+                  }`}
+                >
+                  <span>No project (General)</span>
+                  {!currentProjectId && <Check className="w-3.5 h-3.5 text-white" />}
+                </button>
+
+                {projects.map((proj) => (
+                  <button
+                    key={proj.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentProjectId(proj.id);
+                      onSelectProject?.(proj.id);
+                      setProjectMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                      currentProjectId === proj.id ? 'bg-[#3A3A3B] text-white font-medium' : 'text-[#8A8A8D] hover:text-white hover:bg-[#343435]'
+                    }`}
+                  >
+                    <span className="truncate">{proj.name}</span>
+                    {currentProjectId === proj.id && <Check className="w-3.5 h-3.5 text-white" />}
+                  </button>
+                ))}
+
+                <div className="border-t border-[#3E3E3E] my-1 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProjectMenuOpen(false);
+                      navigate('/assistant/projects');
+                    }}
+                    className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-left text-primary hover:bg-[#343435] transition-colors"
+                  >
+                    <Folder className="w-3.5 h-3.5" />
+                    <span>Manage Projects</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Add files"
+              title="Attach files"
+              className="text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={toggleRecording}
-              aria-label={isRecording ? 'Stop voice recording' : 'Voice input'}
-              title={isRecording ? 'Listening... click to stop' : 'Voice input'}
+              aria-label="Voice input"
+              title="Voice input"
               className={`flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
                 isRecording ? 'text-rose-400 animate-pulse' : ''
               }`}
             >
               <Mic className="w-4 h-4" />
-              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
             </button>
-
             <button
               type="button"
               onClick={toggleRecording}
-              aria-label="Voice conversation mode"
-              title="Voice conversation mode"
-              className="p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
+              aria-label="Voice mode"
+              title="Voice mode"
+              className="flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
             >
               <AudioLines className="w-4 h-4" />
+              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
             </button>
-
-            {/* When text is entered or streaming, show enter/send button */}
-            {isStreaming ? (
-              <button
-                type="button"
-                onClick={onStop}
-                aria-label="Stop generating"
-                className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center transition-opacity hover:opacity-90 ml-1 cursor-pointer"
-              >
-                <Square className="w-2.5 h-2.5 fill-current" />
-              </button>
-            ) : hasSendContent ? (
-              <button
-                type="button"
-                onClick={handleSendClick}
-                aria-label="Send message"
-                className="w-6 h-6 rounded-full bg-white text-black hover:bg-neutral-200 flex items-center justify-center transition-all ml-1 cursor-pointer shadow-xs"
-              >
-                <CornerDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              </button>
-            ) : null}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Outer Bottom Row: Project on Bottom Left, Model & Auto Mode on Bottom Right */}
-      <div className="flex items-center justify-between text-xs text-[#8A8A8D] px-2 pt-2.5 select-none">
-        {/* Bottom Left: Project Dropdown */}
-        <div ref={projectMenuRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setProjectMenuOpen(!projectMenuOpen)}
-            className="flex items-center gap-1.5 text-[12px] font-medium text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
-          >
-            <span>{selectedProject ? selectedProject.name : 'Project'}</span>
-            <ChevronDown className={`w-3 h-3 text-[#8A8A8D] transition-transform ${projectMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {projectMenuOpen && (
-            <div className="absolute bottom-full left-0 mb-2 w-52 rounded-xl bg-[#2A2A2B] border border-[#3E3E3E] shadow-xl p-1 z-50 text-xs animate-in fade-in zoom-in-95">
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentProjectId(null);
-                  onSelectProject?.(null);
-                  setProjectMenuOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                  !currentProjectId ? 'bg-[#3A3A3B] text-white font-medium' : 'text-[#8A8A8D] hover:text-white hover:bg-[#343435]'
-                }`}
-              >
-                <span>No project (General)</span>
-                {!currentProjectId && <Check className="w-3.5 h-3.5 text-white" />}
-              </button>
-
-              {projects.map((proj) => (
-                <button
-                  key={proj.id}
-                  type="button"
-                  onClick={() => {
-                    setCurrentProjectId(proj.id);
-                    onSelectProject?.(proj.id);
-                    setProjectMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                    currentProjectId === proj.id ? 'bg-[#3A3A3B] text-white font-medium' : 'text-[#8A8A8D] hover:text-white hover:bg-[#343435]'
-                  }`}
-                >
-                  <span className="truncate">{proj.name}</span>
-                  {currentProjectId === proj.id && <Check className="w-3.5 h-3.5 text-white" />}
-                </button>
-              ))}
-
-              <div className="border-t border-[#3E3E3E] my-1 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProjectMenuOpen(false);
-                    navigate('/assistant/projects');
-                  }}
-                  className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-left text-primary hover:bg-[#343435] transition-colors"
-                >
-                  <Folder className="w-3.5 h-3.5" />
-                  <span>Manage Projects</span>
-                </button>
-              </div>
+        {/* Center: Disclaimer in Active Chat & Character Counter */}
+        <div className="flex items-center gap-2">
+          {!isCenteredEmptyState && (
+            <div className="hidden sm:block text-[11px] text-[#71717A] tracking-tight">
+              Stone AI can make mistakes. Check important info.
             </div>
+          )}
+          {isNearLimit && (
+            <span className={`font-mono text-[10px] ${isOverLimit ? 'text-rose-500 font-semibold' : 'text-[#8A8A8D]'}`}>
+              {charCount.toLocaleString()} / {maxChars.toLocaleString()}
+            </span>
           )}
         </div>
 

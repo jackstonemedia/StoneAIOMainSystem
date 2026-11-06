@@ -47,6 +47,7 @@ export function AssistantSidebar({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteDialogId, setDeleteDialogId] = useState<string | null>(null);
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
+  const [showAllChats, setShowAllChats] = useState(false);
   const modeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,33 +110,56 @@ export function AssistantSidebar({
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = todayStart - 86400000;
   const sevenDaysStart = todayStart - 7 * 86400000;
 
-  const groups: Record<string, AssistantConversation[]> = {
-    Today: [],
-    Yesterday: [],
-    'Previous 7 days': [],
-    Older: [],
-  };
+  // Split unpinned into Today, Previous 7 days, and Older
+  const allToday: AssistantConversation[] = [];
+  const allPrevious7Days: AssistantConversation[] = [];
+  const allOlder: AssistantConversation[] = [];
 
   for (const convo of unpinnedList) {
     const time = new Date(convo.updatedAt).getTime();
     if (time >= todayStart) {
-      groups.Today.push(convo);
-    } else if (time >= yesterdayStart) {
-      groups.Yesterday.push(convo);
+      allToday.push(convo);
     } else if (time >= sevenDaysStart) {
-      groups['Previous 7 days'].push(convo);
+      allPrevious7Days.push(convo);
     } else {
-      groups.Older.push(convo);
+      allOlder.push(convo);
     }
   }
 
+  // Check if active conversation is in older chats; if so, expand automatically
+  const isActiveInOlder = activeConversationId
+    ? allOlder.some((c) => c.id === activeConversationId)
+    : false;
+  const isExpanded = showAllChats || isActiveInOlder || searchQuery.trim().length > 0;
+
+  // Limit default view to 18 conversations (between 15 and 20) across Today & Previous 7 days
+  const MAX_DEFAULT_RECENT = 18;
+  const visibleToday = isExpanded ? allToday : allToday.slice(0, MAX_DEFAULT_RECENT);
+  const remainingSlots = Math.max(0, MAX_DEFAULT_RECENT - visibleToday.length);
+  const visiblePrevious7Days = isExpanded ? allPrevious7Days : allPrevious7Days.slice(0, remainingSlots);
+
+  // Hidden chats count that aren't visible in the default view
+  const hiddenCount = isExpanded
+    ? 0
+    : (allToday.length - visibleToday.length) +
+      (allPrevious7Days.length - visiblePrevious7Days.length) +
+      allOlder.length;
+
+  const groups: Record<string, AssistantConversation[]> = {
+    Today: visibleToday,
+    'Previous 7 days': visiblePrevious7Days,
+  };
+
+  if (isExpanded && allOlder.length > 0) {
+    groups.Older = allOlder;
+  }
+
   return (
-    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-r border-[#242830] bg-[#16191D] shrink-0 select-none font-inter overflow-hidden">
+    <aside className="w-[220px] md:w-[240px] h-full flex flex-col border-l border-r border-[#2E323A] bg-[#1A1D24] shrink-0 select-none font-inter overflow-hidden">
       {/* Top Header: Search Chats at the very top */}
-      <div className="p-2.5 border-b border-[#242830]">
+      <div className="p-2.5 border-b border-[#262A34]">
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8A909A]" />
           <input
@@ -147,20 +171,20 @@ export function AssistantSidebar({
             }}
             placeholder="Search chats..."
             aria-label="Search chats"
-            className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-[12px] bg-[#131519] text-white placeholder-[#8A909A] border border-[#242830] outline-none focus:border-[#3E4452] transition-colors"
+            className="w-full pl-8 pr-2.5 py-1.5 rounded-lg text-[12px] bg-[#14161C] text-white placeholder-[#8A909A] border border-[#262A34] outline-none focus:border-[#3E4452] transition-colors"
           />
         </div>
       </div>
 
       {/* Nav List: Projects, Scheduled Tasks, Activity & Approvals (Exactly 3 items) */}
-      <div className="px-2 py-1.5 border-b border-[#242830] space-y-0.5 text-[11.5px]">
+      <div className="px-2 py-1.5 border-b border-[#262A34] space-y-0.5 text-[11.5px]">
         <button
           type="button"
           onClick={() => navigate('/assistant/projects')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/projects')
-              ? 'bg-[#22252B] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+              ? 'bg-[#242831] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
           }`}
         >
           <Folder className="w-3.5 h-3.5 opacity-80" />
@@ -171,8 +195,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/scheduled')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/scheduled')
-              ? 'bg-[#22252B] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+              ? 'bg-[#242831] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
           }`}
         >
           <CalendarClock className="w-3.5 h-3.5 opacity-80" />
@@ -183,8 +207,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/activity')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-colors text-left ${
             location.pathname.startsWith('/assistant/activity')
-              ? 'bg-[#22252B] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+              ? 'bg-[#242831] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5 opacity-80" />
@@ -259,28 +283,53 @@ export function AssistantSidebar({
           );
         })}
 
-        {hasMore && (
-          <div className="pt-2 text-center">
+        {hiddenCount > 0 && (
+          <div className="pt-2 pb-1 px-1">
             <button
               type="button"
-              onClick={onLoadMore}
-              className="text-xs text-primary hover:underline px-2 py-1 font-medium"
+              onClick={() => {
+                setShowAllChats(true);
+                if (hasMore && onLoadMore) onLoadMore();
+              }}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-[11.5px] font-medium text-[#8A909A] hover:text-white hover:bg-[#232731] transition-colors border border-[#2B2F3A]"
             >
-              Load more
+              <Archive className="w-3.5 h-3.5 opacity-70" />
+              <span>View all ({hiddenCount} older)</span>
+            </button>
+          </div>
+        )}
+
+        {isExpanded && !searchQuery && (allOlder.length > 0 || unpinnedList.length > MAX_DEFAULT_RECENT) && (
+          <div className="pt-2 pb-1 px-1 flex flex-col items-center gap-1">
+            {hasMore && (
+              <button
+                type="button"
+                onClick={onLoadMore}
+                className="text-xs text-primary hover:underline px-2 py-1 font-medium"
+              >
+                Load more
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAllChats(false)}
+              className="text-[11px] text-[#8A909A] hover:text-white hover:underline px-2 py-1 cursor-pointer"
+            >
+              Show fewer
             </button>
           </div>
         )}
       </div>
 
       {/* Bottom Hub Navigation: Mode Selector, Memory, Settings */}
-      <div className="p-1.5 border-t border-[#242830] space-y-0.5">
+      <div className="p-1.5 border-t border-[#262A34] space-y-0.5">
         {/* Access Mode Selector Click-in */}
         {mode && onModeChange && (
           <div ref={modeDropdownRef} className="relative">
             <button
               type="button"
               onClick={() => setModeDropdownOpen(!modeDropdownOpen)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-medium text-[#CBD5E1] hover:text-white hover:bg-[#1E2026] transition-colors"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-medium text-[#CBD5E1] hover:text-white hover:bg-[#22262E] transition-colors"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span
@@ -298,7 +347,7 @@ export function AssistantSidebar({
             </button>
 
             {modeDropdownOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl bg-[#16191D] border border-[#242830] shadow-xl p-1 z-50 text-[11px] animate-in fade-in zoom-in-95">
+              <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl bg-[#1A1D24] border border-[#2E323A] shadow-xl p-1 z-50 text-[11px] animate-in fade-in zoom-in-95">
                 {(['read_only', 'draft', 'full'] as const).map((m) => (
                   <button
                     key={m}
@@ -308,7 +357,7 @@ export function AssistantSidebar({
                       setModeDropdownOpen(false);
                     }}
                     className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                      mode === m ? 'bg-[#22252B] text-white font-semibold' : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+                      mode === m ? 'bg-[#242831] text-white font-semibold' : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -333,8 +382,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/memory')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
             location.pathname.startsWith('/assistant/memory')
-              ? 'bg-[#22252B] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+              ? 'bg-[#242831] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
           }`}
         >
           <Brain className="w-3.5 h-3.5 opacity-80" />
@@ -347,8 +396,8 @@ export function AssistantSidebar({
           onClick={() => navigate('/assistant/settings')}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
             location.pathname.startsWith('/assistant/settings')
-              ? 'bg-[#22252B] text-white font-semibold'
-              : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026]'
+              ? 'bg-[#242831] text-white font-semibold'
+              : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E]'
           }`}
         >
           <Settings className="w-3.5 h-3.5 opacity-80" />
@@ -469,8 +518,8 @@ function ConversationRow({
     <div
       className={`group relative flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
         isActive
-          ? 'bg-[#22252B] text-white font-medium border border-[#30353F] shadow-xs'
-          : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E2026] border border-transparent'
+          ? 'bg-[#252932] text-white font-medium border border-[#323742] shadow-xs'
+          : 'text-[#CBD5E1] hover:text-white hover:bg-[#22262E] border border-transparent'
       }`}
       onClick={onClick}
     >
