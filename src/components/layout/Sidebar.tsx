@@ -77,6 +77,11 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
           path: '/conversations',      
           icon: MessageSquare,
         },
+        ...(FEATURES.assistant ? [{
+          name: 'AI Assistant',
+          path: '/assistant',
+          icon: Sparkles,
+        }] : []),
         ...(FEATURES.ads ? [{ 
           name: 'Ad Manager',   
           path: '/ads/overview',       

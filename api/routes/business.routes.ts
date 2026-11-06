@@ -427,6 +427,37 @@ router.post('/conversations/:id/messages', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
+// ── Bulk Conversation Actions (Must precede /conversations/:id) ───────────────
+router.patch('/conversations/bulk', async (req, res) => {
+  try {
+    const { conversationIds, action, payload } = req.body;
+    if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
+      return res.status(400).json({ error: 'conversationIds array is required' });
+    }
+
+    const where = { id: { in: conversationIds }, workspaceId: req.workspaceId };
+
+    if (action === 'mark_read') {
+      await db.conversation.updateMany({ where, data: { unreadCount: 0 } });
+    } else if (action === 'mark_unread') {
+      await db.conversation.updateMany({ where, data: { unreadCount: 1 } });
+    } else if (action === 'change_status') {
+      if (payload?.status) {
+        await db.conversation.updateMany({ where, data: { status: payload.status } });
+      }
+    } else if (action === 'archive') {
+      await db.conversation.updateMany({ where, data: { status: 'archived' } });
+    } else if (action === 'assign') {
+      await db.conversation.updateMany({ where, data: { assignedUserId: payload?.assignedUserId ?? null } });
+    } else if (action === 'delete') {
+      await db.conversationMessage.deleteMany({ where: { conversationId: { in: conversationIds } } });
+      await db.conversation.deleteMany({ where });
+    }
+
+    res.json({ success: true, updatedCount: conversationIds.length });
+  } catch (e) { err500(res, e); }
+});
+
 router.patch('/conversations/:id', async (req, res) => {
   try {
     const existing = await db.conversation.findFirst({
@@ -473,37 +504,6 @@ router.post('/conversations/:id/mark-unread', async (req, res) => {
   try {
     await db.conversation.updateMany({ where: { id: req.params.id, workspaceId: req.workspaceId }, data: { unreadCount: 1 } });
     res.json({ success: true });
-  } catch (e) { err500(res, e); }
-});
-
-// ── Bulk Conversation Actions ────────────────────────────────────────────────
-router.patch('/conversations/bulk', async (req, res) => {
-  try {
-    const { conversationIds, action, payload } = req.body;
-    if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
-      return res.status(400).json({ error: 'conversationIds array is required' });
-    }
-
-    const where = { id: { in: conversationIds }, workspaceId: req.workspaceId };
-
-    if (action === 'mark_read') {
-      await db.conversation.updateMany({ where, data: { unreadCount: 0 } });
-    } else if (action === 'mark_unread') {
-      await db.conversation.updateMany({ where, data: { unreadCount: 1 } });
-    } else if (action === 'change_status') {
-      if (payload?.status) {
-        await db.conversation.updateMany({ where, data: { status: payload.status } });
-      }
-    } else if (action === 'archive') {
-      await db.conversation.updateMany({ where, data: { status: 'archived' } });
-    } else if (action === 'assign') {
-      await db.conversation.updateMany({ where, data: { assignedUserId: payload?.assignedUserId ?? null } });
-    } else if (action === 'delete') {
-      await db.conversationMessage.deleteMany({ where: { conversationId: { in: conversationIds } } });
-      await db.conversation.deleteMany({ where });
-    }
-
-    res.json({ success: true, updatedCount: conversationIds.length });
   } catch (e) { err500(res, e); }
 });
 

@@ -2,7 +2,10 @@ import { Router, Request, Response } from 'express';
 import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
 import { WORKFLOW_SYSTEM_PROMPT } from '../../packages/ai/prompts/workflow-gen.v1.js';
 
+import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
+
 const router = Router();
+router.use(trackLegacyAi('workflow_ai'));
 
 // ── POST /api/workflow-ai/chat — SSE streaming text (replaces frontend gemini.ts) ──
 router.post('/chat', async (req: Request, res: Response) => {

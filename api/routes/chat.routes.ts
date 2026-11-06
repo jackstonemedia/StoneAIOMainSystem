@@ -2,47 +2,61 @@ import { Router } from 'express';
 import { Type } from '@google/genai';
 import { db } from '../../infrastructure/database/client.js';
 import { tryGetAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
+import { scopedFindOrThrow } from '../middleware/tenant-guard.js';
+import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
 
 const router = Router();
+router.use(trackLegacyAi('chat_routes'));
 const ai = tryGetAIClient();
 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const agents = await db.agent.findMany({
       where: { workspaceId: req.workspaceId, type: 'assistant' },
     });
     res.json(agents.map((a) => ({ id: a.id, title: a.name, updatedAt: a.updatedAt })));
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+  } catch (err) {
+    next(err);
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
   try {
+    await scopedFindOrThrow(db.agent, req.params.id, req.workspaceId!, {
+      errorMessage: 'Conversation not found',
+    });
     const messages = await db.agentMessage.findMany({
       where: { agentId: req.params.id },
       orderBy: { createdAt: 'asc' },
     });
     res.json(messages);
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch history' });
+  } catch (err) {
+    next(err);
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const agent = await db.agent.create({
       data: { workspaceId: req.workspaceId, name: 'New Conversation', type: 'assistant', config: '{}' },
     });
     res.json({ id: agent.id, title: agent.name });
-  } catch {
-    res.status(500).json({ error: 'Failed to create conversation' });
+  } catch (err) {
+    next(err);
   }
 });
 
-router.post('/:id/messages', async (req, res) => {
+router.post('/:id/messages', async (req, res, next) => {
   const { message } = req.body;
   const conversationId = req.params.id;
+
+  try {
+    await scopedFindOrThrow(db.agent, conversationId, req.workspaceId!, {
+      errorMessage: 'Conversation not found',
+    });
+  } catch (err) {
+    return next(err);
+  }
 
   if (!ai) {
     return res.status(500).json({ error: 'GOOGLE_AI_API_KEY is not configured on the server.' });
@@ -103,7 +117,7 @@ router.post('/:id/messages', async (req, res) => {
       },
     });
 
-    let functionCalls: any[] = [];
+    const functionCalls: any[] = [];
     let fullResponseText = '';
 
     for await (const chunk of stream) {

@@ -222,7 +222,7 @@ export default function ConversationListPane() {
   const del = useMutation({
     mutationFn: (id: string) => conversationsApi.delete(id),
     onSuccess: (_, id) => {
-      qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.all });
       if (selectedId === id) setSelectedId(null);
     },
   });
@@ -230,7 +230,7 @@ export default function ConversationListPane() {
   const bulk = useMutation({
     mutationFn: (data: Parameters<typeof conversationsApi.bulk>[0]) => conversationsApi.bulk(data),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: queryKeys.conversations.list() });
+      qc.invalidateQueries({ queryKey: queryKeys.conversations.all });
       if (vars.action === 'delete' && selectedId && vars.conversationIds.includes(selectedId)) {
         setSelectedId(null);
       }

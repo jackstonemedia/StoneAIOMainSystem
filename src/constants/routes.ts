@@ -11,6 +11,18 @@ export const ROUTES = {
 
   DASHBOARD: '/dashboard',
   ASSISTANT: '/assistant',
+  ASSISTANT_CHAT: (id: string) => `/assistant/c/${id}`,
+  ASSISTANT_ROUTES: {
+    ROOT: '/assistant',
+    CHAT: (id: string) => `/assistant/c/${id}`,
+    PROJECTS: '/assistant/projects',
+    PROJECT_DETAIL: (id: string) => `/assistant/projects/${id}`,
+    MEMORY: '/assistant/memory',
+    SCHEDULED: '/assistant/scheduled',
+    SCHEDULED_TASK: (id: string) => `/assistant/scheduled/${id}`,
+    ACTIVITY: '/assistant/activity',
+    SETTINGS: '/assistant/settings',
+  },
   PROJECTS: '/projects',
   MARKETPLACE: '/marketplace',
   BILLING: '/billing',

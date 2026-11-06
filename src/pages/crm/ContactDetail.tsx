@@ -462,13 +462,29 @@ export default function ContactDetail() {
              {activeTab === 'deals' && id ? <ContactDealsTab contactId={id} /> : (
                <div className="flex flex-col gap-4">
                  {events.filter((e: any) => ['email', 'sms', 'internal_comment'].includes(e.type)).slice().reverse().map((msg: any) => {
-                   const isOutbound = true;
-                   return (
-                     <div key={msg.id} className={`flex flex-col max-w-[85%] mb-2 ${isOutbound ? 'ml-auto items-end' : 'mr-auto items-start'}`}>
-                       <div className={`flex items-center gap-2 mb-1.5 ${isOutbound ? 'flex-row-reverse' : ''}`}>
-                         <span className={`text-[12px] font-bold ${msg.type === 'internal_comment' ? 'text-sky-400' : 'text-text-main'}`}>{msg.title}</span>
-                         <span className="text-[11px] text-text-muted/60">{new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                       </div>
+                    const isOutbound = true;
+                    let meta: any = {};
+                    if (typeof msg.metadataJson === 'string') {
+                      try { meta = JSON.parse(msg.metadataJson); } catch {}
+                    } else if (msg.metadata && typeof msg.metadata === 'object') {
+                      meta = msg.metadata;
+                    }
+                    const isAssistant = Boolean(
+                      meta.createdByAssistant ||
+                      meta.source === 'assistant' ||
+                      (msg.title && /ai assistant/i.test(msg.title))
+                    );
+                    return (
+                      <div key={msg.id} className={`flex flex-col max-w-[85%] mb-2 ${isOutbound ? 'ml-auto items-end' : 'mr-auto items-start'}`}>
+                        <div className={`flex items-center gap-2 mb-1.5 ${isOutbound ? 'flex-row-reverse' : ''}`}>
+                          <span className={`text-[12px] font-bold ${msg.type === 'internal_comment' ? 'text-sky-400' : 'text-text-main'}`}>{msg.title}</span>
+                          <span className="text-[11px] text-text-muted/60">{new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          {isAssistant && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-[4px]">
+                              Created by AI Assistant{meta.createdForUserName ? ` for ${meta.createdForUserName}` : ''}
+                            </span>
+                          )}
+                        </div>
                        {msg.type === 'internal_comment' ? (
                          <div className="text-[13px] text-sky-400">
                            <div className={`prose prose-sm [&_*]:!text-sky-400 ${isOutbound ? 'text-right' : 'text-left'}`} dangerouslySetInnerHTML={{ __html: msg.content }} />
@@ -594,14 +610,29 @@ export default function ContactDetail() {
                       </div>
                     ) : (
                       <ActivityTimeline 
-                        activities={filteredEvents.map((e: any) => ({
-                          id: e.id,
-                          type: e.type,
-                          title: e.title,
-                          description: e.content,
-                          timestamp: e.createdAt,
-                          relatedName: e.metadata?.type ? String(e.metadata.type).charAt(0).toUpperCase() + String(e.metadata.type).slice(1) : undefined
-                        }))} 
+                        activities={filteredEvents.map((e: any) => {
+                          let meta: any = {};
+                          if (typeof e.metadataJson === 'string') {
+                            try { meta = JSON.parse(e.metadataJson); } catch {}
+                          } else if (e.metadata && typeof e.metadata === 'object') {
+                            meta = e.metadata;
+                          }
+                          const isAssistant = Boolean(
+                            meta.createdByAssistant ||
+                            meta.source === 'assistant' ||
+                            (e.title && /ai assistant/i.test(e.title))
+                          );
+                          return {
+                            id: e.id,
+                            type: e.type,
+                            title: e.title,
+                            description: e.content,
+                            timestamp: e.createdAt,
+                            relatedName: meta.type ? String(meta.type).charAt(0).toUpperCase() + String(meta.type).slice(1) : undefined,
+                            createdByAssistant: isAssistant,
+                            createdForUserName: meta.createdForUserName || meta.userName,
+                          };
+                        })} 
                         compact={false}
                       />
                     )}

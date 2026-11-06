@@ -14,7 +14,10 @@ import { Router, Request, Response } from 'express';
 import { db } from '../../infrastructure/database/client.js';
 import { executeTool } from './ai-executor.js';
 
+import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
+
 const router = Router();
+router.use(trackLegacyAi('legacy_ai_actions'));
 
 // GET /api/ai/actions — list recent AI actions for this workspace
 router.get('/', async (req: Request, res: Response) => {
@@ -48,50 +51,31 @@ router.post('/:id/approve', async (req: Request, res: Response) => {
     if (!action) return res.status(404).json({ error: 'Action not found' });
     if (action.status !== 'pending') return res.status(400).json({ error: `Action is already ${action.status}` });
 
-    const result = await executeTool(workspaceId, action.toolName, action.args, userId);
-
-    const updated = await (db as any).aIAction.update({
-      where: { id },
-      data: { status: 'approved', result },
+    // Atomically claim the row to prevent concurrent double-execution
+    const claimRes = await (db as any).aIAction.updateMany({
+      where: { id, workspaceId, status: 'pending' },
+      data: { status: 'executing' },
     });
-
-    // Phase 2: audit every approved execution, and grant the tool when
-    // the workspace is in Autonomy mode (sends/publishing never grant).
-    // Non-fatal: an audit/grant failure must never undo the approval.
-    try {
-      const ws = await db.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { agentMode: true },
-      });
-      const mode =
-        ws?.agentMode === 'autonomy'
-          ? 'autonomy'
-          : ws?.agentMode === 'read-only'
-            ? 'read-only'
-            : 'approve';
-      await db.agentAuditLog.create({
-        data: {
-          workspaceId,
-          userId,
-          toolName: action.toolName,
-          args: (action.args ?? {}) as object,
-          result:
-            result === undefined || result === null
-              ? undefined
-              : JSON.parse(JSON.stringify(result)),
-          mode,
-          granted: false,
-        },
-      });
-      if (mode === 'autonomy') {
-        const { grantTool } = await import('../services/agent/modes.js');
-        await grantTool(db, workspaceId, action.toolName, userId);
-      }
-    } catch (auditErr: any) {
-      console.error('[AI Actions] audit/grant error (non-fatal):', auditErr.message);
+    if (claimRes.count === 0) {
+      return res.status(409).json({ error: 'Action has already been approved, rejected, or is executing.' });
     }
 
-    return res.json({ action: updated, result });
+    try {
+      const result = await executeTool(workspaceId, action.toolName, action.args, userId);
+
+      const updated = await (db as any).aIAction.update({
+        where: { id },
+        data: { status: 'approved', result },
+      });
+
+      return res.json({ action: updated, result });
+    } catch (execErr: any) {
+      await (db as any).aIAction.update({
+        where: { id },
+        data: { status: 'failed', result: { error: execErr.message } },
+      }).catch(() => {});
+      throw execErr;
+    }
   } catch (err: any) {
     console.error('[AI Actions] approve error:', err);
     return res.status(500).json({ error: err.message });

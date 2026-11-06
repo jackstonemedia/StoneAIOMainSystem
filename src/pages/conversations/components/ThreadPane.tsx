@@ -17,6 +17,7 @@ import type { ConversationMessage, EmailMessageMeta } from '../../../types/conve
 import { parseEmailMeta } from '../../../types/conversation';
 import { stripQuotedReply, stripQuotedReplyHtml } from '../utils/emailCleaner';
 import ThreadInfoPanel from './ThreadInfoPanel';
+import { AssistantLauncher } from '../../../components/assistant/AssistantLauncher';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTs(iso: string) {
@@ -50,7 +51,7 @@ function DeliveryIcon({ status, channel }: { status: string; channel: string }) 
 }
 
 // ── Email HTML viewer ─────────────────────────────────────────────────────────
-function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }) {
+function EmailHtmlViewer({ html, plain, align = 'left' }: { html: string | null; plain: string; align?: 'left' | 'right' }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(120);
   const [expanded, setExpanded] = useState(false);
@@ -61,7 +62,7 @@ function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }
 
   const content = sanitizedHtml
     ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-        body{margin:0;padding:8px 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.6;color:#e2e8f0;background:transparent;word-break:break-word;}
+        body{margin:0;padding:4px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.6;color:#e2e8f0;background:transparent;word-break:break-word;text-align:${align};}
         a{color:#60a5fa;}img{max-width:100%;height:auto;}
         blockquote{border-left:3px solid #4b5563;margin:8px 0;padding-left:12px;color:#94a3b8;}
         pre,code{background:#1e293b;padding:2px 6px;border-radius:4px;font-size:12px;}
@@ -82,15 +83,19 @@ function EmailHtmlViewer({ html, plain }: { html: string | null; plain: string }
   }, [content]);
 
   if (!content) {
-    return <pre className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-300 font-sans m-0">{sanitizedPlain}</pre>;
+    return (
+      <div className={`whitespace-pre-wrap break-words text-[13px] leading-relaxed text-slate-200 font-sans m-0 select-text ${align === 'right' ? 'text-right' : 'text-left'}`}>
+        {sanitizedPlain}
+      </div>
+    );
   }
 
   const isLong = height > MAX_COLLAPSED;
   const displayHeight = isLong && !expanded ? MAX_COLLAPSED : height;
 
   return (
-    <div className="relative w-full">
-      <div style={{ height: displayHeight, overflow: 'hidden', transition: 'height 0.2s ease' }}>
+    <div className={`relative w-full flex flex-col ${align === 'right' ? 'items-end' : 'items-start'}`}>
+      <div style={{ height: displayHeight, overflow: 'hidden', transition: 'height 0.2s ease', width: '100%' }}>
         <iframe ref={iframeRef} sandbox="allow-same-origin" scrolling="no" className="w-full border-0 block" style={{ height, background: 'transparent' }} title="email-body" />
       </div>
       {isLong && (
@@ -128,35 +133,58 @@ function MessageBubble({
 
   if (convChannel === 'email') {
     const fromLabel = isOutbound
-      ? `To: ${meta?.toEmail ?? 'Recipient'}`
-      : `From: ${meta?.fromEmail ?? msg.sender ?? 'Contact'}`;
+      ? (meta?.toEmail ? `To: ${meta.toEmail}` : 'You')
+      : (meta?.fromEmail || msg.sender || 'Contact');
     const subject = meta?.subject;
 
     return (
-      <div className={`flex flex-col gap-0 ${isOutbound ? 'items-end' : 'items-start'} mb-4`}>
-        <div className="w-full max-w-[92%] rounded-[10px] border border-primary/30 bg-primary/10 overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-primary/20 bg-primary/5">
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold text-text-muted truncate">{fromLabel}</p>
-              {subject && <p className="text-[12px] font-semibold text-text-main truncate leading-tight mt-0.5">{subject}</p>}
-            </div>
-            <div className="flex items-center gap-2 shrink-0 ml-3">
-              {isFailed && isOutbound && (
-                <button onClick={onRetry} disabled={retrying} className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
+      <div className={`w-full flex flex-col ${isOutbound ? 'items-end' : 'items-start'} mb-6`}>
+        {/* Clean sender / timestamp label */}
+        <div className={`flex items-center gap-2 mb-1.5 px-0.5 text-[11px] text-text-muted ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+          {isOutbound ? (
+            <>
+              {isFailed && (
+                <button
+                  onClick={onRetry}
+                  disabled={retrying}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300 mr-1"
+                >
                   {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
                 </button>
               )}
-              <span className="text-[10px] text-text-muted">{formatTs(msg.createdAt)}</span>
+              <span>{formatTs(msg.createdAt)}</span>
+              <span>•</span>
+              <span className="font-semibold text-text-muted">{fromLabel}</span>
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-text-muted">{fromLabel}</span>
+              <span>•</span>
+              <span>{formatTs(msg.createdAt)}</span>
+            </>
+          )}
+        </div>
+
+        {/* Pure minimal text: Outbound anchored to the right, Inbound to the left */}
+        <div className={`w-fit max-w-[72%] ${isOutbound ? 'ml-auto text-right' : 'mr-auto text-left'} text-[13px] leading-relaxed text-text-main select-text`}>
+          {subject && (
+            <div className={`text-[13px] font-semibold text-text-main mb-1.5 ${isOutbound ? 'text-right' : 'text-left'}`}>
+              {subject}
             </div>
-          </div>
-          <div className="px-4 py-3 text-text-main">
-            <EmailHtmlViewer html={meta?.htmlBody ?? null} plain={msg.body ?? ''} />
-          </div>
+          )}
+          <EmailHtmlViewer html={meta?.htmlBody ?? null} plain={msg.body ?? ''} align={isOutbound ? 'right' : 'left'} />
           {meta?.files && meta.files.length > 0 && (
-            <div className="px-4 pb-3 flex flex-wrap gap-2">
+            <div className={`mt-2.5 flex flex-wrap gap-2 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
               {meta.files.map((f, i) => (
-                <a key={i} href={f.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-hover rounded-lg text-[12px] text-text-main hover:text-primary border border-border transition-colors">
-                  <Paperclip className="w-3 h-3" />{f.name}
+                <a
+                  key={i}
+                  href={f.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-surface-hover/80 rounded-md text-[12px] text-text-main hover:text-primary border border-border/50 transition-colors"
+                >
+                  <Paperclip className="w-3 h-3" />
+                  {f.name}
                 </a>
               ))}
             </div>
@@ -166,26 +194,36 @@ function MessageBubble({
     );
   }
 
-  // SMS / fallback bubble (matching uniform style)
+  // SMS / fallback bubble: pure minimal text
   return (
-    <div className={`flex flex-col gap-0 ${isOutbound ? 'items-end' : 'items-start'} mb-4`}>
-      <div className="w-full max-w-[85%] rounded-[10px] border border-primary/30 bg-primary/10 overflow-hidden shadow-sm backdrop-blur-md">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-primary/20 bg-primary/5">
-          <span className="text-[11px] font-bold text-text-muted truncate">
-            {isOutbound ? 'You' : (msg.sender ?? 'Contact')}
-          </span>
-          <div className="flex items-center gap-2 shrink-0 ml-3">
-            {isFailed && isOutbound && (
-              <button onClick={onRetry} disabled={retrying} className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300">
+    <div className={`w-full flex flex-col ${isOutbound ? 'items-end' : 'items-start'} mb-5`}>
+      <div className={`flex items-center gap-2 mb-1.5 px-0.5 text-[11px] text-text-muted ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+        {isOutbound ? (
+          <>
+            {isFailed && (
+              <button
+                onClick={onRetry}
+                disabled={retrying}
+                className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-300 mr-1"
+              >
                 {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
               </button>
             )}
-            <span className="text-[10px] text-text-muted">{formatTs(msg.createdAt)}</span>
-          </div>
-        </div>
-        <div className="px-4 py-3 text-[13px] text-text-main whitespace-pre-wrap leading-relaxed">
-          {stripQuotedReply(msg.body)}
-        </div>
+            <span>{formatTs(msg.createdAt)}</span>
+            <span>•</span>
+            <span className="font-semibold text-text-muted">You</span>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold text-text-muted">{msg.sender ?? 'Contact'}</span>
+            <span>•</span>
+            <span>{formatTs(msg.createdAt)}</span>
+          </>
+        )}
+      </div>
+
+      <div className={`w-fit max-w-[72%] ${isOutbound ? 'ml-auto text-right' : 'mr-auto text-left'} text-[13px] whitespace-pre-wrap leading-relaxed text-text-main select-text`}>
+        {stripQuotedReply(msg.body)}
       </div>
     </div>
   );
@@ -298,20 +336,15 @@ function SmsComposer({ conversationId, onSent, onMinimize }: { conversationId: s
             <button className="p-2 hover:bg-surface-hover rounded-lg text-text-muted hover:text-text-main transition-colors" title="Attach">
               <Paperclip className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              disabled={isAiDrafting}
-              onClick={handleAiDraftReply}
-              className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-lg bg-surface-hover hover:bg-white/10 text-white border border-border/80 text-[11px] font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
-              title="Read thread and draft smart SMS reply"
-            >
-              {isAiDrafting ? (
-                <Loader2 className="w-3 h-3 animate-spin text-white" />
-              ) : (
-                <Bot className="w-3 h-3 text-white" />
-              )}
-              <span>AI Reply</span>
-            </button>
+            <AssistantLauncher
+              surface="conversations"
+              entity={{ type: 'conversation', id: conversationId }}
+              label="AI Draft"
+              initialPrompt="Draft a concise, helpful SMS reply to the latest message in this thread."
+              initialMode="draft"
+              variant="subtle"
+              onApplyDraft={(draft) => setComposerDraft(draft)}
+            />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-text-muted">
@@ -490,20 +523,15 @@ function EmailComposer({ conversationId, defaultSubject, onSent, onMinimize }: {
             >
               <span className="text-[12px] font-bold">Sig</span>
             </button>
-            <button
-              type="button"
-              disabled={isAiDrafting}
-              onClick={handleAiDraftReply}
-              className="flex items-center gap-1.5 px-3 py-1.5 ml-1.5 rounded-lg bg-surface-hover hover:bg-white/10 text-white border border-border/80 text-[12px] font-semibold transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
-              title="Read thread & draft smart AI reply"
-            >
-              {isAiDrafting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-              ) : (
-                <Bot className="w-3.5 h-3.5 text-white" />
-              )}
-              <span>AI Reply</span>
-            </button>
+            <AssistantLauncher
+              surface="conversations"
+              entity={{ type: 'conversation', id: conversationId }}
+              label="AI Draft"
+              initialPrompt="Draft a helpful, professional reply to the latest message in this email thread."
+              initialMode="draft"
+              variant="subtle"
+              onApplyDraft={(draft) => setComposerDraft(draft)}
+            />
           </div>
           <div className="flex items-center ml-auto">
             <button
@@ -639,10 +667,25 @@ export default function ThreadPane() {
             </div>
           </div>
 
-          {/* Actions: 3-dots at top right, Hide/Show Panel underneath in bottom left */}
-          <div className="flex flex-col items-end justify-between self-stretch shrink-0 gap-1.5 py-0.5">
+          {/* Actions: Ask Stone AI + 3-dots */}
+          <div className="flex items-center gap-2 shrink-0">
+            <AssistantLauncher
+              surface="conversations"
+              entity={{ type: 'conversation', id: conv.id, name: displayName }}
+              label="Summarize"
+              initialPrompt="Please summarize this conversation thread concisely."
+              initialMode="read_only"
+              variant="subtle"
+            />
+            <AssistantLauncher
+              surface="conversations"
+              entity={{ type: 'conversation', id: conv.id, name: displayName }}
+              label="Ask Stone AI"
+              variant="subtle"
+            />
+
             {/* Top Right: Overflow actions 3 dots */}
-            <div className="relative self-end">
+            <div className="relative">
               <button
                 onClick={() => setShowActions(p => !p)}
                 className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-surface-hover transition-colors"

@@ -35,24 +35,10 @@ export default function Marketplace() {
     }
     setDeployingId(agent.id);
     try {
-      const res = await apiFetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: agent.name,
-          type: agent.agentType,
-          status: 'draft',
-          config: JSON.stringify({ source: 'marketplace', templateId: agent.id }),
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to deploy');
-      const newAgent = await res.json();
-      toast('success', `${agent.name} deployed! Opening builder...`);
+      toast('success', `${agent.name} template ready! Opening automations...`);
       setTimeout(() => {
         navigate('/automations');
-      }, 800);
-    } catch (err) {
-      toast('error', 'Failed to deploy agent. Please try again.');
+      }, 600);
     } finally {
       setDeployingId(null);
     }

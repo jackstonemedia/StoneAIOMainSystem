@@ -13,6 +13,7 @@ export interface FeatureFlags {
   projects: boolean;
   reputation: boolean;
   inboxHelpCenter: boolean;
+  legacyAi: boolean;
 }
 
 const env = ((import.meta as any).env || {}) as Record<string, string | undefined>;
@@ -27,4 +28,5 @@ export const FEATURES: FeatureFlags = {
   projects: env.VITE_FEATURE_PROJECTS === 'true',
   reputation: env.VITE_FEATURE_REPUTATION === 'true',
   inboxHelpCenter: env.VITE_FEATURE_HELP_CENTER === 'true',
+  legacyAi: env.VITE_FEATURE_LEGACY_AI === 'true',
 };

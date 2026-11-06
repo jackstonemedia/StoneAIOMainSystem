@@ -7,6 +7,8 @@ export interface TimelineActivity {
   description?: string;
   timestamp: string;
   relatedName?: string;
+  createdByAssistant?: boolean;
+  createdForUserName?: string;
 }
 
 interface ActivityTimelineProps {
@@ -22,6 +24,8 @@ const typeConfig: Record<string, { icon: any; color: string; bg: string }> = {
   email_replied: { icon: Sparkles,  color: 'text-emerald-400', bg: 'bg-emerald-500/15 border-emerald-500/30' },
   call:    { icon: Phone,           color: 'text-green-400',  bg: 'bg-green-500/15 border-green-500/30' },
   meeting: { icon: CalendarDays,    color: 'text-text-muted', bg: 'bg-primary/100/15 border-primary/30' },
+  appointment: { icon: CalendarDays, color: 'text-violet-400', bg: 'bg-violet-500/15 border-violet-500/30' },
+  task:    { icon: FileText,        color: 'text-amber-400',  bg: 'bg-amber-500/15 border-amber-500/30' },
   note:    { icon: FileText,        color: 'text-text-muted',  bg: 'bg-primary/100/15 border-primary/30' },
   deal:    { icon: CircleDollarSign,color: 'text-primary',    bg: 'bg-primary/15 border-primary/30' },
   sms:     { icon: MessageSquare,   color: 'text-rose-400',   bg: 'bg-rose-500/15 border-rose-500/30' },
@@ -54,7 +58,7 @@ export default function ActivityTimeline({ activities, compact = false }: Activi
 
   return (
     <div className="relative flex flex-col gap-4">
-      {activities.map((activity, i) => {
+      {activities.map((activity) => {
         const config = typeConfig[activity.type] ?? typeConfig.note;
         const Icon = config.icon;
 
@@ -84,10 +88,16 @@ export default function ActivityTimeline({ activities, compact = false }: Activi
               </div>
             </div>
             
-            <div className="flex items-center justify-between mt-1">
+            <div className="flex items-center justify-between mt-1 gap-2 flex-wrap">
               <div className="flex items-center gap-1.5 text-[12px] font-medium text-text-muted">
                 {formatDateTime(activity.timestamp)}
               </div>
+              {activity.createdByAssistant && (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-[4px]">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  {activity.createdForUserName ? `Created by AI Assistant for ${activity.createdForUserName}` : 'Created by AI Assistant'}
+                </span>
+              )}
             </div>
           </div>
         );

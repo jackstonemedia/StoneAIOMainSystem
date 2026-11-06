@@ -835,9 +835,6 @@ async function gmailReactionSender(args: ReactionSenderArgs): Promise<{ messageI
   let gmailConn = await db.channelConnection.findFirst({
     where: { workspaceId: args.workspaceId, provider: 'gmail', isActive: true },
   }).catch(() => null);
-  if (!gmailConn) {
-    gmailConn = await db.channelConnection.findFirst({ where: { provider: 'gmail', isActive: true } }).catch(() => null);
-  }
   if (!gmailConn) throw new Error('No active Gmail connection found for this workspace. A connected Gmail account is required to send.');
   const { sendGmailMessage } = await import('../channels/gmail.service.js');
   const result = await sendGmailMessage(gmailConn.id, args.contact.email, args.subject, args.text, undefined, args.html, args.senderName);
@@ -860,7 +857,6 @@ async function notifyOwner(
     const ownerEmail = String(snap.replyToEmail || '');
     if (!ownerEmail) return;
     let gmailConn = await db.channelConnection.findFirst({ where: { workspaceId, provider: 'gmail', isActive: true } }).catch(() => null);
-    if (!gmailConn) gmailConn = await db.channelConnection.findFirst({ where: { provider: 'gmail', isActive: true } }).catch(() => null);
     if (!gmailConn) return;
     const { sendGmailMessage } = await import('../channels/gmail.service.js');
     await sendGmailMessage(gmailConn.id, ownerEmail, 'Email campaign reaction', message, undefined, `<p>${message}</p>`, senderName);

@@ -170,7 +170,97 @@ export async function sendGmailMessage(
   return { messageId: res.data.id!, threadId: res.data.threadId! };
 }
 
-/** Called by the Gmail poller every 2 minutes for one connection. */export async function fetchGmailHistory(connectionId: string): Promise<void> {
+/**
+ * Checks whether an outbound email was ever sent to this recipient address
+ * through the software in this workspace (or within this Gmail thread).
+ * If the user has not sent an email to this address first through the software,
+ * incoming emails from this sender must NOT show up in conversations or auto-create contacts.
+ */
+export async function hasSentEmailToRecipient(
+  workspaceId: string,
+  recipientEmail: string,
+  threadId?: string,
+): Promise<boolean> {
+  const normalized = recipientEmail.trim().toLowerCase();
+  if (!normalized) return false;
+
+  try {
+    // 1. Thread check: Does this Gmail thread already exist in this workspace with an outbound message?
+    if (threadId) {
+      const threadOutbound = await db.conversationMessage.findFirst({
+        where: {
+          direction: 'outbound',
+          conversation: {
+            workspaceId,
+            externalId: threadId,
+          },
+        },
+        select: { id: true },
+      });
+      if (threadOutbound) return true;
+    }
+
+    // 2. Outbound message in conversations tab:
+    // Either the conversation's contact has this email, or the message attachments stored this toEmail
+    const convoOutbound = await db.conversationMessage.findFirst({
+      where: {
+        direction: 'outbound',
+        conversation: {
+          workspaceId,
+        },
+        OR: [
+          {
+            conversation: {
+              contact: {
+                email: { equals: normalized, mode: 'insensitive' },
+              },
+            },
+          },
+          {
+            attachments: {
+              contains: normalized,
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (convoOutbound) return true;
+
+    // 3. Sent via CRM actions / Sequences / SDR (ContactEvent with type 'email')
+    const contactEvent = await db.contactEvent.findFirst({
+      where: {
+        type: 'email',
+        contact: {
+          workspaceId,
+          email: { equals: normalized, mode: 'insensitive' },
+        },
+      },
+      select: { id: true },
+    });
+    if (contactEvent) return true;
+
+    // 4. Sent via Email Marketing / Campaigns
+    const campaignSent = await db.campaignRecipient.findFirst({
+      where: {
+        status: 'SENT',
+        contact: {
+          workspaceId,
+          email: { equals: normalized, mode: 'insensitive' },
+        },
+      },
+      select: { id: true },
+    });
+    if (campaignSent) return true;
+  } catch (err) {
+    console.error('[Gmail History] Error checking hasSentEmailToRecipient:', err);
+  }
+
+  return false;
+}
+
+/** Called by the Gmail poller every 2 minutes for one connection. */
+export async function fetchGmailHistory(connectionId: string): Promise<void> {
   const { gmail, conn } = await getAuthenticatedGmail(connectionId);
 
   // First-ever poll: save current historyId and return (processing starts next run)
@@ -262,6 +352,12 @@ export async function sendGmailMessage(
       const isAutomatedSender = /(noreply|no-reply|notifications?|updates?|alerts?|billing|newsletters?|marketing|mailer-daemon|postmaster|donotreply|security|verify|digest|support@|accounts?@|info@|sales@|orders?@|receipts?@|bounce)/i.test(senderEmail);
       const isKnownBotDomain = /(github\.com|xfinity\.com|render\.com|railway\.app|meta\.com|notion\.com|activecampaign\.com|mailchimp\.com|sendgrid\.net|hubspot\.com|slack\.com|intercom\.io)/i.test(senderEmail);
       if (isAutomatedSender || isKnownBotDomain) {
+        continue;
+      }
+
+      // Only process inbound email if we have sent an email to this sender address first through the software
+      const sentFirst = await hasSentEmailToRecipient(conn.workspaceId, senderEmail, threadId);
+      if (!sentFirst) {
         continue;
       }
 

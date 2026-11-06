@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { NotionEditor } from '../../components/editor/NotionEditor';
+import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
 
 interface Company {
   id: string;
@@ -284,6 +285,13 @@ export default function CompanyDetail() {
     <div className="flex flex-col h-full w-full bg-bg relative overflow-hidden">
       {/* Fixed Action Buttons - Overlaying Global Banner */}
       <div className="fixed top-2.5 right-6 z-[60] flex items-center gap-2">
+        {company && (
+          <AssistantLauncher
+            surface="crm"
+            entity={{ type: 'company', id: company.id, name: company.name }}
+            label="Ask Stone AI"
+          />
+        )}
         {/* New Opportunity moved up onto top-right bar */}
         <button
           onClick={() => setNewDealOpen(true)}
@@ -546,21 +554,39 @@ export default function CompanyDetail() {
             {/* Conversation Canvas */}
             <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] p-6">
               <div className="flex flex-col gap-4">
-                {events.map((evt: any) => (
-                  <div key={evt.id} className="flex flex-col max-w-[85%] mb-2 ml-auto items-end">
-                    <div className="flex items-center gap-2 mb-1.5 flex-row-reverse">
-                      <span className="text-[12px] font-bold text-sky-400">
-                        {evt.title || 'Internal Note'}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {evt.createdAt ? new Date(evt.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
+                {events.map((evt: any) => {
+                  let meta: any = {};
+                  if (typeof evt.metadataJson === 'string') {
+                    try { meta = JSON.parse(evt.metadataJson); } catch {}
+                  } else if (evt.metadata && typeof evt.metadata === 'object') {
+                    meta = evt.metadata;
+                  }
+                  const isAssistant = Boolean(
+                    meta.createdByAssistant ||
+                    meta.source === 'assistant' ||
+                    (evt.title && /ai assistant/i.test(evt.title))
+                  );
+                  return (
+                    <div key={evt.id} className="flex flex-col max-w-[85%] mb-2 ml-auto items-end">
+                      <div className="flex items-center gap-2 mb-1.5 flex-row-reverse">
+                        <span className="text-[12px] font-bold text-sky-400">
+                          {evt.title || 'Internal Note'}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {evt.createdAt ? new Date(evt.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </span>
+                        {isAssistant && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-[4px]">
+                            Created by AI Assistant{meta.createdForUserName ? ` for ${meta.createdForUserName}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-4 rounded-[8px] bg-surface/40 border border-border/40 text-[13px] text-white shadow-sm rounded-tr-sm">
+                        <div className="prose prose-sm prose-invert" dangerouslySetInnerHTML={{ __html: evt.content }} />
+                      </div>
                     </div>
-                    <div className="p-4 rounded-[8px] bg-surface/40 border border-border/40 text-[13px] text-white shadow-sm rounded-tr-sm">
-                      <div className="prose prose-sm prose-invert" dangerouslySetInnerHTML={{ __html: evt.content }} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {events.length === 0 && (
                   <div className="py-12 text-center text-slate-300 space-y-2">
@@ -829,15 +855,35 @@ export default function CompanyDetail() {
                           {new Date(company.createdAt).toLocaleString()}
                         </span>
                       </div>
-                      {events.map((e: any) => (
-                        <div key={e.id} className="p-3 rounded-lg bg-surface-hover/50 border border-border text-xs space-y-1">
-                          <span className="text-white font-semibold block">{e.title || 'Activity'}</span>
-                          <div className="text-slate-300 text-[11px]" dangerouslySetInnerHTML={{ __html: e.content }} />
-                          <span className="text-[10px] text-slate-400 block">
-                            {new Date(e.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
+                      {events.map((e: any) => {
+                        let meta: any = {};
+                        if (typeof e.metadataJson === 'string') {
+                          try { meta = JSON.parse(e.metadataJson); } catch {}
+                        } else if (e.metadata && typeof e.metadata === 'object') {
+                          meta = e.metadata;
+                        }
+                        const isAssistant = Boolean(
+                          meta.createdByAssistant ||
+                          meta.source === 'assistant' ||
+                          (e.title && /ai assistant/i.test(e.title))
+                        );
+                        return (
+                          <div key={e.id} className="p-3 rounded-lg bg-surface-hover/50 border border-border text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-white font-semibold block">{e.title || 'Activity'}</span>
+                              {isAssistant && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-[4px]">
+                                  AI Assistant{meta.createdForUserName ? ` for ${meta.createdForUserName}` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-slate-300 text-[11px]" dangerouslySetInnerHTML={{ __html: e.content }} />
+                            <span className="text-[10px] text-slate-400 block">
+                              {new Date(e.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

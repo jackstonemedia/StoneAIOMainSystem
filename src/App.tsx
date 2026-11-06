@@ -40,6 +40,13 @@ const Marketplace        = lazy(() => import('./pages/Marketplace'));
 const BusinessLayout      = lazy(() => import('./pages/business/BusinessLayout'));
 const BusinessDashboard   = lazy(() => import('./pages/business/BusinessDashboard'));
 const DashboardPage       = lazy(() => import('./pages/Dashboard'));
+const AssistantPage       = lazy(() => import('./pages/assistant/AssistantPage'));
+const AssistantProjectsPage = lazy(() => import('./pages/assistant/AssistantProjectsPage'));
+const AssistantProjectDetailPage = lazy(() => import('./pages/assistant/AssistantProjectDetailPage'));
+const AssistantSettingsPage = lazy(() => import('./pages/assistant/AssistantSettingsPage'));
+const AssistantMemoryPage    = lazy(() => import('./pages/assistant/AssistantMemoryPage'));
+const AssistantScheduledPage = lazy(() => import('./pages/assistant/AssistantScheduledPage'));
+const AssistantActivityPage  = lazy(() => import('./pages/assistant/AssistantActivityPage'));
 
 // Modular Calendar module
 const CalendarLayout          = lazy(() => import('./pages/business/calendar/CalendarLayout'));
@@ -160,6 +167,42 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route
               path="/dashboard"
               element={<ErrorBoundary><Protect withAuth={withAuth}><DashboardPage /></Protect></ErrorBoundary>}
+            />
+            <Route
+              path="/assistant"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/projects"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantProjectsPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/projects/:id"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantProjectDetailPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/settings"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantSettingsPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/memory"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantMemoryPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/scheduled"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantScheduledPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/scheduled/:taskId"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantScheduledPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/activity"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantActivityPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
+            />
+            <Route
+              path="/assistant/c/:conversationId"
+              element={FEATURES.assistant ? <ErrorBoundary><Protect withAuth={withAuth}><AssistantPage /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />}
             />
             <Route
               path="/sdr"

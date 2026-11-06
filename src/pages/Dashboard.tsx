@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, DollarSign, Target, MessageSquare, Calendar, Mail,
   Bot, Bell, RefreshCw, TrendingUp, TrendingDown, Clock,
@@ -11,8 +11,8 @@ import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 import { useUnreadNotificationsCount } from '../hooks/useUnreadNotificationsCount';
 import { formatCurrency } from '../lib/utils';
 import type { DateRange } from '../types/dashboard';
-import { AIControlPanel } from '../components/dashboard/v2/AIControlPanel';
-import CRMAIAssistant from '../components/crm/CRMAIAssistant';
+import { AssistantLauncher } from '../components/assistant/AssistantLauncher';
+import { AssistantApprovalsCard } from '../components/assistant/AssistantApprovalsCard';
 import NotificationPanel from '../components/ui/NotificationPanel';
 
 // ─── Timeframe Presets ────────────────────────────────────────────────────────
@@ -161,7 +161,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRange>('30d');
   const [activeSection, setActiveSection] = useState<SectionTab>('all');
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
@@ -174,22 +173,6 @@ export default function Dashboard() {
   const emailMarketing = metrics?.emailMarketing;
   const automations = metrics?.automations;
   const activityFeed = metrics?.activityFeed || [];
-
-  // Phase 0: ?tab=ai mounts the AI Control Panel (Sidebar links here).
-  const [searchParams] = useSearchParams();
-  const showAiPanel = searchParams.get('tab') === 'ai';
-
-  if (showAiPanel) {
-    return (
-      <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6">
-          <AIControlPanel />
-        </div>
-        <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
-        <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full w-full relative bg-bg text-text-main font-sans overflow-hidden">
@@ -207,14 +190,7 @@ export default function Dashboard() {
       >
         {/* Left: AI Assistant & Notification Bell */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsAIOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface/40 hover:bg-surface/70 border border-white/10 text-white transition-all text-xs font-medium shadow-xs"
-            title="AI Assistant"
-          >
-            <Bot className="w-4 h-4 text-white" />
-            <span>AI Assistant</span>
-          </button>
+          <AssistantLauncher surface="dashboard" label="Ask Stone AI" />
 
           <div className="h-5 w-[1px] bg-border/60" />
 
@@ -356,6 +332,9 @@ export default function Dashboard() {
             />
           </div>
         </div>
+
+        {/* Assistant Approvals Card (Stage S8) */}
+        <AssistantApprovalsCard />
 
         {/* ═════════════════════════════════════════════════════════════════════
             2. CRM / PIPELINE SECTION
@@ -1160,9 +1139,6 @@ export default function Dashboard() {
         )}
 
       </div>
-
-      {/* Floating CRM AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
 
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
