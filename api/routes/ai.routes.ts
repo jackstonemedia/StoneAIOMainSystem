@@ -1,10 +1,11 @@
 /**
  * AI Routes — Stone AIO
  *
- * Content generation helpers for email campaigns and contact insights.
+ * Unified Gemini-powered AI endpoints for the whole platform.
  * All calls proxy securely through the backend — API key never leaves the server.
  *
  * Routes:
+ *   POST /api/ai/chat              — General copilot chat with full CRM tool execution
  *   POST /api/ai/email/generate    — Write a full campaign email from a prompt
  *   POST /api/ai/email/improve     — Improve subject line or body copy
  *   POST /api/ai/email/subject     — Generate subject line ideas
@@ -13,10 +14,347 @@
 
 import { Router, Request, Response } from 'express';
 import { getAIClient, DEFAULT_MODEL } from '../../packages/ai/client.js';
-import { trackLegacyAi } from '../services/legacy-ai-tracker.service.js';
+import { Type } from '@google/genai';
+import { db } from '../../infrastructure/database/client.js';
+import { executeTool, APPROVAL_REQUIRED_TOOLS, getActionLabel } from './ai-executor.js';
+import {
+  checkBudget,
+  getUsage,
+  recordUsage,
+  extractUsage,
+  crossedWarningThreshold,
+  budgetExhaustedMessage,
+  budgetWarningMessage,
+} from '../services/agent/metering.js';
 
 const router = Router();
-router.use(trackLegacyAi('legacy_ai_routes'));
+
+// ── CRM Function Declarations for Gemini ──────────────────────────────────────
+
+export const CRM_TOOLS = [
+  {
+    name: 'get_crm_dashboard',
+    description: 'Get CRM dashboard metrics including total contacts, revenue, deals count, and pipeline status.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'search_contacts',
+    description: 'Search contacts in the CRM by name, email, phone, tag, or status.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        search: { type: Type.STRING, description: 'Search term for contact name, email, phone, or tag' },
+        status: { type: Type.STRING, description: 'Filter by contact status (e.g. Lead, Customer, Prospect)' },
+      },
+    },
+  },
+  {
+    name: 'get_contact_details',
+    description: 'Get detailed information for a specific contact including notes and recent events.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'The contact ID' },
+      },
+      required: ['contactId'],
+    },
+  },
+  {
+    name: 'create_contact',
+    description: 'Create a new contact in the CRM.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        firstName: { type: Type.STRING, description: 'First name of the contact' },
+        lastName: { type: Type.STRING, description: 'Last name of the contact' },
+        email: { type: Type.STRING, description: 'Email address' },
+        phone: { type: Type.STRING, description: 'Phone number' },
+        status: { type: Type.STRING, description: 'Status (e.g. Lead, Customer, Prospect)' },
+        about: { type: Type.STRING, description: 'Notes or bio about the contact' },
+      },
+      required: ['firstName'],
+    },
+  },
+  {
+    name: 'update_contact',
+    description: 'Update an existing contact in the CRM.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'The ID of the contact to update' },
+        firstName: { type: Type.STRING, description: 'First name' },
+        lastName: { type: Type.STRING, description: 'Last name' },
+        email: { type: Type.STRING, description: 'Email address' },
+        phone: { type: Type.STRING, description: 'Phone number' },
+        status: { type: Type.STRING, description: 'Status' },
+        about: { type: Type.STRING, description: 'About/Notes' },
+      },
+      required: ['contactId'],
+    },
+  },
+  {
+    name: 'add_contact_note',
+    description: 'Add an internal note to a contact.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'The contact ID' },
+        note: { type: Type.STRING, description: 'The note text to add' },
+      },
+      required: ['contactId', 'note'],
+    },
+  },
+  {
+    name: 'list_deals',
+    description: 'List deals / opportunities in the CRM pipeline.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'create_deal',
+    description: 'Create a new deal / opportunity in the pipeline.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Deal title' },
+        amount: { type: Type.NUMBER, description: 'Deal value/amount in dollars' },
+        contactId: { type: Type.STRING, description: 'Associated contact ID' },
+        priority: { type: Type.STRING, description: 'Priority: low, medium, high' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'list_tasks',
+    description: 'List tasks in the CRM.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'create_task',
+    description: 'Create a new task in the CRM.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Task description / title' },
+        contactId: { type: Type.STRING, description: 'Associated contact ID' },
+        priority: { type: Type.STRING, description: 'Priority: low, medium, high' },
+        dueDate: { type: Type.STRING, description: 'Due date ISO string' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'send_email',
+    description: 'Send an email message to a CRM contact.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'The contact ID' },
+        subject: { type: Type.STRING, description: 'Email subject line' },
+        body: { type: Type.STRING, description: 'Email body text' },
+      },
+      required: ['contactId', 'subject', 'body'],
+    },
+  },
+  {
+    name: 'send_sms',
+    description: 'Send an SMS text message to a CRM contact.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'The contact ID' },
+        message: { type: Type.STRING, description: 'SMS message text' },
+      },
+      required: ['contactId', 'message'],
+    },
+  },
+  {
+    name: 'list_campaigns',
+    description: 'List email marketing campaigns.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'create_campaign',
+    description: 'Create a new email marketing campaign.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING, description: 'Campaign name' },
+        subject: { type: Type.STRING, description: 'Email subject line' },
+        bodyHtml: { type: Type.STRING, description: 'Email HTML content' },
+      },
+      required: ['name', 'subject'],
+    },
+  },
+  // ── Phase 4 tools ──────────────────────────────────────────────────
+  {
+    name: 'list_inbox_conversations',
+    description: 'List inbox conversations with the latest message preview.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        status: { type: Type.STRING, description: 'Filter by status (e.g. open, resolved)' },
+      },
+    },
+  },
+  {
+    name: 'get_inbox_messages',
+    description: 'Get the messages of one inbox conversation.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The inbox conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'list_conversations',
+    description: 'List Conversations-domain threads (separate from Inbox).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        channel: { type: Type.STRING, description: 'Filter by channel (e.g. sms, email)' },
+        status: { type: Type.STRING, description: 'Filter by status (e.g. open, closed)' },
+      },
+    },
+  },
+  {
+    name: 'get_conversation_messages',
+    description: 'Get the messages of one Conversations-domain thread.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'draft_inbox_reply',
+    description: 'Draft reply text for an inbox conversation. Returns text only — it never sends anything.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        conversationId: { type: Type.STRING, description: 'The inbox conversation ID' },
+      },
+      required: ['conversationId'],
+    },
+  },
+  {
+    name: 'get_campaign_details',
+    description: 'Get one campaign with recipient counts by status. Does not send anything.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        campaignId: { type: Type.STRING, description: 'The campaign ID' },
+      },
+      required: ['campaignId'],
+    },
+  },
+  {
+    name: 'send_campaign',
+    description: 'Send an email campaign to its recipients. This is a real bulk send and always needs the user\'s exact approval first. An already-SENT campaign re-sends fresh (old recipient records are cleared).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        campaignId: { type: Type.STRING, description: 'The campaign ID to send' },
+      },
+      required: ['campaignId'],
+    },
+  },
+  {
+    name: 'list_appointments',
+    description: 'List appointments, optionally filtered by contact or date range.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        contactId: { type: Type.STRING, description: 'Filter by contact ID' },
+        startDate: { type: Type.STRING, description: 'Earliest start time (ISO date)' },
+        endDate: { type: Type.STRING, description: 'Latest start time (ISO date)' },
+        search: { type: Type.STRING, description: 'Search in appointment titles' },
+      },
+    },
+  },
+  {
+    name: 'create_appointment',
+    description: 'Create an appointment. startTime and endTime must be valid dates.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Appointment title' },
+        contactId: { type: Type.STRING, description: 'Contact ID for the appointment' },
+        startTime: { type: Type.STRING, description: 'Start time (ISO date-time)' },
+        endTime: { type: Type.STRING, description: 'End time (ISO date-time)' },
+        description: { type: Type.STRING, description: 'Notes' },
+        type: { type: Type.STRING, description: 'Appointment type (e.g. meeting)' },
+        location: { type: Type.STRING, description: 'Location' },
+      },
+      required: ['startTime', 'endTime'],
+    },
+  },
+  {
+    name: 'update_deal',
+    description: 'Update a deal. Only title, amount, status, pipelineStageId, contactId, priority, closeDate, and probability may change.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        dealId: { type: Type.STRING, description: 'The deal ID' },
+        title: { type: Type.STRING, description: 'Deal title' },
+        amount: { type: Type.NUMBER, description: 'Deal value' },
+        status: { type: Type.STRING, description: 'Deal status (e.g. open, won, lost)' },
+        pipelineStageId: { type: Type.STRING, description: 'Pipeline stage ID to move the deal to' },
+        contactId: { type: Type.STRING, description: 'Contact ID' },
+        priority: { type: Type.STRING, description: 'Priority (e.g. low, medium, high)' },
+        closeDate: { type: Type.STRING, description: 'Close date (ISO date)' },
+        probability: { type: Type.NUMBER, description: 'Win probability 0-100' },
+      },
+      required: ['dealId'],
+    },
+  },
+  {
+    name: 'list_pipelines',
+    description: 'List pipelines with their stages. Never creates anything.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_workspace_info',
+    description: 'Get the workspace name, plan, agent name and mode, and displayed credit counts. Credits are displayed only and are not enforced.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: 'get_pipeline_summary',
+    description: 'Summarize deals grouped by pipeline stage, with counts and total values.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+];
+
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+export function buildCleanContents(history: { role: string; content: string }[], currentMessage: string) {
+  const cleanContents: any[] = [];
+
+  for (const h of history || []) {
+    if (!h.content?.trim()) continue;
+    if (h.content.startsWith('Error:') || h.content.includes('404') || h.content.startsWith('*Executing CRM Action')) continue;
+
+    const role = h.role === 'assistant' || h.role === 'model' ? 'model' : 'user';
+
+    // Ensure strict user -> model -> user alternation
+    const lastRole = cleanContents.length > 0 ? cleanContents[cleanContents.length - 1].role : null;
+    if (role !== lastRole) {
+      cleanContents.push({ role, parts: [{ text: h.content }] });
+    }
+  }
+
+  // Ensure history ends before user's current message with a model turn if cleanContents ends with user
+  if (cleanContents.length > 0 && cleanContents[cleanContents.length - 1].role === 'user') {
+    cleanContents.pop();
+  }
+
+  cleanContents.push({ role: 'user', parts: [{ text: currentMessage }] });
+  return cleanContents;
+}
 
 async function generateText(prompt: string, systemInstruction?: string): Promise<string> {
   const ai = getAIClient();
