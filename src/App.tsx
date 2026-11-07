@@ -96,6 +96,7 @@ const LeadStudio             = lazy(() => import('./pages/leads/LeadStudio'));
 
 // Email Marketing
 const EmailMarketingLayout = lazy(() => import('./pages/email-marketing/EmailMarketingLayout'));
+const EmailMarketingOverview = lazy(() => import('./pages/email-marketing/EmailMarketingOverview'));
 const CampaignsList        = lazy(() => import('./pages/email-marketing/CampaignsList'));
 const EmailCampaignBuilder = lazy(() => import('./pages/email-marketing/CampaignBuilder'));
 const ListsAndSegments     = lazy(() => import('./pages/email-marketing/ListsAndSegments'));
@@ -290,7 +291,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
             {/* Email Marketing */}
             <Route path="/email-marketing" element={<ErrorBoundary><Protect withAuth={withAuth}><EmailMarketingLayout /></Protect></ErrorBoundary>}>
-              <Route index element={<Navigate to="campaigns" replace />} />
+              <Route index element={<ErrorBoundary><EmailMarketingOverview /></ErrorBoundary>} />
               <Route path="campaigns" element={<ErrorBoundary><CampaignsList /></ErrorBoundary>} />
               <Route path="campaigns/new" element={<ErrorBoundary><EmailCampaignBuilder /></ErrorBoundary>} />
               <Route path="campaigns/:campaignId" element={<ErrorBoundary><EmailCampaignBuilder /></ErrorBoundary>} />

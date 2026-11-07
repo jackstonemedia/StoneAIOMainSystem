@@ -76,6 +76,7 @@ export default function CampaignsList() {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [showAICopilotModal, setShowAICopilotModal] = useState(false);
 
   const handleApplyAICampaignFromList = async (payload: GeneratedCampaignPayload) => {
@@ -200,7 +201,18 @@ export default function CampaignsList() {
     }
 
     if (statusFilter !== 'ALL') {
-      result = result.filter(c => c.status === statusFilter);
+      // Status filters match c.status. Type filters (A/B, Drip) match the
+      // campaign's own data — the old bottom bar set statusFilter to
+      // 'AB_TEST'/'DRIP', which matched NO status and always emptied the table.
+      if (statusFilter === 'AB_TEST') {
+        result = result.filter((c) => !!c.abTestConfig?.enabled);
+      } else if (statusFilter === 'DRIP') {
+        result = result.filter(
+          (c) => c.blockJson?.campaignType === 'drip' || (Array.isArray(c.blockJson?.dripSteps) && c.blockJson.dripSteps.length > 0),
+        );
+      } else {
+        result = result.filter((c) => c.status === statusFilter);
+      }
     }
 
     if (sortConfig) {
@@ -313,7 +325,7 @@ export default function CampaignsList() {
               placeholder="Search Campaigns..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface border border-border/60 text-text-main placeholder:text-text-muted text-[13px] rounded-full pl-8 pr-4 py-1.5 focus:outline-none focus:border-primary transition-all w-52 focus:w-64"
+              className="bg-surface border border-border/60 text-text-main placeholder:text-text-muted text-[13px] rounded-full pl-8 pr-4 py-1.5 focus:outline-none focus:border-primary transition-all w-44 focus:w-56"
             />
             {searchQuery && (
               <button 
@@ -327,37 +339,55 @@ export default function CampaignsList() {
 
           <AssistantLauncher
             surface="email_marketing"
-            label="Ask Stone AI"
+            label="Ask AI"
             initialPrompt="Help me plan and draft a high-converting email marketing campaign."
             initialMode="draft"
           />
-          <button
-            style={{ display: 'none' }}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600/90 to-primary/90 hover:from-purple-600 hover:to-primary text-white border border-purple-400/30 rounded-full px-3.5 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
-            title="Create Campaign with AI Strategy Consultant"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-200" />
-            <span>AI Copilot</span>
-          </button>
 
-          {/* Build with AI Button (phased interview flow — Milestone 1+) */}
-          <button
-            style={{ display: 'none' }}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
-            title="Build with AI — phased interview that writes the campaign"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Build with AI</span>
-          </button>
-
-          {/* New Campaign Button */}
-          <button
-            onClick={() => navigate('/email-marketing/campaigns/new')}
-            className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-            <span>Create Campaign</span>
-          </button>
+          {/* Create menu — one entry point: Broadcast / Drip / Build with AI.
+              (Fixed 2026-11-07: the old header had two display:none dead buttons
+              — "AI Copilot" and "Build with AI" — and a single Create button.) */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setCreateMenuOpen(!createMenuOpen)}
+              className="flex items-center gap-1.5 bg-primary hover:bg-primary-hover text-white rounded-full px-4 py-1.5 text-[13px] font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              <span>Create</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <AnimatePresence>
+              {createMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCreateMenuOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute right-0 top-full mt-2 w-[280px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                  >
+                    {[
+                      { label: 'Broadcast campaign', desc: 'One email to your audience', icon: Mail, onClick: () => navigate('/email-marketing/campaigns/new') },
+                      { label: 'Drip sequence', desc: 'Multi-step automated sequence', icon: Flame, onClick: () => navigate('/email-marketing/campaigns/new?type=drip') },
+                      { label: 'Build with AI', desc: 'Interview-driven campaign, written for you', icon: Sparkles, onClick: () => navigate('/email-marketing/create-with-ai') },
+                    ].map((opt) => (
+                      <button
+                        key={opt.label}
+                        onClick={() => { setCreateMenuOpen(false); opt.onClick(); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                      >
+                        <opt.icon className="w-4 h-4 text-primary shrink-0" />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[13px] font-semibold text-text-main">{opt.label}</span>
+                          <span className="block text-[12px] text-text-muted">{opt.desc}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </HeaderPortal>
 
@@ -491,6 +521,8 @@ export default function CampaignsList() {
                 { key: 'SCHEDULED', label: 'Scheduled', count: campaigns.filter(c => c.status === 'SCHEDULED').length },
                 { key: 'DRAFT', label: 'Drafts', count: campaigns.filter(c => c.status === 'DRAFT').length },
                 { key: 'PAUSED', label: 'Paused', count: campaigns.filter(c => c.status === 'PAUSED').length },
+                { key: 'AB_TEST', label: '⚡ A/B Tests', count: campaigns.filter(c => !!c.abTestConfig?.enabled).length },
+                { key: 'DRIP', label: '🔥 Drip Sequences', count: campaigns.filter(c => c.blockJson?.campaignType === 'drip' || (Array.isArray(c.blockJson?.dripSteps) && c.blockJson.dripSteps.length > 0)).length },
               ].map(pill => (
                 <button
                   key={pill.key}
@@ -588,12 +620,20 @@ export default function CampaignsList() {
                           Clear Filters
                         </button>
                       ) : (
-                        <button
-                          onClick={() => navigate('/email-marketing/campaigns/new')}
-                          className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Create Campaign
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => navigate('/email-marketing/campaigns/new')}
+                            className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Create Campaign
+                          </button>
+                          <button
+                            onClick={() => navigate('/email-marketing/create-with-ai')}
+                            className="px-3 py-1.5 bg-surface-hover hover:bg-surface border border-border rounded-lg text-xs font-semibold text-text-main transition-all flex items-center gap-1.5"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-primary" /> Build with AI
+                          </button>
+                        </div>
                       )}
                     </div>
                   </td>
@@ -777,29 +817,9 @@ export default function CampaignsList() {
         } as React.CSSProperties}
       >
         <div className="flex items-center gap-3">
-          {/* Status & Type Filter Pills */}
-          <div className="flex items-center gap-1 bg-surface-hover/50 p-1 rounded-lg border border-border/50 flex-wrap">
-            {[
-              { id: 'ALL', label: 'All Campaigns' },
-              { id: 'DRAFT', label: 'Drafts' },
-              { id: 'SCHEDULED', label: 'Scheduled' },
-              { id: 'SENT', label: 'Sent' },
-              { id: 'AB_TEST', label: '⚡ A/B Tests' },
-              { id: 'DRIP', label: '🔥 Drip Sequences' },
-            ].map((st) => (
-              <button
-                key={st.id}
-                onClick={() => setStatusFilter(st.id)}
-                className={`px-3 py-1 rounded-[6px] text-[11px] font-bold transition-all ${
-                  statusFilter === st.id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {st.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Sort Dropdown */}
+          {/* Sort Dropdown — the filter pills live in the single pill row above
+              the table (fixed 2026-11-07: this footer bar duplicated them, and
+              its A/B + Drip pills set a status that matched nothing). */}
           <div className="relative">
             <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
               <ChevronDown className="w-4 h-4" /> Sort

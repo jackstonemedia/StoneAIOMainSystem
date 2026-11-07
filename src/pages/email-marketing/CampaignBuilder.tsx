@@ -378,12 +378,16 @@ export default function CampaignBuilder() {
     queryFn: () => apiClient.get('/email-marketing/outreach/capacity').then(r => r.data),
   });
 
-  // Pre-fill smartListId from query params
+  // Pre-fill smartListId + campaign type from query params
+  // (?type=drip is used by the Campaigns "Create → Drip sequence" menu.)
   useEffect(() => {
     const qSmartList = searchParams.get('smartListId');
     if (qSmartList) {
       setSmartListId(qSmartList);
       setAudienceType('smartList');
+    }
+    if (searchParams.get('type') === 'drip') {
+      setCampaignType('drip');
     }
   }, [searchParams]);
 
@@ -941,7 +945,7 @@ export default function CampaignBuilder() {
 
         {/* ── Top Header Bar ─────────────────────────────────────────────── */}
         <div
-          className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b shrink-0 gap-4 sticky top-0 z-20 shadow-sm overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-w-full"
+          className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-2.5 border-b shrink-0 gap-x-4 gap-y-2 sticky top-0 z-20 shadow-sm"
           style={{
             background: 'var(--sidebar-bg)',
             borderColor: 'var(--sidebar-border)',
@@ -1046,16 +1050,6 @@ export default function CampaignBuilder() {
               entity={{ type: 'campaign', id: campaignId || 'new', name }}
               label="Ask Stone AI"
             />
-            {/* Legacy AI Copilot Hidden */}
-            <button
-              onClick={() => setShowAICopilotModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary/15 via-purple-500/15 to-primary/10 hover:from-primary/25 hover:to-purple-500/25 text-primary border border-primary/35 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 group whitespace-nowrap"
-              style={{ display: 'none' }}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform shrink-0" />
-              <span>AI Copilot</span>
-            </button>
-
             {/* Deliverability Score Badge */}
             <button
               onClick={() => setShowDeliverabilityModal(true)}
@@ -1068,7 +1062,13 @@ export default function CampaignBuilder() {
               title="Click to view Deliverability & Anti-Spam Pre-Flight Scorecard"
             >
               <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-              <span>{spamReport.score}% Deliverability</span>
+              {/* On an empty draft the score is a heuristic over empty
+                  content, not a measured metric — label it as a draft score. */}
+              <span>
+                {activeSubjectA.trim() || activeBodyA.trim()
+                  ? `${spamReport.score}% Deliverability`
+                  : `Draft score ${spamReport.score}%`}
+              </span>
             </button>
 
             {/* Templates Quick Action */}
@@ -1092,7 +1092,7 @@ export default function CampaignBuilder() {
               title="Configure Sender Profile and Delivery Throttling"
             >
               <Sliders className="w-3.5 h-3.5 shrink-0" />
-              <span>Sender & Limits</span>
+              <span>Sender</span>
             </button>
 
             {/* Test Send */}

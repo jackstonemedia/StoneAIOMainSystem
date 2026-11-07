@@ -185,6 +185,38 @@ export default function CampaignAnalytics() {
         </div>
       </HeaderPortal>
 
+      {/* Empty state — no sent campaigns yet. (Fixed 2026-11-07: the page
+          used to render a wall of zeros + an Edit Campaign button with no
+          campaign selected, and no call to action.) */}
+      {!isCampaignsLoading && sentCampaigns.length === 0 ? (
+        <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
+          <div className="max-w-md text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <BarChart2 className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-lg font-bold text-text-main">No sent campaigns yet</h2>
+            <p className="text-[13px] text-text-muted leading-relaxed">
+              Analytics appear here once you send a campaign — delivered, opens,
+              clicks, and A/B results, all in one place.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => navigate('/email-marketing/campaigns/new')}
+                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-full text-xs font-bold transition-colors"
+              >
+                Create your first campaign
+              </button>
+              <button
+                onClick={() => navigate('/email-marketing/create-with-ai')}
+                className="px-4 py-2 bg-surface-hover hover:bg-surface border border-border rounded-full text-xs font-semibold text-text-main transition-colors"
+              >
+                Build with AI
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Main Dashboard Content */}
       <div className="flex-1 overflow-auto p-8 space-y-6">
         
@@ -842,6 +874,8 @@ export default function CampaignAnalytics() {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* ── WINNER SELECTION CONFIRMATION MODAL ── */}
       {showWinnerConfirmModal && (
