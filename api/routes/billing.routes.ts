@@ -440,9 +440,12 @@ router.post('/stripe/create-payment-intent', validate(createPaymentIntentSchema)
 // The unverified path exists only in non-production, for local dev,
 // and logs a warning every time it fires. The webhook secret comes
 // from STRIPE_WEBHOOK_SECRET only; no fallback secret lives in code.
-// NOTE: server.ts mounts this handler with express.raw() BEFORE
-// express.json() — constructEvent needs the raw body, and a parsed
-// object body always fails verification.
+// NOTE: server.ts captures the raw body BEFORE express.json() (pre-json
+// middleware for /api/webhooks/stripe + /api/stripe/webhook) and stores it
+// on req.rawBody — constructEvent needs the raw bytes, and a parsed object
+// body always fails verification. Before 2026-11-07 the handler got the
+// parsed object (route-level raw() after json() is a no-op), so EVERY
+// production event 400'd. Fixed in agent/webhook-raw-body-fix.
 export async function stripeWebhookHandler(req: Request, res: Response) {
   const sig = req.headers['stripe-signature'];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -453,7 +456,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     const stripe = getStripe();
 
     if (sig && secret) {
-      event = stripe.webhooks.constructEvent(req.body, sig, secret);
+      event = stripe.webhooks.constructEvent((req as any).rawBody ?? req.body, sig, secret);
     } else if (process.env.NODE_ENV === 'production') {
       console.error('[Stripe Webhook] Rejected: missing signature or webhook secret in production.');
       return res.status(400).send('Webhook Error: signature verification required in production.');

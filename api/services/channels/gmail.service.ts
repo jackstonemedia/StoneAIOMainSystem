@@ -401,7 +401,7 @@ export async function fetchGmailHistory(connectionId: string): Promise<void> {
             externalId: threadId,
             channelConnectionId: conn.id,
             lastMessageAt: new Date(),
-            unreadCount: 1,
+            unreadCount: 0, // first message lands at 1 via the increment below (was 1 + increment = 2)
           },
         });
       } else if (!convo.contactId && contact) {

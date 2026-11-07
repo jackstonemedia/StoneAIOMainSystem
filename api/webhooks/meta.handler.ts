@@ -102,7 +102,7 @@ export const metaWebhookPost = async (req: Request, res: Response): Promise<void
             externalId: senderId,
             status: 'open',
             lastMessageAt: new Date(),
-            unreadCount: 1,
+            unreadCount: 0, // first message lands at 1 via the increment below (was 1 + increment = 2)
           },
         });
       }

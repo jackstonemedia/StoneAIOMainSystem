@@ -39,11 +39,24 @@ async function processLeadEvent(req: Request) {
   const rawBody: Buffer = (req as any).rawBody;
   const signature = req.headers['x-hub-signature-256'] as string;
 
-  if (rawBody && signature) {
-    if (!verifyFacebookWebhookSignature(rawBody, signature)) {
-      console.warn('[FacebookLeadsWebhook] Invalid signature — ignoring event');
+  // Verification is MANDATORY when the app secret is configured (production).
+  // Before 2026-11-07 the guard was `if (rawBody && signature)`, which was
+  // inverted in practice: a signed delivery threw inside Hmac.update (rawBody
+  // was the parsed object, not a Buffer — the route-level raw() after the
+  // global json() is a no-op) and was dropped, while a request with NO
+  // signature skipped verification entirely and ingested. Fixed in
+  // agent/webhook-raw-body-fix: rawBody is now a real Buffer (pre-json
+  // capture in server.ts), and a missing/invalid signature is rejected
+  // whenever the secret is set. The accept path below exists ONLY when no
+  // secret is configured (local dev).
+  const appSecret = process.env.FACEBOOK_ADS_APP_SECRET;
+  if (appSecret) {
+    if (!signature || !verifyFacebookWebhookSignature(rawBody, signature)) {
+      console.warn('[FacebookLeadsWebhook] Missing or invalid signature — ignoring event');
       return;
     }
+  } else {
+    console.warn('[FacebookLeadsWebhook] FACEBOOK_ADS_APP_SECRET not configured — accepting unverified (dev only)');
   }
 
   const body = req.body;
