@@ -3,14 +3,39 @@ import twilio from 'twilio';
 import { db } from '../../infrastructure/database/client.js';
 import { claimWebhookEvent } from '../../infrastructure/database/idempotency.js';
 
+/**
+ * Reconstructs the exact URL Twilio called, for signature validation.
+ * Twilio signs the full URL + sorted POST params, so any mismatch (wrong host,
+ * wrong scheme, stray port) fails validation. PUBLIC_APP_URL is the server's
+ * canonical public URL; VITE_APP_URL is the legacy fallback; the request
+ * itself is the last resort (correct only with `trust proxy` set, since
+ * Render/Railway terminate TLS in front of the app).
+ */
+export function buildTwilioRequestUrl(req: Request): string {
+  const path = req.originalUrl || req.url || '/api/hooks/twilio-sms';
+  const base = (process.env.PUBLIC_APP_URL || process.env.VITE_APP_URL || '').replace(/\/$/, '');
+  if (base) return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const protocol = req.protocol || 'https';
+  const host = req.get('host') || 'localhost';
+  return `${protocol}://${host}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 export async function twilioSmsHandler(req: Request, res: Response): Promise<void> {
   // Twilio POSTs application/x-www-form-urlencoded — parsed by the urlencoded middleware
   // that must be applied to this route specifically (not globally).
   const toNumber: string = req.body?.To ?? '';
   const fromNumber: string = req.body?.From ?? '';
   const bodyText: string = req.body?.Body ?? '';
+  const numMedia = Number(req.body?.NumMedia || 0);
 
   if (!toNumber) { res.status(400).send('Missing To field'); return; }
+
+  // Delivery receipts and status callbacks carry no Body and no media — ack
+  // and ignore them instead of storing an empty message row.
+  if (!bodyText && numMedia === 0) {
+    res.status(200).type('text/xml').send('<Response></Response>');
+    return;
+  }
 
   // PASS 1 — Look up the connection by To number (before signature validation)
   const connection = await db.channelConnection.findFirst({
@@ -32,10 +57,15 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
     } catch {}
   }
 
-  // Validate Twilio signature in production
+  // Validate Twilio signature in production.
+  // BUG FIX (2026-11-07): the URL used to be built from VITE_APP_URL alone.
+  // That is a frontend build-time var — render.yaml sets only NODE_ENV in
+  // prod, so the URL became "undefined/api/hooks/twilio-sms" and every
+  // inbound SMS failed validation with a 403. Reconstruct from
+  // PUBLIC_APP_URL first (see buildTwilioRequestUrl).
   if (process.env.NODE_ENV === 'production' && authToken) {
     const sig = (req.headers['x-twilio-signature'] as string) ?? '';
-    const url = `${process.env.VITE_APP_URL}/api/hooks/twilio-sms`;
+    const url = buildTwilioRequestUrl(req);
     const isValid = twilio.validateRequest(authToken, sig, url, req.body);
     if (!isValid) { res.status(403).send('Invalid Twilio signature'); return; }
   }
@@ -68,9 +98,25 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
     });
 
     if (!convo) {
-      const contact = await db.contact.findFirst({
+      let contact = await db.contact.findFirst({
         where: { workspaceId, phone: fromNumber },
       });
+      // No CRM record for this number yet — create one so the sender becomes
+      // a lead, mirroring the Gmail inbound path (find-or-create by address).
+      if (!contact) {
+        contact = await db.contact
+          .create({
+            data: {
+              workspaceId,
+              phone: fromNumber,
+              firstName: fromNumber,
+              lastName: '',
+              status: 'Lead',
+              source: 'sms',
+            },
+          })
+          .catch(() => null);
+      }
       // Check if there's an existing open SMS conversation for this contact
       if (contact) {
         convo = await db.conversation.findFirst({
@@ -101,6 +147,12 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
       }
     }
 
+    const mediaUrls: string[] = [];
+    for (let i = 0; i < numMedia; i++) {
+      const mediaUrl = req.body?.[`MediaUrl${i}`];
+      if (mediaUrl) mediaUrls.push(mediaUrl);
+    }
+
     await db.conversationMessage.create({
       data: {
         conversationId: convo.id,
@@ -109,6 +161,7 @@ export async function twilioSmsHandler(req: Request, res: Response): Promise<voi
         direction: 'inbound',
         channel: 'sms',
         status: 'delivered',
+        attachments: mediaUrls.length > 0 ? JSON.stringify({ mediaUrls }) : null,
       },
     });
 

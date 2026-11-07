@@ -59,7 +59,6 @@ import { resolveWorkspace }  from './api/middleware/workspace.js';
 import inboxRouter from './api/routes/inbox.routes.js';
 import inboxWidgetRouter from './api/routes/inbox-widget.routes.js';
 import inboxCopilotRouter from './api/routes/inbox-copilot.routes.js';
-import inboxWebhooksRouter from './api/routes/inbox-webhooks.routes.js';
 
 // ── Channel routes + webhook handlers + realtime ─────────────────────────────
 import channelsRouter from './api/routes/channels.routes.js';
@@ -88,6 +87,12 @@ async function startServer() {
   // unhandledRejection once initialized.
   initSentry();
   const app = express();
+
+  // Behind Render/Railway the app sits behind a TLS-terminating proxy:
+  // trust X-Forwarded-* so req.protocol / req.ip reflect the real client.
+  // (Without this, Twilio/Meta signature URL reconstruction sees http://
+  // and rate limiting sees one shared proxy IP.)
+  app.set('trust proxy', 1);
 
   // ── Security + perf middleware ────────────────────────────────────────────
   // CSP: disabled in dev (Vite handles it), re-enabled in production for XSS protection
@@ -138,6 +143,23 @@ async function startServer() {
   }));
 
   app.use(compression());
+
+  // Raw-body capture for the Meta webhook — MUST run before express.json().
+  // X-Hub-Signature-256 is computed over the raw request bytes; a route-level
+  // express.raw() placed after the global json() is a no-op (body-parser
+  // skips when req._body is already set — verified empirically), so the raw
+  // bytes must be captured here. Only this path is affected; req.body is
+  // re-parsed to the object form so the handler sees both.
+  app.use('/api/hooks/meta', express.raw({ type: 'application/json' }), (req, _res, next) => {
+    (req as any).rawBody = req.body;
+    try {
+      req.body = JSON.parse((req.body as Buffer).toString('utf8'));
+    } catch {
+      // Leave req.body as-is; the handler returns 400 on unparseable JSON.
+    }
+    next();
+  });
+
   app.use(express.json());
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
@@ -233,16 +255,19 @@ async function startServer() {
     facebookLeadsWebhookPost,
   );
 
+  // Meta (Facebook/Instagram) webhook
+  // FIXED (2026-11-07): this used to sit BELOW the workflow wildcard, which
+  // 404s unknown paths without calling next() — so Meta inbound never
+  // reached the handler at all. It now sits above the wildcard, next to the
+  // other provider hooks. It was also never signature-verified; the handler
+  // now checks X-Hub-Signature-256 against META_APP_SECRET (raw body
+  // captured before express.json() above).
+  app.get('/api/hooks/meta', metaWebhookVerify);
+  app.post('/api/hooks/meta', metaWebhookPost);
+
   // Native workflow engine webhooks — wildcard MUST come last so specific
   // handlers above are not intercepted and killed with a 404.
   app.all('/api/hooks/*', webhookHandler);
-
-  // Meta (Facebook/Instagram) webhook
-  // FIXED: Was at /api/integrations/webhooks/meta which ran through resolveWorkspace.
-  // Meta never sends a Clerk JWT so that returned 401 on every inbound message.
-  // Moved here, before resolveWorkspace, and resolves workspace from Integration table.
-  app.get('/api/hooks/meta', metaWebhookVerify);
-  app.post('/api/hooks/meta', metaWebhookPost);
 
   // ── Stripe webhook — MUST be before resolveWorkspace (no JWT from Stripe) ──
   app.post(
@@ -292,7 +317,6 @@ async function startServer() {
   app.use('/api/inbox',          resolveWorkspace, inboxRouter);
   if (FEATURES.legacyAi) app.use('/api/inbox/copilot',  resolveWorkspace, inboxCopilotRouter);
   app.use('/api/widget',         inboxWidgetRouter);
-  app.use('/api/webhooks/inbox', inboxWebhooksRouter);
   app.use('/api/email-marketing', emailMarketingRouter);
   if (FEATURES.sdr)   app.use('/api/sdr',            sdrRouter);
 
