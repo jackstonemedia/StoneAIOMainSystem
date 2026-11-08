@@ -11,8 +11,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Mail, Sparkles, Zap, Users, FileText, CheckCircle2, AlertTriangle,
-  ArrowRight, Send, Eye, MousePointer, Plus,
+  Mail, Sparkles, Users, AlertTriangle, ArrowRight, Plus,
 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 import { getProfile } from '../../lib/createWithAiApi';
@@ -52,15 +51,6 @@ export default function EmailMarketingOverview() {
     () => campaigns.filter((c) => c.status === 'SENT' || c.status === 'SENDING'),
     [campaigns],
   );
-  const last30 = useMemo(() => {
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const recent = sentCampaigns.filter((c) => c.sentAtUtc && new Date(c.sentAtUtc).getTime() >= cutoff);
-    const sent = recent.reduce((a, c) => a + (c.stats?.sent ?? c._count?.recipients ?? 0), 0);
-    const delivered = recent.reduce((a, c) => a + (c.stats?.delivered ?? 0), 0);
-    const opens = recent.reduce((a, c) => a + (c.stats?.uniqueOpens ?? 0), 0);
-    const clicks = recent.reduce((a, c) => a + (c.stats?.uniqueClicks ?? 0), 0);
-    return { sent, delivered, opens, clicks, openRate: sent > 0 ? (opens / sent) * 100 : 0, clickRate: sent > 0 ? (clicks / sent) * 100 : 0 };
-  }, [sentCampaigns]);
 
   const recentCampaigns = useMemo(
     () => [...campaigns].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 3),
@@ -76,11 +66,13 @@ export default function EmailMarketingOverview() {
         ? { text: 'Send your first campaign to see performance here.', cta: 'Create a campaign', to: '/email-marketing/campaigns/new' }
         : null;
 
-  const health = [
-    { label: 'Gmail mailbox', ok: gmailConnected, detail: gmailConnected ? 'Connected — campaigns can send' : 'Not connected', to: '/settings?tab=outreach' },
-    { label: 'Business Profile', ok: profileComplete, detail: profileComplete ? 'Complete — AI writes in your voice' : 'Incomplete — finish it for AI copy', to: '/email-marketing/profile' },
-    { label: 'Campaigns sent', ok: sentCampaigns.length > 0, detail: sentCampaigns.length > 0 ? `${sentCampaigns.length} sent so far` : 'None sent yet', to: '/email-marketing/campaigns' },
-  ];
+  // Setup health shows ONLY when something needs attention — when everything
+  // is fine, there is nothing to show (simplified 2026-11-08: the old page
+  // showed three health cards + four KPI cards that duplicated Analytics).
+  const attention = [
+    !gmailConnected ? { text: 'Gmail is not connected — campaigns cannot send yet.', cta: 'Connect a mailbox', to: '/settings?tab=outreach' } : null,
+    !profileComplete ? { text: 'Your Business Profile is incomplete — the AI writes better with it done.', cta: 'Finish profile', to: '/email-marketing/profile' } : null,
+  ].filter(Boolean) as { text: string; cta: string; to: string }[];
 
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden z-0">
@@ -121,52 +113,21 @@ export default function EmailMarketingOverview() {
           </div>
         )}
 
-        {/* Setup health */}
-        <div>
-          <h2 className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2.5">Setup health</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            {health.map((h) => (
-              <button
-                key={h.label}
-                onClick={() => navigate(h.to)}
-                className="text-left bg-surface/50 border border-border/60 rounded-xl p-4 backdrop-blur-md shadow-card hover:border-border transition-all"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">{h.label}</span>
-                  {h.ok
-                    ? <CheckCircle2 className="w-4 h-4 text-accent-green" />
-                    : <AlertTriangle className="w-4 h-4 text-amber-400" />}
-                </div>
-                <div className={`text-[13px] font-semibold ${h.ok ? 'text-text-main' : 'text-amber-300'}`}>
-                  {h.ok ? 'Ready' : 'Needs attention'}
-                </div>
-                <div className="text-[12px] text-text-muted mt-0.5">{h.detail}</div>
-              </button>
-            ))}
+        {/* Needs attention — only when something is actually incomplete. */}
+        {attention.map((a) => (
+          <div key={a.text} className="flex items-center justify-between gap-4 px-4 py-3 bg-amber-500/10 border border-amber-500/25 rounded-xl">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-[13px] font-medium text-text-main">{a.text}</span>
+            </div>
+            <button
+              onClick={() => navigate(a.to)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-full text-xs font-bold shrink-0 transition-colors"
+            >
+              {a.cta} <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </div>
-
-        {/* Last 30 days */}
-        <div>
-          <h2 className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-2.5">Last 30 days</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            {[
-              { label: 'Sent', value: last30.sent.toLocaleString(), icon: Send, sub: `${last30.delivered.toLocaleString()} delivered` },
-              { label: 'Open rate', value: `${last30.openRate.toFixed(1)}%`, icon: Eye, sub: `${last30.opens.toLocaleString()} opens` },
-              { label: 'Click rate', value: `${last30.clickRate.toFixed(1)}%`, icon: MousePointer, sub: `${last30.clicks.toLocaleString()} clicks` },
-              { label: 'Campaigns sent', value: String(sentCampaigns.length), icon: Mail, sub: `${campaigns.length} total` },
-            ].map((kpi) => (
-              <div key={kpi.label} className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card">
-                <div className="flex items-center justify-between text-text-muted mb-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">{kpi.label}</span>
-                  <kpi.icon className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <div className="text-xl font-bold text-text-main">{kpi.value}</div>
-                <div className="text-[11px] text-text-muted mt-1">{kpi.sub}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
 
         {/* Quick actions + Recent campaigns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
@@ -174,11 +135,9 @@ export default function EmailMarketingOverview() {
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-3">Quick actions</h2>
             <div className="space-y-2">
               {[
+                { label: 'New campaign', desc: 'One email to your audience', icon: Mail, to: '/email-marketing/campaigns/new' },
                 { label: 'Build with AI', desc: 'Interview-driven campaign, written for you', icon: Sparkles, to: '/email-marketing/create-with-ai' },
-                { label: 'New broadcast campaign', desc: 'One email to your audience', icon: Mail, to: '/email-marketing/campaigns/new' },
-                { label: 'New automation', desc: 'Drip sequences triggered by tags or events', icon: Zap, to: '/email-marketing/automations/new' },
                 { label: 'Manage audience', desc: 'Lists, segments, and suppression', icon: Users, to: '/email-marketing/audience' },
-                { label: 'Browse templates', desc: 'Starter kits and your custom designs', icon: FileText, to: '/email-marketing/templates' },
               ].map((a) => (
                 <button
                   key={a.label}

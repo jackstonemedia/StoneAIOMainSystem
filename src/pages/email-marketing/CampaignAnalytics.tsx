@@ -13,7 +13,7 @@ import { apiClient, extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 import {
-  BarChart2, Mail, CheckCircle2, Eye, MousePointer, AlertTriangle,
+  BarChart2, CheckCircle2, Eye, MousePointer, AlertTriangle,
   UserMinus, TrendingUp, Loader2, ChevronDown, Calendar, Search, Filter,
   Sparkles, RefreshCw, ArrowUpRight, ArrowDownRight, Layers, Split,
   Crown, Check, Zap, ArrowRight, ShieldCheck, Trophy, HelpCircle, Users, X,
@@ -38,6 +38,7 @@ export default function CampaignAnalytics() {
   const { toast } = useToast();
   const selectedId = searchParams.get('campaign') || '';
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [dateRangeMenuOpen, setDateRangeMenuOpen] = useState(false);
   const [recipientVariantFilter, setRecipientVariantFilter] = useState<'ALL' | 'A' | 'B' | 'HOLD'>('ALL');
   const [showWinnerConfirmModal, setShowWinnerConfirmModal] = useState(false);
   const [selectedWinnerVariant, setSelectedWinnerVariant] = useState<'A' | 'B'>('A');
@@ -155,24 +156,39 @@ export default function CampaignAnalytics() {
             <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           </div>
 
-          {/* Date Range Selector */}
-          <div className="flex items-center gap-1 bg-surface-hover/50 p-1 rounded-full border border-border/50 text-xs">
-            {[
-              { id: '7d', label: '7D' },
-              { id: '30d', label: '30D' },
-              { id: '90d', label: '90D' },
-              { id: 'all', label: 'All' },
-            ].map(r => (
-              <button
-                key={r.id}
-                onClick={() => setDateRange(r.id as any)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all ${
-                  dateRange === r.id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+          {/* Date Range Menu (simplified 2026-11-08: was four pills) */}
+          <div className="relative">
+            <button
+              onClick={() => setDateRangeMenuOpen(!dateRangeMenuOpen)}
+              className="flex items-center gap-1.5 bg-surface border border-border/60 text-text-main rounded-full px-3.5 py-1.5 text-[13px] font-medium hover:border-border transition-all cursor-pointer"
+            >
+              {dateRange === '7d' ? 'Last 7 days' : dateRange === '30d' ? 'Last 30 days' : dateRange === '90d' ? 'Last 90 days' : 'All time'}
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+            {dateRangeMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setDateRangeMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5">
+                  {[
+                    { id: '7d', label: 'Last 7 days' },
+                    { id: '30d', label: 'Last 30 days' },
+                    { id: '90d', label: 'Last 90 days' },
+                    { id: 'all', label: 'All time' },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => { setDateRange(r.id as any); setDateRangeMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
+                        dateRange === r.id ? 'text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      {r.label}
+                      {dateRange === r.id && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <button
@@ -247,20 +263,9 @@ export default function CampaignAnalytics() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/email-marketing/campaigns/${activeCampaignId}`)}
-              className="btn-secondary flex items-center gap-1.5 text-xs"
-            >
-              Edit Campaign
-            </button>
-            <button
-              onClick={() => navigate('/email-marketing/campaigns')}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition-all shadow-interactive flex items-center gap-1.5"
-            >
-              <Mail className="w-3.5 h-3.5" /> All Campaigns
-            </button>
-          </div>
+          {/* (Simplified 2026-11-08: the old Edit Campaign / All Campaigns
+              buttons are gone — the Campaigns tab is in the nav, and the
+              table below opens a campaign's report.) */}
         </div>
 
         {/* ── A/B SPLIT TEST COMPARATIVE PERFORMANCE SECTION ── */}

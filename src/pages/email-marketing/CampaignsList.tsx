@@ -9,10 +9,8 @@ import {
   Plus, Send, Clock, CheckCircle2, XCircle, Pause,
   BarChart2, Edit2, Trash2, ChevronRight, Mail,
   Calendar, Users, Loader2, AlertCircle, Search, Filter,
-  ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Crown, Sparkles,
-  Eye, MousePointer
+  ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Crown, Sparkles
 } from 'lucide-react';
-import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
 
 interface Campaign {
@@ -72,6 +70,8 @@ export default function CampaignsList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'broadcast' | 'drip' | 'ab'>('all');
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ field: keyof Campaign; direction: 'asc' | 'desc' } | null>({ field: 'createdAt', direction: 'desc' });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -201,18 +201,19 @@ export default function CampaignsList() {
     }
 
     if (statusFilter !== 'ALL') {
-      // Status filters match c.status. Type filters (A/B, Drip) match the
-      // campaign's own data — the old bottom bar set statusFilter to
-      // 'AB_TEST'/'DRIP', which matched NO status and always emptied the table.
-      if (statusFilter === 'AB_TEST') {
-        result = result.filter((c) => !!c.abTestConfig?.enabled);
-      } else if (statusFilter === 'DRIP') {
-        result = result.filter(
-          (c) => c.blockJson?.campaignType === 'drip' || (Array.isArray(c.blockJson?.dripSteps) && c.blockJson.dripSteps.length > 0),
-        );
-      } else {
-        result = result.filter((c) => c.status === statusFilter);
-      }
+      result = result.filter((c) => c.status === statusFilter);
+    }
+
+    // Type is a separate menu, not a status — A/B and drip are advanced
+    // options, not top-level filters (simplified 2026-11-08).
+    const isDrip = (c: Campaign) =>
+      c.blockJson?.campaignType === 'drip' || (Array.isArray(c.blockJson?.dripSteps) && c.blockJson.dripSteps.length > 0);
+    if (typeFilter === 'drip') {
+      result = result.filter(isDrip);
+    } else if (typeFilter === 'ab') {
+      result = result.filter((c) => !!c.abTestConfig?.enabled);
+    } else if (typeFilter === 'broadcast') {
+      result = result.filter((c) => !isDrip(c) && !c.abTestConfig?.enabled);
     }
 
     if (sortConfig) {
@@ -234,7 +235,7 @@ export default function CampaignsList() {
     }
 
     return result;
-  }, [campaigns, searchQuery, statusFilter, sortConfig]);
+  }, [campaigns, searchQuery, statusFilter, typeFilter, sortConfig]);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -337,16 +338,11 @@ export default function CampaignsList() {
             )}
           </div>
 
-          <AssistantLauncher
-            surface="email_marketing"
-            label="Ask AI"
-            initialPrompt="Help me plan and draft a high-converting email marketing campaign."
-            initialMode="draft"
-          />
-
           {/* Create menu — one entry point: Broadcast / Drip / Build with AI.
-              (Fixed 2026-11-07: the old header had two display:none dead buttons
-              — "AI Copilot" and "Build with AI" — and a single Create button.) */}
+              (No Ask AI button here — the layout header's bot icon opens the
+              same assistant. Simplified 2026-11-08. Fixed 2026-11-07: the old
+              header had two display:none dead buttons — "AI Copilot" and
+              "Build with AI" — and a single Create button.) */}
           <div className="relative shrink-0">
             <button
               onClick={() => setCreateMenuOpen(!createMenuOpen)}
@@ -443,86 +439,14 @@ export default function CampaignsList() {
       {/* KPI Performance Overview & Filter Pills */}
       {!isLoading && !error && (
         <div className="mx-8 mt-5 mb-1 space-y-4 relative z-10">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Total Delivered</span>
-                <Send className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <div className="text-xl font-bold text-text-main">
-                {campaigns.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0).toLocaleString()}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1 flex items-center gap-1">
-                <span className="text-accent-green font-semibold">100% deliverability target</span>
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Avg Open Rate</span>
-                <Eye className="w-3.5 h-3.5 text-accent-green" />
-              </div>
-              <div className="text-xl font-bold text-accent-green">
-                {(() => {
-                  const sent = campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING');
-                  if (sent.length === 0) return '0.0%';
-                  const totalSent = sent.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0);
-                  const totalOpens = sent.reduce((acc, c) => acc + (c.stats?.uniqueOpens || (c.stats as any)?.totalOpens || 0), 0);
-                  return totalSent > 0 ? `${((totalOpens / totalSent) * 100).toFixed(1)}%` : '0.0%';
-                })()}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                Industry avg: ~21.5%
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Avg Click Rate</span>
-                <MousePointer className="w-3.5 h-3.5 text-indigo-400" />
-              </div>
-              <div className="text-xl font-bold text-indigo-400">
-                {(() => {
-                  const sent = campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING');
-                  if (sent.length === 0) return '0.0%';
-                  const totalSent = sent.reduce((acc, c) => acc + (c.stats?.sent || c._count?.recipients || 0), 0);
-                  const totalClicks = sent.reduce((acc, c) => acc + (c.stats?.uniqueClicks || (c.stats as any)?.totalClicks || 0), 0);
-                  return totalSent > 0 ? `${((totalClicks / totalSent) * 100).toFixed(1)}%` : '0.0%';
-                })()}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                High-intent conversions
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Active Campaigns</span>
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              </div>
-              <div className="text-xl font-bold text-text-main">
-                {campaigns.filter(c => c.status === 'SENT' || c.status === 'SENDING' || c.status === 'SCHEDULED').length}
-                <span className="text-xs text-text-muted font-normal ml-2">/ {campaigns.length} total</span>
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                {campaigns.filter(c => c.status === 'DRAFT').length} in drafts
-              </div>
-            </div>
-          </div>
-
           {/* Status Filter Pills */}
           <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
               {[
                 { key: 'ALL', label: 'All', count: campaigns.length },
-                { key: 'SENT', label: 'Sent', count: campaigns.filter(c => c.status === 'SENT').length },
-                { key: 'SENDING', label: 'Sending', count: campaigns.filter(c => c.status === 'SENDING').length },
-                { key: 'SCHEDULED', label: 'Scheduled', count: campaigns.filter(c => c.status === 'SCHEDULED').length },
                 { key: 'DRAFT', label: 'Drafts', count: campaigns.filter(c => c.status === 'DRAFT').length },
-                { key: 'PAUSED', label: 'Paused', count: campaigns.filter(c => c.status === 'PAUSED').length },
-                { key: 'AB_TEST', label: '⚡ A/B Tests', count: campaigns.filter(c => !!c.abTestConfig?.enabled).length },
-                { key: 'DRIP', label: '🔥 Drip Sequences', count: campaigns.filter(c => c.blockJson?.campaignType === 'drip' || (Array.isArray(c.blockJson?.dripSteps) && c.blockJson.dripSteps.length > 0)).length },
+                { key: 'SENT', label: 'Sent', count: campaigns.filter(c => c.status === 'SENT').length },
+                { key: 'SCHEDULED', label: 'Scheduled', count: campaigns.filter(c => c.status === 'SCHEDULED').length },
               ].map(pill => (
                 <button
                   key={pill.key}
@@ -541,6 +465,53 @@ export default function CampaignsList() {
                   </span>
                 </button>
               ))}
+
+              {/* Type menu — A/B and drip live here, not as top-level pills
+                  (simplified 2026-11-08: advanced options, not the default view). */}
+              <div className="relative">
+                <button
+                  onClick={() => setTypeMenuOpen(!typeMenuOpen)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    typeFilter !== 'all'
+                      ? 'bg-primary text-white shadow-interactive font-bold'
+                      : 'bg-surface/60 border border-border/50 text-text-muted hover:text-text-main hover:bg-surface-hover'
+                  }`}
+                >
+                  <span>Type: {typeFilter === 'all' ? 'All' : typeFilter === 'broadcast' ? 'Broadcast' : typeFilter === 'drip' ? 'Drip' : 'A/B test'}</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <AnimatePresence>
+                  {typeMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setTypeMenuOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="absolute left-0 top-full mt-2 w-[200px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5"
+                      >
+                        {[
+                          { key: 'all', label: 'All types' },
+                          { key: 'broadcast', label: 'Broadcast' },
+                          { key: 'drip', label: 'Drip sequence' },
+                          { key: 'ab', label: 'A/B test' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.key}
+                            onClick={() => { setTypeFilter(opt.key as typeof typeFilter); setTypeMenuOpen(false); }}
+                            className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
+                              typeFilter === opt.key ? 'text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                            }`}
+                          >
+                            {opt.label}
+                            {typeFilter === opt.key && <Check className="w-3.5 h-3.5" />}
+                          </button>
+                        ))}
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <div className="text-xs text-text-muted font-medium">
