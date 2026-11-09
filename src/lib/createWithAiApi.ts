@@ -336,6 +336,41 @@ export async function getReactionStatus(draftId: string): Promise<ReactionStatus
   return r.data;
 }
 
+// ── Round 2: sequence graph — rule CRUD + wait edits ─────────────────────────
+export type ReactionRuleInputState = {
+  sourceOrder: number;
+  condition: string;
+  conditionParams?: Record<string, unknown>;
+  action: string;
+  actionParams?: Record<string, unknown>;
+  decisionWindowHours?: number;
+  delayMinutes?: number;
+};
+
+export async function createReactionRule(
+  draftId: string,
+  input: ReactionRuleInputState,
+): Promise<{ rules: ReactionRuleState[] }> {
+  const r = await apiClient.post(`${DRAFTS}/${draftId}/reaction-rules`, input);
+  return r.data;
+}
+
+export async function deleteReactionRule(
+  draftId: string,
+  ruleId: string,
+): Promise<{ rules: ReactionRuleState[] }> {
+  const r = await apiClient.delete(`${DRAFTS}/${draftId}/reaction-rules/${ruleId}`);
+  return r.data;
+}
+
+export async function updateDraftSequence(
+  draftId: string,
+  emails: { order: number; offsetDays: number; purpose: string }[],
+): Promise<{ sequence: Record<string, unknown> }> {
+  const r = await apiClient.patch(`${DRAFTS}/${draftId}/sequence`, { emails });
+  return r.data;
+}
+
 export async function generateReactionEmails(
   draftId: string,
 ): Promise<{ created: { id: string; order: number; purpose: string | null }[] }> {

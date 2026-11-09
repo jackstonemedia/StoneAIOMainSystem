@@ -106,8 +106,10 @@ describe('InterviewChat has no clickable answer options', () => {
     // Send is disabled until the user types something
     const send = screen.getByRole('button', { name: 'Send' });
     expect((send as HTMLButtonElement).disabled).toBe(true);
-    // Studio header shows AI Campaign Studio without artificial phase numbering
-    expect(container.textContent).toContain('AI Campaign Studio');
+    // Thread renders the conversation in assistant-thread style, without
+    // artificial phase numbering and without a studio header
+    expect(container.textContent).toContain('What do you want to send?');
+    expect(container.textContent).not.toContain('AI Campaign Studio');
     expect(container.textContent).not.toContain('Phase 1: Goal');
     expect(container.textContent).not.toContain('Phase 8: Review and Send');
   });
@@ -121,7 +123,7 @@ describe('InterviewChat has no clickable answer options', () => {
       brief: { version: 1, text: 'Here is the campaign as I understand it.' },
     });
     const { container } = renderChat(draft);
-    expect(container.textContent).toContain('AI Campaign Studio');
+    expect(container.textContent).toContain('Here is the campaign as I understand it.');
     expect(container.textContent).not.toMatch(/Approve/);
     const buttons = Array.from(container.querySelectorAll('button')).map((b) => (b.textContent || '').trim());
     for (const label of buttons) {

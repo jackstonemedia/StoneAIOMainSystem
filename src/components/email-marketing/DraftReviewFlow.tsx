@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import DraftEditor from './DraftEditor';
 import ReviewSend from './ReviewSend';
-import SequenceTimeline from './SequenceTimeline';
+import SequenceGraph from './SequenceGraph';
 import SequenceReview from './SequenceReview';
 import ReactionEmailsSection from './ReactionEmailsSection';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
@@ -35,11 +35,18 @@ export default function DraftReviewFlow({
   profile,
   onDraftChange,
   onEditBrief,
+  sequenceStep = false,
+  onEnterSequence,
+  onExitSequence,
 }: {
   draft: CampaignDraftState;
   profile: BusinessProfile;
   onDraftChange: (draft: CampaignDraftState) => void;
   onEditBrief: () => void;
+  /** Round 2: when true, the sequence step shows the graph instead of the email list. */
+  sequenceStep?: boolean;
+  onEnterSequence?: () => void;
+  onExitSequence?: () => void;
 }) {
   const { toast } = useToast();
   const [email, setEmail] = useState<DraftEmailState | null>(null);
@@ -120,6 +127,17 @@ export default function DraftReviewFlow({
 
   // ── Multi-email sequence (M4) ──────────────────────────────────────────
   if (isSequence) {
+    const planEmails = [...(((draft.sequence as Record<string, unknown>)?.emails as { order: number; offsetDays: number; purpose: string }[]) || [])].sort(
+      (a, b) => a.order - b.order,
+    );
+    const spanDays = planEmails.length > 0 ? planEmails[planEmails.length - 1].offsetDays : 0;
+    const chainSummary = planEmails
+      .map((e, i) =>
+        i === 0
+          ? `Email ${e.order}`
+          : `Wait ${e.offsetDays - planEmails[i - 1].offsetDays} day${e.offsetDays - planEmails[i - 1].offsetDays === 1 ? '' : 's'} → Email ${e.order}`,
+      )
+      .join(' → ');
     return (
       <div className="space-y-4">
         {error && (
@@ -128,9 +146,37 @@ export default function DraftReviewFlow({
           </div>
         )}
 
-        <SequenceTimeline sequence={draft.sequence as Record<string, unknown>} />
+        {sequenceStep ? (
+          view === 'review' ? (
+            <SequenceReview draft={draft} emails={emails} profile={profile} onBack={() => setView('draft')} />
+          ) : (
+            <SequenceGraph
+              draft={draft}
+              emails={emails}
+              rules={reactionRules}
+              readOnly={draft.status === 'scheduled'}
+              generating={generating}
+              onGenerateAll={handleGenerateSequence}
+              onRulesChange={setReactionRules}
+              onSequenceChange={(sequence) => onDraftChange({ ...draft, sequence })}
+              onBack={() => onExitSequence?.()}
+              onReview={() => setView('review')}
+            />
+          )
+        ) : (
+          <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
+            <p className="text-sm font-semibold text-text-main">
+              Sequence — {planEmails.length} email{planEmails.length === 1 ? '' : 's'}
+              {spanDays > 0 ? ` over ${spanDays} day${spanDays === 1 ? '' : 's'}` : ''}
+            </p>
+            <p className="text-sm text-text-muted">{chainSummary}</p>
+            <button type="button" onClick={() => onEnterSequence?.()} className="btn-secondary text-sm">
+              View sequence
+            </button>
+          </div>
+        )}
 
-        {emails.length === 0 && (
+        {!sequenceStep && emails.length === 0 && (
           <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
             <p className="text-sm text-text-main">{createWithAiCopy.draft.opening}</p>
             <p className="text-sm text-text-muted">
@@ -149,7 +195,7 @@ export default function DraftReviewFlow({
           </div>
         )}
 
-        {emails.length > 0 && view === 'draft' && (
+        {!sequenceStep && emails.length > 0 && view === 'draft' && (
           <>
             <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
               <p className="text-sm font-semibold text-text-main">Emails in this sequence</p>
@@ -187,7 +233,7 @@ export default function DraftReviewFlow({
           </>
         )}
 
-        {emails.length > 0 && view === 'review' && (
+        {!sequenceStep && emails.length > 0 && view === 'review' && (
           <SequenceReview draft={draft} emails={emails} profile={profile} onBack={() => setView('draft')} />
         )}
 

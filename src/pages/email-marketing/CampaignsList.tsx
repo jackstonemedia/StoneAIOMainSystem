@@ -5,12 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import {
-  Plus, Send, Clock, CheckCircle2, XCircle, Pause,
-  BarChart2, Edit2, Trash2, ChevronRight, Mail,
-  Calendar, Users, Loader2, AlertCircle, Search, Filter,
-  ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Crown, Sparkles
-} from 'lucide-react';
+import { Plus, Send, Clock, CheckCircle2, XCircle, Pause, BarChart2, Edit2, Trash2, ChevronRight, Mail, Loader2, AlertCircle, Search, Filter, ChevronDown, Check, CheckSquare, X, Flame, Split, Copy, Sparkles } from 'lucide-react';
 import { AICampaignCopilotModal, type GeneratedCampaignPayload } from '../../components/email-marketing/AICampaignCopilotModal';
 
 interface Campaign {
@@ -37,10 +32,10 @@ interface Campaign {
 
 const STATUS_CONFIG: Record<Campaign['status'], { label: string; badgeClass: string; icon: any }> = {
   DRAFT:     { label: 'Draft',     badgeClass: 'text-text-muted bg-surface-hover border-border',             icon: Edit2 },
-  SCHEDULED: { label: 'Scheduled', badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',           icon: Clock },
+  SCHEDULED: { label: 'Scheduled', badgeClass: 'text-text-muted bg-surface-hover border-border',             icon: Clock },
   SENDING:   { label: 'Sending',   badgeClass: 'text-blue-400 bg-blue-500/10 border-blue-500/30 animate-pulse', icon: Loader2 },
   SENT:      { label: 'Sent',      badgeClass: 'text-green-400 bg-green-500/10 border-green-500/30',         icon: CheckCircle2 },
-  PAUSED:    { label: 'Paused',    badgeClass: 'text-orange-400 bg-orange-500/10 border-orange-500/30',       icon: Pause },
+  PAUSED:    { label: 'Paused',    badgeClass: 'text-text-muted bg-surface-hover border-border',             icon: Pause },
   CANCELLED: { label: 'Cancelled', badgeClass: 'text-red-400 bg-red-500/10 border-red-500/30',                icon: XCircle },
 };
 
@@ -639,31 +634,18 @@ export default function CampaignsList() {
                       {/* Campaign Name */}
                       <td className="p-3">
                         <div className="flex items-center gap-3">
-                          {isAb ? (
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-purple-300 shadow-sm shrink-0 bg-purple-500/20 border border-purple-500/30" title="A/B Split Test">
-                              <Split className="w-3.5 h-3.5" />
-                            </div>
-                          ) : campaign.blockJson?.campaignType === 'drip' || (Array.isArray(campaign.blockJson?.dripSteps) && campaign.blockJson?.dripSteps.length > 0) ? (
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-amber-300 shadow-sm shrink-0 bg-amber-400/20 border border-amber-400/30">
-                              <Flame className="w-3.5 h-3.5" />
-                            </div>
-                          ) : (
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-primary shadow-sm shrink-0 bg-primary/20 border border-primary/30">
-                              <Mail className="w-3.5 h-3.5" />
-                            </div>
-                          )}
+                          {null}
                           <div className="flex items-center gap-2 min-w-0 flex-wrap">
                             <span className="text-[13px] font-medium transition-colors text-text-main truncate hover:underline">
                               {campaign.name}
                             </span>
                             {isAb && (
-                              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 shrink-0 flex items-center gap-1">
-                                <Split className="w-2.5 h-2.5" />
+                              <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
                                 {winner ? `Winner: Variant ${winner}` : 'A/B Split'}
                               </span>
                             )}
                             {(campaign.blockJson?.campaignType === 'drip' || (Array.isArray(campaign.blockJson?.dripSteps) && campaign.blockJson?.dripSteps.length > 0)) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20 shrink-0">
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-surface-hover text-text-muted border border-border shrink-0">
                                 Drip · {campaign.blockJson?.dripSteps?.length || 2} Steps
                               </span>
                             )}
@@ -688,8 +670,7 @@ export default function CampaignsList() {
 
                       {/* Recipients Count */}
                       <td className="p-3">
-                        <div className="flex items-center gap-1.5 text-[13px] font-medium text-text-muted">
-                          <Users className="w-3.5 h-3.5 opacity-60" />
+                        <div className="text-[13px] font-medium text-text-muted">
                           {campaign._count?.recipients ?? 0}
                         </div>
                       </td>
@@ -710,7 +691,7 @@ export default function CampaignsList() {
                       <td className="p-3">
                         {campaign.status === 'SENT' ? (
                           <div className="flex items-center gap-1.5 text-[13px]">
-                            <span className="font-semibold text-accent-purple">{campaign.stats?.uniqueClicks ?? 0}</span>
+                            <span className="font-semibold text-text-main">{campaign.stats?.uniqueClicks ?? 0}</span>
                             <span className="text-[11px] text-text-muted">({((campaign.stats?.clickRate || 0) * 100).toFixed(1)}%)</span>
                           </div>
                         ) : (

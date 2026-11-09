@@ -65,8 +65,14 @@ import {
   buildScenarioEvents,
   SIMULATOR_SCENARIOS,
   getReactionStatus,
+  validateReactionRules,
+  syncReactionRules,
   type ReactionRuleInput,
 } from '../services/email-marketing/reaction-engine.service.js';
+import {
+  updateDraftSequence,
+  SequenceError,
+} from '../services/email-marketing/sequence.service.js';
 import { usedTokens } from '../services/email-marketing/fact-validator.js';
 import { db } from '../../infrastructure/database/client.js';
 import {
@@ -771,6 +777,120 @@ router.post(
       res.json({ created: out.map((e) => ({ id: e.id, order: e.order, purpose: e.purpose })) });
     } catch (err) {
       m3Error(err, res);
+    }
+  }),
+);
+
+// ── Round 2: sequence graph — rule CRUD + wait edits ─────────────────────────
+// The graph only plans: it never sends. Rules are the engine's own vocabulary
+// (validateReactionRules refuses anything else, e.g. OPENED_NOT_CLICKED, in
+// plain words), priority is assigned server-side by syncReactionRules, and
+// all three endpoints refuse a launched draft (status 'scheduled') — after
+// launch the graph is read-only.
+router.post(
+  '/drafts/:draftId/reaction-rules',
+  asyncHandler(async (req, res) => {
+    const wid = getWid(req);
+    const draft = await db.campaignDraft.findFirst({ where: { id: req.params.draftId, workspaceId: wid } });
+    if (!draft) {
+      res.status(404).json({ error: 'Campaign draft not found.' });
+      return;
+    }
+    if (draft.status === 'scheduled') {
+      res.status(400).json({ error: 'This sequence already launched — branches are locked after launch.' });
+      return;
+    }
+    const seq = (draft.sequence || {}) as { count?: number };
+    const sequenceCount = typeof seq.count === 'number' ? seq.count : 1;
+    const rule: ReactionRuleInput = {
+      sourceOrder: Number(req.body?.sourceOrder),
+      condition: String(req.body?.condition || ''),
+      conditionParams: (req.body?.conditionParams || {}) as Record<string, unknown>,
+      action: String(req.body?.action || ''),
+      actionParams: (req.body?.actionParams || {}) as Record<string, unknown>,
+      decisionWindowHours: req.body?.decisionWindowHours === undefined ? undefined : Number(req.body.decisionWindowHours),
+      delayMinutes: req.body?.delayMinutes === undefined ? undefined : Number(req.body.delayMinutes),
+    };
+    const problem = validateReactionRules([rule], sequenceCount);
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+    const status = await getReactionStatus(wid, draft.id);
+    const existing: ReactionRuleInput[] = status.rules.map((r) => ({
+      sourceOrder: r.sourceOrder,
+      condition: r.condition,
+      conditionParams: (r.conditionParams as Record<string, unknown> | null) || {},
+      action: r.action,
+      actionParams: (r.actionParams as Record<string, unknown> | null) || {},
+      decisionWindowHours: r.decisionWindowHours,
+      delayMinutes: r.delayMinutes,
+      readback: r.readback,
+    }));
+    await syncReactionRules(wid, draft.id, [...existing, rule]);
+    const next = await getReactionStatus(wid, draft.id);
+    res.status(201).json({ rules: next.rules });
+  }),
+);
+
+router.delete(
+  '/drafts/:draftId/reaction-rules/:ruleId',
+  asyncHandler(async (req, res) => {
+    const wid = getWid(req);
+    const draft = await db.campaignDraft.findFirst({ where: { id: req.params.draftId, workspaceId: wid } });
+    if (!draft) {
+      res.status(404).json({ error: 'Campaign draft not found.' });
+      return;
+    }
+    if (draft.status === 'scheduled') {
+      res.status(400).json({ error: 'This sequence already launched — branches are locked after launch.' });
+      return;
+    }
+    const status = await getReactionStatus(wid, draft.id);
+    const target = status.rules.find((r) => r.id === req.params.ruleId);
+    if (!target) {
+      res.status(404).json({ error: 'Reaction rule not found.' });
+      return;
+    }
+    const remaining: ReactionRuleInput[] = status.rules
+      .filter((r) => r.id !== req.params.ruleId)
+      .map((r) => ({
+        sourceOrder: r.sourceOrder,
+        condition: r.condition,
+        conditionParams: (r.conditionParams as Record<string, unknown> | null) || {},
+        action: r.action,
+        actionParams: (r.actionParams as Record<string, unknown> | null) || {},
+        decisionWindowHours: r.decisionWindowHours,
+        delayMinutes: r.delayMinutes,
+        readback: r.readback,
+      }));
+    await syncReactionRules(wid, draft.id, remaining);
+    const next = await getReactionStatus(wid, draft.id);
+    res.json({ rules: next.rules });
+  }),
+);
+
+router.patch(
+  '/drafts/:draftId/sequence',
+  asyncHandler(async (req, res) => {
+    try {
+      const emails = Array.isArray(req.body?.emails) ? req.body.emails : [];
+      const sequence = await updateDraftSequence(
+        getWid(req),
+        req.params.draftId,
+        emails.map((e: Record<string, unknown>) => ({
+          order: Number(e.order),
+          offsetDays: Number(e.offsetDays),
+          purpose: String(e.purpose || ''),
+        })),
+      );
+      res.json({ sequence });
+    } catch (err) {
+      if (err instanceof SequenceError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
+      throw err;
     }
   }),
 );

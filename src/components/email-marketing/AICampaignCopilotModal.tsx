@@ -10,12 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../ui/Toast';
-import {
-  Sparkles, Bot, Send, User, CheckCircle2, Split,
-  ShieldCheck, X, Loader2, RefreshCw,
-  TrendingUp, Award, Layers, ChevronDown, ChevronUp, Mail, Clock,
-  Wand2, ArrowRight
-} from 'lucide-react';
+import { Bot, Send, User, Split, X, Loader2, RefreshCw, TrendingUp, Award, Layers, ChevronDown, ChevronUp, Mail, Clock, ArrowRight } from 'lucide-react';
 
 export interface GeneratedCampaignPayload {
   campaignName?: string;
@@ -276,9 +271,7 @@ export function AICampaignCopilotModal({
         >
           <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-primary/40 to-purple-500/30 border border-primary/30 flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-              </div>
+              <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/30" />
               <span className="text-sm font-bold text-text-main">Intake</span>
             </div>
             <p className="text-[11px] text-text-muted leading-snug">
@@ -495,14 +488,14 @@ function CampaignPlanCard({
   return (
     <div className="rounded-2xl border border-primary/40 bg-surface shadow-2xl overflow-hidden animate-scale-in">
       {/* Card header */}
-      <div className="px-5 py-4 border-b border-border/50 bg-gradient-to-r from-primary/10 via-purple-500/5 to-transparent flex items-start justify-between gap-4 flex-wrap">
+      <div className="px-5 py-4 border-b border-border/50 bg-surface/40 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Campaign Plan Ready
+              Campaign Plan Ready
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Ready to Review
+              Ready to Review
             </span>
           </div>
           <h4 className="text-base font-bold text-text-main">{campaign.campaignName || 'Multi-Step Outreach'}</h4>
@@ -517,7 +510,6 @@ function CampaignPlanCard({
             onClick={() => onRefine("I'd like to make some changes to this campaign plan: ")}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-border/80 bg-surface-hover/80 hover:bg-surface-hover text-text-main transition-all shadow-sm shrink-0 cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
             <span>Make Changes</span>
           </button>
 
@@ -526,7 +518,6 @@ function CampaignPlanCard({
             className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold shadow-interactive transition-all shrink-0 cursor-pointer"
           >
             <span>Continue with Campaign</span>
-            <CheckCircle2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -558,8 +549,8 @@ function CampaignPlanCard({
         {/* A/B test section */}
         {hasAB && (
           <div className="space-y-2">
-            <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Split className="w-3 h-3 text-amber-400" /> A/B Split Test
+            <div className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+              A/B Split Test
               {campaign.abTest?.hypothesis && (
                 <span className="text-[10px] text-text-muted font-normal normal-case">— {campaign.abTest.hypothesis}</span>
               )}
@@ -572,8 +563,8 @@ function CampaignPlanCard({
                   <div className="text-text-muted text-[11px]">{campaign.abTest!.previewTextA}</div>
                 )}
               </div>
-              <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-1.5">
-                <span className="text-[10px] font-bold text-purple-400 uppercase">Variant B (Challenger)</span>
+              <div className="p-3 rounded-xl bg-surface/40 border border-border/50 space-y-1.5">
+                <span className="text-[10px] font-bold text-text-main uppercase">Variant B (Challenger)</span>
                 <div className="font-semibold text-text-main">{campaign.abTest!.subjectB}</div>
                 {campaign.abTest!.previewTextB && (
                   <div className="text-text-muted text-[11px]">{campaign.abTest!.previewTextB}</div>
@@ -635,14 +626,12 @@ function CampaignPlanCard({
 
         {/* Deliverability badge */}
         <div className="flex items-center gap-2.5 text-[11px] text-text-muted bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>Includes human jitter, sending window restriction, personalization tokens & RFC 8058 one-click unsubscribe.</span>
         </div>
 
         {/* Quick refinement suggestions chips */}
         <div className="space-y-2 pt-2 border-t border-border/40">
           <div className="text-[11px] font-bold text-text-muted flex items-center gap-1.5">
-            <Wand2 className="w-3 h-3 text-purple-400" />
             <span>Need adjustments? Ask the AI strategist or pick a refinement:</span>
           </div>
           <div className="flex flex-wrap gap-1.5">

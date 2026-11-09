@@ -12,12 +12,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import {
-  Users, Plus, Upload, Download, Trash2, X, Check,
-  ChevronRight, Shield, Filter, Loader2, AlertCircle,
-  List, Search, Sparkles, RefreshCw, Send, Eye,
-  Globe, Copy, CheckCircle2, Clock,
-} from 'lucide-react';
+import { Plus, Trash2, X, Check, Shield, Filter, Loader2, AlertCircle, List, Search, Sparkles, RefreshCw, Send, Globe, Copy, CheckCircle2, Clock } from 'lucide-react';
 
 const api = {
   getLists: () => apiClient.get('/email-marketing/lists').then(r => r.data),
@@ -400,7 +395,7 @@ export default function ListsAndSegments() {
                 <td className="p-3 text-center text-text-muted opacity-60">{idx + 1}</td>
                 <td className="p-3 font-semibold text-text-main">{seg.name}</td>
                 <td className="p-3 text-text-muted">Dynamic Filter Rules</td>
-                <td className="p-3 font-semibold text-accent-purple">Dynamic</td>
+                <td className="p-3 font-semibold text-text-main">Dynamic</td>
                 <td className="p-3 text-[11px] text-text-muted opacity-60">{new Date(seg.updatedAt).toLocaleDateString()}</td>
                 <td className="p-3 text-right">
                   <button

@@ -12,10 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import {
-  Plus, Zap, Loader2, Trash2, Play, Pause, ChevronRight, AlertCircle,
-  Search, ChevronDown, Edit2
-} from 'lucide-react';
+import { Plus, Zap, Trash2, Play, Pause, ChevronRight, AlertCircle, Search, Edit2 } from 'lucide-react';
 
 const api = {
   getAutomations: () => apiClient.get('/email-marketing/automations').then(r => r.data),
@@ -27,7 +24,7 @@ const api = {
 const STATUS_COLOR: Record<string, { label: string; badgeClass: string }> = {
   DRAFT:    { label: 'Draft',    badgeClass: 'text-text-muted bg-surface-hover border-border' },
   ACTIVE:   { label: 'Active',   badgeClass: 'text-accent-green bg-accent-green/10 border-accent-green/30' },
-  PAUSED:   { label: 'Paused',   badgeClass: 'text-accent-amber bg-accent-amber/10 border-accent-amber/30' },
+  PAUSED:   { label: 'Paused',   badgeClass: 'text-text-muted bg-surface-hover border-border' },
   ARCHIVED: { label: 'Archived', badgeClass: 'text-text-muted bg-surface-hover border-border' },
 };
 
