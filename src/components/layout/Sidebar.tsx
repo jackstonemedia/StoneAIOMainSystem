@@ -117,15 +117,18 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
         },
         { 
           name: 'Email Marketing',
-          path: '/email-marketing/campaigns',
+          path: '/email-marketing',
           icon: MailOpen,
           subItems: [
             { name: 'Campaigns',   path: '/email-marketing/campaigns' },
-            { name: 'Outreach Mailboxes', path: '/settings?tab=outreach' },
-            { name: 'Automations', path: '/email-marketing/automations' },
+            { name: 'Create with AI', path: '/email-marketing/create-with-ai' },
             { name: 'Audience',    path: '/email-marketing/audience' },
-            { name: 'Templates',   path: '/email-marketing/templates' },
+            { name: 'Automations', path: '/email-marketing/automations' },
             { name: 'Analytics',   path: '/email-marketing/analytics' },
+            { name: 'Templates',   path: '/email-marketing/templates' },
+            { name: 'Suppression', path: '/email-marketing/suppression' },
+            { name: 'Profile',     path: '/email-marketing/profile' },
+            { name: 'Outreach Mailboxes', path: '/settings?tab=outreach' },
           ]
         },
       ]

@@ -15,11 +15,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import {
-  Send, Save, Eye, ChevronLeft, Loader2,
+  Send, Save, Eye, ChevronLeft, ChevronDown, Loader2,
   CheckCircle2, Users, AlertCircle, X, Calendar, Sparkles, Wand2, RefreshCw,
   Clock, Plus, Trash2, Sliders, Smartphone, Monitor, Mail, Layers,
   Flame, Rocket, Check, ArrowRight, ShieldCheck, HelpCircle, MousePointer,
-  Split, GitCompare, Crown, Zap, BarChart2
+  Split, GitCompare, Crown, Zap, BarChart2, MoreHorizontal
 } from 'lucide-react';
 import { useAI } from '../../lib/useAI';
 import { ABTestConfig } from '../../types/emailCampaign';
@@ -378,12 +378,16 @@ export default function CampaignBuilder() {
     queryFn: () => apiClient.get('/email-marketing/outreach/capacity').then(r => r.data),
   });
 
-  // Pre-fill smartListId from query params
+  // Pre-fill smartListId + campaign type from query params
+  // (?type=drip is used by the Campaigns "Create → Drip sequence" menu.)
   useEffect(() => {
     const qSmartList = searchParams.get('smartListId');
     if (qSmartList) {
       setSmartListId(qSmartList);
       setAudienceType('smartList');
+    }
+    if (searchParams.get('type') === 'drip') {
+      setCampaignType('drip');
     }
   }, [searchParams]);
 
@@ -640,6 +644,8 @@ export default function CampaignBuilder() {
   // ── Deliverability & AI Copilot State ───────────────────────────────────────
   const [showDeliverabilityModal, setShowDeliverabilityModal] = useState(false);
   const [showAICopilotModal, setShowAICopilotModal] = useState(false);
+  const [advancedMenuOpen, setAdvancedMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [deliverySettings, setDeliverySettings] = useState<DeliveryThrottleSettings>(DEFAULT_DELIVERY_SETTINGS);
 
   const spamReport: SpamCheckResult = React.useMemo(() => {
@@ -941,7 +947,7 @@ export default function CampaignBuilder() {
 
         {/* ── Top Header Bar ─────────────────────────────────────────────── */}
         <div
-          className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b shrink-0 gap-4 sticky top-0 z-20 shadow-sm overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-w-full"
+          className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-2.5 border-b shrink-0 gap-x-4 gap-y-2 sticky top-0 z-20 shadow-sm"
           style={{
             background: 'var(--sidebar-bg)',
             borderColor: 'var(--sidebar-border)',
@@ -970,143 +976,149 @@ export default function CampaignBuilder() {
               </span>
             </div>
 
-            {/* Campaign Mode Switcher Capsule */}
-            <div className="flex items-center bg-surface border border-border/60 rounded-xl p-0.5 shadow-inner shrink-0">
+            {/* Advanced menu — drip + A/B live here, not in the header.
+                Default is a plain broadcast email; opting in turns the
+                timeline / variant bar on. (Simplified 2026-11-08: the old
+                Broadcast / Drip / A-B Split capsule made the advanced
+                options look like the default path.) */}
+            <div className="relative shrink-0">
               <button
-                onClick={() => {
-                  setCampaignType('broadcast');
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                  campaignType === 'broadcast' && !abTestEnabled
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-main'
+                onClick={() => setAdvancedMenuOpen(!advancedMenuOpen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all whitespace-nowrap ${
+                  campaignType === 'drip' || abTestEnabled
+                    ? 'border-primary text-primary bg-primary/10'
+                    : 'border-border/70 bg-surface hover:bg-surface-hover text-text-main'
                 }`}
-                title="Single Broadcast Email"
+                title="Advanced options: drip sequence, A/B test"
               >
-                <Mail className="w-3.5 h-3.5 shrink-0" />
-                <span>Broadcast</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setCampaignType('drip');
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                  campaignType === 'drip'
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-main'
-                }`}
-                title="Multi-Step Drip Sequence"
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>Drip</span>
-                {dripSteps.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 text-white font-bold">
-                    {dripSteps.length}
+                <Sliders className="w-3.5 h-3.5 shrink-0" />
+                <span>Advanced</span>
+                {(campaignType === 'drip' || abTestEnabled) && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-primary text-white font-bold">
+                    {campaignType === 'drip' && abTestEnabled ? 'Drip + A/B' : campaignType === 'drip' ? 'Drip' : 'A/B'}
                   </span>
                 )}
+                <ChevronDown className="w-3 h-3 shrink-0" />
               </button>
-
-              <button
-                onClick={() => {
-                  const nextState = !abTestEnabled;
-                  setAbTestEnabled(nextState);
-                  if (nextState && !subjectB) {
-                    setSubjectB(subject ? `Alternative: ${subject}` : '');
-                    setBodyHtmlB(bodyHtml);
-                  }
-                  toast(
-                    nextState ? 'success' : 'info',
-                    nextState ? 'A/B Split Testing Enabled' : 'A/B Split Testing Disabled',
-                    nextState ? 'Configure Variant A and Variant B in the split bar below.' : 'Switched back to standard broadcast.'
-                  );
-                }}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                  abTestEnabled
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-main'
-                }`}
-                title="A/B Split Testing"
-              >
-                <Split className="w-3.5 h-3.5 shrink-0" />
-                <span>A/B Split</span>
-                {abTestEnabled && (
-                  <span className="text-[9px] bg-white/25 px-1 py-0.2 rounded-full uppercase font-black">
-                    ON
-                  </span>
-                )}
-              </button>
+              {advancedMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setAdvancedMenuOpen(false)} />
+                  <div className="absolute left-0 top-full mt-2 w-[280px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5">
+                    <button
+                      onClick={() => { setCampaignType(campaignType === 'drip' ? 'broadcast' : 'drip'); setAdvancedMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <Flame className="w-4 h-4 text-amber-300 shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">Drip sequence</span>
+                        <span className="block text-[12px] text-text-muted">Multi-step automated sequence</span>
+                      </span>
+                      {campaignType === 'drip' && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const nextState = !abTestEnabled;
+                        setAbTestEnabled(nextState);
+                        if (nextState && !subjectB) {
+                          setSubjectB(subject ? `Alternative: ${subject}` : '');
+                          setBodyHtmlB(bodyHtml);
+                        }
+                        toast(
+                          nextState ? 'success' : 'info',
+                          nextState ? 'A/B Split Testing Enabled' : 'A/B Split Testing Disabled',
+                          nextState ? 'Configure Variant A and Variant B in the split bar below.' : 'Switched back to standard broadcast.'
+                        );
+                        setAdvancedMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <Split className="w-4 h-4 text-purple-400 shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">A/B test</span>
+                        <span className="block text-[12px] text-text-muted">Test two subjects against each other</span>
+                      </span>
+                      {abTestEnabled && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Right: Actions Cluster */}
+          {/* Right: Save + Send + More menu. (Simplified 2026-11-08: the old
+              header had 7 buttons — Ask AI, deliverability badge, Templates,
+              Sender, Test Send, Save, Send. Everything but Save/Send now
+              lives in the More menu; nothing was removed.) */}
           <div className="flex items-center gap-2 shrink-0">
-            <AssistantLauncher
-              surface="email_marketing"
-              entity={{ type: 'campaign', id: campaignId || 'new', name }}
-              label="Ask Stone AI"
-            />
-            {/* Legacy AI Copilot Hidden */}
-            <button
-              onClick={() => setShowAICopilotModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary/15 via-purple-500/15 to-primary/10 hover:from-primary/25 hover:to-purple-500/25 text-primary border border-primary/35 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 group whitespace-nowrap"
-              style={{ display: 'none' }}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-primary group-hover:rotate-12 transition-transform shrink-0" />
-              <span>AI Copilot</span>
-            </button>
-
-            {/* Deliverability Score Badge */}
-            <button
-              onClick={() => setShowDeliverabilityModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
-              style={{
-                backgroundColor: `${spamReport.badgeColor}15`,
-                borderColor: `${spamReport.badgeColor}40`,
-                color: spamReport.badgeColor,
-              }}
-              title="Click to view Deliverability & Anti-Spam Pre-Flight Scorecard"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-              <span>{spamReport.score}% Deliverability</span>
-            </button>
-
-            {/* Templates Quick Action */}
-            <button
-              onClick={() => setShowTemplateModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border/70 bg-surface hover:bg-surface-hover text-text-main text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
-              title="Browse Email Templates"
-            >
-              <Layers className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span>Templates</span>
-            </button>
-
-            {/* Sender & Throttling */}
-            <button
-              onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors shrink-0 whitespace-nowrap ${
-                showSettingsDrawer
-                  ? 'border-primary text-primary bg-primary/10'
-                  : 'border-border/70 bg-surface hover:bg-surface-hover text-text-main'
-              }`}
-              title="Configure Sender Profile and Delivery Throttling"
-            >
-              <Sliders className="w-3.5 h-3.5 shrink-0" />
-              <span>Sender & Limits</span>
-            </button>
-
-            {/* Test Send */}
-            <button
-              onClick={() => setShowTestEmailModal(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-border/70 bg-surface hover:bg-surface-hover text-text-main text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
-              title="Send a Test Email"
-            >
-              <Send className="w-3.5 h-3.5 text-accent-green shrink-0" />
-              <span>Test Send</span>
-            </button>
-
-            {/* Separator */}
-            <div className="h-5 w-px bg-border/60 shrink-0 mx-0.5" />
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/70 bg-surface hover:bg-surface-hover text-text-main text-xs font-bold transition-all shrink-0 whitespace-nowrap"
+                title="More actions"
+              >
+                <MoreHorizontal className="w-4 h-4 shrink-0" />
+                <span>More</span>
+                <ChevronDown className="w-3 h-3 shrink-0" />
+              </button>
+              {moreMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-[280px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5">
+                    <AssistantLauncher
+                      surface="email_marketing"
+                      entity={{ type: 'campaign', id: campaignId || 'new', name }}
+                      label="Ask Stone AI"
+                      variant="subtle"
+                      className="w-full !justify-start !px-4 !py-2.5 !rounded-none !bg-transparent hover:!bg-surface-hover !text-text-main !text-[13px] !font-semibold"
+                    />
+                    <button
+                      onClick={() => { setShowDeliverabilityModal(true); setMoreMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: spamReport.badgeColor }} />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">
+                          {activeSubjectA.trim() || activeBodyA.trim()
+                            ? `Deliverability: ${spamReport.score}%`
+                            : `Draft score: ${spamReport.score}%`}
+                        </span>
+                        <span className="block text-[12px] text-text-muted">Spam pre-flight check</span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => { setShowTemplateModal(true); setMoreMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <Layers className="w-4 h-4 text-primary shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">Templates</span>
+                        <span className="block text-[12px] text-text-muted">Start from a saved template</span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => { setShowSettingsDrawer(!showSettingsDrawer); setMoreMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <Sliders className="w-4 h-4 shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">Sender</span>
+                        <span className="block text-[12px] text-text-muted">Sender profile and delivery limits</span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => { setShowTestEmailModal(true); setMoreMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                    >
+                      <Send className="w-4 h-4 text-accent-green shrink-0" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-semibold text-text-main">Test send</span>
+                        <span className="block text-[12px] text-text-muted">Send a test email to yourself</span>
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Save Draft */}
             <button

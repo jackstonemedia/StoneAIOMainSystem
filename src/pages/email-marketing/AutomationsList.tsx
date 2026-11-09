@@ -12,10 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import {
-  Plus, Zap, Loader2, Trash2, Play, Pause, ChevronRight, AlertCircle,
-  Search, ChevronDown, Check, Edit2, Users
-} from 'lucide-react';
+import { Plus, Zap, Trash2, Play, Pause, ChevronRight, AlertCircle, Search, Edit2 } from 'lucide-react';
 
 const api = {
   getAutomations: () => apiClient.get('/email-marketing/automations').then(r => r.data),
@@ -27,7 +24,7 @@ const api = {
 const STATUS_COLOR: Record<string, { label: string; badgeClass: string }> = {
   DRAFT:    { label: 'Draft',    badgeClass: 'text-text-muted bg-surface-hover border-border' },
   ACTIVE:   { label: 'Active',   badgeClass: 'text-accent-green bg-accent-green/10 border-accent-green/30' },
-  PAUSED:   { label: 'Paused',   badgeClass: 'text-accent-amber bg-accent-amber/10 border-accent-amber/30' },
+  PAUSED:   { label: 'Paused',   badgeClass: 'text-text-muted bg-surface-hover border-border' },
   ARCHIVED: { label: 'Archived', badgeClass: 'text-text-muted bg-surface-hover border-border' },
 };
 
@@ -129,61 +126,6 @@ export default function AutomationsList() {
       {/* KPI Performance Overview & Filter Pills */}
       {!isLoading && !error && (
         <div className="mx-8 mt-5 mb-1 space-y-4 relative z-10">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Total Workflows</span>
-                <Zap className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <div className="text-xl font-bold text-text-main">
-                {automations.length}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                Automated nurture & drip paths
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Active Workflows</span>
-                <Play className="w-3.5 h-3.5 text-accent-green" />
-              </div>
-              <div className="text-xl font-bold text-accent-green">
-                {automations.filter((a: any) => a.status === 'ACTIVE').length}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                Running live triggers
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Active Enrollments</span>
-                <Users className="w-3.5 h-3.5 text-indigo-400" />
-              </div>
-              <div className="text-xl font-bold text-indigo-400">
-                {automations.reduce((acc: number, a: any) => acc + (a._count?.enrollments ?? 0), 0).toLocaleString()}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                Contacts progressing in sequence
-              </div>
-            </div>
-
-            <div className="bg-surface/50 border border-border/60 rounded-xl p-3.5 backdrop-blur-md shadow-card hover:border-border transition-all">
-              <div className="flex items-center justify-between text-text-muted mb-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider">Completed Executions</span>
-                <Check className="w-3.5 h-3.5 text-purple-400" />
-              </div>
-              <div className="text-xl font-bold text-text-main">
-                {automations.reduce((acc: number, a: any) => acc + (a.completedCount ?? 0), 0).toLocaleString()}
-              </div>
-              <div className="text-[11px] text-text-muted mt-1">
-                Full paths completed
-              </div>
-            </div>
-          </div>
-
           {/* Status Filter Pills */}
           <div className="flex items-center justify-between gap-3 pt-1 flex-wrap">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1">

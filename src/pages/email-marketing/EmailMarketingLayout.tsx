@@ -1,40 +1,40 @@
-import { Outlet, useLocation, NavLink } from 'react-router-dom';
+import { Outlet, useLocation, matchPath } from 'react-router-dom';
 import React, { useState } from 'react';
-import { Bot, Bell, Mail, Zap, Users, FileText, BarChart2 } from 'lucide-react';
+import { Bot, Bell } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
 
-const NAV_TABS = [
-  { name: 'Campaigns',   path: '/email-marketing/campaigns',   icon: Mail },
-  { name: 'Mailboxes',   path: '/settings?tab=outreach',       icon: Users },
-  { name: 'Automations', path: '/email-marketing/automations', icon: Zap },
-  { name: 'Audience',    path: '/email-marketing/audience',    icon: Users },
-  { name: 'Templates',   path: '/email-marketing/templates',   icon: FileText },
-  { name: 'Analytics',   path: '/email-marketing/analytics',   icon: BarChart2 },
+// No top tab bar (removed 2026-11-08, round 2): the section's pages live in
+// the Email Marketing sidebar sub-menu, like CRM's sub-items. The header
+// keeps only the assistant + notifications buttons and the page actions
+// (HeaderPortal). Mailboxes lives in Settings (Outreach).
+// Full-screen routes (composer / canvas / studio) hide the section header.
+// Route config, not string matching on location.pathname — the old isBuilder
+// check was fragile (any campaign id containing '/analytics' flipped it).
+const FULLSCREEN_PATTERNS = [
+  '/email-marketing/campaigns/new',
+  '/email-marketing/campaigns/:campaignId',
+  '/email-marketing/automations/new',
+  '/email-marketing/automations/:automationId',
+  '/email-marketing/create-with-ai',
 ];
 
 export default function EmailMarketingLayout() {
   const [isAIOpen, setIsAIOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
   const location = useLocation();
-  const isBuilder =
-    location.pathname.startsWith('/email-marketing/campaigns/new') ||
-    (location.pathname.startsWith('/email-marketing/campaigns/') &&
-      !location.pathname.includes('/analytics') &&
-      location.pathname !== '/email-marketing/campaigns') ||
-    location.pathname.startsWith('/email-marketing/automations/new') ||
-    (location.pathname.startsWith('/email-marketing/automations/') &&
-      location.pathname !== '/email-marketing/automations') ||
-    location.pathname.startsWith('/email-marketing/create-with-ai');
+  const isBuilder = FULLSCREEN_PATTERNS.some(
+    (pattern) => matchPath({ path: pattern, end: true }, location.pathname) !== null,
+  );
 
   return (
     <div className="flex flex-col h-full w-full text-sm font-sans relative z-0 bg-bg text-text-main">
       {/* Top Nav Bar — Rendered for list/analytics views, hidden for full-screen composer */}
       {!isBuilder && (
-        <div 
-          className="w-full flex items-center justify-between pr-8 pl-0 pt-2.5 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm backdrop-blur-md"
-          style={{ 
-            background: 'var(--sidebar-bg)', 
+        <div
+          className="w-full flex items-center justify-between pr-4 pl-0 pt-2.5 pb-0 shrink-0 border-b z-10 sticky top-0 shadow-sm backdrop-blur-md"
+          style={{
+            background: 'var(--sidebar-bg)',
             borderColor: 'var(--sidebar-border)',
             color: 'var(--sidebar-text-main)',
             '--text-main': '#ffffff',
@@ -50,18 +50,18 @@ export default function EmailMarketingLayout() {
           } as React.CSSProperties}
         >
           {/* Left: AI Assistant, Notifications & Sub-Navigation Tabs */}
-          <div className="flex items-center gap-4 pl-4 pb-2.5">
-            <button 
-              onClick={() => setIsAIOpen(true)} 
-              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors p-1.5 rounded-lg hover:bg-white/5"
+          <div className="flex items-center gap-3 pl-4 pb-2.5 min-w-0 flex-1">
+            <button
+              onClick={() => setIsAIOpen(true)}
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors p-1.5 rounded-lg hover:bg-white/5 shrink-0"
               title="AI Assistant"
             >
               <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
             </button>
-            
+
             <button
               onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
-              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--text-main)] transition-colors relative p-1.5 rounded-lg hover:bg-white/5"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--text-main)] transition-colors relative p-1.5 rounded-lg hover:bg-white/5 shrink-0"
               title="Notifications"
             >
               <Bell className="w-[18px] h-[18px]" strokeWidth={2} />
@@ -73,33 +73,10 @@ export default function EmailMarketingLayout() {
               )}
             </button>
 
-            <div className="h-5 w-[1px] bg-white/15 mx-1" />
-
-            {/* Sub-Navigation Tabs */}
-            <nav className="flex items-center gap-1">
-              {NAV_TABS.map(tab => {
-                const Icon = tab.icon;
-                const isActive = location.pathname.startsWith(tab.path);
-                return (
-                  <NavLink
-                    key={tab.path}
-                    to={tab.path}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                      isActive
-                        ? 'bg-primary text-white shadow-interactive font-bold'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5 font-medium'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{tab.name}</span>
-                  </NavLink>
-                );
-              })}
-            </nav>
           </div>
 
           {/* Right: Portal Target for Page-Specific Header Actions (Search bar, Action buttons) */}
-          <div className="flex items-center gap-3 pb-2.5 min-h-[40px]">
+          <div className="flex items-center gap-3 pb-2.5 min-h-[40px] shrink-0 pl-3">
             <div id="crm-header-actions" className="flex items-center gap-3"></div>
           </div>
         </div>

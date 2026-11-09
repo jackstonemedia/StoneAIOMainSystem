@@ -8,11 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { 
-  Building2, Sparkles, Mail, MapPin, Globe, Phone, Clock, 
-  ArrowRight, ArrowLeft, Check, AlertCircle, ShieldCheck, 
-  Layers, Users, MessageSquareQuote, CheckCircle2, ChevronRight
-} from 'lucide-react';
+import { Globe, Check } from 'lucide-react';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { prefillFromWebsite, type BusinessProfile } from '../../lib/createWithAiApi';
 import { extractApiError } from '../../lib/apiClient';
@@ -89,7 +85,6 @@ function FormField({
   hint,
   error,
   required,
-  icon: Icon,
   children,
   className = '',
 }: {
@@ -97,7 +92,6 @@ function FormField({
   hint?: string;
   error?: string;
   required?: boolean;
-  icon?: React.ElementType;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -105,7 +99,6 @@ function FormField({
     <div className={`space-y-1.5 ${className}`}>
       <label className="flex items-center justify-between text-[13px] font-semibold text-text-main">
         <span className="flex items-center gap-1.5">
-          {Icon && <Icon className="w-4 h-4 text-primary shrink-0" />}
           <span>{label}</span>
           {required && <span className="text-red-400 font-bold">*</span>}
         </span>
@@ -114,7 +107,6 @@ function FormField({
       {children}
       {error && (
         <p className="flex items-center gap-1 text-xs text-red-400 font-medium animate-in fade-in">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>{error}</span>
         </p>
       )}
@@ -331,7 +323,6 @@ export default function ProfileForm({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border/60">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/25 rounded-full text-primary text-[12px] font-semibold mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
             <span>AI Business Profile Setup</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-text-main tracking-tight">
@@ -404,9 +395,6 @@ export default function ProfileForm({
             <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
             <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
-                  <Sparkles className="w-4 h-4" />
-                </div>
                 <div>
                   <h3 className="text-[15px] font-bold text-text-main">Instant Auto-Fill From Website</h3>
                   <p className="text-xs text-text-muted">Enter your business URL and our crawler will automatically detect your business name, services, and location.</p>
@@ -430,21 +418,18 @@ export default function ProfileForm({
                   disabled={prefillBusy || !prefillUrl.trim()}
                   className="px-5 h-11 bg-primary hover:bg-primary-hover text-white rounded-[10px] text-[13px] font-bold shadow-interactive transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
                   <span>{prefillBusy ? 'Analyzing Website…' : 'Scan & Auto-Fill'}</span>
                 </button>
               </div>
 
               {prefillError && (
                 <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{prefillError}</span>
                 </div>
               )}
 
               {prefillInfo && (
                 <div className="flex items-center gap-2 text-xs text-text-muted bg-surface/60 border border-border/50 px-3 py-2 rounded-lg">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
                   <span>{prefillInfo}</span>
                 </div>
               )}
@@ -458,7 +443,6 @@ export default function ProfileForm({
                       onClick={applySuggestions}
                       className="px-3 py-1 bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Check className="w-3.5 h-3.5" />
                       <span>Apply All Suggestions</span>
                     </button>
                   </div>
@@ -479,16 +463,12 @@ export default function ProfileForm({
 
           {/* Core Information Card Grid */}
           <div className="p-7 rounded-[16px] bg-surface/30 border border-border/50 shadow-luxury backdrop-blur-md space-y-6">
-            <h3 className="text-base font-bold text-text-main flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary" />
-              <span>Core Business Details</span>
-            </h3>
+            <h3 className="text-base font-bold text-text-main">Core Business Details</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField 
                 label={copy.fields.businessName.label} 
                 required 
-                icon={Building2}
                 error={errors.businessName}
               >
                 <input
@@ -502,7 +482,6 @@ export default function ProfileForm({
               <FormField 
                 label={copy.fields.businessType.label} 
                 required 
-                icon={Layers}
                 error={errors.businessType}
               >
                 <input
@@ -518,7 +497,6 @@ export default function ProfileForm({
               label={copy.fields.services.label} 
               hint={copy.fields.services.hint} 
               required 
-              icon={Sparkles}
               error={errors.services}
             >
               <textarea
@@ -533,7 +511,6 @@ export default function ProfileForm({
             <FormField 
               label={copy.fields.serviceArea.label} 
               required 
-              icon={MapPin}
               error={errors.serviceArea}
             >
               <input
@@ -552,10 +529,7 @@ export default function ProfileForm({
         <div className="space-y-6">
           <div className="p-7 rounded-[16px] bg-surface/30 border border-border/50 shadow-luxury backdrop-blur-md space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-text-main flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-primary" />
-                <span>Sending Identity & CAN-SPAM Compliance</span>
-              </h3>
+              <h3 className="text-base font-bold text-text-main">Sending Identity & CAN-SPAM Compliance</h3>
               <span className="text-[11px] text-text-muted bg-surface px-2.5 py-1 rounded-full border border-border/60">
                 Required for real-world email deliverability
               </span>
@@ -565,7 +539,6 @@ export default function ProfileForm({
               <FormField 
                 label={copy.fields.senderName.label} 
                 required 
-                icon={Users}
                 error={errors.senderName}
               >
                 <input
@@ -579,7 +552,6 @@ export default function ProfileForm({
               <FormField 
                 label={copy.fields.replyToEmail.label} 
                 required 
-                icon={Mail}
                 error={errors.replyToEmail}
               >
                 <input
@@ -596,7 +568,6 @@ export default function ProfileForm({
               label={copy.fields.physicalAddress.label} 
               hint={copy.fields.physicalAddress.hint} 
               required 
-              icon={MapPin}
               error={errors.physicalAddress}
             >
               <input
@@ -611,7 +582,6 @@ export default function ProfileForm({
               <FormField 
                 label={copy.fields.bookingLink.label} 
                 hint={copy.fields.bookingOrPhoneHint} 
-                icon={Globe}
                 error={errors.bookingLink}
               >
                 <input
@@ -625,7 +595,6 @@ export default function ProfileForm({
 
               <FormField 
                 label={copy.fields.phone.label} 
-                icon={Phone}
                 error={errors.phone}
               >
                 <input
@@ -641,7 +610,6 @@ export default function ProfileForm({
             <FormField 
               label={copy.fields.timezone.label} 
               hint={copy.fields.timezone.hint} 
-              icon={Clock}
               error={errors.timezone}
             >
               <input
@@ -660,10 +628,7 @@ export default function ProfileForm({
         <div className="space-y-6">
           <div className="p-7 rounded-[16px] bg-surface/30 border border-border/50 shadow-luxury backdrop-blur-md space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-text-main flex items-center gap-2">
-                <MessageSquareQuote className="w-4 h-4 text-primary" />
-                <span>Brand Voice, Audience & Differentiators</span>
-              </h3>
+              <h3 className="text-base font-bold text-text-main">Brand Voice, Audience & Differentiators</h3>
               <span className="text-[11px] text-text-muted bg-surface px-2.5 py-1 rounded-full border border-border/60">
                 Optional · Enhances copy nuance
               </span>
@@ -672,7 +637,6 @@ export default function ProfileForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField 
                 label={copy.fields.customerType.label} 
-                icon={Users}
                 error={errors.customerType}
               >
                 <input
@@ -685,7 +649,6 @@ export default function ProfileForm({
 
               <FormField 
                 label={copy.fields.websiteUrl.label} 
-                icon={Globe}
                 error={errors.websiteUrl}
               >
                 <input
@@ -700,7 +663,6 @@ export default function ProfileForm({
 
             <FormField 
               label={copy.fields.voiceDescription.label} 
-              icon={Sparkles}
               error={errors.voiceDescription}
             >
               <textarea
@@ -714,7 +676,6 @@ export default function ProfileForm({
 
             <FormField 
               label={copy.fields.wordsToAvoid.label} 
-              icon={AlertCircle}
               error={errors.wordsToAvoid}
             >
               <textarea
@@ -729,7 +690,6 @@ export default function ProfileForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField 
                 label={copy.fields.differentiators.label} 
-                icon={Sparkles}
                 error={errors.differentiators}
               >
                 <textarea
@@ -743,7 +703,6 @@ export default function ProfileForm({
 
               <FormField 
                 label={copy.fields.guaranteesProof.label} 
-                icon={ShieldCheck}
                 error={errors.guaranteesProof}
               >
                 <textarea
@@ -768,7 +727,6 @@ export default function ProfileForm({
               onClick={() => setScreen(screen - 1)}
               className="flex items-center gap-1.5 px-4 py-2 border border-border bg-surface-hover rounded-[10px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
               <span>{copy.buttons.back}</span>
             </button>
           ) : (
@@ -784,7 +742,6 @@ export default function ProfileForm({
               className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-[10px] text-[13px] font-bold shadow-interactive transition-all cursor-pointer"
             >
               <span>{copy.buttons.continue}</span>
-              <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <>
@@ -802,7 +759,6 @@ export default function ProfileForm({
                 disabled={saving}
                 className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-[10px] text-[13px] font-bold shadow-interactive transition-all cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
                 <span>{saving ? copy.buttons.saving : submitLabel || 'Save Profile & Launch Studio'}</span>
               </button>
             </>

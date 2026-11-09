@@ -1,10 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { 
-  Sparkles,
-  RotateCcw, Check
-} from 'lucide-react';
+import React from 'react';
+import InterviewThread from './InterviewThread';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
-import type { CampaignDraftState, ChatMessageState, InterviewPhase } from '../../lib/createWithAiApi';
+import type { CampaignDraftState, InterviewPhase } from '../../lib/createWithAiApi';
 
 const PHASE_ORDER: InterviewPhase[] = ['goal', 'audience', 'cta', 'sequence', 'reactions', 'ab_testing'];
 const PHASE_NUMBERS: Record<InterviewPhase, number> = { goal: 1, audience: 2, cta: 3, sequence: 4, reactions: 5, ab_testing: 6 };
@@ -100,11 +97,6 @@ export default function InterviewChat({
     return items.some((i) => i.status === 'complete' || i.status === 'placeholder');
   });
   const transitions = draft.conversation.filter((m) => m.kind === 'transition');
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
-  }, [draft.conversation.length, sending]);
 
   const send = () => {
     if (inBriefConfirm) onConfirmBrief(input);
@@ -124,70 +116,14 @@ export default function InterviewChat({
 
   return (
     <div className="flex flex-col h-full w-full bg-transparent overflow-hidden relative" data-testid="interview-chat">
-      {/* AI Assistant Studio Header */}
-      <div className="px-5 py-3 border-b border-border/50 bg-surface/20 shrink-0 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-xs font-bold text-text-main tracking-wide uppercase">
-            AI Campaign Studio
-          </span>
-        </div>
-
-        <span className="text-[11px] font-semibold text-text-muted bg-surface/60 px-2.5 py-1 rounded-md border border-border/50">
-          {draft.brief?.liveEmail ? 'Email Drafted' : 'Discovery'}
-        </span>
-      </div>
-
-      {/* Scrollable Conversation Stream */}
-      <div className={`flex-1 overflow-y-auto ${isBigChat ? 'p-6 lg:p-8 space-y-5' : 'p-5 space-y-4'}`}>
-        {/* Conversation Message List */}
-        <div className="space-y-3.5 pt-2">
-          {draft.conversation
-            .filter((m) => m.kind !== 'brief')
-            .map((m: ChatMessageState, i: number) => {
-              if (m.kind === 'system') {
-                return (
-                  <p key={i} className="text-[11px] text-center text-text-muted py-1 font-medium">
-                    {m.text}
-                  </p>
-                );
-              }
-              const isUser = m.role === 'user';
-              return (
-                <div key={i} className={`flex items-end ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[85%] px-4 py-2.5 text-xs rounded-2xl leading-relaxed whitespace-pre-wrap ${
-                      isUser
-                        ? 'bg-primary text-white rounded-br-sm shadow-interactive'
-                        : 'bg-surface/70 text-text-main border border-border/70 rounded-bl-sm shadow-sm'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                </div>
-              );
-            })}
-
-          {/* AI Thinking Indicator */}
-          {sending && (
-            <div className="flex items-end justify-start animate-in fade-in duration-150">
-              <div
-                className={`${
-                  isBigChat ? 'max-w-[80%] px-5 py-3 text-[13px]' : 'max-w-[85%] px-4 py-2.5 text-xs'
-                } rounded-2xl rounded-bl-sm bg-surface/80 text-text-muted border border-border/70 shadow-sm flex items-center gap-2.5`}
-              >
-                <Sparkles className="w-4 h-4 text-primary animate-spin shrink-0" />
-                <span className="font-medium text-text-main animate-pulse">AI is thinking...</span>
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
+      {/* Scrollable Conversation Stream — assistant-thread styling: user
+          bubbles right-aligned, assistant text plain, max-w-3xl centered. */}
+      <div className={`flex-1 overflow-y-auto ${isBigChat ? 'p-6 lg:p-8' : 'p-5'}`}>
+        <InterviewThread messages={draft.conversation} sending={sending} />
 
         {/* AI Error & Retry */}
         {aiError && (
-          <div className="p-4 rounded-[12px] bg-red-500/10 border border-red-500/30 space-y-2">
+          <div className="max-w-3xl mx-auto w-full mt-6 p-4 rounded-[12px] bg-red-500/10 border border-red-500/30 space-y-2">
             <p className="text-xs text-red-400 font-medium">{aiError}</p>
             <button type="button" onClick={onRetry} className="btn-secondary text-xs" disabled={sending}>
               {copy.retry}
@@ -198,9 +134,9 @@ export default function InterviewChat({
 
       {/* Bottom Console */}
       {!briefConfirmed && (
-        <div className={`${isBigChat ? 'p-5 lg:p-6' : 'p-4'} border-t border-border/50 bg-surface/70 backdrop-blur-xl shrink-0 space-y-3`}>
+        <div className={`${isBigChat ? 'p-5 lg:p-6' : 'p-4'} border-t border-[#2C2C2C] bg-[#1E1E1E] shrink-0 space-y-3`}>
           {/* Textarea Input Box */}
-          <div className="space-y-2">
+          <div className="space-y-2 max-w-3xl mx-auto w-full">
             <div className="flex gap-2 items-start">
               <textarea
                 value={input}
@@ -212,7 +148,7 @@ export default function InterviewChat({
                     : "Tell me about the campaign or email you want to send..."
                 }
                 rows={isBigChat ? 3 : 2}
-                className="flex-1 border border-border bg-surface-hover/80 text-text-main rounded-[12px] px-3.5 py-2.5 text-xs hover:border-primary/50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-text-muted/60 shadow-inner-sm resize-none"
+                className="flex-1 border border-[#343437] bg-[#242426] text-[#ECECEC] rounded-[12px] px-3.5 py-2.5 text-[14px] hover:border-[#52677D]/50 focus:outline-none focus:border-[#52677D] focus:ring-2 focus:ring-[#52677D]/20 transition-all placeholder:text-[#8A8A8D] resize-none"
                 aria-label={
                   inBriefConfirm
                     ? 'Brief confirmation'
@@ -258,7 +194,7 @@ export default function InterviewChat({
                 )}
               </div>
 
-              <span className="text-[10px] text-text-muted hidden sm:inline">
+              <span className="text-[10px] text-[#8A8A8D] hidden sm:inline">
                 Enter ↵ to reply
               </span>
             </div>
@@ -268,15 +204,16 @@ export default function InterviewChat({
 
       {/* Brief Confirmed Banner */}
       {briefConfirmed && (
-        <div className="p-4 border-t border-border/50 bg-surface/70 backdrop-blur-xl shrink-0 space-y-2">
-          <p className="text-xs font-semibold text-text-main">{copy.briefConfirmed}</p>
-          <p className="text-xs text-text-muted">{createWithAiCopy.flow.comingNext}</p>
-          <div
-            onClick={onStartNew}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-hover border border-border rounded-lg text-xs font-semibold text-text-main cursor-pointer transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>{createWithAiCopy.flow.startNew}</span>
+        <div className="p-4 border-t border-[#2C2C2C] bg-[#1E1E1E] shrink-0 space-y-2">
+          <div className="max-w-3xl mx-auto w-full space-y-2">
+            <p className="text-xs font-semibold text-[#ECECEC]">{copy.briefConfirmed}</p>
+            <p className="text-xs text-[#8A8A8D]">{createWithAiCopy.flow.comingNext}</p>
+            <div
+              onClick={onStartNew}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#242426] hover:bg-[#2D2D2E] border border-[#343437] rounded-lg text-xs font-semibold text-[#ECECEC] cursor-pointer transition-colors"
+            >
+              <span>{createWithAiCopy.flow.startNew}</span>
+            </div>
           </div>
         </div>
       )}

@@ -7,13 +7,14 @@
  * sequence (M4, draft.sequence.count > 1): generate all sequence emails,
  * refine each one from the email list, then SequenceReview (Phase 8) —
  * one recipient pick, checks per email, one confirm-all. "Edit Brief"
- * reopens the Call to Action phase and returns to the interview.
+ * (reopen the Call to Action phase, back to the interview) lives in the
+ * artifact panel header menu in InterviewFlow — not scattered here.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import DraftEditor from './DraftEditor';
 import ReviewSend from './ReviewSend';
-import SequenceTimeline from './SequenceTimeline';
+import SequenceGraph from './SequenceGraph';
 import SequenceReview from './SequenceReview';
 import ReactionEmailsSection from './ReactionEmailsSection';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
@@ -34,12 +35,17 @@ export default function DraftReviewFlow({
   draft,
   profile,
   onDraftChange,
-  onEditBrief,
+  sequenceStep = false,
+  onEnterSequence,
+  onExitSequence,
 }: {
   draft: CampaignDraftState;
   profile: BusinessProfile;
   onDraftChange: (draft: CampaignDraftState) => void;
-  onEditBrief: () => void;
+  /** Round 2: when true, the sequence step shows the graph instead of the email list. */
+  sequenceStep?: boolean;
+  onEnterSequence?: () => void;
+  onExitSequence?: () => void;
 }) {
   const { toast } = useToast();
   const [email, setEmail] = useState<DraftEmailState | null>(null);
@@ -116,10 +122,41 @@ export default function DraftReviewFlow({
     }
   };
 
-  if (loading) return <div className="p-6 text-text-muted">Loading…</div>;
+  if (loading)
+    return (
+      <div className="space-y-4" data-testid="artifact-loading">
+        <p className="text-xs text-[#8A8A8D]">Loading your email…</p>
+        <div className="rounded-xl border border-[#343437] bg-[#242426] p-5 space-y-4 animate-pulse" aria-hidden="true">
+          <div className="h-4 w-2/3 rounded bg-[#343437]" />
+          <div className="h-3 w-1/2 rounded bg-[#343437]" />
+          <div className="space-y-2 pt-2">
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-11/12 rounded bg-[#343437]" />
+            <div className="h-3 w-4/5 rounded bg-[#343437]" />
+          </div>
+          <div className="space-y-2 pt-2">
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-3/4 rounded bg-[#343437]" />
+          </div>
+          <div className="h-8 w-32 rounded-lg bg-[#343437]" />
+        </div>
+      </div>
+    );
 
   // ── Multi-email sequence (M4) ──────────────────────────────────────────
   if (isSequence) {
+    const planEmails = [...(((draft.sequence as Record<string, unknown>)?.emails as { order: number; offsetDays: number; purpose: string }[]) || [])].sort(
+      (a, b) => a.order - b.order,
+    );
+    const spanDays = planEmails.length > 0 ? planEmails[planEmails.length - 1].offsetDays : 0;
+    const chainSummary = planEmails
+      .map((e, i) =>
+        i === 0
+          ? `Email ${e.order}`
+          : `Wait ${e.offsetDays - planEmails[i - 1].offsetDays} day${e.offsetDays - planEmails[i - 1].offsetDays === 1 ? '' : 's'} → Email ${e.order}`,
+      )
+      .join(' → ');
     return (
       <div className="space-y-4">
         {error && (
@@ -128,9 +165,37 @@ export default function DraftReviewFlow({
           </div>
         )}
 
-        <SequenceTimeline sequence={draft.sequence as Record<string, unknown>} />
+        {sequenceStep ? (
+          view === 'review' ? (
+            <SequenceReview draft={draft} emails={emails} profile={profile} onBack={() => setView('draft')} />
+          ) : (
+            <SequenceGraph
+              draft={draft}
+              emails={emails}
+              rules={reactionRules}
+              readOnly={draft.status === 'scheduled'}
+              generating={generating}
+              onGenerateAll={handleGenerateSequence}
+              onRulesChange={setReactionRules}
+              onSequenceChange={(sequence) => onDraftChange({ ...draft, sequence })}
+              onBack={() => onExitSequence?.()}
+              onReview={() => setView('review')}
+            />
+          )
+        ) : (
+          <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
+            <p className="text-sm font-semibold text-text-main">
+              Sequence — {planEmails.length} email{planEmails.length === 1 ? '' : 's'}
+              {spanDays > 0 ? ` over ${spanDays} day${spanDays === 1 ? '' : 's'}` : ''}
+            </p>
+            <p className="text-sm text-text-muted">{chainSummary}</p>
+            <button type="button" onClick={() => onEnterSequence?.()} className="btn-secondary text-sm">
+              View sequence
+            </button>
+          </div>
+        )}
 
-        {emails.length === 0 && (
+        {!sequenceStep && emails.length === 0 && (
           <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
             <p className="text-sm text-text-main">{createWithAiCopy.draft.opening}</p>
             <p className="text-sm text-text-muted">
@@ -138,18 +203,13 @@ export default function DraftReviewFlow({
               3 subject options, preview text, HTML + plain-text bodies, and a fact map validated by code. Later emails
               build on the earlier ones so the series reads as one story.
             </p>
-            <div className="flex gap-2">
-              <button type="button" onClick={handleGenerateSequence} className="btn-primary text-sm" disabled={generating}>
-                {generating ? createWithAiCopy.draft.generating : `Generate all ${Number(sequence.count)} emails`}
-              </button>
-              <button type="button" onClick={onEditBrief} className="btn-secondary text-sm">
-                Edit Brief
-              </button>
-            </div>
+            <button type="button" onClick={handleGenerateSequence} className="btn-primary text-sm" disabled={generating}>
+              {generating ? createWithAiCopy.draft.generating : `Generate all ${Number(sequence.count)} emails`}
+            </button>
           </div>
         )}
 
-        {emails.length > 0 && view === 'draft' && (
+        {!sequenceStep && emails.length > 0 && view === 'draft' && (
           <>
             <div className="border border-border rounded-lg p-4 bg-surface/40 space-y-2">
               <p className="text-sm font-semibold text-text-main">Emails in this sequence</p>
@@ -187,14 +247,8 @@ export default function DraftReviewFlow({
           </>
         )}
 
-        {emails.length > 0 && view === 'review' && (
+        {!sequenceStep && emails.length > 0 && view === 'review' && (
           <SequenceReview draft={draft} emails={emails} profile={profile} onBack={() => setView('draft')} />
-        )}
-
-        {emails.length > 0 && (
-          <button type="button" onClick={onEditBrief} className="btn-secondary text-xs">
-            Edit Brief
-          </button>
         )}
       </div>
     );
@@ -216,14 +270,9 @@ export default function DraftReviewFlow({
             Your Brief is confirmed. Generate the single email for this campaign — 3 subject options, preview text, HTML + plain-text
             bodies, and a fact map validated by code.
           </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={handleGenerate} className="btn-primary text-sm" disabled={generating}>
-              {generating ? createWithAiCopy.draft.generating : createWithAiCopy.draft.generate}
-            </button>
-            <button type="button" onClick={onEditBrief} className="btn-secondary text-sm">
-              Edit Brief
-            </button>
-          </div>
+          <button type="button" onClick={handleGenerate} className="btn-primary text-sm" disabled={generating}>
+            {generating ? createWithAiCopy.draft.generating : createWithAiCopy.draft.generate}
+          </button>
         </div>
       )}
 
@@ -243,12 +292,6 @@ export default function DraftReviewFlow({
 
       {email && view === 'review' && (
         <ReviewSend draft={draft} email={email} profile={profile} onBack={() => setView('draft')} />
-      )}
-
-      {email && (
-        <button type="button" onClick={onEditBrief} className="btn-secondary text-xs">
-          Edit Brief
-        </button>
       )}
     </div>
   );

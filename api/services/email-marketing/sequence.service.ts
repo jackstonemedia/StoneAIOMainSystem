@@ -353,6 +353,60 @@ export function validateSequence(input: SequenceInput, now: Date = new Date()): 
 }
 
 /**
+ * Graph edit: change the waits of a draft's sequence plan (round 2, 2026-11-08).
+ * Only the offsets move — count, purposes, start, deadline and send window
+ * stay exactly as assembled. The plan is re-run through validateSequence so
+ * the same rules apply (first offset 0, at least 1 day between emails,
+ * deadline compression). `now` is the plan's own start: the plan has not
+ * launched yet, so a stored start in the past must not fail re-validation
+ * on every edit. Throws SequenceError (400) on any violation, or when the
+ * draft has no plan / already launched (waits lock after launch).
+ */
+export async function updateDraftSequence(
+  workspaceId: string,
+  draftId: string,
+  emails: Array<{ order: number; offsetDays: number; purpose: string }>,
+): Promise<ValidatedSequence & { fromEscapeHatch: boolean }> {
+  const draft = await db.campaignDraft.findFirst({ where: { id: draftId, workspaceId } });
+  if (!draft) throw new SequenceError('Campaign draft not found.', 404);
+  if (draft.status === 'scheduled') {
+    throw new SequenceError('This sequence already launched — waits are locked after launch.', 400);
+  }
+  const stored = (draft.sequence || {}) as Record<string, unknown>;
+  const storedEmails = Array.isArray(stored.emails) ? (stored.emails as Array<Record<string, unknown>>) : [];
+  if (storedEmails.length === 0 || typeof stored.startUtc !== 'string') {
+    throw new SequenceError('This draft has no sequence plan to edit.', 400);
+  }
+  if (emails.length !== storedEmails.length) {
+    throw new SequenceError(
+      `The graph edits waits only — the sequence keeps its ${storedEmails.length} emails. Add or remove emails in the interview.`,
+      400,
+    );
+  }
+  const validated = validateSequence(
+    {
+      count: storedEmails.length,
+      spanDays: emails[emails.length - 1]?.offsetDays ?? 0,
+      emails: emails.map((e) => ({ offsetDays: e.offsetDays, purpose: e.purpose })),
+      start: stored.startUtc,
+      deadline: typeof stored.deadlineUtc === 'string' ? stored.deadlineUtc : null,
+      sendWindow: (stored.sendWindow || {}) as SendWindowInput,
+      pattern: typeof stored.pattern === 'string' ? stored.pattern : undefined,
+    },
+    new Date(stored.startUtc),
+  );
+  const sequence = {
+    ...validated,
+    fromEscapeHatch: stored.fromEscapeHatch === true,
+  };
+  await db.campaignDraft.update({
+    where: { id: draftId },
+    data: { sequence: JSON.parse(JSON.stringify(sequence)) as never },
+  });
+  return sequence;
+}
+
+/**
  * Per-person schedule: each later email is timed from THIS person's first
  * send, in calendar days in the business zone, snapped to the send window.
  * Returns null scheduledAt for any email that would fall after the deadline.

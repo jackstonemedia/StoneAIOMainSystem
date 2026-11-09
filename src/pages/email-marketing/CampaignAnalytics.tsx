@@ -12,13 +12,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiClient, extractApiError } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import {
-  BarChart2, Mail, CheckCircle2, Eye, MousePointer, AlertTriangle,
-  UserMinus, TrendingUp, Loader2, ChevronDown, Calendar, Search, Filter,
-  Sparkles, RefreshCw, ArrowUpRight, ArrowDownRight, Layers, Split,
-  Crown, Check, Zap, ArrowRight, ShieldCheck, Trophy, HelpCircle, Users, X,
-  Flame, Clock, UserCheck, MessageSquare
-} from 'lucide-react';
+import { BarChart2, Loader2, ChevronDown, Filter, RefreshCw, Check, X } from 'lucide-react';
 
 const api = {
   getCampaigns: () => apiClient.get('/email-marketing/campaigns').then(r => r.data),
@@ -38,6 +32,7 @@ export default function CampaignAnalytics() {
   const { toast } = useToast();
   const selectedId = searchParams.get('campaign') || '';
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [dateRangeMenuOpen, setDateRangeMenuOpen] = useState(false);
   const [recipientVariantFilter, setRecipientVariantFilter] = useState<'ALL' | 'A' | 'B' | 'HOLD'>('ALL');
   const [showWinnerConfirmModal, setShowWinnerConfirmModal] = useState(false);
   const [selectedWinnerVariant, setSelectedWinnerVariant] = useState<'A' | 'B'>('A');
@@ -155,24 +150,39 @@ export default function CampaignAnalytics() {
             <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           </div>
 
-          {/* Date Range Selector */}
-          <div className="flex items-center gap-1 bg-surface-hover/50 p-1 rounded-full border border-border/50 text-xs">
-            {[
-              { id: '7d', label: '7D' },
-              { id: '30d', label: '30D' },
-              { id: '90d', label: '90D' },
-              { id: 'all', label: 'All' },
-            ].map(r => (
-              <button
-                key={r.id}
-                onClick={() => setDateRange(r.id as any)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all ${
-                  dateRange === r.id ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+          {/* Date Range Menu (simplified 2026-11-08: was four pills) */}
+          <div className="relative">
+            <button
+              onClick={() => setDateRangeMenuOpen(!dateRangeMenuOpen)}
+              className="flex items-center gap-1.5 bg-surface border border-border/60 text-text-main rounded-full px-3.5 py-1.5 text-[13px] font-medium hover:border-border transition-all cursor-pointer"
+            >
+              {dateRange === '7d' ? 'Last 7 days' : dateRange === '30d' ? 'Last 30 days' : dateRange === '90d' ? 'Last 90 days' : 'All time'}
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+            {dateRangeMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setDateRangeMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-[180px] bg-surface border border-border/50 shadow-luxury rounded-xl overflow-hidden py-1 z-50 ring-1 ring-white/5">
+                  {[
+                    { id: '7d', label: 'Last 7 days' },
+                    { id: '30d', label: 'Last 30 days' },
+                    { id: '90d', label: 'Last 90 days' },
+                    { id: 'all', label: 'All time' },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => { setDateRange(r.id as any); setDateRangeMenuOpen(false); }}
+                      className={`w-full flex items-center justify-between px-4 py-2 text-[13px] font-medium transition-colors ${
+                        dateRange === r.id ? 'text-primary' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+                      }`}
+                    >
+                      {r.label}
+                      {dateRange === r.id && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <button
@@ -185,6 +195,38 @@ export default function CampaignAnalytics() {
         </div>
       </HeaderPortal>
 
+      {/* Empty state — no sent campaigns yet. (Fixed 2026-11-07: the page
+          used to render a wall of zeros + an Edit Campaign button with no
+          campaign selected, and no call to action.) */}
+      {!isCampaignsLoading && sentCampaigns.length === 0 ? (
+        <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
+          <div className="max-w-md text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <BarChart2 className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-lg font-bold text-text-main">No sent campaigns yet</h2>
+            <p className="text-[13px] text-text-muted leading-relaxed">
+              Analytics appear here once you send a campaign — delivered, opens,
+              clicks, and A/B results, all in one place.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => navigate('/email-marketing/campaigns/new')}
+                className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-full text-xs font-bold transition-colors"
+              >
+                Create your first campaign
+              </button>
+              <button
+                onClick={() => navigate('/email-marketing/create-with-ai')}
+                className="px-4 py-2 bg-surface-hover hover:bg-surface border border-border rounded-full text-xs font-semibold text-text-main transition-colors"
+              >
+                Build with AI
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Main Dashboard Content */}
       <div className="flex-1 overflow-auto p-8 space-y-6">
         
@@ -193,8 +235,8 @@ export default function CampaignAnalytics() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               {isAbTest ? (
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                  <Split className="w-3 h-3" /> A/B Split Test Campaign
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/30">
+                  A/B Split Test Campaign
                 </span>
               ) : (
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-accent-green/10 text-accent-green border border-accent-green/20">
@@ -215,46 +257,35 @@ export default function CampaignAnalytics() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/email-marketing/campaigns/${activeCampaignId}`)}
-              className="btn-secondary flex items-center gap-1.5 text-xs"
-            >
-              Edit Campaign
-            </button>
-            <button
-              onClick={() => navigate('/email-marketing/campaigns')}
-              className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition-all shadow-interactive flex items-center gap-1.5"
-            >
-              <Mail className="w-3.5 h-3.5" /> All Campaigns
-            </button>
-          </div>
+          {/* (Simplified 2026-11-08: the old Edit Campaign / All Campaigns
+              buttons are gone — the Campaigns tab is in the nav, and the
+              table below opens a campaign's report.) */}
         </div>
 
         {/* ── A/B SPLIT TEST COMPARATIVE PERFORMANCE SECTION ── */}
         {isAbTest && ab && (
           <div className="space-y-4">
             {/* A/B Header Banner & Winner Status */}
-            <div className="bg-gradient-to-r from-purple-950/60 via-indigo-950/40 to-surface/40 border border-purple-500/30 rounded-2xl p-6 backdrop-blur-md shadow-card space-y-4">
+            <div className="bg-surface/40 border border-border/50 rounded-2xl p-6 backdrop-blur-md shadow-card space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
                       {ab.isCompleted ? 'Test Completed' : 'A/B Test Active'}
                     </span>
                     <span className="text-xs text-text-muted">
-                      Goal: <strong className="text-purple-300 uppercase">{ab.metricUsed === 'open_rate' ? 'Open Rate' : 'Click Rate'}</strong>
+                      Goal: <strong className="text-primary uppercase">{ab.metricUsed === 'open_rate' ? 'Open Rate' : 'Click Rate'}</strong>
                     </span>
                     {ab.heldCount > 0 && (
-                      <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full font-semibold">
+                      <span className="text-xs text-text-muted bg-surface/60 border border-border/50 px-2 py-0.5 rounded-full font-semibold">
                         {ab.heldCount} Contacts Held for Rollout
                       </span>
                     )}
                   </div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Split className="w-5 h-5 text-purple-400" /> A/B Split Comparative Analysis
+                  <h3 className="text-lg font-bold text-white">
+                    A/B Split Comparative Analysis
                   </h3>
-                  <p className="text-xs text-purple-200/80">
+                  <p className="text-xs text-text-muted">
                     {ab.significance?.recommendation || 'Comparing engagement between Variant A and Variant B.'}
                   </p>
                 </div>
@@ -263,7 +294,6 @@ export default function CampaignAnalytics() {
                 <div className="flex items-center gap-3">
                   {ab.declaredWinner ? (
                     <div className="flex items-center gap-2 bg-accent-green/10 border border-accent-green/30 px-4 py-2 rounded-xl text-accent-green text-xs font-bold shadow-sm">
-                      <Trophy className="w-4 h-4 text-amber-400" />
                       <span>Winner Declared: <strong>Variant {ab.declaredWinner}</strong></span>
                     </div>
                   ) : (
@@ -273,18 +303,18 @@ export default function CampaignAnalytics() {
                           setSelectedWinnerVariant('A');
                           setShowWinnerConfirmModal(true);
                         }}
-                        className="px-3.5 py-2 bg-purple-600/80 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                        className="btn-primary text-xs"
                       >
-                        <Crown className="w-3.5 h-3.5 text-amber-300" /> Pick Variant A
+                        Pick Variant A
                       </button>
                       <button
                         onClick={() => {
                           setSelectedWinnerVariant('B');
                           setShowWinnerConfirmModal(true);
                         }}
-                        className="px-3.5 py-2 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                        className="btn-secondary text-xs"
                       >
-                        <Crown className="w-3.5 h-3.5 text-amber-300" /> Pick Variant B
+                        Pick Variant B
                       </button>
                     </div>
                   )}
@@ -292,19 +322,19 @@ export default function CampaignAnalytics() {
               </div>
 
               {/* Statistical Significance Meter */}
-              <div className="bg-surface/50 border border-purple-500/20 rounded-xl p-4 space-y-2">
+              <div className="bg-surface/50 border border-border/50 rounded-xl p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold">
-                  <span className="text-text-muted flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-purple-400" /> Statistical Significance Confidence
+                  <span className="text-text-muted">
+                    Statistical Significance Confidence
                   </span>
-                  <span className={`font-bold ${ab.significance?.isSignificant ? 'text-accent-green' : 'text-amber-300'}`}>
+                  <span className={`font-bold ${ab.significance?.isSignificant ? 'text-accent-green' : 'text-text-muted'}`}>
                     {ab.significance?.confidenceScore ?? 50}% Confidence {ab.significance?.isSignificant ? '(Statistically Significant)' : '(Gathering More Data)'}
                   </span>
                 </div>
                 <div className="w-full bg-surface-hover rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${
-                      ab.significance?.isSignificant ? 'bg-accent-green' : 'bg-gradient-to-r from-purple-500 to-indigo-500'
+                      ab.significance?.isSignificant ? 'bg-accent-green' : 'bg-primary'
                     }`}
                     style={{ width: `${Math.min(ab.significance?.confidenceScore ?? 50, 100)}%` }}
                   />
@@ -317,19 +347,19 @@ export default function CampaignAnalytics() {
               {/* ── Variant A Card ── */}
               <div className={`bg-surface/40 border rounded-2xl p-6 backdrop-blur-md shadow-card space-y-5 transition-all ${
                 ab.declaredWinner === 'A' || ab.significance?.winner === 'A'
-                  ? 'border-purple-500/60 ring-2 ring-purple-500/20 bg-purple-950/10'
+                  ? 'border-primary/60 ring-2 ring-primary/20 bg-primary/5'
                   : 'border-border/50'
               }`}>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-purple-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
+                      <span className="w-6 h-6 rounded-lg bg-primary text-white font-black text-xs flex items-center justify-center shadow-sm">
                         A
                       </span>
                       <h4 className="font-bold text-text-main text-base">Variant A (Control)</h4>
                       {(ab.declaredWinner === 'A' || (!ab.declaredWinner && ab.significance?.winner === 'A')) && (
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                          <Crown className="w-3 h-3" /> Winner
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
+                          Winner
                         </span>
                       )}
                     </div>
@@ -352,7 +382,7 @@ export default function CampaignAnalytics() {
                   </div>
                   <div className="bg-surface/60 border border-border/40 p-3 rounded-xl">
                     <div className="text-[11px] font-bold text-text-muted uppercase">Click Rate</div>
-                    <div className="text-lg font-black text-accent-purple">{pct(ab.variantA?.clickRate)}</div>
+                    <div className="text-lg font-black text-text-main">{pct(ab.variantA?.clickRate)}</div>
                     <div className="text-[10px] text-text-muted">{ab.variantA?.uniqueClicks || 0} clicks</div>
                   </div>
                 </div>
@@ -364,7 +394,7 @@ export default function CampaignAnalytics() {
                     <span className="text-text-main">{pct(ab.variantA?.openRate)}</span>
                   </div>
                   <div className="w-full bg-surface-hover rounded-full h-2 overflow-hidden">
-                    <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min((ab.variantA?.openRate || 0) * 100, 100)}%` }} />
+                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min((ab.variantA?.openRate || 0) * 100, 100)}%` }} />
                   </div>
                 </div>
               </div>
@@ -372,19 +402,19 @@ export default function CampaignAnalytics() {
               {/* ── Variant B Card ── */}
               <div className={`bg-surface/40 border rounded-2xl p-6 backdrop-blur-md shadow-card space-y-5 transition-all ${
                 ab.declaredWinner === 'B' || ab.significance?.winner === 'B'
-                  ? 'border-indigo-500/60 ring-2 ring-indigo-500/20 bg-indigo-950/10'
+                  ? 'border-primary/60 ring-2 ring-primary/20 bg-primary/5'
                   : 'border-border/50'
               }`}>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shadow-sm">
+                      <span className="w-6 h-6 rounded-lg bg-primary/70 text-white font-black text-xs flex items-center justify-center shadow-sm">
                         B
                       </span>
                       <h4 className="font-bold text-text-main text-base">Variant B (Test Variation)</h4>
                       {(ab.declaredWinner === 'B' || (!ab.declaredWinner && ab.significance?.winner === 'B')) && (
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                          <Crown className="w-3 h-3" /> Winner
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
+                          Winner
                         </span>
                       )}
                     </div>
@@ -407,7 +437,7 @@ export default function CampaignAnalytics() {
                   </div>
                   <div className="bg-surface/60 border border-border/40 p-3 rounded-xl">
                     <div className="text-[11px] font-bold text-text-muted uppercase">Click Rate</div>
-                    <div className="text-lg font-black text-accent-purple">{pct(ab.variantB?.clickRate)}</div>
+                    <div className="text-lg font-black text-text-main">{pct(ab.variantB?.clickRate)}</div>
                     <div className="text-[10px] text-text-muted">{ab.variantB?.uniqueClicks || 0} clicks</div>
                   </div>
                 </div>
@@ -419,7 +449,7 @@ export default function CampaignAnalytics() {
                     <span className="text-text-main">{pct(ab.variantB?.openRate)}</span>
                   </div>
                   <div className="w-full bg-surface-hover rounded-full h-2 overflow-hidden">
-                    <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${Math.min((ab.variantB?.openRate || 0) * 100, 100)}%` }} />
+                    <div className="bg-primary/50 h-full rounded-full" style={{ width: `${Math.min((ab.variantB?.openRate || 0) * 100, 100)}%` }} />
                   </div>
                 </div>
               </div>
@@ -431,12 +461,7 @@ export default function CampaignAnalytics() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Total Delivered */}
           <div className="bg-surface/40 border border-border/50 rounded-xl p-5 backdrop-blur-md shadow-card space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Delivered</span>
-              <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Delivered</span>
             <div className="text-2xl font-bold text-text-main">{m.delivered.toLocaleString()}</div>
             <div className="text-[11px] text-text-muted flex items-center gap-1">
               Out of <span className="font-semibold text-text-main">{m.sent.toLocaleString()}</span> total sent
@@ -445,12 +470,7 @@ export default function CampaignAnalytics() {
 
           {/* Open Rate */}
           <div className="bg-surface/40 border border-border/50 rounded-xl p-5 backdrop-blur-md shadow-card space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Open Rate</span>
-              <div className="w-8 h-8 rounded-lg bg-accent-green/10 border border-accent-green/20 flex items-center justify-center text-accent-green">
-                <Eye className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Open Rate</span>
             <div className="text-2xl font-bold text-text-main">{pct(m.openRate)}</div>
             <div className="text-[11px] text-text-muted flex items-center gap-1">
               <span className="font-semibold text-text-main">{m.uniqueOpens.toLocaleString()}</span> unique opens ({m.totalOpens.toLocaleString()} total)
@@ -459,12 +479,7 @@ export default function CampaignAnalytics() {
 
           {/* Click Rate */}
           <div className="bg-surface/40 border border-border/50 rounded-xl p-5 backdrop-blur-md shadow-card space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Click Rate</span>
-              <div className="w-8 h-8 rounded-lg bg-accent-purple/10 border border-accent-purple/20 flex items-center justify-center text-accent-purple">
-                <MousePointer className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Click Rate</span>
             <div className="text-2xl font-bold text-text-main">{pct(m.clickRate)}</div>
             <div className="text-[11px] text-text-muted flex items-center gap-1">
               <span className="font-semibold text-text-main">{m.uniqueClicks.toLocaleString()}</span> unique clicks ({m.totalClicks.toLocaleString()} total)
@@ -473,12 +488,7 @@ export default function CampaignAnalytics() {
 
           {/* Unsubscribes / Bounces */}
           <div className="bg-surface/40 border border-border/50 rounded-xl p-5 backdrop-blur-md shadow-card space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Unsubscribes</span>
-              <div className="w-8 h-8 rounded-lg bg-accent-amber/10 border border-accent-amber/20 flex items-center justify-center text-accent-amber">
-                <UserMinus className="w-4 h-4" />
-              </div>
-            </div>
+            <span className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Unsubscribes</span>
             <div className="text-2xl font-bold text-text-main">{m.unsubscribes.toLocaleString()}</div>
             <div className="text-[11px] text-text-muted flex items-center gap-1">
               Bounces: <span className="font-semibold text-text-main">{(m.bouncesHard || 0) + (m.bouncesSoft || 0)}</span>
@@ -488,8 +498,8 @@ export default function CampaignAnalytics() {
 
         {/* ── Engagement Funnel Panel ── */}
         <div className="bg-surface/40 border border-border/50 rounded-2xl p-6 backdrop-blur-md shadow-card space-y-5">
-          <h3 className="text-[15px] font-bold text-text-main flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" /> Engagement Conversion Funnel
+          <h3 className="text-[15px] font-bold text-text-main">
+            Engagement Conversion Funnel
           </h3>
 
           <div className="space-y-4">
@@ -529,7 +539,7 @@ export default function CampaignAnalytics() {
               </div>
               <div className="w-full bg-surface-hover rounded-full h-2.5 overflow-hidden">
                 <div 
-                  className="bg-accent-purple h-full rounded-full transition-all duration-500" 
+                  className="bg-primary h-full rounded-full transition-all duration-500" 
                   style={{ width: `${Math.min(m.clickToOpenRate * 100, 100)}%` }}
                 />
               </div>
@@ -542,15 +552,15 @@ export default function CampaignAnalytics() {
           <div className="bg-surface/40 border border-border/50 rounded-2xl p-6 backdrop-blur-md shadow-card space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border/50 pb-4">
               <div>
-                <h3 className="text-[15px] font-bold text-text-main flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-amber-400" /> Multi-Step Follow-Up Cadence & Non-Responder Tracking
+                <h3 className="text-[15px] font-bold text-text-main">
+                  Multi-Step Follow-Up Cadence & Non-Responder Tracking
                 </h3>
                 <p className="text-xs text-text-muted mt-0.5">
                   Automated drip progression: halts next steps on reply, and delivers follow-ups only to non-responders.
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center gap-1.5">
-                <Clock className="w-3 h-3" /> {sequenceOverview.steps.length}-Step Active Sequence
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-surface/60 text-text-muted border border-border/50">
+                {sequenceOverview.steps.length}-Step Active Sequence
               </span>
             </div>
 
@@ -616,7 +626,7 @@ export default function CampaignAnalytics() {
                       </div>
                       <div>
                         <div className="text-[10px] text-text-muted">Clicks</div>
-                        <div className="font-bold text-accent-purple">{st.clickedCount}</div>
+                        <div className="font-bold text-text-main">{st.clickedCount}</div>
                       </div>
                     </div>
                   </div>
@@ -628,8 +638,8 @@ export default function CampaignAnalytics() {
             {sequenceOverview.nonResponders && sequenceOverview.nonResponders.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-border/50">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-primary" /> Non-Responder Cadence Queue ({sequenceOverview.nonResponders.length})
+                  <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider">
+                    Non-Responder Cadence Queue ({sequenceOverview.nonResponders.length})
                   </h4>
                   <span className="text-[11px] text-text-muted">
                     Contacts who have not replied yet
@@ -664,10 +674,10 @@ export default function CampaignAnalytics() {
                             <button
                               onClick={() => markReplyMutation.mutate(nr.contactId)}
                               disabled={markReplyMutation.isPending}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition-all inline-flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition-all"
                               title="Mark as replied to stop future sequence follow-ups"
                             >
-                              <Check className="w-3 h-3" /> Mark Replied
+                              Mark Replied
                             </button>
                           </td>
                         </tr>
@@ -684,8 +694,8 @@ export default function CampaignAnalytics() {
         {recipientActivity.length > 0 && (
           <div className="rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center justify-between flex-wrap gap-3">
-              <span className="text-[13px] font-bold text-text-main uppercase tracking-wider flex items-center gap-2">
-                <Users className="w-4 h-4 text-primary" /> Recipient Activity & Variant Tracking
+              <span className="text-[13px] font-bold text-text-main uppercase tracking-wider">
+                Recipient Activity & Variant Tracking
               </span>
 
               {isAbTest && (
@@ -701,7 +711,7 @@ export default function CampaignAnalytics() {
                       onClick={() => setRecipientVariantFilter(f.id as any)}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                         recipientVariantFilter === f.id
-                          ? 'bg-purple-600 text-white shadow-sm'
+                          ? 'bg-primary text-white shadow-sm'
                           : 'text-text-muted hover:text-text-main'
                       }`}
                     >
@@ -729,12 +739,12 @@ export default function CampaignAnalytics() {
                     {isAbTest && (
                       <td className="p-3">
                         {r.status === 'HOLD' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-hover text-text-muted border border-border/50">
                             HELD
                           </span>
                         ) : (
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r.variant === 'B' ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                            r.variant === 'B' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-primary/10 text-primary border border-primary/20'
                           }`}>
                             Variant {r.variant || 'A'}
                           </span>
@@ -750,8 +760,8 @@ export default function CampaignAnalytics() {
                     </td>
                     <td className="p-3">
                       {r.opened ? (
-                        <span className="text-accent-green flex items-center gap-1 text-xs font-bold">
-                          <Check className="w-3.5 h-3.5" /> Opened
+                        <span className="text-accent-green text-xs font-bold">
+                          Opened
                         </span>
                       ) : (
                         <span className="text-text-muted text-xs">—</span>
@@ -759,8 +769,8 @@ export default function CampaignAnalytics() {
                     </td>
                     <td className="p-3 pr-6">
                       {r.clicked ? (
-                        <span className="text-accent-purple flex items-center gap-1 text-xs font-bold">
-                          <Check className="w-3.5 h-3.5" /> Clicked
+                        <span className="text-text-main text-xs font-bold">
+                          Clicked
                         </span>
                       ) : (
                         <span className="text-text-muted text-xs">—</span>
@@ -776,8 +786,8 @@ export default function CampaignAnalytics() {
         {/* ── Sent Campaigns Overview Table Container ── */}
         <div className="rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-border/50 bg-surface/80 backdrop-blur-md flex items-center justify-between">
-            <span className="text-[13px] font-bold text-text-main uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-primary" /> All Sent Campaigns
+            <span className="text-[13px] font-bold text-text-main uppercase tracking-wider">
+              All Sent Campaigns
             </span>
             <span className="text-[11px] text-text-muted font-medium">
               Showing {sentCampaigns.length} Sent Campaign{sentCampaigns.length === 1 ? '' : 's'}
@@ -814,7 +824,7 @@ export default function CampaignAnalytics() {
                     <td className="p-3 pl-6 font-semibold text-text-main">{c.name}</td>
                     <td className="p-3">
                       {hasAb ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
                           A/B SPLIT
                         </span>
                       ) : (
@@ -826,7 +836,7 @@ export default function CampaignAnalytics() {
                     <td className="p-3 text-text-muted">{delivered.toLocaleString()}</td>
                     <td className="p-3 text-text-muted">{uniqueOpens.toLocaleString()}</td>
                     <td className="p-3 font-semibold text-accent-green">{pct(openRate)}</td>
-                    <td className="p-3 font-semibold text-accent-purple">{pct(clickRate)}</td>
+                    <td className="p-3 font-semibold text-text-main">{pct(clickRate)}</td>
                     <td className="p-3 pr-6 text-right">
                       <button 
                         onClick={() => setSearchParams({ campaign: c.id })}
@@ -842,6 +852,8 @@ export default function CampaignAnalytics() {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* ── WINNER SELECTION CONFIRMATION MODAL ── */}
       {showWinnerConfirmModal && (
@@ -849,7 +861,6 @@ export default function CampaignAnalytics() {
           <div className="bg-surface border border-border/60 rounded-2xl w-full max-w-md p-6 shadow-luxury space-y-5">
             <div className="flex items-center justify-between border-b border-border/50 pb-3">
               <div className="flex items-center gap-2">
-                <Crown className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-text-main text-base">
                   Declare Variant {selectedWinnerVariant} as Winner?
                 </h3>
@@ -875,9 +886,9 @@ export default function CampaignAnalytics() {
               <button
                 onClick={() => selectWinnerMutation.mutate(selectedWinnerVariant)}
                 disabled={selectWinnerMutation.isPending}
-                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-interactive transition-all"
+                className="btn-primary text-xs"
               >
-                {selectWinnerMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crown className="w-3.5 h-3.5" />}
+                {selectWinnerMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 Confirm & Rollout Winner
               </button>
             </div>

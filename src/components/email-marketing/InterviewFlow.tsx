@@ -8,10 +8,10 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, ArrowLeft, RefreshCw, CheckCircle2, ChevronRight, Layers } from 'lucide-react';
-import LiveEmailCanvas from './LiveEmailCanvas';
 import InterviewChat from './InterviewChat';
+import InterviewThread from './InterviewThread';
 import DraftReviewFlow from './DraftReviewFlow';
+import OverflowMenu from './OverflowMenu';
 import { profileToFormValues, type ProfileFormValues } from './ProfileForm';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
@@ -79,6 +79,33 @@ export default function InterviewFlow({
   const [aiError, setAiError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [listening, setListening] = useState(false);
+  // Round 2 step machine (presentation only — the phase machine is untouched):
+  // Step 1 Questions (interview) → Step 2 Your email (artifact panel) →
+  // Step 3 Sequence (graph). The step is derived from the draft: the
+  // interview is Step 1 until pastInterview, then the email step, then the
+  // sequence step once the user enters it from the email step.
+  const [sequenceView, setSequenceView] = useState(false);
+  const [artifactOpen, setArtifactOpen] = useState(true);
+  const pastInterview = useMemo(() => {
+    if (!draft) return false;
+    return (
+      draft.status === 'ab_confirmed' ||
+      draft.status === 'drafted' ||
+      draft.status === 'scheduled' ||
+      draft.currentPhase === 'draft_refine' ||
+      draft.currentPhase === 'review_send'
+    );
+  }, [draft]);
+  const prevPastInterviewRef = useRef(false);
+  useEffect(() => {
+    if (pastInterview && !prevPastInterviewRef.current) {
+      // The interview just completed: reveal the email as an artifact on
+      // the email step (Step 2).
+      setArtifactOpen(true);
+      setSequenceView(false);
+    }
+    prevPastInterviewRef.current = pastInterview;
+  }, [pastInterview]);
   const recognitionRef = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
   // Guards the auto-create against React StrictMode's double-effect in dev:
   // without it, two concurrent loads both see an empty list and create a
@@ -379,14 +406,9 @@ export default function InterviewFlow({
     return (
       <div className="flex-1 flex items-center justify-center p-6 w-full h-full">
         <div className="w-full max-w-xl p-7 rounded-[18px] bg-surface/50 border border-border/70 backdrop-blur-xl shadow-luxury space-y-5 animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 pb-3 border-b border-border/50">
-            <div className="w-9 h-9 rounded-lg bg-surface border border-border/60 flex items-center justify-center text-text-muted">
-              <FileText className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-text-main">{createWithAiCopy.flow.resume}</h3>
-              <p className="text-xs text-text-muted">{createWithAiCopy.flow.resumeHint}</p>
-            </div>
+          <div className="pb-3 border-b border-border/50">
+            <h3 className="text-base font-bold text-text-main">{createWithAiCopy.flow.resume}</h3>
+            <p className="text-xs text-text-muted">{createWithAiCopy.flow.resumeHint}</p>
           </div>
 
           <div className="space-y-2.5 max-h-60 overflow-y-auto">
@@ -419,10 +441,11 @@ export default function InterviewFlow({
   if (!draft) return <div className="p-6 text-text-muted">No draft available.</div>;
 
   // Past the interview (Reactions confirmed onward): Phase 7 Draft +
-  // Phase 8 Review live in DraftReviewFlow. "Edit Brief" reopens Call to
-  // Action. M5: a sequence_confirmed draft WITHOUT reactions confirmed
-  // stops at the Phase 5 entry card below (the user must plan reactions
-  // first; the Phase 5 escape hatch assembles from what they have).
+  // Phase 8 Review live in DraftReviewFlow. "Edit brief" (reopen Call to
+  // Action) lives in the artifact panel header menu. M5: a sequence_confirmed
+  // draft WITHOUT reactions confirmed stops at the Phase 5 entry card below
+  // (the user must plan reactions first; the Phase 5 escape hatch assembles
+  // from what they have).
   const hasSequence =
     !!draft.sequence &&
     typeof draft.sequence === 'object' &&
@@ -439,7 +462,6 @@ export default function InterviewFlow({
     draft.status === 'scheduled' ||
     draft.currentPhase === 'draft_refine' ||
     draft.currentPhase === 'review_send';
-  const pastInterview = abDone;
   const needsSequenceEntry = draft.status === 'brief_confirmed' && !hasSequence;
   const needsReactionsEntry =
     !reactionsDone && (draft.status === 'sequence_confirmed' || (draft.status === 'brief_confirmed' && hasSequence));
@@ -537,103 +559,106 @@ export default function InterviewFlow({
     }
   };
 
+  // Steps 2–3 (past the interview): the email is revealed as a Claude-style
+  // artifact in a right panel (assistant ArtifactSidePanel styling), with
+  // the interview thread + confirmed brief on the left. Step 3 (sequence)
+  // swaps the artifact's content to the graph.
   if (pastInterview) {
     return (
-      <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full divide-x divide-border/60">
-        {/* Left Pane: Confirmed Brief & Settings */}
-        <div className="w-[420px] xl:w-[460px] shrink-0 flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border/50 bg-surface/40 flex items-center justify-between shrink-0">
-            <div>
-              <h3 className="text-xs font-bold text-text-main uppercase tracking-wide">Campaign Brief</h3>
-              <p className="text-[11px] text-text-muted">Draft & Polish Stage</p>
-            </div>
-            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-              Draft Ready
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            <div className="p-4 rounded-[12px] bg-surface/40 border border-border/60 shadow-sm space-y-2">
-              <h4 className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" />
-                <span>Confirmed Campaign Brief</span>
-              </h4>
-              <p className="text-xs text-text-main leading-relaxed whitespace-pre-line">
-                {typeof (draft.brief as any)?.text === 'string'
-                  ? (draft.brief as any).text
-                  : 'Campaign brief synthesized from your interview answers.'}
-              </p>
-            </div>
-
-            <div className="p-4 rounded-[12px] bg-surface/30 border border-border/50 space-y-1.5">
-              <h4 className="text-xs font-bold text-text-main">Campaign Insights</h4>
-              <p className="text-xs text-text-muted leading-relaxed">
-                Your draft was created using your confirmed business profile and tone. Use the editor on the right to tweak copy, test subject lines, or send a test email.
-              </p>
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={handleEditBrief}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-border bg-surface-hover hover:bg-surface rounded-[10px] text-xs font-semibold text-text-main transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Edit Campaign Brief (Reopen Interview)</span>
-              </button>
-            </div>
-          </div>
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0 w-full h-full bg-[#1E1E1E]">
+        {/* Step bar */}
+        <div className="px-5 py-3 border-b border-[#2C2C2C] shrink-0">
+          <span className="text-xs font-semibold text-[#8A8A8D]">
+            {sequenceView ? 'Step 3 of 3 — Sequence' : 'Step 2 of 3 — Your email'}
+          </span>
         </div>
+        <div className="flex-1 flex overflow-hidden min-h-0 w-full">
+          {/* Left: confirmed brief + interview history */}
+          <div
+            className={`${
+              artifactOpen ? 'w-[400px] xl:w-[440px] border-r border-[#2C2C2C]' : 'flex-1'
+            } shrink-0 flex flex-col h-full min-h-0 overflow-hidden`}
+          >
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {!artifactOpen && (
+                <div className="rounded-xl bg-[#242426] border border-[#343437] p-4 space-y-2">
+                  <p className="text-sm font-semibold text-[#ECECEC]">Your email is ready</p>
+                  <p className="text-xs text-[#8A8A8D] leading-relaxed">
+                    The interview is done — your email is drafted and waiting in the panel.
+                  </p>
+                  <button type="button" onClick={() => setArtifactOpen(true)} className="btn-primary text-xs">
+                    Open email
+                  </button>
+                </div>
+              )}
 
-        {/* Right Pane: DraftReviewFlow */}
-        <div className="flex-1 min-w-0 flex flex-col h-full bg-surface/10 min-h-0 overflow-y-auto p-6 sm:p-8">
-          <DraftReviewFlow draft={draft} profile={profile} onDraftChange={setDraft} onEditBrief={handleEditBrief} />
+              <div className="rounded-xl bg-[#242426] border border-[#343437] p-4 space-y-2">
+                <h4 className="text-xs font-bold text-[#ECECEC] uppercase tracking-wider">
+                  Confirmed Campaign Brief
+                </h4>
+                <p className="text-xs text-[#ECECEC] leading-relaxed whitespace-pre-line">
+                  {typeof (draft.brief as any)?.text === 'string'
+                    ? (draft.brief as any).text
+                    : 'Campaign brief synthesized from your interview answers.'}
+                </p>
+              </div>
+
+              <InterviewThread messages={draft.conversation} />
+            </div>
+          </div>
+
+          {/* Right: email artifact panel — the ONLY side panel in the AI flow,
+              and it only opens once the email exists. */}
+          {artifactOpen && (
+            <div className="flex-1 min-w-0 flex flex-col h-full bg-[#1A1A1B] min-h-0 overflow-hidden animate-in slide-in-from-right-4 duration-200">
+              <div className="px-5 py-3 border-b border-[#2C2C2C] bg-[#161617] flex items-center justify-between shrink-0">
+                <span className="text-xs font-semibold text-[#ECECEC]">Your email</span>
+                <div className="flex items-center gap-2">
+                  <OverflowMenu
+                    ariaLabel="Email options"
+                    items={[
+                      {
+                        label: 'Edit brief (reopen interview)',
+                        onClick: handleEditBrief,
+                      },
+                    ]}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setArtifactOpen(false)}
+                    className="text-xs text-[#8A8A8D] hover:text-[#ECECEC]"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                <DraftReviewFlow
+                  draft={draft}
+                  profile={profile}
+                  onDraftChange={setDraft}
+                  sequenceStep={sequenceView}
+                  onEnterSequence={() => setSequenceView(true)}
+                  onExitSequence={() => setSequenceView(false)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // Active Unified Copywriter Flow: Discovery Big Chat vs Two-Pane Studio
-  const isStudioMode = Boolean(draft.brief?.liveEmail);
-
-  if (!isStudioMode) {
-    return (
-      <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full bg-surface/10">
-        <div className="w-full flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
-          <InterviewChat
-            draft={draft}
-            input={input}
-            onInputChange={setInput}
-            sending={sending}
-            aiError={aiError}
-            examplePlaceholder={examplePlaceholder}
-            micSupported={micSupported}
-            listening={listening}
-            onMic={handleMic}
-            onSend={handleSend}
-            onRetry={handleRetry}
-            onBack={handleBack}
-            onEditProfile={() => {}}
-            onEscapeHatch={handleEscapeHatch}
-            onCorrectRecap={handleCorrectRecap}
-            onConfirmBrief={handleConfirmBrief}
-            onConfirmReactions={handleConfirmReactions}
-            onConfirmPlan={handleConfirmPlan}
-            profileChanged={false}
-            onRegenerateProfile={() => {}}
-            onKeepProfile={() => {}}
-            onStartNew={startNew}
-            isBigChat={true}
-          />
-        </div>
-      </div>
-    );
-  }
-
+  // Step 1: the interview is one full-width chat thread — no email, no
+  // preview, no side panel visible at any point during the interview. (The
+  // old Studio two-pane branch and LiveEmailCanvas are gone.)
   return (
-    <div className="flex-1 flex overflow-hidden min-h-0 w-full h-full divide-x divide-border/60">
-      {/* Left Pane: Chat Studio */}
-      <div className="w-[440px] xl:w-[480px] shrink-0 flex flex-col h-full bg-surface/20 min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0 w-full h-full bg-[#1E1E1E]">
+      {/* Step bar */}
+      <div className="px-5 py-3 border-b border-[#2C2C2C] shrink-0">
+        <span className="text-xs font-semibold text-[#8A8A8D]">Step 1 of 3 — Questions</span>
+      </div>
+      <div className="flex-1 flex overflow-hidden min-h-0 w-full">
         <InterviewChat
           draft={draft}
           input={input}
@@ -657,13 +682,8 @@ export default function InterviewFlow({
           onRegenerateProfile={() => {}}
           onKeepProfile={() => {}}
           onStartNew={startNew}
-          isBigChat={false}
+          isBigChat={true}
         />
-      </div>
-
-      {/* Right Pane: Live Email Canvas */}
-      <div className="flex-1 min-w-0 flex flex-col h-full bg-surface/10 min-h-0 overflow-hidden">
-        <LiveEmailCanvas draft={draft} isGenerating={sending} />
       </div>
     </div>
   );

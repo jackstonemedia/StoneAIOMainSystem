@@ -357,7 +357,10 @@ export default function TemplatesList() {
                           {tpl.isStarter ? <Sparkles className="w-4 h-4 text-amber-400" /> : <FileText className="w-4 h-4 text-primary" />}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-text-main truncate group-hover:text-primary transition-colors">
+                          <h4
+                            className="text-sm font-bold text-text-main truncate group-hover:text-primary transition-colors"
+                            title={tpl.name}
+                          >
                             {tpl.name}
                           </h4>
                           <span className="text-[11px] text-text-muted font-medium block">
@@ -380,7 +383,7 @@ export default function TemplatesList() {
                       <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1">
                         Default Subject
                       </span>
-                      <p className="text-text-main font-medium truncate">
+                      <p className="text-text-main font-medium truncate" title={tpl.subject || '(No default subject)'}>
                         {tpl.subject || '(No default subject)'}
                       </p>
                     </div>
