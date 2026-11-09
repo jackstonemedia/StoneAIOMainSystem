@@ -22,6 +22,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { buildChain, branchConditionLabel, branchActionLabel } from './sequenceGraphModel';
+import OverflowMenu from './OverflowMenu';
 import {
   createReactionRule,
   deleteReactionRule,
@@ -251,20 +252,15 @@ export default function SequenceGraph({
 
   return (
     <div className="space-y-5" data-testid="sequence-graph">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[#ECECEC]">
-            Sequence — {planEmails.length} email{planEmails.length === 1 ? '' : 's'}
-            {spanDays > 0 ? ` over ${spanDays} day${spanDays === 1 ? '' : 's'}` : ''}
-          </p>
-          <p className="text-xs text-[#8A8A8D] leading-relaxed mt-0.5">
-            Simple by default: each email goes out after its wait. Add a branch after any wait to split on what the
-            recipient does — the live send follows the same rules.
-          </p>
-        </div>
-        <button type="button" onClick={onBack} className="btn-secondary text-xs shrink-0">
-          Back to email
-        </button>
+      <div>
+        <p className="text-sm font-semibold text-[#ECECEC]">
+          Sequence — {planEmails.length} email{planEmails.length === 1 ? '' : 's'}
+          {spanDays > 0 ? ` over ${spanDays} day${spanDays === 1 ? '' : 's'}` : ''}
+        </p>
+        <p className="text-xs text-[#8A8A8D] leading-relaxed mt-0.5">
+          Simple by default: each email goes out after its wait. Add a branch after any wait to split on what the
+          recipient does — the live send follows the same rules.
+        </p>
       </div>
 
       {error && (
@@ -379,29 +375,27 @@ export default function SequenceGraph({
                             Wait {item.days} day{item.days === 1 ? '' : 's'}
                           </span>
                           {!readOnly && (
-                            <button
-                              type="button"
-                              className="text-xs text-[#8A8A8D] underline underline-offset-2"
-                              onClick={() => {
-                                setEditingWait(item.afterOrder);
-                                setWaitDays(String(item.days));
-                                setError(null);
-                              }}
-                            >
-                              Change
-                            </button>
-                          )}
-                          {!readOnly && (
-                            <button
-                              type="button"
-                              className="text-xs text-[#8A8A8D] underline underline-offset-2"
-                              onClick={() => {
-                                setAddingBranchFor(item.afterOrder);
-                                setError(null);
-                              }}
-                            >
-                              Add a branch
-                            </button>
+                            <OverflowMenu
+                              ariaLabel={`Options for wait after Email ${item.afterOrder}`}
+                              align="left"
+                              items={[
+                                {
+                                  label: 'Change wait',
+                                  onClick: () => {
+                                    setEditingWait(item.afterOrder);
+                                    setWaitDays(String(item.days));
+                                    setError(null);
+                                  },
+                                },
+                                {
+                                  label: 'Add a branch',
+                                  onClick: () => {
+                                    setAddingBranchFor(item.afterOrder);
+                                    setError(null);
+                                  },
+                                },
+                              ]}
+                            />
                           )}
                         </>
                       )}
@@ -429,14 +423,19 @@ export default function SequenceGraph({
                       {r.delayMinutes ? ` · acts ${r.delayMinutes} minutes after the click` : ''}
                     </p>
                     {!readOnly && (
-                      <button
-                        type="button"
-                        className="text-xs text-[#8A8A8D] underline underline-offset-2 mt-2"
-                        disabled={busy}
-                        onClick={() => handleRemoveBranch(r.id)}
-                      >
-                        Remove branch
-                      </button>
+                      <div className="mt-2">
+                        <OverflowMenu
+                          ariaLabel={`Options for branch after Email ${r.sourceOrder}`}
+                          align="left"
+                          items={[
+                            {
+                              label: 'Remove branch',
+                              disabled: busy,
+                              onClick: () => handleRemoveBranch(r.id),
+                            },
+                          ]}
+                        />
+                      </div>
                     )}
                   </div>
                 </li>

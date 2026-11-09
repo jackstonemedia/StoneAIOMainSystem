@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import InterviewChat from './InterviewChat';
 import InterviewThread from './InterviewThread';
 import DraftReviewFlow from './DraftReviewFlow';
+import OverflowMenu from './OverflowMenu';
 import { profileToFormValues, type ProfileFormValues } from './ProfileForm';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
@@ -440,10 +441,11 @@ export default function InterviewFlow({
   if (!draft) return <div className="p-6 text-text-muted">No draft available.</div>;
 
   // Past the interview (Reactions confirmed onward): Phase 7 Draft +
-  // Phase 8 Review live in DraftReviewFlow. "Edit Brief" reopens Call to
-  // Action. M5: a sequence_confirmed draft WITHOUT reactions confirmed
-  // stops at the Phase 5 entry card below (the user must plan reactions
-  // first; the Phase 5 escape hatch assembles from what they have).
+  // Phase 8 Review live in DraftReviewFlow. "Edit brief" (reopen Call to
+  // Action) lives in the artifact panel header menu. M5: a sequence_confirmed
+  // draft WITHOUT reactions confirmed stops at the Phase 5 entry card below
+  // (the user must plan reactions first; the Phase 5 escape hatch assembles
+  // from what they have).
   const hasSequence =
     !!draft.sequence &&
     typeof draft.sequence === 'object' &&
@@ -602,16 +604,6 @@ export default function InterviewFlow({
               </div>
 
               <InterviewThread messages={draft.conversation} />
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={handleEditBrief}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#343437] bg-[#242426] hover:bg-[#2D2D2E] rounded-[10px] text-xs font-semibold text-[#ECECEC] transition-colors cursor-pointer"
-                >
-                  <span>Edit Campaign Brief (Reopen Interview)</span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -621,20 +613,30 @@ export default function InterviewFlow({
             <div className="flex-1 min-w-0 flex flex-col h-full bg-[#1A1A1B] min-h-0 overflow-hidden animate-in slide-in-from-right-4 duration-200">
               <div className="px-5 py-3 border-b border-[#2C2C2C] bg-[#161617] flex items-center justify-between shrink-0">
                 <span className="text-xs font-semibold text-[#ECECEC]">Your email</span>
-                <button
-                  type="button"
-                  onClick={() => setArtifactOpen(false)}
-                  className="text-xs text-[#8A8A8D] hover:text-[#ECECEC]"
-                >
-                  Close
-                </button>
+                <div className="flex items-center gap-2">
+                  <OverflowMenu
+                    ariaLabel="Email options"
+                    items={[
+                      {
+                        label: 'Edit brief (reopen interview)',
+                        onClick: handleEditBrief,
+                      },
+                    ]}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setArtifactOpen(false)}
+                    className="text-xs text-[#8A8A8D] hover:text-[#ECECEC]"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-5">
                 <DraftReviewFlow
                   draft={draft}
                   profile={profile}
                   onDraftChange={setDraft}
-                  onEditBrief={handleEditBrief}
                   sequenceStep={sequenceView}
                   onEnterSequence={() => setSequenceView(true)}
                   onExitSequence={() => setSequenceView(false)}

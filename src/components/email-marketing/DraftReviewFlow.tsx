@@ -7,7 +7,8 @@
  * sequence (M4, draft.sequence.count > 1): generate all sequence emails,
  * refine each one from the email list, then SequenceReview (Phase 8) —
  * one recipient pick, checks per email, one confirm-all. "Edit Brief"
- * reopens the Call to Action phase and returns to the interview.
+ * (reopen the Call to Action phase, back to the interview) lives in the
+ * artifact panel header menu in InterviewFlow — not scattered here.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -34,7 +35,6 @@ export default function DraftReviewFlow({
   draft,
   profile,
   onDraftChange,
-  onEditBrief,
   sequenceStep = false,
   onEnterSequence,
   onExitSequence,
@@ -42,7 +42,6 @@ export default function DraftReviewFlow({
   draft: CampaignDraftState;
   profile: BusinessProfile;
   onDraftChange: (draft: CampaignDraftState) => void;
-  onEditBrief: () => void;
   /** Round 2: when true, the sequence step shows the graph instead of the email list. */
   sequenceStep?: boolean;
   onEnterSequence?: () => void;
@@ -123,7 +122,27 @@ export default function DraftReviewFlow({
     }
   };
 
-  if (loading) return <div className="p-6 text-text-muted">Loading…</div>;
+  if (loading)
+    return (
+      <div className="space-y-4" data-testid="artifact-loading">
+        <p className="text-xs text-[#8A8A8D]">Loading your email…</p>
+        <div className="rounded-xl border border-[#343437] bg-[#242426] p-5 space-y-4 animate-pulse" aria-hidden="true">
+          <div className="h-4 w-2/3 rounded bg-[#343437]" />
+          <div className="h-3 w-1/2 rounded bg-[#343437]" />
+          <div className="space-y-2 pt-2">
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-11/12 rounded bg-[#343437]" />
+            <div className="h-3 w-4/5 rounded bg-[#343437]" />
+          </div>
+          <div className="space-y-2 pt-2">
+            <div className="h-3 w-full rounded bg-[#343437]" />
+            <div className="h-3 w-3/4 rounded bg-[#343437]" />
+          </div>
+          <div className="h-8 w-32 rounded-lg bg-[#343437]" />
+        </div>
+      </div>
+    );
 
   // ── Multi-email sequence (M4) ──────────────────────────────────────────
   if (isSequence) {
@@ -184,14 +203,9 @@ export default function DraftReviewFlow({
               3 subject options, preview text, HTML + plain-text bodies, and a fact map validated by code. Later emails
               build on the earlier ones so the series reads as one story.
             </p>
-            <div className="flex gap-2">
-              <button type="button" onClick={handleGenerateSequence} className="btn-primary text-sm" disabled={generating}>
-                {generating ? createWithAiCopy.draft.generating : `Generate all ${Number(sequence.count)} emails`}
-              </button>
-              <button type="button" onClick={onEditBrief} className="btn-secondary text-sm">
-                Edit Brief
-              </button>
-            </div>
+            <button type="button" onClick={handleGenerateSequence} className="btn-primary text-sm" disabled={generating}>
+              {generating ? createWithAiCopy.draft.generating : `Generate all ${Number(sequence.count)} emails`}
+            </button>
           </div>
         )}
 
@@ -236,12 +250,6 @@ export default function DraftReviewFlow({
         {!sequenceStep && emails.length > 0 && view === 'review' && (
           <SequenceReview draft={draft} emails={emails} profile={profile} onBack={() => setView('draft')} />
         )}
-
-        {emails.length > 0 && (
-          <button type="button" onClick={onEditBrief} className="btn-secondary text-xs">
-            Edit Brief
-          </button>
-        )}
       </div>
     );
   }
@@ -262,14 +270,9 @@ export default function DraftReviewFlow({
             Your Brief is confirmed. Generate the single email for this campaign — 3 subject options, preview text, HTML + plain-text
             bodies, and a fact map validated by code.
           </p>
-          <div className="flex gap-2">
-            <button type="button" onClick={handleGenerate} className="btn-primary text-sm" disabled={generating}>
-              {generating ? createWithAiCopy.draft.generating : createWithAiCopy.draft.generate}
-            </button>
-            <button type="button" onClick={onEditBrief} className="btn-secondary text-sm">
-              Edit Brief
-            </button>
-          </div>
+          <button type="button" onClick={handleGenerate} className="btn-primary text-sm" disabled={generating}>
+            {generating ? createWithAiCopy.draft.generating : createWithAiCopy.draft.generate}
+          </button>
         </div>
       )}
 
@@ -289,12 +292,6 @@ export default function DraftReviewFlow({
 
       {email && view === 'review' && (
         <ReviewSend draft={draft} email={email} profile={profile} onBack={() => setView('draft')} />
-      )}
-
-      {email && (
-        <button type="button" onClick={onEditBrief} className="btn-secondary text-xs">
-          Edit Brief
-        </button>
       )}
     </div>
   );
