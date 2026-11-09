@@ -160,6 +160,8 @@ export interface DraftState {
   planVersion: number;
   profileNotedAt: string | null;
   expiresAt: string;
+  /** Last edit — exposed so the pick-list can show "Edited …" (flow improvements, 2026-11-08). */
+  updatedAt: string;
   /**
    * M5 transient marker (NEVER persisted by saveDraftState): an assembled
    * Phase 5 plan waiting for its ReactionRule rows to be synced by the DB
@@ -1809,6 +1811,7 @@ function toDraftState(row: Record<string, unknown>): DraftState {
     planVersion: (row.planVersion as number) || 0,
     profileNotedAt: row.profileNotedAt ? new Date(row.profileNotedAt as string).toISOString() : null,
     expiresAt: new Date(row.expiresAt as string).toISOString(),
+    updatedAt: new Date(row.updatedAt as string).toISOString(),
   };
 }
 

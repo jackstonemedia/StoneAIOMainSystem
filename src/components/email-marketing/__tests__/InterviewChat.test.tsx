@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import InterviewChat from '../InterviewChat';
 import type { CampaignDraftState } from '../../../lib/createWithAiApi';
 
@@ -51,6 +51,7 @@ function goalDraft(overrides: Partial<CampaignDraftState> = {}): CampaignDraftSt
     sequence: null,
     profileNotedAt: null,
     expiresAt: '2026-11-20T00:00:00.000Z',
+    updatedAt: '2026-10-21T00:01:00.000Z',
     ...overrides,
   };
 }
@@ -144,5 +145,33 @@ describe('InterviewChat has no clickable answer options', () => {
     const { container } = renderChat(goalDraft(), { profileChanged: true });
     expect(screen.queryByRole('button', { name: 'Regenerate draft' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Keep as is' })).toBeNull();
+  });
+});
+
+describe('InterviewChat starter chips (flow improvements, 2026-11-08)', () => {
+  it('tapping a chip fills the free-text input and does not send', () => {
+    const filled: string[] = [];
+    const sent: string[] = [];
+    const chip = 'Invite members to a free Saturday class and ask them to bring a friend.';
+    renderChat(goalDraft(), {
+      examples: [chip, 'Thank customers for a great year and ask for a review.'],
+      onInputChange: (v: string) => filled.push(v),
+      onSend: () => sent.push('sent'),
+    });
+    // The chips are a typing aid, not answer options: they fill the box, the
+    // user still edits and sends. They are not multiple-choice answers.
+    const button = screen.getByRole('button', { name: chip });
+    expect(button).toBeTruthy();
+    fireEvent.click(button);
+    expect(filled).toEqual([chip]);
+    expect(sent).toEqual([]);
+  });
+
+  it('chips hide once the user has typed', () => {
+    const { container } = renderChat(goalDraft(), {
+      examples: ['Invite members to a free Saturday class.'],
+      input: 'I want to…',
+    });
+    expect(container.querySelector('[data-testid="example-chips"]')).toBeNull();
   });
 });

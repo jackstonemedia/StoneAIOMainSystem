@@ -969,6 +969,8 @@ export default function CampaignBuilder() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Campaign Name"
+                aria-label="Campaign name (internal only)"
+                title="Internal name — recipients never see this"
                 className="bg-transparent text-text-main font-bold text-sm border-b border-transparent hover:border-border/60 focus:border-primary outline-none px-1.5 py-0.5 transition-all truncate w-full"
               />
               <span className="hidden sm:inline px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-surface-hover border border-border/60 text-text-muted shrink-0">

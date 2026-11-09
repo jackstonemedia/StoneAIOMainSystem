@@ -206,6 +206,8 @@ export type CampaignDraftState = {
   sequence: Record<string, unknown> | null;
   profileNotedAt: string | null;
   expiresAt: string;
+  /** Last edit — surfaced by the API so the pick-list can show "Edited …". */
+  updatedAt: string;
 };
 
 export type TurnResultState = {

@@ -55,6 +55,7 @@ const draft: CampaignDraftState = {
   sequence: null,
   profileNotedAt: null,
   expiresAt: '2026-11-20T00:00:00.000Z',
+  updatedAt: '2026-11-08T00:00:00.000Z',
 };
 
 describe('DraftReviewFlow artifact loading state', () => {
