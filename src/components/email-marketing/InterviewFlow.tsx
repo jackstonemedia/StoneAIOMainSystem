@@ -12,6 +12,7 @@ import InterviewChat from './InterviewChat';
 import InterviewThread from './InterviewThread';
 import DraftReviewFlow from './DraftReviewFlow';
 import OverflowMenu from './OverflowMenu';
+import { draftSummary, relativeEdited } from './draftSummary';
 import { profileToFormValues, type ProfileFormValues } from './ProfileForm';
 import { createWithAiCopy } from '../../lib/createWithAiCopy';
 import { extractApiError } from '../../lib/apiClient';
@@ -19,6 +20,7 @@ import { useToast } from '../../components/ui/Toast';
 import {
   createDraft,
   listDrafts,
+  deleteDraft,
   getDraft,
   sendTurn,
   retryTurn,
@@ -73,6 +75,7 @@ export default function InterviewFlow({
   const { toast } = useToast();
   const [draft, setDraft] = useState<CampaignDraftState | null>(null);
   const [pickList, setPickList] = useState<CampaignDraftState[] | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -118,6 +121,26 @@ export default function InterviewFlow({
     if (!PHASE_ORDER.includes(draft.currentPhase as InterviewPhase)) return '';
     return pickExample(createWithAiCopy.interview.examplePools[draft.currentPhase as InterviewPhase], `${draft.id}:${draft.currentPhase}`);
   }, [draft]);
+
+  // Flow improvements (2026-11-08): tappable starter chips from the same
+  // example pool as the placeholder. The placeholder can't be tapped and
+  // vanishes when you type; the chips give a new user a starting point.
+  // Deterministic per draft+phase, and never repeats the placeholder.
+  const examples = useMemo(() => {
+    if (!draft || draft.currentPhase === 'brief_confirm' || draft.currentPhase === 'reactions_confirm') return [] as string[];
+    if (!PHASE_ORDER.includes(draft.currentPhase as InterviewPhase)) return [] as string[];
+    const pool = createWithAiCopy.interview.examplePools[draft.currentPhase as InterviewPhase];
+    if (!pool || pool.length === 0) return [] as string[];
+    let h = 0;
+    const key = `${draft.id}:${draft.currentPhase}:chips`;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 997;
+    const out: string[] = [];
+    for (let i = 0; i < pool.length && out.length < 3; i++) {
+      const cand = pool[(h % pool.length + i) % pool.length];
+      if (cand !== examplePlaceholder) out.push(cand);
+    }
+    return out;
+  }, [draft, examplePlaceholder]);
 
   const loadPick = useCallback(async () => {
     setLoading(true);
@@ -400,6 +423,19 @@ export default function InterviewFlow({
     }
   };
 
+  // Flow improvements (2026-11-08): delete a draft from the pick-list. The
+  // API already had DELETE /drafts/:draftId — the UI just never called it.
+  const handleDeleteDraft = async (id: string) => {
+    try {
+      await deleteDraft(id);
+      setPickList((list) => (list || []).filter((d) => d.id !== id));
+      setConfirmDeleteId(null);
+      toast('success', 'Draft deleted');
+    } catch (err) {
+      toast('error', 'Could not delete draft', extractApiError(err));
+    }
+  };
+
   if (loading) return <div className="p-6 text-text-muted">Loading…</div>;
 
   if (pickList && !draft) {
@@ -412,24 +448,57 @@ export default function InterviewFlow({
           </div>
 
           <div className="space-y-2.5 max-h-60 overflow-y-auto">
-            {pickList.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 p-3.5 rounded-[12px] bg-surface/60 border border-border/60 hover:border-primary/50 transition-colors">
-                <div className="min-w-0">
-                  <span className="text-xs text-text-main font-semibold block truncate">
-                    Campaign Draft ({new Date(d.expiresAt).toLocaleDateString()})
-                  </span>
-                  <span className="text-[11px] text-text-muted">Current Stage: Phase {d.currentPhase}</span>
+            {pickList.map((d) => {
+              const confirming = confirmDeleteId === d.id;
+              const summary = draftSummary(d);
+              return (
+                <div key={d.id} className="flex items-center justify-between gap-3 p-3.5 rounded-[12px] bg-surface/60 border border-border/60 hover:border-primary/50 transition-colors">
+                  {confirming ? (
+                    <div className="min-w-0 flex-1">
+                      <span className="text-xs text-text-main font-semibold block">Delete this draft?</span>
+                      <span className="text-[11px] text-text-muted">It can&apos;t be undone.</span>
+                    </div>
+                  ) : (
+                    <div className="min-w-0">
+                      <span className="text-xs text-text-main font-semibold block truncate">{summary}</span>
+                      <span className="text-[11px] text-text-muted">
+                        Phase {d.currentPhase}
+                        {relativeEdited(d.updatedAt) ? ` · ${relativeEdited(d.updatedAt)}` : ''}
+                      </span>
+                    </div>
+                  )}
+                  {confirming ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDraft(d.id)}
+                        className="px-3 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold hover:bg-red-500/25 transition-colors cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="btn-secondary text-xs cursor-pointer">
+                        Keep it
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <OverflowMenu
+                        ariaLabel={`Options for draft: ${summary}`}
+                        items={[{ label: 'Delete draft', onClick: () => setConfirmDeleteId(d.id) }]}
+                      />
+                      <button type="button" onClick={() => setDraft(d)} className="btn-primary text-xs shrink-0 cursor-pointer">
+                        Resume
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <button type="button" onClick={() => setDraft(d)} className="btn-primary text-xs shrink-0 cursor-pointer">
-                  Resume
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="pt-3 border-t border-border/50 flex items-center justify-between">
             <span className="text-xs text-text-muted">{createWithAiCopy.flow.startNewHint}</span>
-            <button type="button" onClick={startNew} className="btn-secondary text-xs cursor-pointer">
+            <button type="button" onClick={startNew} className="btn-primary text-xs cursor-pointer">
               {createWithAiCopy.flow.startNew}
             </button>
           </div>
@@ -666,6 +735,7 @@ export default function InterviewFlow({
           sending={sending}
           aiError={aiError}
           examplePlaceholder={examplePlaceholder}
+          examples={examples}
           micSupported={micSupported}
           listening={listening}
           onMic={handleMic}

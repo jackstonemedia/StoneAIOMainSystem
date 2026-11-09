@@ -14,7 +14,8 @@ import {
   Mail, Sparkles, Users, AlertTriangle, ArrowRight, Plus,
 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
-import { getProfile } from '../../lib/createWithAiApi';
+import { getProfile, listDrafts } from '../../lib/createWithAiApi';
+import { draftSummary } from '../../components/email-marketing/draftSummary';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
 
 interface CampaignLike {
@@ -43,6 +44,12 @@ export default function EmailMarketingOverview() {
     queryKey: ['create-with-ai', 'profile'],
     queryFn: getProfile,
   });
+  // Flow improvements (2026-11-08): unfinished AI drafts, so the next step
+  // can point back at one instead of always starting a new campaign.
+  const { data: draftsData } = useQuery({
+    queryKey: ['create-with-ai', 'drafts'],
+    queryFn: listDrafts,
+  });
 
   const gmailConnected = connections.some((c: any) => c.provider === 'gmail' && c.isActive);
   const profileComplete = !!profileData?.profile && (profileData?.missingRequired?.length ?? 0) === 0;
@@ -57,14 +64,20 @@ export default function EmailMarketingOverview() {
     [campaigns],
   );
 
+  // Unfinished AI drafts, most recently edited first (the list API already
+  // orders by updatedAt desc). Continuing one is the path to a first campaign.
+  const unfinishedDraft = (draftsData?.drafts ?? []).find((d) => d.status !== 'scheduled' && d.status !== 'canceled');
+
   // First incomplete setup item, in plain words.
   const nextStep = !gmailConnected
     ? { text: 'Connect your Gmail mailbox so campaigns can send.', cta: 'Connect a mailbox', to: '/settings?tab=outreach' }
     : !profileComplete
       ? { text: 'Finish your Business Profile so the AI writes in your voice.', cta: 'Finish profile', to: '/email-marketing/profile' }
-      : sentCampaigns.length === 0
-        ? { text: 'Send your first campaign to see performance here.', cta: 'Create a campaign', to: '/email-marketing/campaigns/new' }
-        : null;
+      : unfinishedDraft
+        ? { text: `Continue your draft: ${draftSummary(unfinishedDraft)}`, cta: 'Continue draft', to: '/email-marketing/create-with-ai' }
+        : sentCampaigns.length === 0
+          ? { text: 'Send your first campaign to see performance here.', cta: 'Create a campaign', to: '/email-marketing/campaigns/new' }
+          : null;
 
   // Setup health shows ONLY when something needs attention — when everything
   // is fine, there is nothing to show (simplified 2026-11-08: the old page

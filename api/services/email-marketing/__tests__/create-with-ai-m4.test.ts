@@ -63,6 +63,7 @@ function makeDraft(overrides: Partial<DraftState> = {}): DraftState {
     planVersion: 0,
     profileNotedAt: null,
     expiresAt: '2026-11-20T00:00:00.000Z',
+    updatedAt: '2026-10-21T00:00:00.000Z',
     ...overrides,
   };
 }

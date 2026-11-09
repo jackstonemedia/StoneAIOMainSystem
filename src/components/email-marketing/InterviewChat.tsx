@@ -34,6 +34,7 @@ export default function InterviewChat({
   sending,
   aiError,
   examplePlaceholder,
+  examples = [],
   micSupported,
   listening,
   onMic,
@@ -58,6 +59,8 @@ export default function InterviewChat({
   sending: boolean;
   aiError: string | null;
   examplePlaceholder: string;
+  /** Tappable starter examples (flow improvements, 2026-11-08) — fill the input, never send. */
+  examples?: string[];
   micSupported: boolean;
   listening: boolean;
   onMic: () => void;
@@ -137,6 +140,22 @@ export default function InterviewChat({
         <div className={`${isBigChat ? 'p-5 lg:p-6' : 'p-4'} border-t border-[#2C2C2C] bg-[#1E1E1E] shrink-0 space-y-3`}>
           {/* Textarea Input Box */}
           <div className="space-y-2 max-w-3xl mx-auto w-full">
+            {/* Starter chips (flow improvements, 2026-11-08): tap one to fill
+                the box — it never sends. Only while the input is empty. */}
+            {examples.length > 0 && !input.trim() && (
+              <div className="flex flex-wrap gap-2" data-testid="example-chips">
+                {examples.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => onInputChange(ex)}
+                    className="px-3 py-1.5 rounded-full border border-[#343437] bg-[#242426] text-[12px] leading-snug text-[#ECECEC] hover:border-[#52677D] hover:bg-[#2D2D2E] transition-colors text-left"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 items-start">
               <textarea
                 value={input}
