@@ -144,21 +144,30 @@ async function startServer() {
 
   app.use(compression());
 
-  // Raw-body capture for the Meta webhook — MUST run before express.json().
-  // X-Hub-Signature-256 is computed over the raw request bytes; a route-level
-  // express.raw() placed after the global json() is a no-op (body-parser
-  // skips when req._body is already set — verified empirically), so the raw
-  // bytes must be captured here. Only this path is affected; req.body is
-  // re-parsed to the object form so the handler sees both.
-  app.use('/api/hooks/meta', express.raw({ type: 'application/json' }), (req, _res, next) => {
-    (req as any).rawBody = req.body;
-    try {
-      req.body = JSON.parse((req.body as Buffer).toString('utf8'));
-    } catch {
-      // Leave req.body as-is; the handler returns 400 on unparseable JSON.
-    }
-    next();
-  });
+  // Raw-body capture for signature-verified webhooks — MUST run before express.json().
+  // Stripe (stripe-signature) and Meta + Facebook Leads (X-Hub-Signature-256) are
+  // all computed over the raw request bytes; a route-level express.raw() placed
+  // after the global json() is a no-op (body-parser skips when req._body is already
+  // set — verified empirically), so the raw bytes must be captured here. Only these
+  // paths are affected; req.body is re-parsed to the object form so handlers see
+  // both (handlers that need the bytes read req.rawBody — Stripe's constructEvent
+  // and the Meta/Leads HMAC checks).
+  // Fixed 2026-11-07 for Meta (agent/inbox-webhooks); extended 2026-11-07 to
+  // Facebook Leads + Stripe (agent/webhook-raw-body-fix) — both were 400ing /
+  // dropping signed deliveries in production for the same reason.
+  app.use(
+    ['/api/hooks/meta', '/api/hooks/facebook-leads', '/api/webhooks/stripe', '/api/stripe/webhook'],
+    express.raw({ type: 'application/json' }),
+    (req, _res, next) => {
+      (req as any).rawBody = req.body;
+      try {
+        req.body = JSON.parse((req.body as Buffer).toString('utf8'));
+      } catch {
+        // Leave req.body as-is; the handler returns 400 on unparseable JSON.
+      }
+      next();
+    },
+  );
 
   app.use(express.json());
 
@@ -246,14 +255,11 @@ async function startServer() {
   app.post('/api/hooks/outlook-messages', outlookWebhookHandler);
   app.get('/api/hooks/outlook-messages', outlookWebhookHandler);
 
-  // Facebook Lead Ads webhook — BEFORE resolveWorkspace (no JWT from Facebook)
+  // Facebook Lead Ads webhook — BEFORE resolveWorkspace (no JWT from Facebook).
+  // Raw body is captured by the pre-json middleware above (route-level raw()
+  // after express.json() is a no-op — removed 2026-11-07, agent/webhook-raw-body-fix).
   app.get('/api/hooks/facebook-leads', facebookLeadsWebhookVerify);
-  app.post(
-    '/api/hooks/facebook-leads',
-    express.raw({ type: 'application/json' }),
-    (req, res, next) => { (req as any).rawBody = req.body; next(); },
-    facebookLeadsWebhookPost,
-  );
+  app.post('/api/hooks/facebook-leads', facebookLeadsWebhookPost);
 
   // Meta (Facebook/Instagram) webhook
   // FIXED (2026-11-07): this used to sit BELOW the workflow wildcard, which
@@ -270,10 +276,11 @@ async function startServer() {
   app.all('/api/hooks/*', webhookHandler);
 
   // ── Stripe webhook — MUST be before resolveWorkspace (no JWT from Stripe) ──
+  // Raw body is captured by the pre-json middleware above (route-level raw()
+  // after express.json() is a no-op — removed 2026-11-07, agent/webhook-raw-body-fix).
   app.post(
     ['/api/webhooks/stripe', '/api/stripe/webhook'],
     webhookLimiter,
-    express.raw({ type: 'application/json' }),
     stripeWebhookHandler,
   );
 

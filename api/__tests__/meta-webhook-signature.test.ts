@@ -45,7 +45,12 @@ vi.mock('../../infrastructure/database/client.js', () => ({
       }),
       update: vi.fn().mockImplementation(({ where, data }: any) => {
         const row = mockConversations.find((c) => c.id === where.id);
-        if (row) Object.assign(row, data);
+        if (row) {
+          // Apply Prisma-style increments (the DB adds; Object.assign would overwrite).
+          const { unreadCount, ...rest } = data;
+          if (unreadCount?.increment) row.unreadCount = (row.unreadCount ?? 0) + unreadCount.increment;
+          Object.assign(row, rest);
+        }
         return Promise.resolve(row ?? null);
       }),
     },
@@ -172,6 +177,8 @@ describe('metaWebhookPost', () => {
     expect(mockMessages).toHaveLength(1);
     expect(mockMessages[0].body).toBe('Hi there');
     expect(mockMessages[0].direction).toBe('inbound');
+    // Unread fix (agent/webhook-raw-body-fix): create with 0 + one increment = 1, not 2.
+    expect(mockConversations[0].unreadCount).toBe(1);
   });
 
   it('rejects a bad signature with 403 and writes nothing', async () => {
