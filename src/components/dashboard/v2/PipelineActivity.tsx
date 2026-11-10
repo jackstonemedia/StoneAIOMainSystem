@@ -107,10 +107,7 @@ export function PipelineActivity({ metrics, isLoading }: PipelineActivityProps) 
               <div className="skeleton h-32 rounded-lg" />
             ) : agents.length === 0 ? (
               <p className="text-[13px] text-text-muted">
-                No agent runs recorded.{' '}
-                <Link to="/agents/voice/new" className="text-primary font-semibold">
-                  Build an agent
-                </Link>
+                No agent runs recorded.
               </p>
             ) : (
               <ul>

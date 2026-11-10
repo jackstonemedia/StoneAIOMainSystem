@@ -37,8 +37,6 @@ export const ROUTES = {
   AGENTS: {
     LIST: '/agents',
     NEW: '/agents/new',
-    VOICE_NEW: '/agents/voice/new',
-    VOICE_BUILD: (id: string) => `/agents/voice/${id}/build`,
     WORKFLOW_NEW: '/agents/workflow/new',
     BUILD: (id: string) => `/agents/${id}/build`,
   },

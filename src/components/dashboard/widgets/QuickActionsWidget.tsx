@@ -5,7 +5,6 @@ import {
   DollarSign,
   CheckSquare,
   Zap,
-  Mic,
   MessageSquare,
   BarChart3,
 } from 'lucide-react';
@@ -22,7 +21,6 @@ const ACTIONS = [
   { label: 'Add Deal', icon: DollarSign, path: '/crm/pipeline?new=true' },
   { label: 'Add Task', icon: CheckSquare, path: '/crm/tasks?new=true' },
   { label: 'New Workflow', icon: Zap, path: '/workflows?new=true' },
-  { label: 'New Voice Agent', icon: Mic, path: '/agents/voice/new' },
   { label: 'Open Inbox', icon: MessageSquare, path: '/conversations' },
   { label: 'Analytics', icon: BarChart3, path: '/business/analytics' },
 ];

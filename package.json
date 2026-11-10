@@ -79,8 +79,6 @@
     "react-resizable": "^4.0.1",
     "react-router-dom": "^7.13.1",
     "remark-gfm": "^4.0.1",
-    "retell-client-js-sdk": "^2.0.7",
-    "retell-sdk": "^5.9.0",
     "stripe": "^22.1.0",
     "tailwind-merge": "^3.5.0",
     "twilio": "^5.13.1",

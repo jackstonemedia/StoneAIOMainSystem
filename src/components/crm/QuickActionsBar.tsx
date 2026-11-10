@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, MessageSquare, Phone, FileText, Check, Loader2, X } from 'lucide-react';
+import { Mail, MessageSquare, FileText, Check, Loader2, X } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface QuickActionsBarProps {
@@ -86,14 +86,6 @@ export default function QuickActionsBar({ contactId, contactName, contactPhone, 
         >
           <Mail className="w-4 h-4" />
           <span>Send Email</span>
-        </button>
-
-        <button 
-          className={btnBase + " " + btnInactive}
-          onClick={() => alert('Call feature via Retell AI loading...')}
-        >
-          <Phone className="w-4 h-4" />
-          <span>One-Click Call</span>
         </button>
 
         <button 
