@@ -50,6 +50,7 @@ import publicBookingRouter from './api/routes/public-booking.routes.js';
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
 import { startEmailSendWorker } from './api/services/email-marketing/email-send-worker.service.js';
 import { triggerScheduledCampaigns } from './api/services/email-marketing/campaigns.service.js';
+import { runDueScheduledTasks } from './api/services/assistant/scheduled-task-runner.js';
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
@@ -430,6 +431,21 @@ async function startServer() {
       } catch (err) { console.error('[EmailMarketing Cron]', err); }
     });
     console.log('✅ Email Marketing campaign scheduler: active (1-min interval)');
+
+    // ── AI Assistant: Scheduled tasks runner (every minute) ───────────────
+    // Blueprint 3 Phase 1: the Scheduled page had routes + a manual Run
+    // button but nothing ever called executeTask on a schedule. The runner
+    // polls for due tasks (status active, nextRunAt passed), claims each
+    // one atomically, and executes it. Gated on the assistant flag, like
+    // the /api/assistant routes.
+    if (FEATURES.assistant) {
+      cron.schedule('* * * * *', async () => {
+        try {
+          await runDueScheduledTasks();
+        } catch (err) { console.error('[AssistantScheduler]', err); }
+      });
+      console.log('✅ AI Assistant scheduled-tasks runner: active (1-min interval)');
+    }
 
     // ── Native Outreach: Daily Quota Reset (Midnight UTC & Startup) ─────────
     cron.schedule('0 0 * * *', async () => {

@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 import { Bot, Bell } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../../hooks/useUnreadNotificationsCount';
-import CRMAIAssistant from '../../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../../config/features';
 import NotificationPanel from '../../../components/ui/NotificationPanel';
 
 
 export default function CalendarLayout() {
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
@@ -37,13 +36,15 @@ export default function CalendarLayout() {
       >
         {/* Left: AI Assistant & Notifications */}
         <div className="flex items-center gap-4 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -73,7 +74,6 @@ export default function CalendarLayout() {
       </div>
 
       {/* AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
       
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />

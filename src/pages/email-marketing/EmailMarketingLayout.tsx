@@ -1,8 +1,8 @@
-import { Outlet, useLocation, matchPath } from 'react-router-dom';
-import React, { useState } from 'react';
+import { Link, Outlet, useLocation, matchPath } from 'react-router-dom';
+import React from 'react';
 import { Bot, Bell } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 
 // No top tab bar (removed 2026-11-08, round 2): the section's pages live in
 // the Email Marketing sidebar sub-menu, like CRM's sub-items. The header
@@ -20,7 +20,6 @@ const FULLSCREEN_PATTERNS = [
 ];
 
 export default function EmailMarketingLayout() {
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
   const location = useLocation();
   const isBuilder = FULLSCREEN_PATTERNS.some(
@@ -51,13 +50,15 @@ export default function EmailMarketingLayout() {
         >
           {/* Left: AI Assistant, Notifications & Sub-Navigation Tabs */}
           <div className="flex items-center gap-3 pl-4 pb-2.5 min-w-0 flex-1">
-            <button
-              onClick={() => setIsAIOpen(true)}
-              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors p-1.5 rounded-lg hover:bg-white/5 shrink-0"
-              title="AI Assistant"
-            >
-              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-            </button>
+            {FEATURES.assistant && (
+              <Link
+                to="/assistant"
+                className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors p-1.5 rounded-lg hover:bg-white/5 shrink-0"
+                title="AI Assistant"
+              >
+                <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+              </Link>
+            )}
 
             <button
               onClick={() => document.dispatchEvent(new CustomEvent('open-notifications'))}
@@ -88,7 +89,6 @@ export default function EmailMarketingLayout() {
       </div>
 
       {/* Movable AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </div>
   );
 }

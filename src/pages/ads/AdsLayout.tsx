@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 
 export type AdsPlatform = 'ALL' | 'GOOGLE' | 'FACEBOOK';
@@ -24,7 +24,6 @@ const DATE_RANGES: { label: string; value: AdsPreset }[] = [
 export default function AdsLayout() {
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
-  const [isAIOpen, setIsAIOpen]   = useState(false);
   const [platform, setPlatform]   = useState<AdsPlatform>('ALL');
   const [preset, setPreset]       = useState<AdsPreset>('LAST_30');
 
@@ -53,13 +52,15 @@ export default function AdsLayout() {
       >
         {/* Left — AI bot + Bell + Platform tabs */}
         <div className="flex items-center gap-4 pl-4 py-3">
-          <button
-            onClick={() => setIsAIOpen(true)}
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
 
           <div className="h-5 w-[1px] bg-border" />
 
@@ -144,7 +145,6 @@ export default function AdsLayout() {
       <div className="flex-1 overflow-auto flex flex-col relative w-full bg-bg">
         <Outlet context={{ platform, preset } satisfies Omit<AdsOutletContext, 'refetchRef'>} />
       </div>
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </div>
   );
 }

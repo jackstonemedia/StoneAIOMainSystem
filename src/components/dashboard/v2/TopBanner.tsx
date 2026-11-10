@@ -1,8 +1,9 @@
 import { Bell, ChevronDown, Plus, LayoutGrid } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import type { DateRange } from '../../../types/dashboard';
 import { useUnreadNotificationsCount } from '../../../hooks/useUnreadNotificationsCount';
-import CRMAIAssistant from '../../crm/CRMAIAssistant';
+import { FEATURES } from '../../../config/features';
 
 const RANGE_OPTIONS: { id: DateRange; label: string }[] = [
   { id: '7d', label: 'Last 7 days' },
@@ -22,7 +23,6 @@ interface TopBannerProps {
 
 export function TopBanner({ dateRange, onDateRangeChange }: TopBannerProps) {
   const [rangeOpen, setRangeOpen] = useState(false);
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
   return (
@@ -46,13 +46,15 @@ export function TopBanner({ dateRange, onDateRangeChange }: TopBannerProps) {
         } as React.CSSProperties}
       >
         <div className="flex items-center gap-5 pl-0 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="px-3 py-1.5 rounded-lg font-medium text-[13px] transition-colors shadow-sm"
-            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
-          >
-            AI Assistant
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="px-3 py-1.5 rounded-lg font-medium text-[13px] transition-colors shadow-sm"
+              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+            >
+              AI Assistant
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -128,7 +130,6 @@ export function TopBanner({ dateRange, onDateRangeChange }: TopBannerProps) {
           </button>
         </div>
       </div>
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </>
   );
 }

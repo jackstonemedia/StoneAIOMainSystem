@@ -3,6 +3,7 @@
  * Spec Section 2.8 & Stage S6
  */
 
+import cronParser from 'cron-parser';
 import { withTenant } from './rls.js';
 import { chatEngine } from '../../../packages/ai/engine/chat-engine.js';
 import { toolRegistry } from './tools/registry.js';
@@ -10,6 +11,24 @@ import { buildSystemPrompt } from '../../../packages/ai/prompts/assistant.v1.js'
 import { db } from '../../../infrastructure/database/client.js';
 import { checkAssistantBudget, recordUsage } from '../agent/metering.js';
 import type { AssistantScheduledTask, AssistantTaskRun } from '@prisma/client';
+
+/**
+ * Next occurrence of a cron expression after `from`, or null when the
+ * expression is invalid. The expression is interpreted in the server's
+ * local timezone (cron-parser with no `tz` option; on Render that is UTC),
+ * matching how node-cron schedules the runner tick itself. There is no
+ * per-task timezone in the schema, so a user's "9am" is the server's 9am.
+ */
+export function nextRunAfter(cronExpr: string, from: Date): Date | null {
+  // cron-parser treats an empty string as all-wildcards (every minute) —
+  // guard it, or a blank cron would run a task 1,440 times a day.
+  if (!cronExpr || !cronExpr.trim()) return null;
+  try {
+    return cronParser.parseExpression(cronExpr, { currentDate: from }).next().toDate();
+  } catch {
+    return null;
+  }
+}
 
 export class AssistantScheduledTaskService {
   /**
@@ -54,6 +73,15 @@ export class AssistantScheduledTaskService {
       mode?: string;
     }
   ): Promise<AssistantScheduledTask> {
+    const cron = data.cron || '0 9 * * *';
+    // First run follows the cron expression, not a flat +24h (the old code
+    // ignored the expression here). Invalid expression -> +24h fallback.
+    const now = new Date();
+    const parsed = nextRunAfter(cron, now);
+    const nextRunAt = parsed ?? new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    if (!parsed) {
+      console.error(`[AssistantScheduledTask] Invalid cron expression ${JSON.stringify(cron)} — first run in 24h.`);
+    }
     return await withTenant(workspaceId, async (tx) => {
       return await tx.assistantScheduledTask.create({
         data: {
@@ -61,10 +89,10 @@ export class AssistantScheduledTaskService {
           userId,
           title: data.title,
           prompt: data.prompt,
-          cron: data.cron || '0 9 * * *',
+          cron,
           mode: data.mode || 'read_only',
           status: 'active',
-          nextRunAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Default next day
+          nextRunAt,
         },
       });
     });
@@ -94,6 +122,17 @@ export class AssistantScheduledTaskService {
         throw new Error(`Scheduled task ${id} not found in workspace.`);
       }
 
+      // Changing the cron re-times the next run from the new expression
+      // (from now). Other updates leave nextRunAt alone.
+      let nextRunAt: Date | undefined;
+      if (data.cron !== undefined) {
+        const parsed = nextRunAfter(data.cron, new Date());
+        nextRunAt = parsed ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
+        if (!parsed) {
+          console.error(`[AssistantScheduledTask] Invalid cron expression ${JSON.stringify(data.cron)} — next run in 24h.`);
+        }
+      }
+
       return await tx.assistantScheduledTask.update({
         where: { id },
         data: {
@@ -102,6 +141,7 @@ export class AssistantScheduledTaskService {
           ...(data.cron !== undefined ? { cron: data.cron } : {}),
           ...(data.mode !== undefined ? { mode: data.mode } : {}),
           ...(data.status !== undefined ? { status: data.status } : {}),
+          ...(nextRunAt !== undefined ? { nextRunAt } : {}),
         },
       });
     });

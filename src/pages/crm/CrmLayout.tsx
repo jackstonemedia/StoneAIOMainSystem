@@ -1,12 +1,11 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Link, Outlet, NavLink, useLocation } from 'react-router-dom';
 import React from 'react';
 import { Settings, Search, Bell, Command, Bot, X } from 'lucide-react';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 import NotificationPanel from '../../components/ui/NotificationPanel';
 
 export default function CrmLayout() {
-  const [isAIOpen, setIsAIOpen] = React.useState(false);
   const [isNotifOpen, setIsNotifOpen] = React.useState(false);
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
@@ -34,13 +33,15 @@ export default function CrmLayout() {
       >
         {/* Left: AI Assistant Button */}
         <div className="flex items-center gap-5 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -70,7 +71,6 @@ export default function CrmLayout() {
       </div>
 
       {/* Movable AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
       
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
