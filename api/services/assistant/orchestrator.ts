@@ -9,6 +9,14 @@ import { buildSystemPrompt } from '../../../packages/ai/prompts/assistant.v1.js'
 import { evaluateModeGate, type AccessMode } from './modes.js';
 import { toolRegistry } from './tools/registry.js';
 import { memoryService } from './memory.service.js';
+import { db } from '../../../infrastructure/database/client.js';
+import {
+  checkBudget,
+  crossedWarningThreshold,
+  budgetExhaustedMessage,
+  budgetWarningMessage,
+  type BudgetCheck,
+} from '../agent/metering.js';
 import type { Response } from 'express';
 
 export interface OrchestratorRunOptions {
@@ -74,6 +82,28 @@ export class AssistantOrchestrator {
     // 2. Fetch user settings & workspace settings
     const settings = await assistantRepo.getSettings(workspaceId, userId);
     const wsSettings = await assistantRepo.getWorkspaceSettings(workspaceId);
+
+    // 2b. Pre-flight budget gate (spending caps, slice 1): when the
+    // workspace has used its monthly plan budget, refuse before saving
+    // the user message or calling the model — a blocked turn leaves no
+    // trace. A metering read failure never blocks the assistant (it logs
+    // loudly and the turn runs); the gate enforces whenever the budget
+    // can be read.
+    let budgetBefore: BudgetCheck | null = null;
+    try {
+      budgetBefore = await checkBudget(db as any, workspaceId);
+      if (!budgetBefore.allowed) {
+        if (res) {
+          res.status(402).json({ error: budgetExhaustedMessage(budgetBefore) });
+        }
+        return;
+      }
+    } catch (err) {
+      console.error(
+        '[AssistantBudget] Pre-flight budget check failed (allowing turn):',
+        (err as Error)?.message,
+      );
+    }
 
     const thinking = options.thinking || convo.thinking || settings.thinking || 'auto';
     const effectiveMode = options.mode || convo.mode || 'read_only';
@@ -469,6 +499,26 @@ export class AssistantOrchestrator {
           messages: 1,
           tokens: totalInputTokens + totalOutputTokens,
         });
+
+        // 10b. 80% warning (spending caps, slice 1): warn once when this
+        // turn crosses the line, as its own SSE event before 'done'.
+        if (
+          budgetBefore &&
+          crossedWarningThreshold(
+            budgetBefore.used,
+            budgetBefore.used + totalInputTokens + totalOutputTokens,
+            budgetBefore.budget,
+          )
+        ) {
+          if (res) {
+            this.sendSSE(res, 'budget_warning', {
+              message: budgetWarningMessage(
+                budgetBefore.used + totalInputTokens + totalOutputTokens,
+                budgetBefore.budget,
+              ),
+            });
+          }
+        }
 
         // Trigger memory extraction in background
         memoryService.maybeExtractMemories(workspaceId, userId, content).catch((err) => {

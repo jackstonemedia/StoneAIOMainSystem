@@ -1496,6 +1496,7 @@ export function isExpired(draft: DraftState, nowMs: number): boolean {
 /* ── Gemini provider + DB wrapper ─────────────────────────────────────────── */
 
 import { db } from '../../../infrastructure/database/client.js';
+import { checkAssistantBudget, recordUsage, extractUsage } from '../agent/metering.js';
 import { getProfile } from './business-profile.service.js';
 
 export class InterviewError extends Error {
@@ -1672,6 +1673,10 @@ export interface TurnContext {
   conversation: ChatMessage[];
   checklist: PhaseChecklist;
   briefSoFar: BriefObject | null;
+  /** Spending caps (slice 2): when set, the turn is gated on the workspace
+   * monthly token budget and its tokens are recorded. Unset (tests, the
+   * offline rebuild path) means no metering. */
+  workspaceId?: string;
 }
 
 /** One LLM interview turn. Throws InterviewError(503) when AI is unavailable. */
@@ -1679,6 +1684,21 @@ export async function geminiTurn(
   ctx: TurnContext,
   repair?: { badOutput: unknown; errors: string[] },
 ): Promise<InterviewTurnOutput> {
+  // Spending caps (slice 2): block the turn when the workspace has used
+  // its monthly plan budget — before the key check, so a blocked
+  // workspace gets the budget error even with no key. Throws like any
+  // other turn failure; the caller has already saved the draft with the
+  // user's message, so the brief is never lost.
+  if (ctx.workspaceId) {
+    const budget = await checkAssistantBudget(db as any, ctx.workspaceId);
+    if (!budget.allowed) {
+      throw new InterviewError(
+        budget.message ?? 'Your AI Agent token budget for this month is used up.',
+        402,
+        true,
+      );
+    }
+  }
   const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
   const ai = tryGetAIClient();
   if (!ai) {
@@ -1727,9 +1747,26 @@ export async function geminiTurn(
           responseMimeType: 'application/json',
           responseSchema: interviewResponseSchema(),
         },
-      }) as Promise<{ text?: string }>,
+      }) as Promise<{ text?: string; usageMetadata?: unknown }>,
       AI_TURN_TIMEOUT_MS,
     );
+    // Spending caps (slice 2): count this turn's tokens. Recording never
+    // blocks the turn.
+    if (ctx.workspaceId) {
+      try {
+        const usage = extractUsage(
+          response,
+          `${buildSystemPrompt(ctx.phase, wordsToAvoid)}\n${JSON.stringify(contents)}`,
+          response.text || '',
+        );
+        await recordUsage(db as any, ctx.workspaceId, usage);
+        console.log(
+          `[EmailBudget] recorded ${usage.input + usage.output} tokens (${INTERVIEW_MODEL}) for workspace ${ctx.workspaceId}`,
+        );
+      } catch (err) {
+        console.error('[EmailBudget] Failed to record interview usage:', (err as Error)?.message);
+      }
+    }
     // Parsing only — validation + repair live in resolveOutput (uniform path).
     return parseJsonText((response.text || '').trim()) as InterviewTurnOutput;
   };
@@ -1975,10 +2012,15 @@ export async function executeUnifiedCopywriterTurn({
   conversation,
   currentEmail,
   userMessage,
+  workspaceId,
 }: {
   conversation: ChatMessage[];
   currentEmail?: { subject: string; bodyText: string; previewText?: string } | null;
   userMessage: string;
+  /** Spending caps (slice 2): when set, the turn is gated on the workspace
+   * monthly token budget and its tokens are recorded. Unset (tests, the
+   * offline rebuild path) means no metering. */
+  workspaceId?: string;
 }): Promise<UnifiedTurnOutput> {
   const systemPrompt = `You are an elite, world-class direct-response email copywriter partner. You talk, think, and collaborate like Claude—intelligent, direct, conversational, and genuinely helpful.
 
@@ -2018,6 +2060,18 @@ If you need to ask a clarifying question before drafting, set "email" to null. O
     const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
     const ai = tryGetAIClient();
     if (ai) {
+      // Spending caps (slice 2): a blocked workspace gets the plain-words
+      // message as the reply — the draft stays intact (email: null means
+      // "no new email this turn"; the existing liveEmail is untouched).
+      if (workspaceId) {
+        const budget = await checkAssistantBudget(db as any, workspaceId);
+        if (!budget.allowed) {
+          return {
+            reply: budget.message ?? 'Your AI Agent token budget for this month is used up.',
+            email: null,
+          };
+        }
+      }
       const formattedHistory = conversation.map((m) => ({
         role: m.role === 'ai' ? 'assistant' : 'user',
         text: m.text,
@@ -2044,6 +2098,20 @@ If you need to ask a clarifying question before drafting, set "email" to null. O
           temperature: 0.6,
         },
       });
+
+      // Spending caps (slice 2): count this turn's tokens. Recording
+      // never blocks the turn.
+      if (workspaceId) {
+        try {
+          const usage = extractUsage(response, promptPayload, response.text || '');
+          await recordUsage(db as any, workspaceId, usage);
+          console.log(
+            `[EmailBudget] recorded ${usage.input + usage.output} tokens (${INTERVIEW_MODEL}) for workspace ${workspaceId}`,
+          );
+        } catch (err) {
+          console.error('[EmailBudget] Failed to record interview usage:', (err as Error)?.message);
+        }
+      }
 
       if (response?.text) {
         const cleaned = response.text.replace(/```json\s*|\s*```/g, '').trim();
@@ -2102,6 +2170,7 @@ export async function runTurn(
     conversation: draft.conversation,
     currentEmail,
     userMessage: text,
+    workspaceId,
   });
 
   // 3. Append AI reply
@@ -2163,6 +2232,7 @@ export async function retryTurn(
     conversation: draft.conversation,
     currentEmail,
     userMessage: lastUser.text,
+    workspaceId,
   });
 
   draft.conversation.push({
@@ -2525,6 +2595,7 @@ async function runTurnFromState(
     conversation: draft.conversation,
     checklist,
     briefSoFar: draft.brief,
+    workspaceId,
   };
   let output: InterviewTurnOutput;
   try {
