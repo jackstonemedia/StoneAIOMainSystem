@@ -27,12 +27,52 @@ import {
   type FactMapEntry,
 } from './fact-validator.js';
 import { checkAiRateLimit } from './interview.service.js';
+import {
+  checkAssistantBudget,
+  recordUsage,
+  extractUsage,
+  type TokenUsage,
+} from '../agent/metering.js';
 
 export class DraftError extends Error {
   status: number;
   constructor(message: string, status = 500) {
     super(message);
     this.status = status;
+  }
+}
+
+/**
+ * Spending caps (slice 2): record one generation call's tokens into the
+ * workspace monthly bucket. Failures are logged, never fatal to the draft.
+ * The model is logged with the tokens (slice 3) so the cheap-model saving
+ * is measurable in the server log — the usage tables carry no model column.
+ */
+async function recordGenerationUsage(workspaceId: string, usage: TokenUsage, model?: string): Promise<void> {
+  try {
+    await recordUsage(db as any, workspaceId, usage);
+    console.log(
+      `[EmailBudget] recorded ${usage.input + usage.output} tokens` +
+        (model ? ` (${model})` : '') +
+        ` for workspace ${workspaceId}`,
+    );
+  } catch (err) {
+    console.error('[EmailBudget] Failed to record generation usage:', (err as Error)?.message);
+  }
+}
+
+/**
+ * Spending caps (slice 2): block a generate/refine when the workspace has
+ * used its monthly plan budget. Nothing is written before generation runs,
+ * so a blocked generate leaves the draft untouched.
+ */
+async function assertGenerationBudget(workspaceId: string): Promise<void> {
+  const budget = await checkAssistantBudget(db as any, workspaceId);
+  if (!budget.allowed) {
+    throw new DraftError(
+      budget.message ?? 'Your AI Agent token budget for this month is used up.',
+      402,
+    );
   }
 }
 
@@ -333,6 +373,7 @@ async function geminiGenerateOnce(
   systemPrompt: string,
   userText: string,
   repair?: { badOutput: unknown; errors: string[] },
+  onUsage?: (usage: TokenUsage) => Promise<void> | void,
 ): Promise<GeneratedEmail> {
   const contents = repair
     ? [{ role: 'user', parts: [{ text: `Your previous draft JSON failed validation:\n${repair.errors.join('\n')}\nPrevious output:\n${JSON.stringify(repair.badOutput)}\nFix ONLY those issues and return the full corrected JSON object matching the schema.` }] }]
@@ -348,9 +389,16 @@ async function geminiGenerateOnce(
           responseMimeType: 'application/json',
           responseSchema: draftResponseSchema(),
         },
-      }) as Promise<{ text?: string }>,
+      }) as Promise<{ text?: string; usageMetadata?: unknown }>,
       DRAFT_AI_TIMEOUT_MS,
-    )) as { text?: string };
+    )) as { text?: string; usageMetadata?: unknown };
+    // Spending caps (slice 2): count this call's tokens. Recording never
+    // blocks the draft — a failure here is swallowed by the recorder.
+    try {
+      await onUsage?.(extractUsage(response, `${systemPrompt}\n${userText}`, response.text || ''));
+    } catch {
+      // Recording never blocks the draft.
+    }
     const parsed = parseJsonText((response.text || '').trim());
     const v = validateGenerated(parsed);
     if (!v.ok) throw new ShapeError(v.errors, parsed);
@@ -377,11 +425,12 @@ async function geminiGenerate(
   model: string,
   systemPrompt: string,
   userText: string,
+  onUsage?: (usage: TokenUsage) => Promise<void> | void,
 ): Promise<GeneratedEmail> {
   let repair: { badOutput: unknown; errors: string[] } | undefined;
   for (let attempt = 0; attempt <= DRAFT_MAX_REPAIRS; attempt++) {
     try {
-      return await geminiGenerateOnce(ai, model, systemPrompt, userText, repair);
+      return await geminiGenerateOnce(ai, model, systemPrompt, userText, repair, onUsage);
     } catch (err) {
       if (err instanceof ShapeError && attempt < DRAFT_MAX_REPAIRS) {
         repair = { badOutput: err.badOutput, errors: err.errors };
@@ -400,6 +449,7 @@ async function qualityCheck(
   systemPrompt: string,
   draft: GeneratedEmail,
   briefText: string,
+  onUsage?: (usage: TokenUsage) => Promise<void> | void,
 ): Promise<GeneratedEmail> {
   let current = draft;
   for (let round = 0; round < DRAFT_MAX_REVISE_ROUNDS; round++) {
@@ -413,16 +463,23 @@ async function qualityCheck(
             parts: [{ text: `Review this email draft against the rubric below. Reply with ONLY "OK" if it passes every item, otherwise list each failing item in one line each.\n\nRubric:\n- ${CRITIQUE_RUBRIC}\n\nBrief: ${briefText}\n\nSubjects: ${JSON.stringify(current.subjects)}\nPreview: ${current.previewText}\nBody (text):\n${current.bodyText}` }],
           }],
           config: { systemInstruction: systemPrompt, temperature: 0.2 },
-        }) as Promise<{ text?: string }>,
+        }) as Promise<{ text?: string; usageMetadata?: unknown }>,
         DRAFT_AI_TIMEOUT_MS,
-      )) as { text?: string };
+      )) as { text?: string; usageMetadata?: unknown };
       critique = (response.text || '').trim();
+      // Spending caps (slice 2): count the critique call's tokens too —
+      // the quality check is a second flagship call per draft.
+      try {
+        await onUsage?.(extractUsage(response, `${systemPrompt}\n${briefText}`, critique));
+      } catch {
+        // Recording never blocks the draft.
+      }
     } catch {
       break; // Quality check is best-effort; never blocks the draft.
     }
     if (/^ok\b/i.test(critique)) break;
     try {
-      current = await geminiGenerate(ai, model, systemPrompt, `Revise this email draft to fix these issues, keeping every claim sourced. Return the full corrected draft JSON.\n\nIssues:\n${critique}\n\nCurrent draft:\n${JSON.stringify(current)}`);
+      current = await geminiGenerate(ai, model, systemPrompt, `Revise this email draft to fix these issues, keeping every claim sourced. Return the full corrected draft JSON.\n\nIssues:\n${critique}\n\nCurrent draft:\n${JSON.stringify(current)}`, onUsage);
     } catch {
       break;
     }
@@ -519,6 +576,10 @@ export async function generateEmail(
   if (!checkAiRateLimit(workspaceId)) {
     throw new DraftError('AI call budget for this workspace is exhausted for the hour. Try again later.', 429);
   }
+  // Spending caps (slice 2): block the generate when the workspace has
+  // used its monthly plan budget. Nothing is written yet, so the draft
+  // (and the locked Brief) stays exactly as it was.
+  await assertGenerationBudget(workspaceId);
   const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
   const ai = tryGetAIClient();
   if (!ai) throw new DraftError('AI is not configured on this server (GOOGLE_AI_API_KEY is missing).', 503);
@@ -548,10 +609,11 @@ export async function generateEmail(
       : 'Write the single email for this campaign. Return exactly 3 subject options, preview text (90 characters or fewer), HTML body, plain-text body, and the fact_map.',
   ].filter(Boolean).join('\n\n');
 
-  let generated = await geminiGenerate(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), userText);
+  const recordUsageForWorkspace = (u: TokenUsage) => recordGenerationUsage(workspaceId, u, INTERVIEW_MODEL);
+  let generated = await geminiGenerate(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), userText, recordUsageForWorkspace);
   // Repair loop (max 2) is inside geminiGenerate's validation throw path only
   // for shape errors; the quality check below handles rubric failures.
-  generated = await qualityCheck(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), generated, typeof brief.text === 'string' ? brief.text : JSON.stringify(brief));
+  generated = await qualityCheck(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), generated, typeof brief.text === 'string' ? brief.text : JSON.stringify(brief), recordUsageForWorkspace);
 
   const { validated, removed } = applyValidation(
     { subjects: generated.subjects, previewText: generated.previewText, bodyHtml: generated.bodyHtml, bodyText: generated.bodyText },
@@ -735,6 +797,9 @@ export async function refineEmail(
   if (!checkAiRateLimit(workspaceId)) {
     throw new DraftError('AI call budget for this workspace is exhausted for the hour. Try again later.', 429);
   }
+  // Spending caps (slice 2): same monthly-budget gate as generate — a
+  // blocked refine leaves the email exactly as it was.
+  await assertGenerationBudget(workspaceId);
   const draft = await getDraftOrThrow(workspaceId, email.draftId);
   const { tryGetAIClient, INTERVIEW_MODEL } = await import('../../../packages/ai/client.js');
   const ai = tryGetAIClient();
@@ -751,7 +816,7 @@ export async function refineEmail(
   const userText = scope === 'whole'
     ? `Revise this whole email per the user's instruction. Keep every claim sourced. Return the full corrected draft JSON.\n\nInstruction: ${instruction}\n\nCurrent draft:\n${JSON.stringify(current)}`
     : `Revise ONLY the ${scope} of this email per the user's instruction. Keep everything else identical. Keep every claim sourced. Return the full draft JSON with the revised section.\n\nInstruction: ${instruction}\n\nCurrent draft:\n${JSON.stringify(current)}`;
-  const revised = await geminiGenerate(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), userText);
+  const revised = await geminiGenerate(ai, INTERVIEW_MODEL, draftSystemPrompt(snap), userText, (u) => recordGenerationUsage(workspaceId, u, INTERVIEW_MODEL));
   const { validated, removed } = applyValidation(
     { subjects: revised.subjects, previewText: revised.previewText, bodyHtml: revised.bodyHtml, bodyText: revised.bodyText },
     draft,

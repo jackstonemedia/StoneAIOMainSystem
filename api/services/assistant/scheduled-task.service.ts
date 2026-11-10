@@ -7,6 +7,8 @@ import { withTenant } from './rls.js';
 import { chatEngine } from '../../../packages/ai/engine/chat-engine.js';
 import { toolRegistry } from './tools/registry.js';
 import { buildSystemPrompt } from '../../../packages/ai/prompts/assistant.v1.js';
+import { db } from '../../../infrastructure/database/client.js';
+import { checkAssistantBudget, recordUsage } from '../agent/metering.js';
 import type { AssistantScheduledTask, AssistantTaskRun } from '@prisma/client';
 
 export class AssistantScheduledTaskService {
@@ -159,6 +161,20 @@ export class AssistantScheduledTaskService {
       });
     });
 
+    // Spending caps (slice 1): never run a scheduled task when the
+    // workspace has used its monthly plan budget. Records the block as
+    // a failed run (same shape as any other run failure) instead of
+    // throwing, so the run history shows why it didn't run.
+    const budget = await checkAssistantBudget(db as any, workspaceId);
+    if (!budget.allowed) {
+      return await withTenant(workspaceId, async (tx) => {
+        return await tx.assistantTaskRun.update({
+          where: { id: run.id },
+          data: { status: 'failed', error: budget.message, completedAt: new Date() },
+        });
+      });
+    }
+
     try {
       const toolDeclarations = toolRegistry.getGeminiFunctionDeclarations();
       const toolsConfig = toolDeclarations.length > 0 ? [{ functionDeclarations: toolDeclarations }] : undefined;
@@ -210,6 +226,17 @@ export class AssistantScheduledTaskService {
           },
         });
       });
+
+      // Spending caps (slice 1): scheduled-task tokens go into the
+      // workspace monthly bucket. A recording failure is logged, never
+      // fatal to the run record.
+      if (inputTokens > 0 || outputTokens > 0) {
+        try {
+          await recordUsage(db as any, workspaceId, { input: inputTokens, output: outputTokens });
+        } catch (err) {
+          console.error('[AssistantBudget] Failed to record scheduled-task usage:', (err as Error)?.message);
+        }
+      }
 
       return completedRun;
     } catch (err: unknown) {

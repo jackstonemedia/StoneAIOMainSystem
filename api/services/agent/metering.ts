@@ -72,7 +72,14 @@ export interface UsageTotal extends TokenUsage {
   total: number;
 }
 
-/** Current month's usage for a workspace (zeros when no bucket yet). */
+/** Current month's usage for a workspace (zeros when no bucket yet).
+ * The total is the sum of the OLD agent's monthly bucket
+ * (`agent_token_usage`) and the NEW assistant's daily per-user table
+ * (`assistant_usage`, rolled up by month) — the two tables are the two
+ * write paths for the same workspace budget, and each turn writes to
+ * exactly one of them, so the sum never double-counts. The input/output
+ * split comes from the old bucket only: `assistant_usage` stores a
+ * single `tokens` figure with no split. */
 export async function getUsage(
   db: PrismaClient,
   workspaceId: string,
@@ -81,8 +88,40 @@ export async function getUsage(
   const row = await (db as any).agentTokenUsage.findUnique({
     where: { workspaceId_month: { workspaceId, month } },
   });
-  if (!row) return { input: 0, output: 0, total: 0 };
-  return { input: row.inputTokens, output: row.outputTokens, total: row.totalTokens };
+  const agent = row
+    ? { input: row.inputTokens, output: row.outputTokens, total: row.totalTokens }
+    : { input: 0, output: 0, total: 0 };
+  const assistantTokens = await getAssistantUsage(db, workspaceId, month);
+  return { input: agent.input, output: agent.output, total: agent.total + assistantTokens };
+}
+
+/**
+ * Monthly rollup of the NEW assistant's daily per-user usage
+ * (`assistant_usage.tokens`, one row per workspace+user+day).
+ * Defensive by design: if the table does not exist yet (the Assistant*
+ * tables have no production migration — launch gap C.1), return 0
+ * instead of breaking this shared path, which the old agent's
+ * `checkBudget` also reads. A missing table means the assistant is
+ * unmetered (its current state), never a crash in the old agent.
+ */
+export async function getAssistantUsage(
+  db: PrismaClient,
+  workspaceId: string,
+  month: string = monthKey(),
+): Promise<number> {
+  try {
+    const agg = await (db as any).assistantUsage.aggregate({
+      _sum: { tokens: true },
+      where: { workspaceId, day: { startsWith: month } },
+    });
+    return agg?._sum?.tokens ?? 0;
+  } catch (err) {
+    console.warn(
+      '[Metering] assistant_usage rollup unavailable, counting 0:',
+      (err as Error)?.message,
+    );
+    return 0;
+  }
 }
 
 /** Add one call's usage to the month's bucket (upsert-increment). */
@@ -149,6 +188,34 @@ export async function checkBudget(
 /** True only when this recording crosses the 80% line (warn once). */
 export function crossedWarningThreshold(usedBefore: number, usedAfter: number, budget: number): boolean {
   return usedBefore < budget * 0.8 && usedAfter >= budget * 0.8;
+}
+
+/**
+ * Budget gate for the NEW assistant paths (chat turns, temporary chat,
+ * scheduled tasks, regenerate/edit). Returns the plain-words block
+ * message when the workspace has used its monthly plan budget.
+ * Never throws: a metering read failure logs loudly and allows the
+ * request, so a metering outage can't take the assistant down. The
+ * post-turn usage recording still runs, so usage is not silently lost.
+ * (The orchestrator does not use this helper — it needs the raw
+ * BudgetCheck numbers for the 80% warning — but follows the same
+ * fail-open-on-read-error rule.)
+ */
+export async function checkAssistantBudget(
+  db: PrismaClient,
+  workspaceId: string,
+): Promise<{ allowed: boolean; message?: string }> {
+  try {
+    const check = await checkBudget(db, workspaceId);
+    if (check.allowed) return { allowed: true };
+    return { allowed: false, message: budgetExhaustedMessage(check) };
+  } catch (err) {
+    console.error(
+      '[AssistantBudget] Budget check failed (allowing request):',
+      (err as Error)?.message,
+    );
+    return { allowed: true };
+  }
 }
 
 export function budgetExhaustedMessage(check: BudgetCheck): string {

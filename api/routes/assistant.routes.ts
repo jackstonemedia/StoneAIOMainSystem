@@ -14,6 +14,8 @@ import { sanitizeSecrets } from '../services/assistant/tools/sanitizer.js';
 import { memoryService } from '../services/assistant/memory.service.js';
 import { scheduledTaskService } from '../services/assistant/scheduled-task.service.js';
 import { projectService } from '../services/assistant/project.service.js';
+import { db } from '../../infrastructure/database/client.js';
+import { checkAssistantBudget, recordUsage } from '../services/agent/metering.js';
 
 const router = Router();
 
@@ -170,6 +172,14 @@ router.post('/conversations/:id/regenerate', async (req: Request, res: Response)
   }
 
   // Remove last assistant message if one exists
+  // Spending caps (slice 1): check the budget BEFORE deleting the last
+  // assistant message, so a blocked regenerate doesn't destroy a reply
+  // the user can still read.
+  const budget = await checkAssistantBudget(db as any, workspaceId);
+  if (!budget.allowed) {
+    return res.status(402).json({ error: budget.message });
+  }
+
   const lastAssistantMsg = await assistantRepo.getLastAssistantMessage(workspaceId, userId, req.params.id);
   if (lastAssistantMsg) {
     await assistantRepo.deleteMessage(workspaceId, userId, lastAssistantMsg.id);
@@ -213,6 +223,14 @@ router.post('/conversations/:id/messages/:messageId/edit', async (req: Request, 
   }
 
   // Truncate messages after this message
+  // Spending caps (slice 1): check the budget BEFORE truncating and
+  // deleting, so a blocked edit doesn't destroy messages the user can
+  // still read.
+  const editBudget = await checkAssistantBudget(db as any, workspaceId);
+  if (!editBudget.allowed) {
+    return res.status(402).json({ error: editBudget.message });
+  }
+
   await assistantRepo.truncateMessagesAfter(workspaceId, userId, req.params.id, req.params.messageId);
 
   // Delete the edited message itself so we re-send it as new
@@ -266,6 +284,16 @@ router.post('/temporary/messages', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Messages array is required' });
   }
 
+  // Spending caps (slice 1): temporary chat is stateless but still burns
+  // tokens — gate it like a normal turn, before any SSE headers.
+  const tempWorkspaceId = (req as any).workspaceId as string | undefined;
+  if (tempWorkspaceId) {
+    const tempBudget = await checkAssistantBudget(db as any, tempWorkspaceId);
+    if (!tempBudget.allowed) {
+      return res.status(402).json({ error: tempBudget.message });
+    }
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -282,6 +310,9 @@ router.post('/temporary/messages', async (req: Request, res: Response) => {
     includeToolParagraph: false,
   });
 
+  let tempInputTokens = 0;
+  let tempOutputTokens = 0;
+
   try {
     const stream = chatEngine.stream(messages, {
       systemPrompt,
@@ -291,11 +322,29 @@ router.post('/temporary/messages', async (req: Request, res: Response) => {
 
     for await (const event of stream) {
       if (controller.signal.aborted) break;
+      if (event.type === 'done') {
+        tempInputTokens += (event as any).inputTokens || 0;
+        tempOutputTokens += (event as any).outputTokens || 0;
+      }
       res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
     }
   } catch {
     res.write(`event: error\ndata: ${JSON.stringify({ code: 'provider_error', message: 'Stream failed' })}\n\n`);
   } finally {
+    // Spending caps (slice 1): temporary-chat tokens go straight into
+    // the workspace monthly bucket (there is no conversation to attach
+    // daily per-user usage to). A recording failure is logged, never
+    // fatal to the response.
+    if (tempWorkspaceId && (tempInputTokens > 0 || tempOutputTokens > 0)) {
+      try {
+        await recordUsage(db as any, tempWorkspaceId, {
+          input: tempInputTokens,
+          output: tempOutputTokens,
+        });
+      } catch (err) {
+        console.error('[AssistantBudget] Failed to record temporary-chat usage:', (err as Error)?.message);
+      }
+    }
     if (!res.writableEnded) res.end();
   }
 });
