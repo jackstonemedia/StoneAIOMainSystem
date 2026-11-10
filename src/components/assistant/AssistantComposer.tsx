@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Square, ChevronDown, Plus,
-  Mic, MicOff, X, FileText, Image as ImageIcon,
-  CornerDownLeft, AudioLines, Check, Folder
+  Mic, X, FileText, Image as ImageIcon,
+  CornerDownLeft, Check, Folder
 } from 'lucide-react';
 import { assistantApi, type AssistantProject } from '../../lib/api/assistant';
 
@@ -382,22 +382,11 @@ export function AssistantComposer({
                 onClick={toggleRecording}
                 aria-label={isRecording ? 'Stop voice recording' : 'Voice input'}
                 title={isRecording ? 'Listening... click to stop' : 'Voice input'}
-                className={`flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
+                className={`p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
                   isRecording ? 'text-rose-400 animate-pulse' : ''
                 }`}
               >
                 <Mic className="w-4 h-4" />
-                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-              </button>
-
-              <button
-                type="button"
-                onClick={toggleRecording}
-                aria-label="Voice conversation mode"
-                title="Voice conversation mode"
-                className="p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
-              >
-                <AudioLines className="w-4 h-4" />
               </button>
 
               {/* When text is entered or streaming, show enter/send button */}
@@ -588,21 +577,11 @@ export function AssistantComposer({
               onClick={toggleRecording}
               aria-label="Voice input"
               title="Voice input"
-              className={`flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
+              className={`p-1 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer ${
                 isRecording ? 'text-rose-400 animate-pulse' : ''
               }`}
             >
               <Mic className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={toggleRecording}
-              aria-label="Voice mode"
-              title="Voice mode"
-              className="flex items-center gap-0.5 text-[#8A8A8D] hover:text-white transition-colors cursor-pointer"
-            >
-              <AudioLines className="w-4 h-4" />
-              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
             </button>
           </div>
         )}

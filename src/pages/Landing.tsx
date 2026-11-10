@@ -42,7 +42,7 @@ export default function Landing() {
         </h1>
         
         <p className="text-lg text-text-muted mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-up" style={{ animationDelay: '100ms' }}>
-          Build workflow automations, deploy voice agents, launch autonomous AI workers, 
+          Build workflow automations, launch autonomous AI workers, 
           and chat with your personal AI assistant — all from one powerful platform.
         </p>
 

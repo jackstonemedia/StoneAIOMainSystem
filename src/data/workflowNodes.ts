@@ -1,5 +1,5 @@
 import { 
-  Zap, Clock, Users, Mail, MessageSquare, Phone, Globe, FormInput,
+  Zap, Clock, Users, Mail, MessageSquare, Globe, FormInput,
   Bot, GitBranch, Repeat, Search, Split, Combine, Filter, Code,
   Database, HardDrive, Share2, Layers, ListFilter,
   Slack, Twitter, Github, Linkedin, CreditCard, ShoppingCart
@@ -412,20 +412,6 @@ const commSms: WorkflowNodeDefinition = {
   ]
 };
 
-const commVoice: WorkflowNodeDefinition = {
-  id: 'comm-voice', category: 'Communication', name: 'Make Voice Call', description: 'Trigger an outbound voice call',
-  type: 'output', icon: Phone,
-  colorClass: 'text-text-muted0', bgClass: 'bg-primary/100/10', borderClass: 'hover:border-primary/50',
-  outputs: ['callResult'],
-  configFields: [
-    { key: 'agentId', label: 'Voice Agent', type: 'select', default: '', options: [ { label: '(Select agent)', value: '' } ], helpText: 'Choose from your voice agents' },
-    { key: 'phoneNumber', label: 'Phone Number', type: 'template', default: '{{input.phone}}', required: true },
-    { key: 'firstMessage', label: 'Opening Message', type: 'template', default: '', advanced: true, placeholder: 'Hi, this is...' },
-    { key: 'maxDuration', label: 'Max Duration (min)', type: 'number', default: 10, advanced: true, validation: { min: 1, max: 60 } },
-    { key: 'recordCall', label: 'Record Call', type: 'toggle', default: true, advanced: true },
-  ]
-};
-
 const commSlack: WorkflowNodeDefinition = {
   id: 'comm-slack', category: 'Communication', name: 'Slack Message', description: 'Post a message to Slack',
   type: 'output', icon: Slack,
@@ -610,7 +596,7 @@ export const WORKFLOW_NODES: WorkflowNodeDefinition[] = [
   // Data & CRM
   dataCode, dataJson, crmContact, crmTask, dbQuery, dataFilter,
   // Communication
-  commEmail, commSms, commVoice, commSlack, commDiscord,
+  commEmail, commSms, commSlack, commDiscord,
   // Integrations
   intHttp, intStripe, intShopify, intGithub, intTwitter, intLinkedin, intDrive,
 ];
