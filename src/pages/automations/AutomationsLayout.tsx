@@ -1,12 +1,10 @@
-import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Zap, Play, Link2, Table2, GitMerge, Settings, ShieldAlert, Search, Bell, Command, Bot } from 'lucide-react';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 
 export default function AutomationsLayout() {
   const { count: unreadCount } = useUnreadNotificationsCount();
-  const [isAIOpen, setIsAIOpen] = useState(false);
 
   return (
     <>
@@ -31,13 +29,15 @@ export default function AutomationsLayout() {
         } as React.CSSProperties}
       >
         <div className="flex items-center gap-5 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -86,7 +86,6 @@ export default function AutomationsLayout() {
         </div>
       </div>
       </div>
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </>
   );
 }

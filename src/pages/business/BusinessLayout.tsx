@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Search, Bell, Command, Bot } from 'lucide-react';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
 
 export default function BusinessLayout() {
   const location = useLocation();
   const { count: unreadCount } = useUnreadNotificationsCount();
-  const [isAIOpen, setIsAIOpen] = useState(false);
 
 
   return (
@@ -33,13 +32,15 @@ export default function BusinessLayout() {
       >
         {/* Left: AI Assistant Button + Bell + Tabs */}
         <div className="flex items-center gap-5 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -83,7 +84,6 @@ export default function BusinessLayout() {
         </div>
       </main>
 
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
     </div>
   );
 }

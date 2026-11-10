@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { AlertTriangle, X, Bot, Bell, Search } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConversationsProvider, useConversationsCtx } from './context/ConversationsContext';
 import { useChannelConnections } from '../../hooks/useConversations';
 import { useUnreadNotificationsCount } from '../../hooks/useUnreadNotificationsCount';
-import CRMAIAssistant from '../../components/crm/CRMAIAssistant';
+import { FEATURES } from '../../config/features';
 import NotificationPanel from '../../components/ui/NotificationPanel';
 
 function DisconnectedBanner() {
@@ -99,7 +99,6 @@ function ConversationsTopBarActions() {
 }
 
 function ConversationsLayoutContent() {
-  const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { count: unreadCount } = useUnreadNotificationsCount();
 
@@ -129,13 +128,15 @@ function ConversationsLayoutContent() {
       >
         {/* Left: AI Assistant Button & Notification Bell */}
         <div className="flex items-center gap-5 pl-4 pb-3">
-          <button 
-            onClick={() => setIsAIOpen(true)} 
-            className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
-            title="AI Assistant"
-          >
-            <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
-          </button>
+          {FEATURES.assistant && (
+            <Link
+              to="/assistant"
+              className="flex items-center text-[var(--sidebar-text-muted)] hover:text-[var(--sidebar-text-main)] transition-colors"
+              title="AI Assistant"
+            >
+              <Bot className="w-[18px] h-[18px]" strokeWidth={2} />
+            </Link>
+          )}
           
           <div className="h-5 w-[1px] bg-border" />
 
@@ -166,7 +167,6 @@ function ConversationsLayoutContent() {
       </div>
 
       {/* AI Assistant */}
-      <CRMAIAssistant isOpen={isAIOpen} onClose={() => setIsAIOpen(false)} />
       
       {/* Notifications Panel */}
       <NotificationPanel isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
