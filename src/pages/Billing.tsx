@@ -176,11 +176,9 @@ export default function Billing() {
     },
   ];
 
-  const invoices = invoicesData && invoicesData.length > 0 ? invoicesData : [
-    { id: 'INV-001', date: 'Mar 1, 2026', amount: '$29.00', status: 'Paid', pdfUrl: '#' },
-    { id: 'INV-002', date: 'Feb 1, 2026', amount: '$29.00', status: 'Paid', pdfUrl: '#' },
-    { id: 'INV-003', date: 'Jan 1, 2026', amount: '$29.00', status: 'Paid', pdfUrl: '#' },
-  ];
+  // No fallback: when Stripe has no invoices, the table shows the honest
+  // empty state below — never invented INV-001/002/003 rows at $29.
+  const invoices = invoicesData ?? [];
 
   return (
     <div className="flex-1 overflow-y-auto p-6 sm:p-8 relative bg-bg select-none">
@@ -386,6 +384,14 @@ export default function Billing() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
+                {invoices.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-10 text-center">
+                      <p className="text-[13px] font-semibold text-text-main">No invoices yet</p>
+                      <p className="text-[12px] text-text-muted mt-1">Your first invoice appears here after your first payment.</p>
+                    </td>
+                  </tr>
+                )}
                 {invoices.map((inv: any) => (
                   <tr key={inv.id} className="hover:bg-surface-hover/60 transition-colors">
                     <td className="px-6 py-4 font-semibold font-mono text-xs text-text-main">{inv.id}</td>
