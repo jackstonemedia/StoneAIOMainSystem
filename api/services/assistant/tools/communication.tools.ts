@@ -132,27 +132,41 @@ export const communicationTools: ToolDefinition[] = [
       args: { recipientEmail: string; subject: string; body: string; contactId?: string },
       ctx
     ) => {
-      // Find or create conversation
-      let convo = await db.conversation.findFirst({
-        where: {
+      // Real delivery first: the workspace's active Gmail connection.
+      // No connection = honest error, and nothing is recorded.
+      const gmailConn = await db.channelConnection.findFirst({
+        where: { workspaceId: ctx.workspaceId, provider: 'gmail', isActive: true },
+      });
+      if (!gmailConn) {
+        throw new Error(
+          'No active Gmail connection found. Please connect your Gmail account in Settings > Integrations.'
+        );
+      }
+
+      const { sendGmailMessage } = await import('../../channels/gmail.service.js');
+      // Send before recording — the row is only marked 'sent' after Gmail
+      // confirms. A failed send throws and leaves no trace.
+      const sent = await sendGmailMessage(
+        gmailConn.id,
+        args.recipientEmail,
+        args.subject,
+        args.body
+      );
+
+      // Fresh conversation per send: reusing an old thread for a new subject
+      // would mis-thread it. The Gmail thread id is stored so replies thread.
+      const convo = await db.conversation.create({
+        data: {
           workspaceId: ctx.workspaceId,
-          ...(args.contactId ? { contactId: args.contactId } : {}),
+          contactId: args.contactId || null,
           channel: 'email',
+          status: 'open',
+          subject: args.subject,
+          externalId: sent.threadId,
+          channelConnectionId: gmailConn.id,
+          assignedUserId: ctx.userId,
         },
       });
-
-      if (!convo) {
-        convo = await db.conversation.create({
-          data: {
-            workspaceId: ctx.workspaceId,
-            contactId: args.contactId || null,
-            channel: 'email',
-            status: 'open',
-            subject: args.subject,
-            assignedUserId: ctx.userId,
-          },
-        });
-      }
 
       const msg = await db.conversationMessage.create({
         data: {
@@ -161,6 +175,7 @@ export const communicationTools: ToolDefinition[] = [
           body: args.body,
           direction: 'outbound',
           status: 'sent',
+          externalId: sent.messageId,
         },
       });
 
@@ -198,6 +213,7 @@ export const communicationTools: ToolDefinition[] = [
         recipient: args.recipientEmail,
         subject: args.subject,
         status: 'sent',
+        gmailMessageId: sent.messageId,
         message: `Email sent successfully to ${args.recipientEmail}.`,
       };
     },
@@ -227,6 +243,51 @@ export const communicationTools: ToolDefinition[] = [
         throw new Error(`Conversation ${args.conversationId} not found in workspace.`);
       }
 
+      if (convo.channel !== 'email') {
+        throw new Error(
+          `Cannot reply to a ${convo.channel} conversation from the assistant. Email replies only.`
+        );
+      }
+
+      // The reply goes to the conversation's contact.
+      let recipientEmail: string | undefined;
+      if (convo.contactId) {
+        const contact = await db.contact.findFirst({
+          where: { id: convo.contactId, workspaceId: ctx.workspaceId },
+          select: { email: true },
+        });
+        recipientEmail = contact?.email || undefined;
+      }
+      if (!recipientEmail) {
+        throw new Error('Cannot reply: this conversation has no contact email address.');
+      }
+
+      const gmailConn = await db.channelConnection.findFirst({
+        where: { workspaceId: ctx.workspaceId, provider: 'gmail', isActive: true },
+      });
+      if (!gmailConn) {
+        throw new Error(
+          'No active Gmail connection found. Please connect your Gmail account in Settings > Integrations.'
+        );
+      }
+
+      // Thread only when this conversation is actually a Gmail thread of the
+      // connection we are sending from; otherwise send as a new message and
+      // say so — never claim a threaded reply that did not happen.
+      const threadId =
+        convo.channelConnectionId === gmailConn.id && convo.externalId
+          ? convo.externalId
+          : undefined;
+
+      const { sendGmailMessage } = await import('../../channels/gmail.service.js');
+      const sent = await sendGmailMessage(
+        gmailConn.id,
+        recipientEmail,
+        convo.subject || '(no subject)',
+        args.body,
+        threadId
+      );
+
       const msg = await db.conversationMessage.create({
         data: {
           conversationId: convo.id,
@@ -234,6 +295,7 @@ export const communicationTools: ToolDefinition[] = [
           body: args.body,
           direction: 'outbound',
           status: 'sent',
+          externalId: sent.messageId,
         },
       });
 
@@ -242,6 +304,9 @@ export const communicationTools: ToolDefinition[] = [
         data: {
           lastMessageAt: new Date(),
           status: 'open',
+          ...(threadId
+            ? {}
+            : { externalId: sent.threadId, channelConnectionId: gmailConn.id }),
         },
       });
 
@@ -249,7 +314,10 @@ export const communicationTools: ToolDefinition[] = [
         messageId: msg.id,
         conversationId: convo.id,
         status: 'sent',
-        message: `Reply sent successfully in conversation thread.`,
+        gmailMessageId: sent.messageId,
+        message: threadId
+          ? 'Reply sent successfully in conversation thread.'
+          : 'Reply sent as a new email (no Gmail thread was linked to this conversation).',
       };
     },
   },
@@ -281,71 +349,11 @@ export const communicationTools: ToolDefinition[] = [
         }
       }
 
-      let convo = await db.conversation.findFirst({
-        where: {
-          workspaceId: ctx.workspaceId,
-          ...(args.contactId ? { contactId: args.contactId } : {}),
-          channel: 'sms',
-        },
-      });
-
-      if (!convo) {
-        convo = await db.conversation.create({
-          data: {
-            workspaceId: ctx.workspaceId,
-            contactId: args.contactId || null,
-            channel: 'sms',
-            status: 'open',
-            assignedUserId: ctx.userId,
-          },
-        });
-      }
-
-      const msg = await db.conversationMessage.create({
-        data: {
-          conversationId: convo.id,
-          sender: ctx.userId,
-          body: args.message,
-          direction: 'outbound',
-          status: 'sent',
-        },
-      });
-
-      await db.conversation.update({
-        where: { id: convo.id },
-        data: {
-          lastMessageAt: new Date(),
-          status: 'open',
-        },
-      });
-
-      if (args.contactId && db.contactEvent && typeof db.contactEvent.create === 'function') {
-        await db.contactEvent
-          .create({
-            data: {
-              contactId: args.contactId,
-              type: 'sms',
-              title: `SMS to ${args.phoneNumber}`,
-              content: args.message,
-              metadataJson: JSON.stringify({
-                createdByAssistant: true,
-                createdForUserId: ctx.userId,
-                createdForUserName: ctx.userName || 'User',
-                source: 'assistant',
-                messageId: msg.id,
-              }),
-            },
-          })
-          .catch(() => {});
-      }
-
-      return {
-        messageId: msg.id,
-        conversationId: convo.id,
-        recipient: args.phoneNumber,
-        status: 'sent',
-        message: `SMS sent successfully to ${args.phoneNumber}.`,
-      };
+      // SMS sending is not set up — there is no Twilio dispatch anywhere in
+      // the assistant. Fail honestly instead of recording a fake 'sent'.
+      // (The DND check above still runs first: a DND refusal is the more
+      // specific answer when it applies.)
+      throw new Error('SMS sending is not set up. Connect a Twilio account to enable SMS sending.');
     },
   },
 ];

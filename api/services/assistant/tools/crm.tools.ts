@@ -570,12 +570,11 @@ export const crmTools: ToolDefinition[] = [
       properties: {
         name: { type: 'string', description: 'Company name.' },
         domain: { type: 'string', description: 'Website domain (e.g. acme.com).' },
-        phone: { type: 'string', description: 'Company phone number.' },
         industry: { type: 'string', description: 'Industry or vertical.' },
       },
       required: ['name'],
     },
-    execute: async (args: { name: string; domain?: string; phone?: string; industry?: string }, ctx) => {
+    execute: async (args: { name: string; domain?: string; industry?: string }, ctx) => {
       const company = await crm.createCompany(ctx.workspaceId, args);
       return {
         company: {
@@ -601,19 +600,19 @@ export const crmTools: ToolDefinition[] = [
         companyId: { type: 'string', description: 'The UUID of the company to update.' },
         name: { type: 'string', description: 'Updated company name.' },
         domain: { type: 'string', description: 'Updated website domain.' },
-        phone: { type: 'string', description: 'Updated phone number.' },
+        location: { type: 'string', description: 'Updated location.' },
         industry: { type: 'string', description: 'Updated industry.' },
       },
       required: ['companyId'],
     },
     execute: async (
-      args: { companyId: string; name?: string; domain?: string; phone?: string; industry?: string },
+      args: { companyId: string; name?: string; domain?: string; location?: string; industry?: string },
       ctx
     ) => {
       const company = await crm.updateCompany(args.companyId, ctx.workspaceId, {
         name: args.name,
         website: args.domain,
-        location: args.phone,
+        location: args.location,
         industry: args.industry,
       });
       return {
