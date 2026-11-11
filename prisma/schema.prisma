@@ -639,6 +639,7 @@ model Company {
   deals            Deal[]
   tasks            Task[]
   activities       Activity[]
+  events           CompanyEvent[]
 
   @@map("companies")
 }
@@ -863,6 +864,20 @@ model ContactEvent {
   contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@map("contact_events")
+}
+
+model CompanyEvent {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  type         String
+  title        String
+  content      String?
+  metadataJson String?  @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("company_events")
 }
 
 model Pipeline {

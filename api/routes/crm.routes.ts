@@ -138,6 +138,44 @@ router.get('/companies/:id', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// Company events — mirror of the contacts /:id/events routes. Unlike the
+// contacts routes, the company is looked up workspace-scoped first so one
+// workspace cannot read or write another's activity log.
+router.get('/companies/:id/events', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const company = await db.company.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!company) return res.status(404).json({ error: 'Not found' });
+    const events = await db.companyEvent.findMany({
+      where: { companyId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    res.json(events);
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/companies/:id/events', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const company = await db.company.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!company) return res.status(404).json({ error: 'Not found' });
+    if (typeof req.body?.type !== 'string' || !req.body.type.trim() || typeof req.body?.content !== 'string' || !req.body.content.trim()) {
+      return res.status(400).json({ error: 'type and content are required' });
+    }
+    const event = await db.companyEvent.create({
+      data: {
+        companyId: req.params.id,
+        type: req.body.type,
+        title: req.body.title,
+        content: req.body.content,
+        metadataJson: req.body.metadataJson,
+      },
+    });
+    res.json(event);
+  } catch (e) { dbErr(res, e); }
+});
+
 router.put('/companies/:id', async (req, res) => {
   try { res.json(await crm.updateCompany(req.params.id, req.workspaceId, req.body)); }
   catch (e) { dbErr(res, e); }
