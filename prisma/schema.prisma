@@ -655,6 +655,7 @@ model Company {
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   customFieldsJson String?    @map("custom_fields_json")
+  tagsJson         String?    @default("[]") @map("tags_json")
   workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contacts         Contact[]
   deals            Deal[]
