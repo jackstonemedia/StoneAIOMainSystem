@@ -34,13 +34,18 @@ export async function outlookWebhookHandler(req: Request, res: Response): Promis
 
       if (!msgRes) continue;
       const msg = msgRes.data;
+      const fromAddress: string = msg.from?.emailAddress?.address ?? '';
 
-      // Skip outbound messages
-      if (msg.isDraft || msg.sentDateTime) continue;
+      // Skip drafts and messages sent FROM the connected mailbox itself.
+      // Graph sets sentDateTime on received mail too, so it cannot tell
+      // inbound from outbound — the sender address can. (The old
+      // `msg.sentDateTime` check dropped EVERY received message.)
+      if (msg.isDraft) continue;
+      if (conn.email && fromAddress.toLowerCase() === conn.email.toLowerCase()) continue;
 
       const externalId: string = msg.id;
       const threadId: string = msg.conversationId;
-      const from: string = msg.from?.emailAddress?.address ?? '';
+      const from: string = fromAddress;
       const subject: string = msg.subject ?? '(no subject)';
       const body: string = msg.body?.content ?? '';
 
