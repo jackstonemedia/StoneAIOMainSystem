@@ -9,6 +9,30 @@ export async function createMessage(workspaceId: string, conversationId: string,
   contentAttributes?: any;
   private?: boolean;
 }) {
+  // Outbound agent sends need a real delivery path. The dispatch below only
+  // covers email/gmail, and live_chat replies reach the visitor through the
+  // widget's realtime events. Every other channel (SMS included) has no
+  // sender at all, so fail honestly here — before recording a message that
+  // was never sent.
+  if (data.senderType === 'agent' && !data.private) {
+    const target = await db.inboxConversation.findUnique({
+      where: { id: conversationId },
+      include: { inboxChannel: true },
+    });
+    const channelType = target?.inboxChannel?.channelType;
+    if (
+      channelType &&
+      channelType !== 'email' &&
+      channelType !== 'gmail' &&
+      channelType !== 'live_chat'
+    ) {
+      if (channelType === 'sms') {
+        throw new Error('SMS sending is not set up. Connect a Twilio account to enable SMS sending.');
+      }
+      throw new Error(`Sending via ${channelType} is not set up from the Conversations UI.`);
+    }
+  }
+
   const message = await db.inboxMessage.create({
     data: {
       workspaceId,
