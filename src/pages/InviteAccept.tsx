@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/apiClient';
 import { useUser } from '@clerk/clerk-react';
+import { IS_DEV_AUTH_BYPASS } from '../lib/clerkConfig';
 
 interface InviteInfo {
   email: string;
@@ -26,7 +27,16 @@ type PageState =
 
 export default function InviteAcceptPage() {
   const { token } = useParams<{ token: string }>();
-  const { isSignedIn } = useUser();
+  // useUser() throws when there is no <ClerkProvider /> — in dev auth bypass
+  // the app mounts no provider, so fall back to the bypass state (the dev
+  // user is signed in). In production the provider is always mounted.
+  let isSignedIn = false;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    isSignedIn = useUser().isSignedIn ?? false;
+  } catch {
+    isSignedIn = IS_DEV_AUTH_BYPASS;
+  }
   const [state, setState] = useState<PageState>({ kind: 'loading' });
   const [busy, setBusy] = useState(false);
 

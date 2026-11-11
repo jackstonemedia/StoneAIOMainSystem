@@ -147,7 +147,16 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState('member');
 
   // Security modals
-  const { user } = useUser();
+  // useUser() throws when there is no <ClerkProvider /> — in dev auth bypass
+  // the app mounts no provider, so fall back to null (the password mutation
+  // already refuses honestly with "Not signed in" when user is null).
+  let user: ReturnType<typeof useUser>['user'] | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    user = useUser().user;
+  } catch {
+    user = null;
+  }
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showTwoFAModal, setShowTwoFAModal] = useState(false);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
