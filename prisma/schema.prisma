@@ -24,6 +24,7 @@ model Workspace {
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]
+  invites           WorkspaceInvite[]
   autonomyGrants    AgentAutonomyGrant[]
   agentConversations AgentConversation[]
   agentAuditLogs    AgentAuditLog[]
@@ -468,6 +469,26 @@ model WorkspaceMember {
 
   @@id([workspaceId, userId])
   @@map("workspace_members")
+}
+
+// Email invite to join a workspace. The token is the credential (32 random
+// chars); the invitee accepts at /invite/:token after signing in, and the
+// accept creates a real WorkspaceMember with their Clerk user id.
+model WorkspaceInvite {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  email       String
+  role        String    @default("member")
+  token       String    @unique
+  expiresAt   DateTime  @map("expires_at")
+  acceptedAt  DateTime? @map("accepted_at")
+  invitedBy   String    @map("invited_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
+  @@map("workspace_invites")
 }
 
 model User {

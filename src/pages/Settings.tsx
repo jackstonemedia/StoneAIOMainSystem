@@ -195,6 +195,11 @@ export default function SettingsPage() {
     queryFn: () => apiFetch('/api/settings/team').then(r => r.ok ? r.json() : []),
   });
 
+  const { data: pendingInvites = [] } = useQuery<any[]>({
+    queryKey: ['settings', 'team-invites'],
+    queryFn: () => apiFetch('/api/settings/team/invites').then(r => r.ok ? r.json() : []),
+  });
+
   const saveWorkspace = useMutation({
     mutationFn: () => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: wsName }) }).then(r => r.json()),
     onSuccess: () => { toast('success', 'Settings saved!'); qc.invalidateQueries({ queryKey: ['settings'] }); },
@@ -320,9 +325,23 @@ export default function SettingsPage() {
 
   const inviteMember = useMutation({
     mutationFn: ({ email, role }: { email: string; role: string }) =>
-      apiFetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
-    onSuccess: () => { toast('success', 'Invitation sent!'); qc.invalidateQueries({ queryKey: ['settings', 'team'] }); setShowInviteModal(false); setInviteEmail(''); },
-    onError: () => toast('error', 'Failed to send invitation'),
+      apiFetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(async r => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(d?.error || 'Failed to send invitation');
+        return d;
+      }),
+    onSuccess: () => { toast('success', 'Invitation sent!'); qc.invalidateQueries({ queryKey: ['settings', 'team'] }); qc.invalidateQueries({ queryKey: ['settings', 'team-invites'] }); setShowInviteModal(false); setInviteEmail(''); },
+    onError: (err: any) => toast('error', 'Failed to send invitation', err?.message),
+  });
+
+  const revokeInvite = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/settings/team/invites/${id}`, { method: 'DELETE' }).then(async r => {
+        if (!r.ok) { const d = await r.json().catch(() => null); throw new Error(d?.error || 'Failed to revoke invite'); }
+        return r.json();
+      }),
+    onSuccess: () => { toast('success', 'Invite revoked'); qc.invalidateQueries({ queryKey: ['settings', 'team-invites'] }); },
+    onError: (err: any) => toast('error', 'Failed to revoke invite', err?.message),
   });
 
   const changePassword = useMutation({
@@ -889,20 +908,24 @@ export default function SettingsPage() {
         </div>
         <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
           <div className="px-6 py-4 border-b border-border bg-surface-hover/20 flex items-center justify-between">
-            <h3 className="text-[13px] font-bold text-text-main">Members ({members.length || 1})</h3>
+            <h3 className="text-[13px] font-bold text-text-main">Members ({members.length})</h3>
             <button onClick={() => setShowInviteModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-[6px] text-[12px] font-semibold hover:opacity-90 transition-opacity">
               <Plus className="w-3.5 h-3.5" /> Invite Member
             </button>
           </div>
           <div className="divide-y divide-border/40">
-            <div className="flex items-center gap-4 px-6 py-4 hover:bg-surface-hover/20 transition-colors">
-              <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">JS</div>
-              <div className="flex-1">
-                <div className="text-[13px] font-semibold text-text-main">Jack Stone</div>
-                <div className="text-[11px] text-text-muted">jack@stoneaio.com</div>
+            {members.map((m: any) => (
+              <div key={m.userId} className="flex items-center gap-4 px-6 py-4 hover:bg-surface-hover/20 transition-colors">
+                <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                  {(m.userId || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold text-text-main truncate">{m.userId}</div>
+                  <div className="text-[11px] text-text-muted">Joined {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : ''}</div>
+                </div>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-primary/10 text-primary rounded-full capitalize">{m.role}</span>
               </div>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-primary/10 text-primary rounded-full">Admin</span>
-            </div>
+            ))}
             {members.length === 0 && (
               <div className="px-6 py-12 text-center">
                 <div className="w-12 h-12 bg-surface-hover rounded-full flex items-center justify-center mx-auto mb-3">
@@ -914,6 +937,31 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        {pendingInvites.length > 0 && (
+          <div className="bg-surface border border-border rounded-[12px] overflow-hidden">
+            <div className="px-6 py-4 border-b border-border bg-surface-hover/20">
+              <h3 className="text-[13px] font-bold text-text-main">Pending invites ({pendingInvites.length})</h3>
+            </div>
+            <div className="divide-y divide-border/40">
+              {pendingInvites.map((inv: any) => (
+                <div key={inv.id} className="flex items-center gap-4 px-6 py-4 hover:bg-surface-hover/20 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-semibold text-text-main truncate">{inv.email}</div>
+                    <div className="text-[11px] text-text-muted">Expires {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString() : ''}</div>
+                  </div>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/10 text-amber-400 rounded-full capitalize">{inv.role}</span>
+                  <button
+                    onClick={() => revokeInvite.mutate(inv.id)}
+                    disabled={revokeInvite.isPending}
+                    className="px-2.5 py-1 border border-border rounded-[6px] text-[11px] font-semibold text-text-muted hover:text-red-400 hover:border-red-400/40 transition-colors"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     ),
 

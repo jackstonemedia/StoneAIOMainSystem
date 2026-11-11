@@ -113,20 +113,88 @@ router.get('/integrations', async (req, res) => {
 router.get('/team', async (req, res) => {
   try {
     const members = await db.workspaceMember.findMany({ where: { workspaceId: req.workspaceId } });
-    res.json(members);
-  } catch (e) { res.json([{ userId: 'user_admin', role: 'admin' }]); }
+    // Rows left by the old fake-invite flow (userId "pending_...") were never
+    // members — they can never match a real Clerk user. Filter them from the
+    // list instead of showing them as people.
+    res.json(members.filter((m: any) => !m.userId.startsWith('pending_')));
+  } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
 router.post('/team/invite', requireRole('admin'), async (req, res) => {
   try {
-    const { email, role = 'member' } = req.body;
-    if (!email) return res.status(400).json({ error: 'email is required' });
-    // Generate a pending userId — in production this would trigger an email invite
-    const userId = `pending_${email.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}`;
-    const member = await db.workspaceMember.create({
-      data: { workspaceId: req.workspaceId, userId, role },
+    const { email, role = 'member' } = (req.body || {}) as { email?: string; role?: string };
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!cleanEmail || !cleanEmail.includes('@')) return res.status(400).json({ error: 'A valid email is required' });
+    if (role !== 'member' && role !== 'admin') return res.status(400).json({ error: 'role must be member or admin' });
+
+    const existing = await db.workspaceInvite.findFirst({
+      where: { workspaceId: req.workspaceId, email: cleanEmail, acceptedAt: null, expiresAt: { gt: new Date() } },
     });
-    res.json({ success: true, member, invited: email });
+    if (existing) {
+      return res.status(409).json({ error: 'An invite is already pending for this email. Revoke it first to send a new one.' });
+    }
+
+    // Invites are sent by real email through the workspace's Gmail connection.
+    const gmailConn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'gmail', isActive: true },
+    });
+    if (!gmailConn) {
+      return res.status(503).json({ error: 'Connect Gmail in Settings > Integrations first — invites are sent by email.' });
+    }
+
+    const { nanoid } = await import('nanoid');
+    const token = nanoid(32);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const invite = await db.workspaceInvite.create({
+      data: {
+        workspaceId: req.workspaceId,
+        email: cleanEmail,
+        role,
+        token,
+        expiresAt,
+        invitedBy: req.userId || 'system',
+      },
+    });
+
+    const ws = await db.workspace.findUnique({ where: { id: req.workspaceId }, select: { name: true } });
+    const appUrl = (process.env.PUBLIC_APP_URL || process.env.VITE_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const acceptUrl = `${appUrl}/invite/${token}`;
+    try {
+      const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+      await sendGmailMessage(
+        gmailConn.id,
+        cleanEmail,
+        `You've been invited to join ${ws?.name || 'Stone AIO'}`,
+        `You've been invited to join ${ws?.name || 'Stone AIO'} on Stone AIO as a ${role}.\n\nAccept your invite here:\n${acceptUrl}\n\nThis invite expires in 7 days. If you don't have a Stone AIO account yet, sign up first, then open this link again.`,
+      );
+    } catch (sendErr) {
+      // The email never went out — don't leave a useless invite behind.
+      await db.workspaceInvite.delete({ where: { id: invite.id } }).catch(() => null);
+      console.error('[Team Invite] Email send failed:', sendErr);
+      return res.status(502).json({ error: `Invite email could not be sent: ${sendErr instanceof Error ? sendErr.message : String(sendErr)}` });
+    }
+
+    res.json({ success: true, invite: { id: invite.id, email: invite.email, role: invite.role, expiresAt: invite.expiresAt } });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+// Pending invites for the workspace (admins only; tokens never leave the server).
+router.get('/team/invites', requireRole('admin'), async (req, res) => {
+  try {
+    const invites = await db.workspaceInvite.findMany({
+      where: { workspaceId: req.workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(invites.map(({ token, ...rest }: any) => rest));
+  } catch (e) { res.status(500).json({ error: String(e) }); }
+});
+
+router.delete('/team/invites/:id', requireRole('admin'), async (req, res) => {
+  try {
+    const invite = await db.workspaceInvite.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!invite) return res.status(404).json({ error: 'Invite not found' });
+    await db.workspaceInvite.delete({ where: { id: invite.id } });
+    res.json({ success: true });
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

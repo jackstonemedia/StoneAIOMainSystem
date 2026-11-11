@@ -45,6 +45,7 @@ import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
+import invitesRouter, { publicInvitesRouter } from './api/routes/invites.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
@@ -304,6 +305,9 @@ async function startServer() {
   // ── Public calendar booking & ICS downloads (no JWT) ──────────────────────────
   app.use('/api/public/calendar', publicBookingRouter);
 
+  // ── Public invite lookup (no JWT — the invitee may not have an account yet) ──
+  app.use('/api/invites', publicInvitesRouter);
+
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
 
@@ -322,6 +326,7 @@ async function startServer() {
   app.use('/api/crm',            crmRouter);
   app.use('/api/business',       businessRouter);
   app.use('/api/settings',       settingsRouter);
+  app.use('/api/invites',         invitesRouter); // accept (authed; lookup is public, above)
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
