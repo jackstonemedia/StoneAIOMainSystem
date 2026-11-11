@@ -152,6 +152,9 @@ function MessageBubble({
                   {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
                 </button>
               )}
+              {isFailed && msg.errorMsg && (
+                <span className="text-red-400 font-normal truncate max-w-[280px]" title={msg.errorMsg}>{msg.errorMsg}</span>
+              )}
               <span>{formatTs(msg.createdAt)}</span>
               <span>•</span>
               <span className="font-semibold text-text-muted">{fromLabel}</span>
@@ -208,6 +211,9 @@ function MessageBubble({
               >
                 {retrying ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />} Retry
               </button>
+            )}
+            {isFailed && msg.errorMsg && (
+              <span className="text-red-400 font-normal truncate max-w-[280px]" title={msg.errorMsg}>{msg.errorMsg}</span>
             )}
             <span>{formatTs(msg.createdAt)}</span>
             <span>•</span>
