@@ -163,7 +163,7 @@ export default function Billing() {
       period: '/month',
       desc: 'For professionals and growing businesses.',
       features: ['2,500,000 AI tokens/month', 'Everything in Basic', 'Priority support', 'Advanced analytics', 'Email marketing + automations require Complete'],
-      color: 'border-purple',
+      color: 'border-primary',
     },
     {
       id: 'complete',
@@ -172,7 +172,7 @@ export default function Billing() {
       period: '/month',
       desc: 'For teams that need everything.',
       features: ['10,000,000 AI tokens/month', 'Everything in Plus', 'Email marketing + automations', 'Team workspaces', 'Dedicated support', '7-day free trial'],
-      color: 'border-amber',
+      color: 'border-primary',
     },
   ];
 

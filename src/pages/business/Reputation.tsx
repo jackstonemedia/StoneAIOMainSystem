@@ -186,7 +186,7 @@ export default function ReputationPage() {
       {/* ── Header ── */}
       <div className="h-[60px] px-6 border-b border-border/60 flex items-center justify-between shrink-0 bg-surface/60 backdrop-blur-md z-10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-sm shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-white shadow-sm shrink-0">
             <Star className="w-4 h-4 fill-white" />
           </div>
           <div>
@@ -209,8 +209,8 @@ export default function ReputationPage() {
 
       {/* ── No review source connected ── */}
       {!statsLoading && statsError && (
-        <div className="mx-6 mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[13px] text-amber-200 shrink-0">
-          <span className="font-bold">No review source connected yet.</span>{' '}
+        <div className="mx-6 mt-4 rounded-xl border border-border bg-surface px-4 py-3 text-[13px] text-text-muted shrink-0">
+          <span className="font-bold text-text-main">No review source connected yet.</span>{' '}
           Connect Google or Facebook in Settings → Integrations to pull in real reviews — no ratings are shown until then.
         </div>
       )}

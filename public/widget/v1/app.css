@@ -1,11 +1,11 @@
 :root {
-  --primary: #4f46e5;
+  --primary: #52677D;
   --bg: #ffffff;
   --text: #1f2937;
   --text-muted: #6b7280;
   --border: #e5e7eb;
   --bubble-in: #f3f4f6;
-  --bubble-out: #4f46e5;
+  --bubble-out: #52677D;
   --text-out: #ffffff;
 }
 

@@ -93,7 +93,7 @@ export default function InviteAcceptPage() {
               Expires {new Date(state.info.expiresAt).toLocaleDateString()}
             </p>
             {!isSignedIn && (
-              <p className="text-[12px] text-amber-400 mt-4">
+              <p className="text-[12px] text-amber mt-4">
                 You'll need a Stone AIO account — sign up, then open this link again to join.
               </p>
             )}
@@ -128,7 +128,7 @@ export default function InviteAcceptPage() {
 
         {state.kind === 'accepted' && (
           <>
-            <p className="text-[15px] font-bold mt-4">Welcome aboard 🎉</p>
+            <p className="text-[15px] font-bold mt-4">Welcome aboard</p>
             <p className="text-[13px] text-text-muted mt-2">You've joined the workspace.</p>
             <Link to="/crm" className="btn-primary mt-6 inline-block px-4 py-2 text-[13px]">Open the workspace</Link>
           </>

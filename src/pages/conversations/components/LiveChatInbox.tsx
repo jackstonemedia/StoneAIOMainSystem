@@ -136,13 +136,13 @@ export default function LiveChatInbox() {
                   <div
                     className={`max-w-[70%] px-3.5 py-2.5 rounded-[12px] text-[13px] leading-relaxed ${
                       m.senderType === 'agent'
-                        ? 'bg-primary text-white rounded-br-[4px]'
+                        ? 'bg-surface-hover text-text-main rounded-br-[4px]'
                         : 'bg-surface border border-border text-text-main rounded-bl-[4px]'
                     }`}
                   >
                     <div className="whitespace-pre-wrap break-words">{m.content}</div>
                     <div
-                      className={`text-[10px] mt-1 ${m.senderType === 'agent' ? 'text-white/70' : 'text-text-muted'}`}
+                      className={`text-[10px] mt-1 text-text-muted`}
                     >
                       {timeAgo(m.createdAt)}
                     </div>
