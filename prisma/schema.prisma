@@ -479,6 +479,22 @@ model User {
   @@map("users")
 }
 
+// Per-user TOTP 2FA. The secret is stored ENCRYPTED (AES-256-GCM, see
+// api/services/channels/encryption.ts) and is never returned after setup.
+// 2FA is per user (keyed by the Clerk user id, same convention as
+// WorkspaceMember.userId), not per workspace.
+model UserTwoFactor {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  secretEncrypted String   @map("secret_encrypted")
+  enabled         Boolean  @default(false)
+  enabledAt       DateTime? @map("enabled_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("user_two_factor")
+}
+
 model Agent {
   id          String         @id @default(uuid())
   workspaceId String         @map("workspace_id")

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -146,13 +147,20 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState('member');
 
   // Security modals
+  const { user } = useUser();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showTwoFAModal, setShowTwoFAModal] = useState(false);
   const [showSessionsModal, setShowSessionsModal] = useState(false);
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
   const [twoFACode, setTwoFACode] = useState('');
+  const [twoFAMode, setTwoFAMode] = useState<'enable' | 'disable'>('enable');
   const [twoFASetup, setTwoFASetup] = useState<{ qrCodeUrl: string; secret: string } | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+
+  const { data: twoFAStatus } = useQuery<{ enabled: boolean; configured: boolean }>({
+    queryKey: ['settings', '2fa-status'],
+    queryFn: () => apiFetch('/api/settings/2fa/status').then(r => r.ok ? r.json() : { enabled: false, configured: false }),
+  });
 
   useQuery<any>({
     queryKey: ['settings', 'workspace'],
@@ -318,10 +326,15 @@ export default function SettingsPage() {
   });
 
   const changePassword = useMutation({
-    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
-      apiFetch('/api/settings/password', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword, newPassword }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+    // Passwords are owned by Clerk: change them through Clerk's own API.
+    // (The old backend PUT /settings/password returned success without
+    // changing anything — it was deleted in Tier 1 Fix 1.)
+    mutationFn: async ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) => {
+      if (!user) throw new Error('Not signed in');
+      await user.updatePassword({ currentPassword, newPassword });
+    },
     onSuccess: () => { toast('success', 'Password updated!'); setShowPasswordModal(false); setPwForm({ current: '', next: '', confirm: '' }); },
-    onError: () => toast('error', 'Failed to update password'),
+    onError: (err: any) => toast('error', 'Failed to update password', err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message),
   });
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -921,17 +934,21 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>
-                <div className="text-[13px] font-semibold text-text-main">Two-Factor Authentication</div>
+                <div className="text-[13px] font-semibold text-text-main">Two-Factor Authentication {twoFAStatus?.enabled && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full ml-1">Enabled</span>}</div>
                 <div className="text-[11px] text-text-muted mt-0.5">2FA adds an extra layer of security</div>
               </div>
-              <button onClick={() => { apiFetch('/api/settings/2fa/setup').then(r => r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
+              {twoFAStatus?.enabled ? (
+                <button onClick={() => { setTwoFAMode('disable'); setTwoFACode(''); setTwoFASetup(null); setShowTwoFAModal(true); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Disable</button>
+              ) : (
+                <button onClick={() => { setTwoFAMode('enable'); apiFetch('/api/settings/2fa/setup').then(r => r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
+              )}
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>
                 <div className="text-[13px] font-semibold text-text-main">Active Sessions</div>
                 <div className="text-[11px] text-text-muted mt-0.5">Manage where you are logged in</div>
               </div>
-              <button onClick={() => { apiFetch('/api/settings/sessions').then(r => r.json()).then(d => { setSessions(d); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
+              <button onClick={() => { apiFetch('/api/settings/sessions').then(async r => { const d = await r.json().catch(() => null); if (!r.ok) { toast('error', 'Could not load sessions', d?.error || 'Sessions are unavailable'); return; } setSessions(Array.isArray(d) ? d : []); setShowSessionsModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">View</button>
             </div>
           </div>
         </div>
@@ -1014,19 +1031,25 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* 2FA Setup Modal */}
-      {showTwoFAModal && twoFASetup && (
+      {/* 2FA Setup / Disable Modal */}
+      {showTwoFAModal && (twoFAMode === 'disable' || twoFASetup) && (
         <div className={modalBase} onClick={() => setShowTwoFAModal(false)}>
           <div className={card} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-[16px] font-bold text-text-main">Enable Two-Factor Auth</h3>
+              <h3 className="text-[16px] font-bold text-text-main">{twoFAMode === 'disable' ? 'Disable Two-Factor Auth' : 'Enable Two-Factor Auth'}</h3>
               <button onClick={() => setShowTwoFAModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
             </div>
-            <p className="text-[12px] text-text-muted mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.).</p>
-            <div className="flex justify-center mb-4">
-              <img src={twoFASetup.qrCodeUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg border border-border" />
-            </div>
-            <p className="text-[11px] text-text-muted text-center mb-4">Manual key: <code className="font-mono text-primary">{twoFASetup.secret}</code></p>
+            {twoFAMode === 'enable' && twoFASetup ? (
+              <>
+                <p className="text-[12px] text-text-muted mb-4">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.).</p>
+                <div className="flex justify-center mb-4">
+                  <img src={twoFASetup.qrCodeUrl} alt="2FA QR Code" className="w-48 h-48 rounded-lg border border-border" />
+                </div>
+                <p className="text-[11px] text-text-muted text-center mb-4">Manual key: <code className="font-mono text-primary">{twoFASetup.secret}</code></p>
+              </>
+            ) : (
+              <p className="text-[12px] text-text-muted mb-4">Enter the current code from your authenticator app to disable two-factor authentication.</p>
+            )}
             <div>
               <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">Verification Code</label>
               <input type="text" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g, ''))}
@@ -1034,12 +1057,21 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowTwoFAModal(false)} className="flex-1 px-4 py-2 border border-border rounded-[8px] text-[13px] font-semibold text-text-muted hover:bg-surface-hover">Cancel</button>
-              <button
-                onClick={() => apiFetch('/api/settings/2fa/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: twoFACode }) }).then(r => r.json()).then(d => { if (d.success) { toast('success', '2FA enabled!'); setShowTwoFAModal(false); } else toast('error', 'Invalid code'); })}
-                disabled={twoFACode.length !== 6}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
-                Verify & Enable
-              </button>
+              {twoFAMode === 'disable' ? (
+                <button
+                  onClick={() => apiFetch('/api/settings/2fa', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: twoFACode }) }).then(async r => { const d = await r.json().catch(() => null); if (r.ok && d?.success) { toast('success', '2FA disabled'); setShowTwoFAModal(false); qc.invalidateQueries({ queryKey: ['settings', '2fa-status'] }); } else toast('error', 'Could not disable 2FA', d?.error || 'Invalid code'); })}
+                  disabled={twoFACode.length !== 6}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
+                  Disable 2FA
+                </button>
+              ) : (
+                <button
+                  onClick={() => apiFetch('/api/settings/2fa/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: twoFACode }) }).then(async r => { const d = await r.json().catch(() => null); if (r.ok && d?.success) { toast('success', '2FA enabled!'); setShowTwoFAModal(false); qc.invalidateQueries({ queryKey: ['settings', '2fa-status'] }); } else toast('error', 'Invalid code', d?.error || 'Check your authenticator app and try again'); })}
+                  disabled={twoFACode.length !== 6}
+                  className="flex-1 px-4 py-2 bg-primary text-white rounded-[8px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50">
+                  Verify & Enable
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1054,17 +1086,20 @@ export default function SettingsPage() {
               <button onClick={() => setShowSessionsModal(false)} className="text-text-muted hover:text-text-main"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3">
+              {sessions.length === 0 && (
+                <p className="text-[12px] text-text-muted text-center py-4">No active sessions found.</p>
+              )}
               {sessions.map((s: any) => (
                 <div key={s.id} className="flex items-center gap-3 p-3 bg-bg border border-border rounded-[8px]">
                   <Monitor className="w-4 h-4 text-text-muted shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-text-main flex items-center gap-2">
-                      {s.device} {s.isCurrent && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full">Current</span>}
+                      Session {String(s.id).slice(0, 8)}… {s.isCurrent && <span className="text-[10px] font-bold text-green bg-green/10 px-2 py-0.5 rounded-full">Current</span>}
                     </div>
-                    <div className="text-[11px] text-text-muted">{s.location} · {s.ip}</div>
+                    <div className="text-[11px] text-text-muted">{s.lastActiveAt ? `Last active ${new Date(s.lastActiveAt).toLocaleString()}` : `Status: ${s.status || 'active'}`}</div>
                   </div>
                   {!s.isCurrent && (
-                    <button onClick={() => apiFetch(`/api/settings/sessions/${s.id}`, { method: 'DELETE' }).then(() => { setSessions(p => p.filter(x => x.id !== s.id)); toast('success', 'Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
+                    <button onClick={() => apiFetch(`/api/settings/sessions/${s.id}`, { method: 'DELETE' }).then(async r => { const d = await r.json().catch(() => null); if (!r.ok) { toast('error', 'Could not revoke session', d?.error || 'Failed'); return; } setSessions(p => p.filter(x => x.id !== s.id)); toast('success', 'Session revoked'); })} className="text-red hover:bg-red/10 p-1.5 rounded-lg transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}
