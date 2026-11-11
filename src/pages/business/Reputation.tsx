@@ -19,8 +19,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Star, Send, MessageSquare, ThumbsUp, Globe, Mail, Phone,
-  RefreshCw, Plus, Copy, Check, Search, Filter, ChevronDown,
-  TrendingUp, AlertCircle, ExternalLink, User, Code2, X
+  RefreshCw, Plus, Search, Filter, ChevronDown,
+  TrendingUp, AlertCircle, ExternalLink, User, X
 } from 'lucide-react';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
@@ -92,7 +92,6 @@ export default function ReputationPage() {
   const [replyTarget, setReplyTarget] = useState<Review | null>(null);
   const [replyText, setReplyText] = useState('');
   const [requestPanelOpen, setRequestPanelOpen] = useState(false);
-  const [widgetCopied, setWidgetCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'reviews' | 'request' | 'widget'>('reviews');
 
   // Request campaign form
@@ -105,29 +104,15 @@ export default function ReputationPage() {
 
   // ── Queries ─────────────────────────────────────────────────────────────────
 
-  const { data: stats, isLoading: statsLoading } = useQuery<ReputationStats>({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<ReputationStats>({
     queryKey: ['reputation', 'stats'],
+    // No fallback: the endpoints do not exist yet, and inventing a 4.3★
+    // average would present fake reputation to the business. When the
+    // query fails, stats stays undefined and the page shows the honest
+    // "no review source connected" state below.
     queryFn: async () => {
-      try {
-        const { data } = await apiClient.get('/business/reputation/stats');
-        return data;
-      } catch {
-        // Return graceful fallback when API isn't wired yet
-        return {
-          avgRating: 4.3,
-          totalReviews: 0,
-          googleAvg: undefined,
-          facebookAvg: undefined,
-          distribution: [
-            { stars: 5, count: 0 },
-            { stars: 4, count: 0 },
-            { stars: 3, count: 0 },
-            { stars: 2, count: 0 },
-            { stars: 1, count: 0 },
-          ],
-          recentTrend: 'flat' as const,
-        };
-      }
+      const { data } = await apiClient.get('/business/reputation/stats');
+      return data;
     },
     staleTime: 60000,
   });
@@ -192,16 +177,6 @@ export default function ReputationPage() {
   const pendingReplies = reviews.filter(r => !r.reply).length;
   const avgRating = stats?.avgRating ?? 0;
 
-  // Widget embed snippet
-  const widgetSnippet = `<script src="https://cdn.stoneaio.com/widget/reviews.js" data-workspace-id="YOUR_WORKSPACE_ID" data-theme="dark"></script>`;
-
-  const handleCopyWidget = () => {
-    navigator.clipboard?.writeText(widgetSnippet);
-    setWidgetCopied(true);
-    setTimeout(() => setWidgetCopied(false), 2000);
-    toast('success', 'Snippet copied!', "Paste into your website's <head> or before </body>.");
-  };
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -231,6 +206,14 @@ export default function ReputationPage() {
           </button>
         </div>
       </div>
+
+      {/* ── No review source connected ── */}
+      {!statsLoading && statsError && (
+        <div className="mx-6 mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[13px] text-amber-200 shrink-0">
+          <span className="font-bold">No review source connected yet.</span>{' '}
+          Connect Google or Facebook in Settings → Integrations to pull in real reviews — no ratings are shown until then.
+        </div>
+      )}
 
       {/* ── KPI Strip ── */}
       <div className="grid grid-cols-4 border-b border-border/40 shrink-0">
@@ -612,8 +595,8 @@ export default function ReputationPage() {
                 <p className="text-[11px] font-bold text-text-muted uppercase mb-3">Widget Preview</p>
                 <div className="flex items-center gap-4 mb-4">
                   <div>
-                    <div className="text-[32px] font-black text-amber-400 leading-none">{avgRating > 0 ? avgRating.toFixed(1) : '4.8'}</div>
-                    <StarRow rating={avgRating > 0 ? avgRating : 4.8} size={4} />
+                    <div className="text-[32px] font-black text-amber-400 leading-none">{avgRating > 0 ? avgRating.toFixed(1) : '—'}</div>
+                    <StarRow rating={avgRating} size={4} />
                     <p className="text-[11px] text-text-muted mt-1">{stats?.totalReviews || 0} verified reviews</p>
                   </div>
                   <div className="flex-1 space-y-1.5">
@@ -632,53 +615,17 @@ export default function ReputationPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {[
-                    { author: 'Sarah M.', rating: 5, text: 'Absolutely incredible service! Highly recommend.' },
-                    { author: 'James R.', rating: 4, text: 'Great experience, very professional team.' },
-                  ].map((ex, i) => (
-                    <div key={i} className="flex-1 bg-surface/60 border border-border/40 rounded-xl p-3">
-                      <StarRow rating={ex.rating} size={3} />
-                      <p className="text-[11px] text-text-main mt-1.5 line-clamp-2">{ex.text}</p>
-                      <p className="text-[10px] text-text-muted mt-1.5 font-bold">{ex.author}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Code snippet */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[12px] font-bold text-text-main flex items-center gap-1.5">
-                    <Code2 className="w-3.5 h-3.5 text-primary" /> Embed Code
-                  </label>
-                  <button
-                    onClick={handleCopyWidget}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all border ${
-                      widgetCopied
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-surface-hover border-border/50 text-text-main hover:border-primary/40'
-                    }`}
-                  >
-                    {widgetCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {widgetCopied ? 'Copied!' : 'Copy Code'}
-                  </button>
-                </div>
-                <pre className="bg-bg border border-border/50 rounded-xl p-4 text-[11px] font-mono text-text-muted overflow-x-auto whitespace-pre-wrap">
-                  {widgetSnippet}
-                </pre>
-                <p className="text-[11px] text-text-muted">
-                  Replace <code className="text-primary font-mono">YOUR_WORKSPACE_ID</code> with your workspace ID found in Settings → General.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 bg-surface/40 border border-border/40 rounded-xl">
-                  <p className="text-[12px] font-bold text-text-main mb-1">Themes</p>
-                  <p className="text-[11px] text-text-muted">data-theme="dark" | "light" | "auto"</p>
-                </div>
-                <div className="p-4 bg-surface/40 border border-border/40 rounded-xl">
-                  <p className="text-[12px] font-bold text-text-main mb-1">Layout</p>
-                  <p className="text-[11px] text-text-muted">data-layout="grid" | "carousel" | "compact"</p>
+                  {reviews.length === 0 ? (
+                    <p className="text-[12px] text-text-muted py-2">No reviews to preview yet — real reviews will appear here once a source is connected.</p>
+                  ) : (
+                    reviews.slice(0, 2).map((r) => (
+                      <div key={r.id} className="flex-1 bg-surface/60 border border-border/40 rounded-xl p-3">
+                        <StarRow rating={r.rating} size={3} />
+                        <p className="text-[11px] text-text-main mt-1.5 line-clamp-2">{r.body}</p>
+                        <p className="text-[10px] text-text-muted mt-1.5 font-bold">{r.authorName}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
