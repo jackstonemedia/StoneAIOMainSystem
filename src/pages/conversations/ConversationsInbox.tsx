@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import ConversationListPane, { FilterPopover, SORT_OPTIONS } from './components/ConversationListPane';
 import ThreadPane from './components/ThreadPane';
+import LiveChatInbox from './components/LiveChatInbox';
 import { useConversationsCtx } from './context/ConversationsContext';
 import { conversationsApi } from '../../lib/api/conversations';
 import { queryKeys } from '../../lib/queryKeys';
@@ -22,6 +23,10 @@ export default function ConversationsInbox() {
   const [showFilter, setShowFilter] = useState(false);
   const [showSort, setShowSort] = useState(false);
   const [pageSizeDropdownOpen, setPageSizeDropdownOpen] = useState(false);
+
+  // Message source: the legacy email/SMS/Meta conversations, or the website
+  // widget's live chats (Tier 1 Fix 2 — widget chats were invisible here).
+  const [source, setSource] = useState<'messages' | 'live'>('messages');
 
   // Pagination states
   const [page, setPage] = useState(1);
@@ -59,6 +64,30 @@ export default function ConversationsInbox() {
 
   return (
     <div className="flex flex-col h-full w-full relative overflow-hidden z-0">
+      {/* ── Source tabs: Messages vs Live chat (website widget) ── */}
+      <div className="mx-8 mt-6 flex gap-2 shrink-0 relative z-10">
+        <button
+          onClick={() => setSource('messages')}
+          className={`px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-colors ${
+            source === 'messages' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+          }`}
+        >
+          Messages
+        </button>
+        <button
+          onClick={() => setSource('live')}
+          className={`px-3 py-1.5 rounded-[8px] text-[12px] font-semibold transition-colors ${
+            source === 'live' ? 'bg-primary text-white' : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
+          }`}
+        >
+          Live chat
+        </button>
+      </div>
+
+      {source === 'live' ? (
+        <LiveChatInbox />
+      ) : (
+        <>
       {/* ── Main Split View inside Disconnected Frosted Glass Panel ── */}
       <div className="flex-1 overflow-hidden mx-8 mt-6 mb-6 rounded-[8px] bg-transparent border border-border/50 shadow-luxury ring-1 ring-white/5 relative z-10 flex">
         <ConversationListPane />
@@ -221,6 +250,8 @@ export default function ConversationsInbox() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

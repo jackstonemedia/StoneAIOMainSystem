@@ -129,7 +129,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${contactId}`
+            'x-inbox-token': TOKEN
           },
           body: JSON.stringify({ content })
         });
@@ -155,7 +155,7 @@
     async function loadConversation() {
       try {
         const res = await fetch(`/api/widget/conversations/${conversationId}/messages`, {
-          headers: { 'Authorization': `Bearer ${contactId}` }
+          headers: { 'x-inbox-token': TOKEN }
         });
         const data = await res.json();
         
@@ -164,7 +164,7 @@
         messagesList.innerHTML = '';
         if (welcome) messagesList.appendChild(welcome);
 
-        data.messages.reverse().forEach(appendMessage);
+        data.messages.forEach(appendMessage);
         
         setupSSE();
         showView(chatView);
@@ -186,8 +186,8 @@
       try {
         const res = await fetch('/api/widget/conversations', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ channelToken: TOKEN, contact: { name, email } })
+          headers: { 'Content-Type': 'application/json', 'x-inbox-token': TOKEN },
+          body: JSON.stringify({ contact: { name, email } })
         });
         const data = await res.json();
         
@@ -208,7 +208,7 @@
 
     function setupSSE() {
       if (eventSource) return;
-      eventSource = new EventSource(`/api/widget/sse?contactId=${contactId}&conversationId=${conversationId}`);
+      eventSource = new EventSource(`/api/widget/conversations/${conversationId}/sse?inboxToken=${TOKEN}`);
       
       eventSource.onmessage = (e) => {
         const data = JSON.parse(e.data);
