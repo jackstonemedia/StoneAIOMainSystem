@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../../infrastructure/database/client.js';
 import axios from 'axios';
 import twilio from 'twilio';
+import { signOAuthState, verifyOAuthState } from '../services/channels/oauth-state.js';
 
 const router = Router();
 
@@ -33,9 +34,21 @@ router.get('/auth/:provider', async (req: Request, res: Response): Promise<any> 
     if (!process.env.META_CLIENT_ID) {
       return res.status(401).send('OAuth BLOCKED: META_CLIENT_ID is missing from .env');
     }
+    // Tier 2 Fix 1: signed, expiring state (CSRF protection). The Meta flow
+    // previously sent no state at all. Unsigned/missing state → no auth URL.
+    let state: string;
+    try {
+      state = signOAuthState({
+        workspaceId: req.workspaceId,
+        userId: req.userId!,
+        provider,
+      });
+    } catch (e: any) {
+      return res.status(400).send(e?.message ?? 'OAuth state signing is not configured.');
+    }
     const redirectUri = encodeURIComponent(`${VITE_APP_URL}/api/integrations/callback/${provider}`);
     const scope = encodeURIComponent('pages_messaging,instagram_basic,instagram_manage_messages,public_profile,email');
-    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.META_CLIENT_ID}&redirect_uri=${redirectUri}&scope=${scope}`;
+    const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${process.env.META_CLIENT_ID}&redirect_uri=${redirectUri}&scope=${scope}&state=${encodeURIComponent(state)}`;
     return res.redirect(authUrl);
   }
 
@@ -45,10 +58,26 @@ router.get('/auth/:provider', async (req: Request, res: Response): Promise<any> 
 // ── OAUTH CALLBACK ────────────────────────────────────────────────────────────
 router.get('/callback/:provider', async (req: Request, res: Response): Promise<any> => {
   const { provider } = req.params;
-  const { code, error } = req.query;
+  const { code, state: rawState, error } = req.query;
 
   if (error) return res.status(401).send(`OAuth Error: ${error}`);
   if (!code) return res.status(400).send('No authorization code provided by provider');
+
+  // Tier 2 Fix 1: the callback is a browser redirect with no JWT, so the
+  // signed state is the only trust anchor for which workspace this token
+  // belongs to. Missing/tampered/expired/mismatched state → 400, no exchange.
+  if (!rawState || typeof rawState !== 'string') {
+    return res.status(400).send('Missing OAuth state');
+  }
+  let state;
+  try {
+    state = verifyOAuthState(rawState);
+  } catch (e: any) {
+    return res.status(400).send(`Invalid OAuth state: ${e?.message ?? 'verification failed'}`);
+  }
+  if (state.provider !== provider) {
+    return res.status(400).send('Invalid OAuth state: provider mismatch');
+  }
 
   const VITE_APP_URL = process.env.VITE_APP_URL || 'http://localhost:3000';
 
@@ -85,9 +114,12 @@ router.get('/callback/:provider', async (req: Request, res: Response): Promise<a
     if (!accessToken) throw new Error('Token exchange yielded empty token');
 
     await db.integration.upsert({
-      where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } },
+      // Tier 2 Fix 1: workspace comes from the VERIFIED signed state, not
+      // req.workspaceId — this callback runs past the JWT bypass, so there is
+      // no session workspace here.
+      where: { workspaceId_provider: { workspaceId: state.workspaceId, provider } },
       update: { accessToken, accountId: accountId ?? undefined, updatedAt: new Date() },
-      create: { workspaceId: req.workspaceId, provider, accessToken, accountId: accountId ?? undefined },
+      create: { workspaceId: state.workspaceId, provider, accessToken, accountId: accountId ?? undefined },
     });
 
     res.redirect('/conversations/chat?integration_success=true');

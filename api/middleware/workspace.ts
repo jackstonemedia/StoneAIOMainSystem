@@ -13,9 +13,12 @@ import { db } from '../../infrastructure/database/client.js';
 export async function resolveWorkspace(req: Request, res: Response, next: NextFunction) {
   if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] Processing request for ${req.path}`);
   try {
-    // ── OAuth callback bypass — browser redirects from Google/Microsoft ────────
-    // These don't carry JWT tokens; they authenticate via the signed state param.
-    if (req.path.match(/\/channels\/(gmail|outlook)\/callback/)) {
+    // ── OAuth callback bypass — browser redirects from Google/Microsoft/Meta ──
+    // These don't carry JWT tokens; they authenticate via the signed state param
+    // (Tier 2 Fix 1: HMAC-SHA256 + expiry, verified in each callback handler).
+    // Without this bypass the Meta callback 401s in production before the
+    // handler ever runs — the redirect carries no Authorization header.
+    if (req.path.match(/\/channels\/(gmail|outlook)\/callback/) || req.path.match(/\/integrations\/callback\//)) {
       if (process.env.NODE_ENV !== 'production') console.log(`[resolveWorkspace] Skipping JWT for OAuth callback: ${req.path}`);
       return next();
     }
