@@ -45,6 +45,7 @@ import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
+import invitesRouter, { publicInvitesRouter } from './api/routes/invites.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
 import emailMarketingRouter, { handleUnsubscribeGet, handleUnsubscribePost, handleTrackClick, handleTrackOpen } from './api/routes/email-marketing.routes.js';
@@ -143,7 +144,15 @@ async function startServer() {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-workspace-id', 'x-requested-with'],
   }));
 
-  app.use(compression());
+  // SSE streams must never be compressed: the gzip buffer holds events until
+  // it fills, so realtime messages never arrive in the browser (curl works
+  // because it sends no Accept-Encoding — which is why this hid so long).
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.path.includes('/sse')) return false;
+      return compression.filter(req, res);
+    },
+  }));
 
   // Raw-body capture for signature-verified webhooks — MUST run before express.json().
   // Stripe (stripe-signature) and Meta + Facebook Leads (X-Hub-Signature-256) are
@@ -296,6 +305,9 @@ async function startServer() {
   // ── Public calendar booking & ICS downloads (no JWT) ──────────────────────────
   app.use('/api/public/calendar', publicBookingRouter);
 
+  // ── Public invite lookup (no JWT — the invitee may not have an account yet) ──
+  app.use('/api/invites', publicInvitesRouter);
+
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
 
@@ -314,6 +326,7 @@ async function startServer() {
   app.use('/api/crm',            crmRouter);
   app.use('/api/business',       businessRouter);
   app.use('/api/settings',       settingsRouter);
+  app.use('/api/invites',         invitesRouter); // accept (authed; lookup is public, above)
   app.use('/api/notifications',  notificationsRouter);
   app.use('/api/billing',        billingRouter);
   app.use('/api',                billingRouter); // stripe + public forms
@@ -345,6 +358,18 @@ async function startServer() {
   app.use(errorHandler);
 
   // ── Serve Public Folder (Widget JS) ───────────────────────────────────────
+  // The widget is MEANT to be embedded on third-party websites, so its files
+  // must not carry the app's same-origin framing/resource headers: helmet's
+  // X-Frame-Options: SAMEORIGIN would block the iframe and
+  // Cross-Origin-Resource-Policy: same-origin would block loader.js from
+  // loading at all (ERR_BLOCKED_BY_RESPONSE). These overrides apply ONLY to
+  // /widget/* — the rest of the app keeps the headers.
+  app.use('/widget', express.static(path.join(process.cwd(), 'public/widget'), {
+    setHeaders: (res) => {
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
+  }));
   app.use(express.static(path.join(process.cwd(), 'public')));
 
   // ── Frontend Routing ──────────────────────────────────────────────────────

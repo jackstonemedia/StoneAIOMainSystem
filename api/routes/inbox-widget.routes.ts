@@ -33,10 +33,31 @@ router.post('/contacts', async (req, res) => {
 
 // 3. Conversations
 router.post('/conversations', async (req, res) => {
-  const { contactId } = req.body;
+  const { contactId, contact } = req.body;
+  let resolvedContactId = contactId as string | undefined;
+
+  // The shipped widget posts { contact: { name, email } } (see
+  // public/widget/v1/app.html). Resolve-or-create the contact by email
+  // (used as the externalId) so the widget needs no prior contact call.
+  if (!resolvedContactId && contact?.email) {
+    const resolved = await resolveWidgetContact((req as any).workspaceId, contact.email, {
+      name: contact.name,
+      email: contact.email,
+    });
+    resolvedContactId = resolved.id;
+    const conversation = await createConversation((req as any).workspaceId, {
+      inboxChannelId: (req as any).inboxChannel.id,
+      inboxContactId: resolvedContactId,
+    });
+    return res.json({ conversation, contact: resolved });
+  }
+
+  if (!resolvedContactId) {
+    return res.status(400).json({ error: 'contactId or contact.email is required' });
+  }
   const conversation = await createConversation((req as any).workspaceId, {
     inboxChannelId: (req as any).inboxChannel.id,
-    inboxContactId: contactId,
+    inboxContactId: resolvedContactId,
   });
   res.json(conversation);
 });

@@ -24,6 +24,7 @@ model Workspace {
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]
+  invites           WorkspaceInvite[]
   autonomyGrants    AgentAutonomyGrant[]
   agentConversations AgentConversation[]
   agentAuditLogs    AgentAuditLog[]
@@ -470,6 +471,26 @@ model WorkspaceMember {
   @@map("workspace_members")
 }
 
+// Email invite to join a workspace. The token is the credential (32 random
+// chars); the invitee accepts at /invite/:token after signing in, and the
+// accept creates a real WorkspaceMember with their Clerk user id.
+model WorkspaceInvite {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  email       String
+  role        String    @default("member")
+  token       String    @unique
+  expiresAt   DateTime  @map("expires_at")
+  acceptedAt  DateTime? @map("accepted_at")
+  invitedBy   String    @map("invited_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([token])
+  @@map("workspace_invites")
+}
+
 model User {
   id                 String                   @id @default(uuid())
   clerkId            String                   @unique @map("clerk_id")
@@ -477,6 +498,22 @@ model User {
   updatedAt          DateTime                 @updatedAt @map("updated_at")
 
   @@map("users")
+}
+
+// Per-user TOTP 2FA. The secret is stored ENCRYPTED (AES-256-GCM, see
+// api/services/channels/encryption.ts) and is never returned after setup.
+// 2FA is per user (keyed by the Clerk user id, same convention as
+// WorkspaceMember.userId), not per workspace.
+model UserTwoFactor {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  secretEncrypted String   @map("secret_encrypted")
+  enabled         Boolean  @default(false)
+  enabledAt       DateTime? @map("enabled_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("user_two_factor")
 }
 
 model Agent {
@@ -618,11 +655,13 @@ model Company {
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   customFieldsJson String?    @map("custom_fields_json")
+  tagsJson         String?    @default("[]") @map("tags_json")
   workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contacts         Contact[]
   deals            Deal[]
   tasks            Task[]
   activities       Activity[]
+  events           CompanyEvent[]
 
   @@map("companies")
 }
@@ -847,6 +886,20 @@ model ContactEvent {
   contact      Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@map("contact_events")
+}
+
+model CompanyEvent {
+  id           String   @id @default(uuid())
+  companyId    String   @map("company_id")
+  type         String
+  title        String
+  content      String?
+  metadataJson String?  @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("company_events")
 }
 
 model Pipeline {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import twilio from 'twilio';
 import { db } from '../../infrastructure/database/client.js';
-import { encryptJson } from '../services/channels/encryption.js';
+import { encryptJson, decryptJson } from '../services/channels/encryption.js';
 import { getGmailAuthUrl, exchangeGmailCode } from '../services/channels/gmail.service.js';
 import { getOutlookAuthUrl, exchangeOutlookCode, createOutlookSubscription } from '../services/channels/outlook.service.js';
 import { subscribeToWorkspace } from '../services/channels/realtime.service.js';
@@ -270,37 +270,78 @@ router.patch('/connections/:id', async (req, res) => {
 });
 
 // ── Search available Twilio numbers by area code ──────────────────────────────
+// Live Twilio search using the workspace's own connected Twilio account
+// (the creds stored by POST /sms/connect). Without a connection there is
+// nothing honest to return — no fake 555 numbers.
 router.get('/sms/available-numbers', async (req, res) => {
   const areaCode = (req.query.areaCode as string) || '415';
-  // Return available phone number presets or query live Twilio if configured
-  const mockNumbers = [
-    { phoneNumber: `+1${areaCode}5550142`, friendlyName: `(${areaCode}) 555-0142`, locality: 'San Francisco', region: 'CA' },
-    { phoneNumber: `+1${areaCode}5550189`, friendlyName: `(${areaCode}) 555-0189`, locality: 'Oakland', region: 'CA' },
-    { phoneNumber: `+1${areaCode}5550231`, friendlyName: `(${areaCode}) 555-0231`, locality: 'San Jose', region: 'CA' },
-    { phoneNumber: `+1${areaCode}5550378`, friendlyName: `(${areaCode}) 555-0378`, locality: 'Palo Alto', region: 'CA' },
-  ];
-  res.json(mockNumbers);
+  if (!/^\d{3}$/.test(areaCode)) return res.status(400).json({ error: 'areaCode must be a 3-digit US area code' });
+  try {
+    const conn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+    });
+    if (!conn) {
+      return res.status(400).json({ error: 'Connect Twilio first (Settings > Integrations) to search for available numbers.' });
+    }
+    const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
+    const client = twilio(creds.accountSid, creds.authToken);
+    const numbers = await client.availablePhoneNumbers('US').local.list({ areaCode: Number(areaCode), limit: 10 });
+    res.json(numbers.map((n) => ({
+      phoneNumber: n.phoneNumber,
+      friendlyName: n.friendlyName,
+      locality: n.locality,
+      region: n.region,
+    })));
+  } catch (e) {
+    console.error('[Twilio] Available numbers lookup failed:', e);
+    res.status(502).json({ error: `Could not search Twilio for available numbers: ${e instanceof Error ? e.message : String(e)}` });
+  }
 });
 
 // ── Provision new Twilio number ───────────────────────────────────────────────
+// Buys the number from Twilio for real (this charges the Twilio account)
+// and stores the connection with the REAL credentials — never 'PROVISIONED'.
 router.post('/sms/provision', async (req, res) => {
   const { phoneNumber, friendlyLabel } = req.body;
   if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber is required' });
 
   try {
-    const conn = await db.channelConnection.create({
-      data: {
+    const conn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+    });
+    if (!conn) {
+      return res.status(400).json({ error: 'Connect Twilio first (Settings > Integrations) to provision a number.' });
+    }
+    const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
+    const client = twilio(creds.accountSid, creds.authToken);
+    const purchased = await client.incomingPhoneNumbers.create({ phoneNumber });
+    const provisioned = await db.channelConnection.upsert({
+      where: { workspaceId_provider_email: { workspaceId: req.workspaceId, provider: 'twilio', email: purchased.phoneNumber } },
+      update: {
+        credentialsJson: encryptJson(creds),
+        twilioPhoneNumber: purchased.phoneNumber,
+        label: friendlyLabel || `SMS (${purchased.phoneNumber})`,
+        isActive: true,
+        status: 'ACTIVE',
+        updatedAt: new Date(),
+      },
+      create: {
         workspaceId: req.workspaceId,
         userId: req.userId ?? 'system',
         provider: 'twilio',
-        label: friendlyLabel || `SMS (${phoneNumber})`,
-        twilioPhoneNumber: phoneNumber,
-        credentialsJson: encryptJson({ accountSid: 'PROVISIONED', authToken: 'PROVISIONED' }),
+        label: friendlyLabel || `SMS (${purchased.phoneNumber})`,
+        email: purchased.phoneNumber,
+        twilioPhoneNumber: purchased.phoneNumber,
+        credentialsJson: encryptJson(creds),
         isActive: true,
+        status: 'ACTIVE',
       },
     });
-    res.json({ success: true, connection: conn });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
+    res.json({ success: true, connection: provisioned });
+  } catch (e) {
+    console.error('[Twilio] Provision failed:', e);
+    res.status(502).json({ error: `Could not provision this number from Twilio: ${e instanceof Error ? e.message : String(e)}` });
+  }
 });
 
 // ── SSE — real-time conversation updates ──────────────────────────────────────

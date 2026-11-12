@@ -225,7 +225,8 @@ export default function CompanyDetail() {
         }),
       });
       if (!res.ok) {
-        return { id: Date.now().toString(), type, content, title: title || 'Note', createdAt: new Date().toISOString() };
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to log activity');
       }
       return res.json();
     },
@@ -234,7 +235,7 @@ export default function CompanyDetail() {
       setCommsText('');
       toast('success', 'Activity logged');
     },
-    onError: () => toast('error', 'Failed to log activity'),
+    onError: (err: any) => toast('error', 'Failed to log activity', err.message),
   });
 
   const handleSendComms = () => {

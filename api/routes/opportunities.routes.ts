@@ -393,6 +393,48 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/opportunities/:id/logs — the activity timeline. The page renders
+// `content`, the model stores `description`, so each row is mapped to carry
+// both (no frontend change needed to display real rows).
+router.get('/:id/logs', async (req: Request, res: Response) => {
+  try {
+    const deal = await scopedFindOrThrow(db.deal, req.params.id, req.workspaceId!);
+    const logs = await db.opportunityActivityLog.findMany({
+      where: { workspaceId: req.workspaceId!, dealId: deal.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(logs.map((log) => ({ ...log, content: log.description })));
+  } catch (e) {
+    sendErr(res, e);
+  }
+});
+
+// POST /api/opportunities/:id/events — log an activity (internal note, email,
+// sms). Frontend types are stored as-is in the `type` column; `content` maps
+// to the model's `description`.
+router.post('/:id/events', async (req: Request, res: Response) => {
+  try {
+    const { type, title, content } = (req.body || {}) as Record<string, unknown>;
+    if (typeof type !== 'string' || !type.trim() || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'type and content are required' });
+    }
+    const deal = await scopedFindOrThrow(db.deal, req.params.id, req.workspaceId!);
+    const log = await db.opportunityActivityLog.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        dealId: deal.id,
+        type: type.trim(),
+        title: typeof title === 'string' && title.trim() ? title.trim() : 'Note',
+        description: content,
+        userId: req.userId || 'system',
+      },
+    });
+    res.status(201).json({ ...log, content: log.description });
+  } catch (e) {
+    sendErr(res, e);
+  }
+});
+
 // POST /api/opportunities
 router.post('/', validate({ body: OpportunityCreateSchema }), async (req: Request, res: Response) => {
   try {

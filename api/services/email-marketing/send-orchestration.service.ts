@@ -337,6 +337,10 @@ export async function testSendEmail(
   emailId: string,
   addresses: string[],
 ): Promise<{ sent: number; to: string[]; subject: string; note: string }> {
+  // Email marketing (including test sends) requires the Complete plan —
+  // gate before touching any draft or sending anything.
+  const { assertPlan } = await import('../../middleware/plan-guard.js');
+  await assertPlan(workspaceId, 'complete');
   const email = await getEmailOrThrow(workspaceId, emailId);
   const draft = await db.campaignDraft.findFirst({ where: { id: email.draftId, workspaceId } });
   if (!draft) throw new SendError('Campaign draft not found', 404);
@@ -434,6 +438,11 @@ export async function confirmSend(
   emailId: string,
   input: ConfirmSendInput,
 ): Promise<{ campaignId: string; emailId: string; sendAtUtc: string; recipientCount: number; idempotentReplay: boolean; note: string }> {
+  // Email marketing requires the Complete plan — gate before the idempotency
+  // replay or any campaign row is created, so a below-Complete workspace can
+  // never schedule a campaign that the send path would then refuse to send.
+  const { assertPlan } = await import('../../middleware/plan-guard.js');
+  await assertPlan(workspaceId, 'complete');
   if (!input.idempotencyKey || !input.idempotencyKey.trim()) {
     throw new SendError('An idempotency key is required for the final confirmation.', 400);
   }
@@ -641,6 +650,10 @@ export async function confirmSequenceSend(
   idempotentReplay: boolean;
   note: string;
 }> {
+  // Same Complete-plan gate as confirmSend, up front — before recipient
+  // resolution, send checks, or any campaign row is created.
+  const { assertPlan } = await import('../../middleware/plan-guard.js');
+  await assertPlan(workspaceId, 'complete');
   if (!input.idempotencyKey || !input.idempotencyKey.trim()) {
     throw new SendError('An idempotency key is required for the final confirmation.', 400);
   }

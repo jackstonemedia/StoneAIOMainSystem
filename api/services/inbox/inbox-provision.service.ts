@@ -24,7 +24,7 @@ export async function provisionInbox(workspaceId: string): Promise<void> {
         embedToken,
         welcomeMessage: 'Welcome! How can we help you today?',
         awayMessage: "Our team is away. We'll get back to you soon.",
-        widgetColor: '#6366f1',
+        widgetColor: '#52677D',
       },
     });
 

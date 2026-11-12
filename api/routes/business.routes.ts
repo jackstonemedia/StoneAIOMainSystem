@@ -141,7 +141,10 @@ router.get('/conversations/:id', async (req, res) => {
 });
 
 // ── Outbound Dispatch Helper ──────────────────────────────────────────────────
-async function dispatchOutboundMessage({
+// Exported for tests. Every branch follows the email branch's contract: the
+// message row is marked 'failed' with an errorMsg AND the call throws, so the
+// UI never shows a success for a message that never left the server.
+export async function dispatchOutboundMessage({
   workspaceId,
   conversationId,
   messageId,
@@ -302,20 +305,87 @@ async function dispatchOutboundMessage({
     const conn = await db.channelConnection.findFirst({
       where: { workspaceId, provider: 'twilio', isActive: true },
     });
-    if (conn && convo?.contact?.phone) {
+    if (!conn) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.' },
+      }).catch(() => null);
+      throw new Error('No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.');
+    }
+    if (!convo?.contact?.phone) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'Recipient has no phone number.' },
+      }).catch(() => null);
+      throw new Error('Recipient has no phone number.');
+    }
+    try {
       const { decryptJson } = await import('../services/channels/encryption.js');
       const creds = decryptJson(conn.credentialsJson as string) as { accountSid: string; authToken: string };
       const twilio = (await import('twilio')).default;
       const client = twilio(creds.accountSid, creds.authToken);
-      await client.messages.create({
+      const sent = await client.messages.create({
         body,
         from: conn.twilioPhoneNumber!,
         to: convo.contact.phone,
-      }).catch(console.error);
+      });
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'delivered', externalId: sent.sid },
+      }).catch(() => null);
       if (!convo?.externalId) {
         await db.conversation.update({ where: { id: conversationId }, data: { externalId: convo.contact.phone } }).catch(() => null);
       }
+    } catch (err: any) {
+      console.error('[Outbound SMS] ❌ Failed to send:', err.message);
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: err.message },
+      }).catch(() => null);
+      throw new Error(`SMS sending failed: ${err.message}`);
     }
+  } else if (activeChannel === 'facebook' || activeChannel === 'instagram' || activeChannel === 'whatsapp') {
+    if (activeChannel === 'whatsapp') {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'WhatsApp sending is not set up yet.' },
+      }).catch(() => null);
+      throw new Error('WhatsApp sending is not set up yet.');
+    }
+    if (!convo?.externalId) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: 'No recipient found for this conversation.' },
+      }).catch(() => null);
+      throw new Error('No recipient found for this conversation.');
+    }
+    try {
+      const { sendMetaMessage } = await import('../services/channels/meta.service.js');
+      const sent = await sendMetaMessage({
+        workspaceId,
+        provider: activeChannel,
+        psid: convo.externalId,
+        body,
+      });
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'delivered', externalId: sent.messageId },
+      }).catch(() => null);
+    } catch (err: any) {
+      console.error(`[Outbound ${activeChannel}] ❌ Failed to send:`, err.message);
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: err.message },
+      }).catch(() => null);
+      throw new Error(`${activeChannel} sending failed: ${err.message}`);
+    }
+  } else {
+    // Unknown channel: never leave the message looking sent.
+    await db.conversationMessage.update({
+      where: { id: messageId },
+      data: { status: 'failed', errorMsg: `Sending via ${activeChannel ?? 'this channel'} is not set up.` },
+    }).catch(() => null);
+    throw new Error(`Sending via ${activeChannel ?? 'this channel'} is not set up.`);
   }
 }
 

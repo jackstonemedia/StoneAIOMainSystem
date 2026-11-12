@@ -379,6 +379,13 @@ function m3Error(err: unknown, res: Response): void {
     res.status(err.status).json({ error: err.message });
     return;
   }
+  // assertPlan throws a plain Error with code PLAN_REQUIRED — surface it as
+  // 403 with the code, matching the requirePlan middleware, instead of a
+  // generic 500 that hides the upgrade message from the UI.
+  if ((err as any)?.code === 'PLAN_REQUIRED') {
+    res.status(403).json({ error: (err as Error).message, code: 'PLAN_REQUIRED', requiredPlan: 'complete' });
+    return;
+  }
   console.error('[CreateWithAI] M3 route error:', err instanceof Error ? err.message : err);
   res.status(500).json({ error: 'Internal server error' });
 }
