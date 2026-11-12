@@ -9,7 +9,7 @@ import { ClerkProvider, SignedIn, SignedOut, RedirectToSignIn } from '@clerk/cle
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuthTokenProvider } from './lib/AuthTokenProvider';
-import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS } from './lib/clerkConfig';
+import { CLERK_PUBLISHABLE_KEY, IS_DEV_AUTH_BYPASS, CLERK_AUTH_STATE } from './lib/clerkConfig';
 import { FEATURES } from './config/features';
 
 // Layout (keep eager — needed immediately on every route)
@@ -367,6 +367,29 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
 
 // ── Root App ──────────────────────────────────────────────────────────────
 export default function App() {
+  // Tier 2 Fix 2: fail loudly when Clerk is unconfigured — never silently
+  // run auth against a test app. Dev throws (Vite error overlay); the built
+  // app shows a plain error screen instead of the product.
+  if (CLERK_AUTH_STATE === 'throw-dev') {
+    throw new Error(
+      'VITE_CLERK_PUBLISHABLE_KEY is not set. Set it in .env (Clerk Dashboard → API Keys). ' +
+      'Authentication is not configured — the app refuses to run against a fallback test app.',
+    );
+  }
+  if (CLERK_AUTH_STATE === 'error-screen') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B1D22', color: '#ECECEC', fontFamily: 'system-ui, sans-serif', padding: 24 }}>
+        <div style={{ maxWidth: 480, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 20, marginBottom: 12 }}>Authentication is not configured</h1>
+          <p style={{ color: '#9AA3AF', lineHeight: 1.6 }}>
+            This app needs a Clerk publishable key to sign users in. Set{' '}
+            <code>VITE_CLERK_PUBLISHABLE_KEY</code> in the server environment
+            (Clerk Dashboard → API Keys) and redeploy.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
     <QueryClientProvider client={queryClient}>
       {IS_DEV_AUTH_BYPASS ? (
