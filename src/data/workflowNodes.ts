@@ -1,5 +1,5 @@
 import { 
-  Zap, Clock, Users, Mail, MessageSquare, Globe, FormInput,
+  Zap, Clock, Users, Mail, MessageSquare, Globe,
   Bot, GitBranch, Repeat, Search, Split, Combine, Filter, Code,
   Database, HardDrive, Share2, Layers, ListFilter,
   Slack, Twitter, Github, Linkedin, CreditCard, ShoppingCart
@@ -118,17 +118,6 @@ const triggerCrmEvent: WorkflowNodeDefinition = {
       { label: 'Deleted', value: 'deleted' }, { label: 'Stage Changed', value: 'stage_changed' }
     ] },
     { key: 'filters', label: 'Filters (JSON)', type: 'json', default: '', advanced: true, helpText: 'Optional filter conditions' },
-  ]
-};
-
-const triggerForm: WorkflowNodeDefinition = {
-  id: 'trigger-form', category: 'Triggers', name: 'Form Submitted', description: 'Trigger on new form response',
-  type: 'trigger', icon: FormInput,
-  colorClass: 'text-primary', bgClass: 'bg-primary/10', borderClass: 'hover:border-primary/50',
-  outputs: ['submission'],
-  configFields: [
-    { key: 'formId', label: 'Form', type: 'select', default: '', options: [ { label: '(Select a form)', value: '' } ], helpText: 'Choose from your created forms' },
-    { key: 'includeFields', label: 'Include Fields', type: 'tags', default: [], advanced: true, helpText: 'Leave empty for all fields' },
   ]
 };
 
@@ -590,7 +579,7 @@ const intDrive: WorkflowNodeDefinition = {
 
 export const WORKFLOW_NODES: WorkflowNodeDefinition[] = [
   // Triggers
-  triggerWebhook, triggerSchedule, triggerEmailReceived, triggerCrmEvent, triggerForm,
+  triggerWebhook, triggerSchedule, triggerEmailReceived, triggerCrmEvent,
   // AI & Logic
   aiLlm, aiSentiment, aiExtract, logicIf, logicSwitch, logicLoop, logicDelay,
   // Data & CRM
