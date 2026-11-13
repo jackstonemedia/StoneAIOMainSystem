@@ -160,7 +160,7 @@ export default function Contacts() {
 
   const bulkAction = useMutation({
     mutationFn: async ({ action, contactIds, payload }: { action: string; contactIds: string[]; payload?: any }) => {
-      const res = await apiFetch('/api/crm/contacts/bulk', {
+      const res = await apiFetch('/api/crm/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, contactIds, payload }),

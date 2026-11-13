@@ -35,6 +35,7 @@ model Workspace {
   companies         Company[]
   crmDocuments      CrmDocument[]
   crmSettings       CrmSettings?
+  bulkActions       BulkAction[]
   deals             Deal[]
   apiKeys           ApiKey[]
   integrations      Integration[]
@@ -940,6 +941,30 @@ model CrmSettings {
   workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("crm_settings")
+}
+
+// Bulk Action (Tier 2 fix 9): a recorded history row for every bulk run —
+// the inline runs from Contacts (/bulk, /bulk-email, /bulk-sms). The Bulk
+// Actions page used to hardcode `hasActions = false`, so no run was ever
+// visible. `label` and `completedAt` are extra fields beyond the Blueprint's
+// list: the page's table has Action Label and Completed columns.
+// status: 'completed' | 'partial' | 'failed' (derived from the counts).
+model BulkAction {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  type         String
+  label        String
+  targetCount  Int      @map("target_count")
+  successCount Int      @map("success_count")
+  failedCount  Int      @map("failed_count")
+  status       String   @default("completed")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("bulk_actions")
 }
 
 model Pipeline {

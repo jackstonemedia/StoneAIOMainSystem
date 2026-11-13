@@ -640,15 +640,74 @@ router.put('/settings', async (req, res) => {
 });
 
 // ── Bulk Actions ──────────────────────────────────────────────────────────────
+// Record one history row per completed bulk run. Recording is best-effort:
+// it must never fail the bulk response itself, so failures log and move on.
+// status is derived from the counts: completed (nothing failed), partial
+// (some failed), failed (nothing succeeded).
+async function recordBulkAction(db: any, row: {
+  workspaceId: string;
+  type: string;
+  label: string;
+  targetCount: number;
+  successCount: number;
+  failedCount: number;
+  createdBy?: string | null;
+}) {
+  const status = row.failedCount === 0 ? 'completed' : row.successCount === 0 ? 'failed' : 'partial';
+  try {
+    await db.bulkAction.create({ data: { ...row, status, completedAt: new Date() } });
+  } catch (err) {
+    console.error('[bulk-actions] failed to record bulk action', err);
+  }
+}
+
+router.get('/bulk-actions', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    res.json(await db.bulkAction.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }));
+  } catch (e) { dbErr(res, e); }
+});
+
 router.post('/bulk', async (req, res) => {
   try {
     const { action, contactIds, payload } = BulkActionSchema.parse(req.body);
     const result = await crm.bulkContacts(req.workspaceId, action, contactIds, payload);
+    const { db } = await import('../../infrastructure/database/client.js');
     if ('csv' in result) {
+      const csv = result.csv ?? '';
+      const exported = csv.split('\n').length - 1; // header row excluded
+      await recordBulkAction(db, {
+        workspaceId: req.workspaceId!,
+        type: 'export',
+        label: `Export ${exported} contact${exported === 1 ? '' : 's'} (CSV)`,
+        targetCount: contactIds.length,
+        successCount: exported,
+        failedCount: contactIds.length - exported,
+        createdBy: req.userId ?? null,
+      });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
-      return res.send(result.csv);
+      return res.send(csv);
     }
+    const affected = typeof result.affected === 'number' ? result.affected : contactIds.length;
+    const label =
+      action === 'tag' ? `Add tag: ${payload?.tag ?? ''} — ${affected} contact${affected === 1 ? '' : 's'}` :
+      action === 'delete' ? `Delete ${affected} contact${affected === 1 ? '' : 's'}` :
+      action === 'assign' ? `Assign ${affected} contact${affected === 1 ? '' : 's'}` :
+      `Bulk ${action} — ${affected} contact${affected === 1 ? '' : 's'}`;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: action,
+      label,
+      targetCount: contactIds.length,
+      successCount: affected,
+      failedCount: contactIds.length - affected,
+      createdBy: req.userId ?? null,
+    });
     res.json(result);
   } catch (e) { dbErr(res, e); }
 });
@@ -683,11 +742,21 @@ router.post('/bulk-email', async (req, res) => {
     await db.campaignRecipient.createMany({
       data: withEmail.map((c) => ({ campaignId: campaign.id, contactId: c.id, status: 'PENDING' })),
     });
+    const skippedNoEmail = contacts.length - withEmail.length;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: 'bulk_email',
+      label: `Bulk email draft — ${withEmail.length} contact${withEmail.length === 1 ? '' : 's'}${skippedNoEmail > 0 ? `, ${skippedNoEmail} without email` : ''}`,
+      targetCount: contacts.length,
+      successCount: withEmail.length,
+      failedCount: skippedNoEmail,
+      createdBy: req.userId ?? null,
+    });
     res.status(201).json({
       campaignId: campaign.id,
       name: campaign.name,
       recipientCount: withEmail.length,
-      skippedNoEmail: contacts.length - withEmail.length,
+      skippedNoEmail,
     });
   } catch (e: any) {
     if (e?.code === 'PLAN_REQUIRED') {
@@ -750,10 +819,22 @@ router.post('/bulk-sms', async (req, res) => {
         results.push({ contactId: contact.id, status: 'failed', error: err.message });
       }
     }
+    const sent = results.filter((r) => r.status === 'sent').length;
+    const failed = results.filter((r) => r.status === 'failed').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: 'bulk_sms',
+      label: `Bulk SMS — ${sent} sent, ${failed} failed, ${skipped} skipped`,
+      targetCount: contacts.length,
+      successCount: sent,
+      failedCount: failed + skipped,
+      createdBy: req.userId ?? null,
+    });
     res.json({
-      sent: results.filter((r) => r.status === 'sent').length,
-      failed: results.filter((r) => r.status === 'failed').length,
-      skipped: results.filter((r) => r.status === 'skipped').length,
+      sent,
+      failed,
+      skipped,
       results,
     });
   } catch (e) { dbErr(res, e); }
