@@ -209,12 +209,16 @@ export default function AssistantProjectDetailPage() {
     }
   };
 
-  // Upload file handler
+  // Upload file handler — the file bytes go to the server as base64 and
+  // text is extracted server-side (pdf-parse / mammoth / plain text).
+  // The client never extracts and never claims success the server didn't earn:
+  // a file the server could not read comes back status 'failed' and the
+  // toast says so plainly.
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0 || !id) return;
     const file = files[0];
 
-    // Check size limit (25MB)
+    // Check size limit (25MB) — enforced server-side too.
     if (file.size > 25 * 1024 * 1024) {
       showFeedback('File exceeds 25 MB limit.', 'error');
       return;
@@ -222,27 +226,26 @@ export default function AssistantProjectDetailPage() {
 
     setUploadingFile(true);
     try {
-      let extractedText = '';
-      if (
-        file.type.startsWith('text/') ||
-        file.name.endsWith('.txt') ||
-        file.name.endsWith('.md') ||
-        file.name.endsWith('.csv') ||
-        file.name.endsWith('.json')
-      ) {
-        extractedText = await file.text();
-      }
+      const contentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('Could not read file.'));
+        reader.readAsDataURL(file);
+      });
 
       const added = await assistantApi.addProjectFile(id, {
         fileName: file.name,
         mimeType: file.type || 'text/plain',
         size: file.size,
-        status: 'ready',
-        extractedText: extractedText || undefined,
+        contentBase64,
       });
 
       setProject((prev) => (prev ? { ...prev, files: [...(prev.files || []), added] } : prev));
-      showFeedback(`File "${file.name}" uploaded successfully.`);
+      if (added.status === 'failed') {
+        showFeedback(`File "${file.name}" uploaded, but text could not be extracted — the assistant can't read this file.`, 'error');
+      } else {
+        showFeedback(`File "${file.name}" uploaded successfully.`);
+      }
     } catch (err: any) {
       showFeedback(err?.message || 'Failed to upload file.', 'error');
     } finally {

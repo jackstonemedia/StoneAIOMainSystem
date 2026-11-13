@@ -465,7 +465,7 @@ export const assistantApi = {
 
   addProjectFile: async (
     projectId: string,
-    data: Partial<AssistantProjectFile>
+    data: Partial<AssistantProjectFile> & { contentBase64?: string }
   ): Promise<AssistantProjectFile> => {
     const res = await apiFetch(`/api/assistant/projects/${projectId}/files`, {
       method: 'POST',

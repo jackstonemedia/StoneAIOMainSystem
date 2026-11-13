@@ -216,9 +216,14 @@ export function parseStyleSummary(raw: unknown): StyleSummary | null {
 }
 
 /** Extracts plain text from an uploaded file buffer. Throws on bad type/parse. */
-export async function extractUploadText(fileName: string, mimeType: string, buffer: Buffer): Promise<string> {
-  if (buffer.length > MAX_UPLOAD_BYTES) {
-    throw new Error(`File is too large (max ${MAX_UPLOAD_BYTES / 1024 / 1024} MB).`);
+export async function extractUploadText(
+  fileName: string,
+  mimeType: string,
+  buffer: Buffer,
+  maxBytes: number = MAX_UPLOAD_BYTES,
+): Promise<string> {
+  if (buffer.length > maxBytes) {
+    throw new Error(`File is too large (max ${maxBytes / 1024 / 1024} MB).`);
   }
   const lower = fileName.toLowerCase();
   let text: string;

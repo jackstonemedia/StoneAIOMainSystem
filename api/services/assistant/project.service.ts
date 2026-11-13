@@ -4,7 +4,41 @@
  */
 
 import { withTenant } from './rls.js';
+import { AppError } from '../../middleware/error.js';
+import { extractUploadText } from '../email-marketing/business-profile.service.js';
 import type { AssistantProject, AssistantProjectFile, AssistantProjectLink } from '@prisma/client';
+
+/** Project file uploads cap at 25 MB (the client-side limit), enforced server-side too. */
+export const PROJECT_FILE_MAX_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Extracts readable text from a project file's bytes, server-side.
+ * Plain-text formats decode as UTF-8; .docx/.pdf go through the shared
+ * extractor (mammoth / pdf-parse). Throws on unsupported types, empty
+ * output, or oversize buffers — callers store the file as 'failed' then.
+ */
+export async function extractProjectFileText(
+  fileName: string,
+  mimeType: string,
+  buffer: Buffer,
+): Promise<string> {
+  if (buffer.length > PROJECT_FILE_MAX_BYTES) {
+    throw new Error(`File is too large (max ${PROJECT_FILE_MAX_BYTES / 1024 / 1024} MB).`);
+  }
+  const lower = fileName.toLowerCase();
+  if (
+    lower.endsWith('.txt') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.csv') ||
+    lower.endsWith('.json') ||
+    mimeType.startsWith('text/')
+  ) {
+    const text = buffer.toString('utf-8').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (!text) throw new Error('No readable text found in this file.');
+    return text;
+  }
+  return extractUploadText(fileName, mimeType, buffer, PROJECT_FILE_MAX_BYTES);
+}
 
 export interface CreateProjectInput {
   name: string;
@@ -231,6 +265,15 @@ export class AssistantProjectService {
 
   /**
    * Add a file to a project.
+   *
+   * Text is extracted SERVER-side from `contentBase64` (the route strips any
+   * client-supplied `extractedText` — the client never extracts anymore).
+   * A file whose text cannot be extracted is still stored, but with
+   * status 'failed' and no extracted text, so the UI can report honestly
+   * instead of claiming a successful upload the assistant cannot read.
+   * Oversize uploads are rejected (400) before anything is stored.
+   * When no content is supplied (service-level callers only), a
+   * caller-supplied `extractedText` is kept for backward compatibility.
    */
   async addProjectFile(
     workspaceId: string,
@@ -242,8 +285,30 @@ export class AssistantProjectService {
       size: number;
       storageUrl?: string;
       extractedText?: string;
+      contentBase64?: string;
     }
   ): Promise<AssistantProjectFile> {
+    let extractedText: string | null = null;
+    let status = 'ready';
+    if (data.contentBase64) {
+      const buffer = Buffer.from(data.contentBase64, 'base64');
+      if (buffer.length > PROJECT_FILE_MAX_BYTES) {
+        throw new AppError(400, `File is too large (max ${PROJECT_FILE_MAX_BYTES / 1024 / 1024} MB).`);
+      }
+      try {
+        extractedText = await extractProjectFileText(data.fileName, data.mimeType, buffer);
+      } catch {
+        // Honest failure: keep the file row so the user can see/delete it,
+        // but mark it failed — the assistant cannot read it.
+        status = 'failed';
+        extractedText = null;
+      }
+    } else if (data.extractedText) {
+      extractedText = data.extractedText;
+    } else {
+      // No content and no text: nothing readable was supplied.
+      status = 'failed';
+    }
     return await withTenant(workspaceId, async (tx) => {
       return await tx.assistantProjectFile.create({
         data: {
@@ -253,8 +318,8 @@ export class AssistantProjectService {
           mimeType: data.mimeType,
           size: data.size,
           storageUrl: data.storageUrl || null,
-          extractedText: data.extractedText || null,
-          status: 'ready',
+          extractedText,
+          status,
         },
       });
     });
