@@ -33,6 +33,7 @@ model Workspace {
   agents            Agent[]
   contacts          Contact[]
   companies         Company[]
+  crmDocuments      CrmDocument[]
   deals             Deal[]
   apiKeys           ApiKey[]
   integrations      Integration[]
@@ -900,6 +901,20 @@ model CompanyEvent {
 
   @@index([companyId])
   @@map("company_events")
+}
+
+model CrmDocument {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  title       String   @default("Untitled Document")
+  content     String?  @default("") @db.Text
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("crm_documents")
 }
 
 model Pipeline {

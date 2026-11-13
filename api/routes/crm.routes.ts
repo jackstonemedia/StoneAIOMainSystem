@@ -186,6 +186,86 @@ router.delete('/companies/:id', async (req, res) => {
   catch (e) { dbErr(res, e); }
 });
 
+// ── Documents ───────────────────────────────────────────────────────────────────
+// CRM Documents page (src/pages/crm/Documents.tsx) — a Notion-style title +
+// content editor with debounced auto-save. Every route is workspace-scoped:
+// a document in another workspace reads as 404, never as data. The list
+// omits content (the page fetches it per document); the single-doc fetch
+// returns it. No file upload exists on this page — documents are text only.
+router.get('/documents', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const docs = await db.crmDocument.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, createdAt: true, updatedAt: true },
+    });
+    res.json(docs.map((d) => ({ ...d, type: 'document' })));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.get('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const doc = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/documents', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    if (req.body?.title !== undefined && typeof req.body.title !== 'string') {
+      return res.status(400).json({ error: 'title must be a string' });
+    }
+    if (req.body?.content !== undefined && typeof req.body.content !== 'string') {
+      return res.status(400).json({ error: 'content must be a string' });
+    }
+    const doc = await db.crmDocument.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        title: req.body?.title?.trim() ? req.body.title.trim() : 'Untitled Document',
+        content: req.body?.content ?? '',
+        createdBy: req.userId ?? null,
+      },
+    });
+    res.status(201).json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.put('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    if (req.body?.title !== undefined && typeof req.body.title !== 'string') {
+      return res.status(400).json({ error: 'title must be a string' });
+    }
+    if (req.body?.content !== undefined && typeof req.body.content !== 'string') {
+      return res.status(400).json({ error: 'content must be a string' });
+    }
+    if (req.body?.title === undefined && req.body?.content === undefined) {
+      return res.status(400).json({ error: 'title or content is required' });
+    }
+    const existing = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    const data: { title?: string; content?: string } = {};
+    if (req.body.title !== undefined) data.title = req.body.title;
+    if (req.body.content !== undefined) data.content = req.body.content;
+    const doc = await db.crmDocument.update({ where: { id: req.params.id }, data });
+    res.json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.delete('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const existing = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    await db.crmDocument.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) { dbErr(res, e); }
+});
+
 // ── Deals ─────────────────────────────────────────────────────────────────────
 router.get('/deals', async (req, res) => {
   try {
