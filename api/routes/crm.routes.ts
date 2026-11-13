@@ -63,6 +63,25 @@ router.post('/contacts', validate({ body: ContactSchema }), async (req, res, nex
   } catch (e) { next(e); }
 });
 
+// ── Duplicate detection + merge (Tier 2 fix 7) ───────────────────────────────
+// NOTE: the scan route MUST stay above '/contacts/:id' or Express reads
+// 'duplicates' as a contact id.
+router.get('/contacts/duplicates', async (req, res) => {
+  try {
+    res.json(await crm.findDuplicateGroups(req.workspaceId));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/contacts/:id/merge', async (req, res) => {
+  try {
+    const result = await crm.mergeContacts(req.workspaceId, req.params.id, req.body?.duplicateIds);
+    res.json(result);
+  } catch (e: any) {
+    if (e?.statusCode === 400) return res.status(400).json({ error: e.message });
+    dbErr(res, e);
+  }
+});
+
 router.get('/contacts/:id', async (req, res) => {
   try {
     const c = await crm.getContact(req.params.id, req.workspaceId);

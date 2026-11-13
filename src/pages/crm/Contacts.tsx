@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Search, Filter, List as ListIcon, Plus, Download,
   Settings, Phone, Mail, ChevronDown, Check,
-  User, CheckSquare, X, Eye, EyeOff
+  User, Users, CheckSquare, X, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -270,21 +270,66 @@ export default function Contacts() {
   const [newContactTagInput, setNewContactTagInput] = useState('');
   const [bulkTagInput, setBulkTagInput] = useState('');
 
-  // Find duplicates
-  const duplicateGroups = React.useMemo(() => {
-    const groups: Record<string, Contact[]> = {};
-    apiContacts.forEach(c => {
-      if (c.email) {
-        if (!groups[c.email]) groups[c.email] = [];
-        groups[c.email].push(c);
+  // Duplicate scan — server-side, workspace-wide (Tier 2 fix 7). The old
+  // client-side memo only saw the current paginated page, matched emails
+  // and phones exactly (no normalization), and had no merge action.
+  interface DuplicateGroup {
+    key: string;
+    matchOn: 'email' | 'phone';
+    matchedValue: string;
+    contacts: { id: string; name: string; email: string | null; phone: string | null; createdAt: string }[];
+  }
+  const [scanGroups, setScanGroups] = useState<DuplicateGroup[]>([]);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'loading' | 'error' | 'done'>('idle');
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [mergeKeep, setMergeKeep] = useState<Record<string, string>>({});
+  const [mergingGroup, setMergingGroup] = useState<string | null>(null);
+
+  const runDuplicateScan = async () => {
+    setScanStatus('loading');
+    setScanError(null);
+    try {
+      const res = await apiFetch('/api/crm/contacts/duplicates');
+      if (!res.ok) throw new Error('Scan failed');
+      const groups: DuplicateGroup[] = await res.json();
+      setScanGroups(groups);
+      const keep: Record<string, string> = {};
+      for (const g of groups) {
+        const earliest = [...g.contacts].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+        if (earliest) keep[g.key] = earliest.id;
       }
-      if (c.phone) {
-        if (!groups[c.phone]) groups[c.phone] = [];
-        if (!groups[c.phone].find(x => x.id === c.id)) groups[c.phone].push(c);
+      setMergeKeep(keep);
+      setScanStatus('done');
+    } catch (err: any) {
+      setScanError(err?.message || 'Scan failed');
+      setScanStatus('error');
+    }
+  };
+
+  const handleMergeGroup = async (group: DuplicateGroup) => {
+    const keepId = mergeKeep[group.key] || group.contacts[0]?.id;
+    if (!keepId) return;
+    const duplicateIds = group.contacts.map(c => c.id).filter(id => id !== keepId);
+    if (duplicateIds.length === 0) return;
+    setMergingGroup(group.key);
+    try {
+      const res = await apiFetch(`/api/crm/contacts/${keepId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify({ duplicateIds }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Merge failed');
       }
-    });
-    return Object.values(groups).filter(g => g.length > 1);
-  }, [apiContacts]);
+      toast('success', 'Contacts merged', `${duplicateIds.length} duplicate${duplicateIds.length === 1 ? '' : 's'} merged into the kept contact.`);
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      await runDuplicateScan();
+    } catch (err: any) {
+      toast('error', 'Could not merge contacts', err?.message || 'Merge failed');
+    } finally {
+      setMergingGroup(null);
+    }
+  };
   const activeList = smartLists.find(l => l.id === activeListId);
   const baseContacts = apiContacts;
 
@@ -491,6 +536,9 @@ export default function Contacts() {
 
           <button onClick={() => setPanelOpen('filter')} className="btn-secondary">
             <Filter className="w-4 h-4 text-white" /> Advanced filters
+          </button>
+          <button onClick={() => { setPanelOpen('duplicates'); if (scanStatus === 'idle') runDuplicateScan(); }} className="btn-secondary">
+            <Users className="w-4 h-4" /> Merge Duplicates
           </button>
           <div className="relative">
             <button onClick={() => setSortDropdownOpen(!sortDropdownOpen)} className="btn-secondary">
@@ -866,32 +914,68 @@ export default function Contacts() {
                   <div className="space-y-6">
                     <div className="p-4 rounded-[8px] bg-surface-hover/50 border border-border">
                       <p className="text-[13px] font-medium text-text-main mb-2">Auto-Detect Duplicates</p>
-                      <p className="text-[12px] text-text-muted mb-4">Scan your contacts for duplicate emails or phone numbers to clean up your workspace.</p>
-                      <button className="w-full py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors hover:opacity-90">
-                        <Search className="w-4 h-4" /> Scan Workspace
+                      <p className="text-[12px] text-text-muted mb-4">Scans your whole workspace for contacts sharing an email or phone number — not just this page.</p>
+                      <button
+                        onClick={runDuplicateScan}
+                        disabled={scanStatus === 'loading'}
+                        className="w-full py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors hover:opacity-90 disabled:opacity-40"
+                      >
+                        <Search className="w-4 h-4" /> {scanStatus === 'loading' ? 'Scanning...' : 'Scan Workspace'}
                       </button>
                     </div>
                     <div className="space-y-3">
                       <p className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Detected Duplicates</p>
-                      {duplicateGroups.length === 0 ? (
+                      {scanStatus === 'idle' && (
                         <div className="text-[13px] text-text-muted text-center py-6 border border-dashed border-border rounded-[8px]">
-                          No duplicates detected based on email or phone.
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {duplicateGroups.map((group, i) => (
-                            <div key={i} className="p-3 border border-border rounded-lg bg-surface-hover">
-                              <p className="text-[12px] font-medium text-text-main mb-2">Duplicate Group {i + 1}</p>
-                              {group.map(c => (
-                                <div key={c.id} className="text-[12px] text-text-muted flex justify-between py-1 border-t border-border/50 first:border-0 mt-1 first:mt-0 pt-1 first:pt-0">
-                                  <span>{c.name || 'Unknown'}</span>
-                                  <span>{c.email || c.phone}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ))}
+                          Run a scan to find duplicates across your workspace.
                         </div>
                       )}
+                      {scanStatus === 'loading' && (
+                        <div className="text-[13px] text-text-muted text-center py-6 border border-dashed border-border rounded-[8px]">
+                          Scanning all contacts...
+                        </div>
+                      )}
+                      {scanStatus === 'error' && (
+                        <div className="text-[13px] text-red-400 text-center py-6 border border-dashed border-red-500/40 rounded-[8px]">
+                          Couldn't scan duplicates: {scanError}
+                        </div>
+                      )}
+                      {scanStatus === 'done' && scanGroups.length === 0 && (
+                        <div className="text-[13px] text-text-muted text-center py-6 border border-dashed border-border rounded-[8px]">
+                          No duplicates found across your workspace.
+                        </div>
+                      )}
+                      {scanStatus === 'done' && scanGroups.map((group, i) => (
+                        <div key={group.key} className="p-3 border border-border rounded-lg bg-surface-hover">
+                          <p className="text-[12px] font-medium text-text-main mb-1">Duplicate Group {i + 1}</p>
+                          <p className="text-[11px] text-text-muted mb-2">
+                            Same {group.matchOn === 'email' ? 'email' : 'phone'}: {group.matchedValue}
+                          </p>
+                          {group.contacts.map(c => (
+                            <label key={c.id} className="text-[12px] text-text-muted flex items-center justify-between gap-2 py-1.5 border-t border-border/50 first:border-0 mt-1 first:mt-0 pt-1.5 first:pt-0 cursor-pointer">
+                              <span className="flex items-center gap-2 min-w-0">
+                                <input
+                                  type="radio"
+                                  name={`keep-${group.key}`}
+                                  checked={(mergeKeep[group.key] || group.contacts[0]?.id) === c.id}
+                                  onChange={() => setMergeKeep(prev => ({ ...prev, [group.key]: c.id }))}
+                                  className="accent-[var(--primary)] shrink-0"
+                                />
+                                <span className="truncate">{c.name || 'Unknown'}</span>
+                              </span>
+                              <span className="truncate text-right">{c.email || c.phone}</span>
+                            </label>
+                          ))}
+                          <p className="text-[11px] text-text-muted mt-2">Pick the record to keep — the others are merged into it (deals, tasks, notes and history move over) and deleted.</p>
+                          <button
+                            onClick={() => handleMergeGroup(group)}
+                            disabled={mergingGroup === group.key}
+                            className="mt-2 w-full py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold transition-colors hover:opacity-90 disabled:opacity-40"
+                          >
+                            {mergingGroup === group.key ? 'Merging...' : `Merge ${group.contacts.length - 1} duplicate${group.contacts.length - 1 === 1 ? '' : 's'}`}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1111,7 +1195,7 @@ export default function Contacts() {
                   disabled={panelOpen === 'bulk_sms' && (!bulkSmsMessage.trim() || bulkSending)}
                   className="btn-primary disabled:opacity-40"
                 >
-                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : panelOpen === 'bulk_sms' ? (bulkSending ? 'Sending...' : 'Send SMS') : 'Save'}
+                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : panelOpen === 'bulk_sms' ? (bulkSending ? 'Sending...' : 'Send SMS') : panelOpen === 'duplicates' ? 'Done' : 'Save'}
                 </button>
               </div>
             </motion.div>
