@@ -2,7 +2,7 @@
  * Conversation & messaging domain types.
  */
 
-export type ConversationChannel = 'sms' | 'email' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'whatsapp' | 'chat';
+export type ConversationChannel = 'sms' | 'email' | 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'chat';
 export type ConversationStatus = 'open' | 'closed' | 'snoozed' | 'archived';
 export type MessageDeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'opened';
 

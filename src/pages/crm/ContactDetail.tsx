@@ -24,7 +24,7 @@ export default function ContactDetail() {
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState('activity');
-  const [commsTab, setCommsTab] = useState<'sms' | 'email' | 'internal' | 'whatsapp'>('internal');
+  const [commsTab, setCommsTab] = useState<'sms' | 'email' | 'internal'>('internal');
   const [commsText, setCommsText] = useState('');
   
   const [hideEmptyFields, setHideEmptyFields] = useState(false);

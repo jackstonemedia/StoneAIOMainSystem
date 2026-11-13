@@ -147,12 +147,6 @@ describe('dispatchOutboundMessage (Tier 1 Fix 3)', () => {
     expect(state.messageUpdates[0].data).toMatchObject({ status: 'delivered', externalId: 'mid.123' });
   });
 
-  it('WhatsApp fails honestly — no sender exists', async () => {
-    state.conversation = { id: 'conv_1', channel: 'whatsapp', contact: { phone: '+15551234567' }, externalId: 'wa_1' };
-    await expect(dispatchOutboundMessage({ ...base, channel: 'whatsapp' })).rejects.toThrow(/not set up/);
-    expect(state.messageUpdates[0].data).toMatchObject({ status: 'failed' });
-  });
-
   it('an unknown channel fails honestly instead of looking sent', async () => {
     state.conversation = { id: 'conv_1', channel: 'pigeon', contact: {}, externalId: null };
     await expect(dispatchOutboundMessage({ ...base, channel: 'pigeon' })).rejects.toThrow(/not set up/);

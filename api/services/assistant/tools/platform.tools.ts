@@ -79,7 +79,7 @@ const PLATFORM_HELP_INDEX: Record<string, PlatformHelpTopic> = {
     title: 'Conversations & Unified Inbox',
     category: 'Conversations',
     navigationPath: '/conversations',
-    summary: 'Multi-channel unified messaging across Email, SMS, WhatsApp, and Web Chat.',
+    summary: 'Multi-channel unified messaging across Email, SMS, and Web Chat.',
     steps: [
       'Click Conversations in the main sidebar.',
       'Select any thread from the left conversation list to read the message history.',

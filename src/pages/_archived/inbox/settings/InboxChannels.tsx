@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inboxApi } from '../lib/api/inbox';
 import { channelConnectionsApi } from '../../../lib/api/conversations';
-import { Plus, Trash2, Copy, Check, Globe, Mail, MessageSquare, ArrowLeft, Facebook, Twitter, Instagram, Phone, Settings, Loader2, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, Copy, Check, Globe, Mail, MessageSquare, ArrowLeft, Facebook, Twitter, Instagram, Settings, Loader2, ExternalLink } from 'lucide-react';
 import type { InboxChannel } from '../types/inbox';
 
 const AVAILABLE_CHANNELS = [
@@ -10,7 +10,6 @@ const AVAILABLE_CHANNELS = [
   { id: 'facebook', name: 'Facebook', description: 'Connect your Facebook Page.', icon: Facebook, color: 'bg-[#1877F2]' },
   { id: 'instagram', name: 'Instagram', description: 'Connect your Instagram account.', icon: Instagram, color: 'bg-[#E4405F]' },
   { id: 'twitter', name: 'Twitter', description: 'Connect your Twitter profile.', icon: Twitter, color: 'bg-[#1DA1F2]' },
-  { id: 'whatsapp', name: 'WhatsApp', description: 'Connect WhatsApp API.', icon: Phone, color: 'bg-[#25D366]' },
   { id: 'sms', name: 'SMS', description: 'Connect Twilio for SMS.', icon: MessageSquare, color: 'bg-slate-600' },
   { id: 'email', name: 'Email', description: 'Connect your support email.', icon: Mail, color: 'bg-indigo-500' },
   { id: 'api', name: 'API', description: 'Build a custom integration.', icon: Settings, color: 'bg-slate-800' },
