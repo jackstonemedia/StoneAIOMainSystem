@@ -208,6 +208,43 @@ export default function Contacts() {
 
   const handleBulkDelete = () => setDeleteConfirmOpen(true);
 
+  const handleBulkEmail = async () => {
+    const contactIds = Array.from(selected);
+    try {
+      const res = await apiFetch('/api/crm/bulk-email', {
+        method: 'POST',
+        body: JSON.stringify({ contactIds }),
+      });
+      const data = await res.json();
+      toast('success', 'Campaign draft created', `${data.recipientCount} recipient${data.recipientCount === 1 ? '' : 's'} — opening the editor to finish it.`);
+      navigate(`/email-marketing/campaigns/${data.campaignId}`);
+    } catch (err: any) {
+      toast('error', 'Could not create the campaign draft', err?.message || 'Request failed');
+    }
+  };
+
+  const handleBulkSms = async () => {
+    if (!bulkSmsMessage.trim()) return;
+    setBulkSending(true);
+    try {
+      const res = await apiFetch('/api/crm/bulk-sms', {
+        method: 'POST',
+        body: JSON.stringify({ contactIds: Array.from(selected), message: bulkSmsMessage.trim() }),
+      });
+      const data = await res.json();
+      const parts = [`${data.sent} sent`];
+      if (data.failed) parts.push(`${data.failed} failed`);
+      if (data.skipped) parts.push(`${data.skipped} skipped (no phone number)`);
+      toast(data.failed ? 'warning' : 'success', 'Bulk SMS finished', parts.join(', ') + '.');
+      setBulkSmsMessage('');
+      setPanelOpen(null);
+    } catch (err: any) {
+      toast('error', 'Could not send SMS', err?.message || 'Request failed');
+    } finally {
+      setBulkSending(false);
+    }
+  };
+
   const handleConfirmDelete = () => {
     selected.forEach(id => deleteContact.mutate(id));
     toast('success', 'Contacts deleted', `Removed ${selected.size} contact${selected.size === 1 ? '' : 's'} from your workspace.`);
@@ -215,12 +252,14 @@ export default function Contacts() {
     setDeleteConfirmOpen(false);
   };
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkSmsMessage, setBulkSmsMessage] = useState('');
+  const [bulkSending, setBulkSending] = useState(false);
   
   const [visibleCols, setVisibleCols] = useState<Set<string>>(new Set(ALL_COLUMNS));
   const [sortConfig, setSortConfig] = useState<{ field: keyof Contact, direction: 'asc' | 'desc' } | null>(null);
   
   // Panel states
-  const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | null>(null);
+  const [panelOpen, setPanelOpen] = useState<'filter' | 'manage' | 'new_contact' | 'duplicates' | 'bulk_tags' | 'bulk_sms' | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -388,10 +427,10 @@ export default function Contacts() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button onClick={() => toast('success', `Drafting email to ${selected.size} contacts`)} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                <button onClick={handleBulkEmail} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
                   <Mail className="w-4 h-4" /> Send Email
                 </button>
-                <button onClick={() => toast('success', `Drafting SMS to ${selected.size} contacts`)} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
+                <button onClick={() => { setBulkSmsMessage(''); setPanelOpen('bulk_sms'); }} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
                   <Phone className="w-4 h-4" /> Send SMS
                 </button>
                 <button onClick={() => setPanelOpen('bulk_tags')} className="flex items-center gap-2 px-4 py-2 border border-border bg-surface-hover rounded-[8px] text-[13px] font-semibold text-text-main hover:bg-surface transition-colors shadow-sm card-hover-lift">
@@ -816,7 +855,7 @@ export default function Contacts() {
             >
               <div className="px-6 py-5 flex items-center justify-between border-b border-border bg-surface-hover/50">
                 <h2 className="text-[16px] font-bold text-text-main">
-                  {panelOpen === 'filter' ? 'Advanced Filters' : panelOpen === 'manage' ? 'Manage Columns' : panelOpen === 'duplicates' ? 'Merge Duplicates' : panelOpen === 'bulk_tags' ? 'Add Tags to Selected' : 'Create Smart List'}
+                  {panelOpen === 'filter' ? 'Advanced Filters' : panelOpen === 'manage' ? 'Manage Columns' : panelOpen === 'duplicates' ? 'Merge Duplicates' : panelOpen === 'bulk_tags' ? 'Add Tags to Selected' : panelOpen === 'bulk_sms' ? 'Send SMS to Selected' : 'Create Smart List'}
                 </h2>
                 <button onClick={() => setPanelOpen(null)} className="w-8 h-8 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-hover hover:text-text-main transition-colors">
                   <X className="w-4 h-4" />
@@ -853,6 +892,21 @@ export default function Contacts() {
                           ))}
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+                {panelOpen === 'bulk_sms' && (
+                  <div className="space-y-6">
+                    <p className="text-[13px] text-text-muted">Sending to <strong>{selected.size}</strong> selected contact{selected.size === 1 ? '' : 's'}. Contacts without a phone number are skipped — nothing is marked sent unless Twilio confirms it.</p>
+                    <div className="space-y-3">
+                      <label className="text-[12px] font-bold text-text-muted uppercase tracking-wider">Message</label>
+                      <textarea
+                        value={bulkSmsMessage}
+                        onChange={e => setBulkSmsMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        rows={5}
+                        className="w-full bg-surface border border-border text-[13px] px-3 py-2 rounded-[6px] focus:border-primary focus:outline-none resize-none"
+                      />
                     </div>
                   </div>
                 )}
@@ -1037,6 +1091,10 @@ export default function Contacts() {
                 <button onClick={() => { setPanelOpen(null); setContactError(null); }} className="px-4 py-2 rounded-[6px] text-[13px] font-semibold text-text-main border border-border hover:bg-surface-hover transition-colors">Cancel</button>
                 <button 
                   onClick={async () => {
+                  if (panelOpen === 'bulk_sms') {
+                    await handleBulkSms();
+                    return;
+                  }
                   if (panelOpen === 'bulk_tags' && selected.size > 0 && bulkTagInput.trim()) {
                     setContactError(null);
                     try {
@@ -1050,9 +1108,10 @@ export default function Contacts() {
                     setPanelOpen(null);
                   }
                   }}
+                  disabled={panelOpen === 'bulk_sms' && (!bulkSmsMessage.trim() || bulkSending)}
                   className="btn-primary disabled:opacity-40"
                 >
-                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : 'Save'}
+                  {panelOpen === 'filter' ? 'Apply' : panelOpen === 'bulk_tags' ? (bulkAction.isPending ? 'Applying...' : 'Apply Tags') : panelOpen === 'bulk_sms' ? (bulkSending ? 'Sending...' : 'Send SMS') : 'Save'}
                 </button>
               </div>
             </motion.div>

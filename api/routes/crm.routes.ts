@@ -578,6 +578,112 @@ router.post('/bulk', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// Bulk email — creates a REAL email-marketing campaign draft addressed to the
+// selected contacts and returns it, so the UI can open the editor. Nothing
+// is sent here; the draft waits in Email Marketing until the user finishes
+// and sends it. Creating campaigns requires the Complete plan (enforced by
+// createCampaign via assertPlan) — a below-Complete workspace gets a 403
+// with code PLAN_REQUIRED, never a fake success toast.
+router.post('/bulk-email', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const contactIds = req.body?.contactIds;
+    if (!Array.isArray(contactIds) || contactIds.length === 0 || contactIds.some((id) => typeof id !== 'string' || !id.trim())) {
+      return res.status(400).json({ error: 'contactIds (a non-empty array of contact ids) is required' });
+    }
+    const contacts = await db.contact.findMany({
+      where: { id: { in: contactIds }, workspaceId: req.workspaceId },
+      select: { id: true, email: true },
+    });
+    const withEmail = contacts.filter((c) => typeof c.email === 'string' && c.email.includes('@'));
+    if (withEmail.length === 0) {
+      return res.status(400).json({ error: 'None of the selected contacts have an email address.' });
+    }
+    const { createCampaign } = await import('../services/email-marketing/campaigns.service.js');
+    const campaign = await createCampaign(req.workspaceId!, {
+      name: `Bulk email — ${withEmail.length} contact${withEmail.length === 1 ? '' : 's'}`,
+      subject: '',
+      blockJson: {},
+    });
+    await db.campaignRecipient.createMany({
+      data: withEmail.map((c) => ({ campaignId: campaign.id, contactId: c.id, status: 'PENDING' })),
+    });
+    res.status(201).json({
+      campaignId: campaign.id,
+      name: campaign.name,
+      recipientCount: withEmail.length,
+      skippedNoEmail: contacts.length - withEmail.length,
+    });
+  } catch (e: any) {
+    if (e?.code === 'PLAN_REQUIRED') {
+      return res.status(403).json({ error: e.message, code: 'PLAN_REQUIRED', requiredPlan: 'complete' });
+    }
+    dbErr(res, e);
+  }
+});
+
+// Bulk SMS — sends a real SMS to each selected contact through the same
+// Twilio path the Conversations UI uses (dispatchOutboundMessage). The
+// Twilio connection is checked FIRST: with none connected the endpoint
+// fails fast and creates zero conversations and zero message rows. Each
+// contact gets its own conversation + outbound message row; a contact with
+// no phone is skipped (counted, no row). Per-contact send failures are
+// counted, never swallowed — the message row is marked failed by dispatch.
+router.post('/bulk-sms', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const contactIds = req.body?.contactIds;
+    const message = req.body?.message;
+    if (!Array.isArray(contactIds) || contactIds.length === 0 || contactIds.some((id) => typeof id !== 'string' || !id.trim())) {
+      return res.status(400).json({ error: 'contactIds (a non-empty array of contact ids) is required' });
+    }
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const twilioConn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+    });
+    if (!twilioConn) {
+      return res.status(400).json({ error: 'No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.' });
+    }
+    const contacts = await db.contact.findMany({
+      where: { id: { in: contactIds }, workspaceId: req.workspaceId },
+      select: { id: true, phone: true },
+    });
+    const { dispatchOutboundMessage } = await import('./business.routes.js');
+    const biz = await import('../services/business.service.js');
+    const results: { contactId: string; status: 'sent' | 'failed' | 'skipped'; error?: string }[] = [];
+    for (const contact of contacts) {
+      if (!contact.phone) {
+        results.push({ contactId: contact.id, status: 'skipped', error: 'No phone number.' });
+        continue;
+      }
+      const convo = await db.conversation.create({
+        data: { workspaceId: req.workspaceId!, contactId: contact.id, channel: 'sms', status: 'open', unreadCount: 0 },
+      });
+      const msg = await biz.sendConversationMessage(convo.id, message.trim(), req.userId ?? 'agent', 'outbound');
+      try {
+        await dispatchOutboundMessage({
+          workspaceId: req.workspaceId!,
+          conversationId: convo.id,
+          messageId: msg.id,
+          channel: 'sms',
+          body: message.trim(),
+        });
+        results.push({ contactId: contact.id, status: 'sent' });
+      } catch (err: any) {
+        results.push({ contactId: contact.id, status: 'failed', error: err.message });
+      }
+    }
+    res.json({
+      sent: results.filter((r) => r.status === 'sent').length,
+      failed: results.filter((r) => r.status === 'failed').length,
+      skipped: results.filter((r) => r.status === 'skipped').length,
+      results,
+    });
+  } catch (e) { dbErr(res, e); }
+});
+
 // ── Import ────────────────────────────────────────────────────────────────────
 router.get('/import/template', (_req, res) => {
   res.setHeader('Content-Type', 'text/csv');
