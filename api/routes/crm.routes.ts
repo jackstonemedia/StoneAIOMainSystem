@@ -583,6 +583,62 @@ router.post('/tags/merge', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// ── CRM Settings (Tier 2 fix 8) ─────────────────────────────────────────────
+// The Settings page's Save button used to flip local state and nothing else,
+// while the inputs showed hardcoded defaults. Settings now persist in a
+// CrmSettings row (one per workspace). A workspace with no row gets blanks,
+// never invented defaults.
+const CRM_SETTINGS_STRING_FIELDS = ['crmName', 'defaultCurrency', 'fiscalYearStart', 'dealStageLabels', 'adminEmail', 'defaultRole'] as const;
+const CRM_SETTINGS_BOOL_FIELDS = ['notifyNewLead', 'notifyDealWon', 'notifyDealLost', 'weeklyDigest'] as const;
+
+router.get('/settings', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const row = await db.crmSettings.findUnique({ where: { workspaceId: req.workspaceId } });
+    if (row) return res.json(row);
+    res.json({
+      workspaceId: req.workspaceId,
+      crmName: null,
+      defaultCurrency: null,
+      fiscalYearStart: null,
+      dealStageLabels: null,
+      adminEmail: null,
+      defaultRole: null,
+      notifyNewLead: false,
+      notifyDealWon: false,
+      notifyDealLost: false,
+      weeklyDigest: false,
+    });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.put('/settings', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const data: Record<string, unknown> = {};
+    for (const f of CRM_SETTINGS_STRING_FIELDS) {
+      const v = req.body?.[f];
+      if (v !== undefined) {
+        if (v !== null && typeof v !== 'string') return res.status(400).json({ error: `${f} must be a string or null` });
+        data[f] = v === '' ? null : v;
+      }
+    }
+    for (const f of CRM_SETTINGS_BOOL_FIELDS) {
+      const v = req.body?.[f];
+      if (v !== undefined) {
+        if (typeof v !== 'boolean') return res.status(400).json({ error: `${f} must be a boolean` });
+        data[f] = v;
+      }
+    }
+    const row = await db.crmSettings.upsert({
+      where: { workspaceId: req.workspaceId },
+      create: { workspaceId: req.workspaceId!, ...data },
+      update: data,
+    });
+    res.json(row);
+  } catch (e) { dbErr(res, e); }
+});
+
 // ── Bulk Actions ──────────────────────────────────────────────────────────────
 router.post('/bulk', async (req, res) => {
   try {

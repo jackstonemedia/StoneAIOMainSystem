@@ -34,6 +34,7 @@ model Workspace {
   contacts          Contact[]
   companies         Company[]
   crmDocuments      CrmDocument[]
+  crmSettings       CrmSettings?
   deals             Deal[]
   apiKeys           ApiKey[]
   integrations      Integration[]
@@ -915,6 +916,30 @@ model CrmDocument {
 
   @@index([workspaceId])
   @@map("crm_documents")
+}
+
+// CRM Settings (Tier 2 fix 8): the workspace's CRM preferences, one row
+// per workspace. All preference columns are nullable — a workspace with no
+// row (or a blank field) shows blank in the form, never a hardcoded
+// default like 'Stone AIO CRM' or 'jack@stoneaio.com'.
+model CrmSettings {
+  id               String   @id @default(uuid())
+  workspaceId      String   @unique @map("workspace_id")
+  crmName          String?  @map("crm_name")
+  defaultCurrency  String?  @map("default_currency")
+  fiscalYearStart  String?  @map("fiscal_year_start")
+  dealStageLabels  String?  @map("deal_stage_labels")
+  adminEmail       String?  @map("admin_email")
+  defaultRole      String?  @map("default_role")
+  notifyNewLead    Boolean  @default(false) @map("notify_new_lead")
+  notifyDealWon    Boolean  @default(false) @map("notify_deal_won")
+  notifyDealLost   Boolean  @default(false) @map("notify_deal_lost")
+  weeklyDigest     Boolean  @default(false) @map("weekly_digest")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("crm_settings")
 }
 
 model Pipeline {
