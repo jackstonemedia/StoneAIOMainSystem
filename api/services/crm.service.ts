@@ -4,6 +4,7 @@
  */
 import { db } from '../../infrastructure/database/client.js';
 import { emitTrigger } from './trigger-emitter.service.js';
+import { AppError } from '../middleware/error.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -377,6 +378,8 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
             source: true,
             color: true,
             tagsJson: true,
+            ownerId: true,
+            assignedUserId: true,
             createdAt: true,
             updatedAt: true,
             company: { select: { id: true, name: true } },
@@ -431,6 +434,8 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
         source: true,
         color: true,
         tagsJson: true,
+        ownerId: true,
+        assignedUserId: true,
         createdAt: true,
         updatedAt: true,
         company: { select: { id: true, name: true } }
@@ -500,6 +505,35 @@ export async function createContact(workspaceId: string, data: any) {
   }
   const finalTagsJson = JSON.stringify(Array.from(new Set(tagsArray)));
 
+  // Owner + the other accepted fields the old code silently dropped (Tier 2
+  // fix 11). An owner/assignee must be a real member of this workspace —
+  // a stray id would render as a person who doesn't exist.
+  async function resolveMemberId(value: unknown, field: string): Promise<string | null> {
+    if (value === undefined || value === null || value === '') return null;
+    const id = String(value);
+    const member = await db.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: id } },
+    });
+    if (!member) throw new AppError(400, `${field} is not a member of this workspace`);
+    return id;
+  }
+  const ownerId = await resolveMemberId(data.ownerId, 'ownerId');
+  const assignedUserId = await resolveMemberId(data.assignedUserId, 'assignedUserId');
+
+  let customFieldsJson: string | null = null;
+  if (data.customFieldsJson !== undefined && data.customFieldsJson !== null) {
+    customFieldsJson = typeof data.customFieldsJson === 'string'
+      ? data.customFieldsJson
+      : JSON.stringify(data.customFieldsJson);
+  }
+
+  let dateOfBirth: Date | null = null;
+  if (data.dateOfBirth !== undefined && data.dateOfBirth !== null && data.dateOfBirth !== '') {
+    const parsed = new Date(data.dateOfBirth);
+    if (Number.isNaN(parsed.getTime())) throw new AppError(400, 'dateOfBirth is not a valid date');
+    dateOfBirth = parsed;
+  }
+
   const c = await db.contact.create({
     data: {
       workspaceId,
@@ -520,6 +554,10 @@ export async function createContact(workspaceId: string, data: any) {
       source: data.source ?? null,
       status: data.status ?? 'Lead',
       about: data.about ?? data.notes ?? null,
+      ownerId,
+      assignedUserId,
+      customFieldsJson,
+      dateOfBirth,
     },
     include: { company: true }
   });

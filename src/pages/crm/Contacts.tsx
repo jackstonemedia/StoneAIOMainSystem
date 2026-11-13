@@ -1227,6 +1227,7 @@ export default function Contacts() {
               businessName: (newContact.businessName || '').trim() || undefined,
               title: (newContact.title || '').trim() || undefined,
               status: newContact.leadStatus || newContact.lifecycleStage || newContact.status || 'Lead',
+              ownerId: newContact.ownerId || undefined,
               about: (newContact.about || '').trim() || undefined,
               source: newContact.source || undefined,
               color: newContact.color || '#7dd3fc',

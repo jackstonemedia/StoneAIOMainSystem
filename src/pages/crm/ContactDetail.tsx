@@ -44,6 +44,12 @@ export default function ContactDetail() {
     queryKey: ['workspace-tags'],
     queryFn: () => apiFetch('/api/crm/tags').then(r => r.ok ? r.json() : []),
   });
+
+  // Real workspace members for the owner select — no mock users.
+  const { data: members = [] } = useQuery<any[]>({
+    queryKey: ['settings', 'team'],
+    queryFn: () => apiFetch('/api/settings/team').then(r => r.ok ? r.json() : []),
+  });
   
   const [showAdvancedIdentity, setShowAdvancedIdentity] = useState(false);
   const [showAdvancedMethods, setShowAdvancedMethods] = useState(false);
@@ -133,8 +139,11 @@ export default function ContactDetail() {
     const data = Object.fromEntries(formData.entries());
     
     const patch = {
-      firstName: (data.fullName as string)?.split(' ')[0] || '',
-      lastName: (data.fullName as string)?.split(' ').slice(1).join(' ') || '',
+      // NOTE (Tier 2 fix 11, found in this handler): the form's fields are
+      // named firstName/lastName — the old code read data.fullName, which
+      // no input ever sends, so every detail save blanked the first name.
+      firstName: (data.firstName as string) || '',
+      lastName: (data.lastName as string) || '',
       preferredName: data.preferredName,
       title: data.jobTitle,
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth as string).toISOString() : null,
@@ -144,7 +153,10 @@ export default function ContactDetail() {
       socialProfilesJson: JSON.stringify({ website: data.website }),
       status: data.contactType,
       source: data.source,
-      assignedUserId: data.contactOwner,
+      // "Contact Owner" is one concept in the UI; ownerId is the canonical
+      // column and assignedUserId is kept in sync for legacy readers.
+      ownerId: (data.contactOwner as string) || null,
+      assignedUserId: (data.contactOwner as string) || null,
       businessName: data.businessName,
       leadScore: Number(data.leadScore) || 0,
     };
@@ -288,6 +300,24 @@ export default function ContactDetail() {
                   </div>
                 </div>
               ))}
+
+              {/* Contact Owner — real workspace members; unassigned stays unassigned. */}
+              <div className="flex flex-col relative group">
+                <label className="text-[12px] font-semibold text-text-muted mb-1.5">Contact Owner</label>
+                <div className="relative flex items-center">
+                  <select
+                    name="contactOwner"
+                    defaultValue={(contact as any).ownerId ?? (contact as any).assignedUserId ?? ''}
+                    className="w-full bg-surface border border-border/70 rounded-[6px] text-[13px] font-medium text-text-main py-2 px-3 focus:outline-none focus:border-white transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">— Unassigned —</option>
+                    {members.map((m: any) => (
+                      <option key={m.userId} value={m.userId}>{m.displayName || m.userId}{m.role === 'admin' ? ' (Admin)' : ''}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-text-muted absolute right-3 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4 pt-5 border-t border-border/50 mt-6">
@@ -449,6 +479,17 @@ export default function ContactDetail() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            {/* The form previously had no submit control at all — edits (including
+                the owner) could only be saved by pressing Enter in a text field. */}
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                className="px-5 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity shadow-sm"
+              >
+                Save Changes
+              </button>
             </div>
           </form>
         </div>
