@@ -4,6 +4,7 @@
 // failure with the response attached, for Jack's review per the grading loop.
 import type { EvalCase, EvalCheck, CaseRunResult, CaseStatus } from './types.js';
 import { classifyError } from './runner.js';
+import { mapToolName, UNMAPPABLE_TOOLS } from './tool-map.js';
 
 const REFUSAL_RE =
   /\b(can't|cannot|can not|won't|will not|not able|unable|don't have access|do not have access|refuse|not allowed|not permitted)\b/i;
@@ -42,29 +43,46 @@ export function scoreCase(
   }
 
   const response = run.response;
+  // Assistant path: a draft queued as a proposal IS the deliverable and
+  // IS readable in the UI proposal card, so text expectations check the
+  // response plus the queued proposal args. A match that only exists in
+  // the proposal args is recorded as such, so the report can tell the
+  // two apart.
+  const combined = response + (run.proposalText ? `\n${run.proposalText}` : '');
 
   for (const needle of expect.mustContain ?? []) {
+    const inResponse = contains(response, needle);
+    const inCombined = contains(combined, needle);
     checks.push({
       name: `response contains "${needle}"`,
-      passed: contains(response, needle),
-      detail: contains(response, needle) ? undefined : 'missing from response',
+      passed: inCombined,
+      detail: inCombined
+        ? inResponse
+          ? undefined
+          : 'matched in queued proposal args (draft shown in proposal card, not in chat text)'
+        : 'missing from response',
     });
   }
 
   for (const group of expect.anyOf ?? []) {
-    const hit = group.some((needle) => contains(response, needle));
+    const hitInResponse = group.some((needle) => contains(response, needle));
+    const hit = group.some((needle) => contains(combined, needle));
     checks.push({
       name: `response contains one of [${group.join(' | ')}]`,
       passed: hit,
-      detail: hit ? undefined : 'none of the alternatives present',
+      detail: hit
+        ? hitInResponse
+          ? undefined
+          : 'matched in queued proposal args (draft shown in proposal card, not in chat text)'
+        : 'none of the alternatives present',
     });
   }
 
   for (const needle of expect.mustNotContain ?? []) {
     checks.push({
       name: `response omits "${needle}"`,
-      passed: !contains(response, needle),
-      detail: contains(response, needle) ? 'present in response' : undefined,
+      passed: !contains(combined, needle),
+      detail: contains(combined, needle) ? 'present in response' : undefined,
     });
   }
 
@@ -84,12 +102,19 @@ export function scoreCase(
   }
 
   for (const tool of expect.queuedTools ?? []) {
+    // Expectations use the OLD agent's tool names; map them to the
+    // shipping assistant's names. An unmappable tool is a capability
+    // gap in the product — the check fails honestly and says so.
+    const mapped = mapToolName(tool);
+    const unmappable = UNMAPPABLE_TOOLS[tool];
     checks.push({
-      name: `queues tool "${tool}"`,
-      passed: run.queuedTools.includes(tool),
-      detail: run.queuedTools.includes(tool)
+      name: `queues tool "${tool}"${mapped !== tool ? ` (as "${mapped}")` : ''}`,
+      passed: run.queuedTools.includes(mapped),
+      detail: run.queuedTools.includes(mapped)
         ? undefined
-        : `queued tools were: ${run.queuedTools.join(', ') || '(none)'}`,
+        : unmappable
+          ? `${unmappable}; queued tools were: ${run.queuedTools.join(', ') || '(none)'}`
+          : `queued tools were: ${run.queuedTools.join(', ') || '(none)'}`,
     });
   }
 

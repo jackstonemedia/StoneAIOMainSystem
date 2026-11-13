@@ -156,6 +156,16 @@ export class ChatEngine {
     let outputTokens = 0;
     const accumulatedFunctionCalls: FunctionCallPayload[] = [];
 
+    // Thought signatures do not reliably arrive on every streamed chunk:
+    // a repeat call of the same tool can arrive in a chunk whose parts
+    // carry no signature at all (verified live 2026-11-13 — the third
+    // search_contacts call in one turn arrived signature-less). Gemini
+    // 400s the NEXT round if a functionCall part is echoed back without
+    // one, so carry the last-seen signature forward (per tool, else the
+    // last seen overall) instead of yielding a signature-less call.
+    const lastSignatureByTool = new Map<string, string>();
+    let lastSignature: string | undefined;
+
     try {
       const responseStream = await ai.models.generateContentStream({
         model: modelName,
@@ -190,6 +200,7 @@ export class ChatEngine {
             }
           }
         }
+        if (chunkThoughtSignature) lastSignature = chunkThoughtSignature;
 
         const functionCalls = chunk.functionCalls;
         if (functionCalls && Array.isArray(functionCalls)) {
@@ -198,8 +209,17 @@ export class ChatEngine {
               id: (fc as any).id,
               name: fc.name || '',
               args: (fc as any).args || {},
-              thoughtSignature: (fc as any).thoughtSignature || (fc as any).thought_signature || chunkThoughtSignature,
+              thoughtSignature:
+                (fc as any).thoughtSignature ||
+                (fc as any).thought_signature ||
+                chunkThoughtSignature ||
+                lastSignatureByTool.get(fc.name || '') ||
+                lastSignature,
             };
+            if (callPayload.thoughtSignature) {
+              lastSignatureByTool.set(callPayload.name, callPayload.thoughtSignature);
+              lastSignature = callPayload.thoughtSignature;
+            }
             accumulatedFunctionCalls.push(callPayload);
             yield {
               type: 'function_call',

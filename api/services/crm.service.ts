@@ -325,11 +325,24 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   const where: any = { workspaceId };
 
   if (search) {
-    where.OR = [
-      { firstName: { contains: String(search) } },
-      { lastName: { contains: String(search) } },
-      { email: { contains: String(search) } },
-    ];
+    // Split into terms: a full name ("Alex Rivera") matches no single
+    // field as a substring, so the old single-contains query returned
+    // zero rows for every full-name search (found live by the Phase 4
+    // eval 2026-11-13 — the model burned rounds re-searching). Every
+    // term must appear in some field (first/last name, email, phone,
+    // company name). Case-insensitive: callers query in any case.
+    const terms = String(search).trim().split(/\s+/).filter(Boolean);
+    if (terms.length > 0) {
+      where.AND = terms.map((term) => ({
+        OR: [
+          { firstName: { contains: term, mode: 'insensitive' } },
+          { lastName: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term } },
+          { company: { name: { contains: term, mode: 'insensitive' } } },
+        ],
+      }));
+    }
   }
   if (status) where.status = status;
 

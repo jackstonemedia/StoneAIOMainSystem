@@ -56,6 +56,13 @@ export interface CaseRunResult {
   status: CaseStatus;
   /** Final turn's response text (empty on infra/llm errors). */
   response: string;
+  /**
+   * JSON of queued proposal / needs_approval args for the final turn
+   * (assistant path only). A draft queued as a proposal IS the
+   * deliverable and IS readable in the UI — the scorer checks text
+   * expectations against response + proposalText.
+   */
+  proposalText?: string;
   queuedTools: string[];
   executedMarkers: string[];
   latencyMs: number;
@@ -90,6 +97,9 @@ export interface RunReport {
   latencyMs: { total: number; avg: number; max: number };
   /** ESTIMATED tokens (chars/4) — real metering lands in Phase 5. */
   estimatedTokens: { input: number; output: number; total: number };
+  /** True when the token totals are REAL (assistant path, from the
+   *  stream's `done` events) rather than chars/4 estimates. */
+  tokensReal?: boolean;
   /** True if any case executed a send — the run is void for safety. */
   sendsViolated: boolean;
   cases: CaseRunResult[];

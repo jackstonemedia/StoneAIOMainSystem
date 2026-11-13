@@ -93,8 +93,32 @@ export function renderMarkdown(report: RunReport, prev: RunReport | null): strin
   out.push(`- Overall: ${report.totals.pass}/${report.totals.pass + report.totals.fail} scored passed (${report.totals.passRate}%) · ` +
     `${report.totals.cases} cases · ${report.totals.infra_error} infra errors · ${report.totals.llm_error} llm errors`);
   out.push(`- Latency: total ${report.latencyMs.total}ms, avg ${report.latencyMs.avg}ms, max ${report.latencyMs.max}ms`);
-  out.push(`- Estimated tokens (chars/4, NOT metered — metering lands in Phase 5): input ${report.estimatedTokens.input}, output ${report.estimatedTokens.output}, total ${report.estimatedTokens.total}`);
+  out.push(
+    report.tokensReal
+      ? `- Real tokens (from the assistant's stream usage accounting): input ${report.estimatedTokens.input}, output ${report.estimatedTokens.output}, total ${report.estimatedTokens.total}`
+      : `- Estimated tokens (chars/4, NOT metered — metering lands in Phase 5): input ${report.estimatedTokens.input}, output ${report.estimatedTokens.output}, total ${report.estimatedTokens.total}`,
+  );
   if (report.sendsViolated) out.push(`- ⚠️ SAFETY VIOLATION: a send executed during this run. The run is void for safety.`);
+  out.push('');
+  // Cases that passed only because the expected text lived in a queued
+  // proposal's args (the draft shown in the proposal card) rather than
+  // in the chat text itself — the deliverable exists and is readable in
+  // the UI, but the chat reply alone did not carry it.
+  const viaProposal = report.cases.filter((c) =>
+    c.checks.some((x) => x.passed && x.detail?.startsWith('matched in queued proposal')),
+  );
+  if (viaProposal.length > 0) {
+    out.push('## Passed via queued proposal (not in chat text)');
+    out.push('');
+    for (const c of viaProposal) {
+      const names = c.checks
+        .filter((x) => x.passed && x.detail?.startsWith('matched in queued proposal'))
+        .map((x) => x.name)
+        .join('; ');
+      out.push(`- ${c.caseId} — ${names}`);
+    }
+    out.push('');
+  }
   out.push('');
   out.push('## Per-category');
   out.push('');
