@@ -11,7 +11,12 @@ export const memoryTools: ToolDefinition[] = [
     name: 'save_memory_preference',
     description:
       'Save a persistent user preference, writing style guideline, tone rule, or fact to the assistant memory so it is remembered and applied across all future chats.',
-    risk: 'read',
+    // risk 'write', NOT 'read': this tool upserts a row in AssistantMemory.
+    // The mode gate executes 'read' tools in ALL modes (even read-only and
+    // paused), so labeling this 'read' would let the assistant write
+    // memories in Read-only mode. 'write' blocks it in read-only, queues
+    // it as a proposal in draft mode, and executes it in full mode.
+    risk: 'write',
     minimumRole: 'member',
     parameters: {
       type: 'object',

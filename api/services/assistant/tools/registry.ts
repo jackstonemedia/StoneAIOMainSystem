@@ -11,6 +11,7 @@ import { campaignTools } from './campaign.tools.js';
 import { webSearchTools } from './web-search.tools.js';
 import { findersTools } from './finders.tools.js';
 import { platformTools } from './platform.tools.js';
+import { memoryTools } from './memory.tools.js';
 import { sanitizeSecrets } from './sanitizer.js';
 import type { ToolContext, ToolDefinition, ToolExecutionResult } from './types.js';
 
@@ -26,6 +27,7 @@ export class ToolRegistry {
     this.registerAll(webSearchTools);
     this.registerAll(findersTools);
     this.registerAll(platformTools);
+    this.registerAll(memoryTools);
   }
 
   register(tool: ToolDefinition): void {
