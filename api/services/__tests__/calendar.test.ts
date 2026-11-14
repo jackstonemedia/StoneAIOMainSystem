@@ -115,14 +115,17 @@ describe('Calendar & Scheduling Hub Services', () => {
   });
 
   describe('getCalendarSyncStatus', () => {
-    it('detects connected Gmail or Outlook channels', async () => {
+    it('a Gmail mail connection is mail, not a calendar sync', async () => {
       (db.channelConnection.findMany as any).mockResolvedValue([
         { id: 'conn-1', provider: 'gmail', email: 'jack@stoneaio.com', isActive: true },
       ]);
 
       const status = await biz.getCalendarSyncStatus('ws-123');
-      expect(status.hasGoogleCalendar).toBe(true);
+      expect(status.hasGoogleMail).toBe(true);
+      expect(status.hasGoogleCalendar).toBe(false);
       expect(status.hasOutlookCalendar).toBe(false);
+      expect(status.calendarSyncConnected).toBe(false);
+      expect(status.message).toMatch(/No calendar sync is connected/);
     });
   });
 });

@@ -699,17 +699,50 @@ export async function getCalendarSyncStatus(workspaceId: string) {
   const connections = await db.channelConnection.findMany({
     where: { workspaceId, isActive: true },
   });
+  // Honest split: a Gmail/Outlook *mail* connection is NOT a calendar sync.
+  // No calendar sync exists yet — only a real google_calendar /
+  // outlook_calendar connection counts as one, and none is ever created
+  // today. Reporting mail connections as calendar syncs was the lie.
+  const hasGoogleMail = connections.some((c: any) => c.provider === 'gmail');
+  const hasOutlookMail = connections.some((c: any) => c.provider === 'outlook');
+  const hasGoogleCalendar = connections.some((c: any) => (c.provider as string) === 'google_calendar');
+  const hasOutlookCalendar = connections.some((c: any) => (c.provider as string) === 'outlook_calendar');
+  const calendarSyncConnected = hasGoogleCalendar || hasOutlookCalendar;
   return {
-    hasGoogleCalendar: connections.some((c: any) => c.provider === 'gmail' || (c.provider as string) === 'google_calendar'),
-    hasOutlookCalendar: connections.some((c: any) => c.provider === 'outlook' || (c.provider as string) === 'outlook_calendar'),
+    hasGoogleMail,
+    hasOutlookMail,
+    hasGoogleCalendar,
+    hasOutlookCalendar,
+    calendarSyncConnected,
+    message: calendarSyncConnected
+      ? 'A calendar sync is connected.'
+      : 'No calendar sync is connected. Mail connections do not sync calendars — a real Google/Outlook calendar sync is a separate feature.',
     connections,
   };
 }
 
 export async function generateAiScheduleSuggestion(workspaceId: string, data: any) {
+  // Real suggestions from the workspace's actual appointments — never canned
+  // times. Delegates to getAvailableSlots, the same free-slot computer the
+  // public booking flow uses; returns the first 3 free slots.
+  const duration = Math.max(15, Math.min(240, Number(data?.durationMinutes) || 30));
+  const dateStr =
+    typeof data?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
+      ? data.date
+      : new Date().toISOString().slice(0, 10);
+  const { availableSlots } = await getAvailableSlots(workspaceId, {
+    date: dateStr,
+    durationMinutes: duration,
+  });
+  const suggestedSlots = availableSlots.slice(0, 3);
   return {
-    suggestedSlots: ['10:00', '14:00', '15:30'],
-    rationale: 'Optimal slots based on typical attendee availability and low conflict history.',
+    date: dateStr,
+    durationMinutes: duration,
+    suggestedSlots,
+    rationale:
+      suggestedSlots.length > 0
+        ? `Free ${duration}-minute slots on ${dateStr}, checked against the workspace's existing appointments.`
+        : `No free ${duration}-minute slots on ${dateStr} between 09:00 and 17:00 — the day is fully booked.`,
   };
 }
 
