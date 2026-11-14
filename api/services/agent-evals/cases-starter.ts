@@ -35,7 +35,10 @@ export const STARTER_CASES: EvalCase[] = [
     turns: ['When does the Evalworks website redesign deal close?'],
     origin: 'azareth-starter',
     expect: {
-      anyOf: [['no close date', 'not set', 'no closing date', "doesn't have a close date", 'no date set']],
+      // 2026-11-14: 'does not have an expected close date' — the correct
+      // response "does not have an expected close date set in the CRM"
+      // (list_deals, no hallucination) missed every needle above.
+      anyOf: [['no close date', 'not set', 'no closing date', "doesn't have a close date", 'no date set', 'does not have an expected close date']],
     },
   },
   {
