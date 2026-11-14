@@ -24,7 +24,6 @@ export const ROUTES = {
     SETTINGS: '/assistant/settings',
   },
   PROJECTS: '/projects',
-  MARKETPLACE: '/marketplace',
   BILLING: '/billing',
   SETTINGS: '/settings',
   TEMPLATES: '/templates',

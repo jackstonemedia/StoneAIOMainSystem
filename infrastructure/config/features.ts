@@ -9,7 +9,6 @@ export interface FeatureFlags {
   sdr: boolean;
   leads: boolean;
   agents: boolean;
-  marketplace: boolean;
   assistant: boolean;
   projects: boolean;
   reputation: boolean;
@@ -22,7 +21,6 @@ export const FEATURES: FeatureFlags = {
   sdr: process.env.FEATURE_SDR === 'true',
   leads: process.env.FEATURE_LEADS === 'true',
   agents: process.env.FEATURE_AGENTS === 'true',
-  marketplace: process.env.FEATURE_MARKETPLACE === 'true',
   assistant: process.env.FEATURE_ASSISTANT === 'true',
   projects: process.env.FEATURE_PROJECTS === 'true',
   reputation: process.env.FEATURE_REPUTATION === 'true',

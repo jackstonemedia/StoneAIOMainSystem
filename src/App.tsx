@@ -35,7 +35,6 @@ const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSe
 const WorkflowBuilder = lazy(() => import('./pages/automations/WorkflowBuilder'));
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
-const Marketplace        = lazy(() => import('./pages/Marketplace'));
 
 // Business Hub & Dashboard
 const BusinessLayout      = lazy(() => import('./pages/business/BusinessLayout'));
@@ -283,7 +282,6 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
             <Route path="/opportunities/settings/tags"      element={<Navigate to="/crm/opportunities/settings/tags" replace />} />
 
             {/* Shared */}
-            <Route path="/marketplace"       element={FEATURES.marketplace ? <ErrorBoundary><Protect withAuth={withAuth}><Marketplace /></Protect></ErrorBoundary> : <Navigate to="/dashboard" replace />} />
             <Route path="/billing"           element={<Navigate to="/settings?tab=billing" replace />} />
             <Route path="/settings/billing"  element={<Navigate to="/settings?tab=billing" replace />} />
             <Route path="/settings"          element={<ErrorBoundary><Protect withAuth={withAuth}><SettingsPage /></Protect></ErrorBoundary>} />
