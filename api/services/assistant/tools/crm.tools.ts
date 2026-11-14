@@ -159,7 +159,7 @@ export const crmTools: ToolDefinition[] = [
   // 4. update_contact
   {
     name: 'update_contact',
-    description: 'Update fields of an existing contact.',
+    description: 'Update a contact\'s record. Use this whenever the person asks to update or change a contact, including adding information about them — never use add_contact_note to update a contact.',
     risk: 'write',
     minimumRole: 'member',
     parameters: {
@@ -205,10 +205,70 @@ export const crmTools: ToolDefinition[] = [
     },
   },
 
-  // 5. add_contact_note
+  // 5. update_deal (eval-gap fix: the assistant could not update a deal)
+  {
+    name: 'update_deal',
+    description: 'Update fields of an existing deal. Use this to change a deal\'s title, amount, status, stage, close date, or probability — never use add_contact_note to change a deal.',
+    risk: 'write',
+    minimumRole: 'member',
+    parameters: {
+      type: 'object',
+      properties: {
+        dealId: { type: 'string', description: 'The UUID of the deal to update.' },
+        title: { type: 'string', description: 'New deal title.' },
+        amount: { type: 'number', description: 'New deal amount.' },
+        status: { type: 'string', description: 'New deal status (e.g. open, won, lost).' },
+        stageId: { type: 'string', description: 'New pipeline stage ID.' },
+        probability: { type: 'number', description: 'New win probability (0-100).' },
+        closeDate: { type: 'string', description: 'New expected close date (ISO date).' },
+        contactId: { type: 'string', description: 'New linked contact ID.' },
+        companyId: { type: 'string', description: 'New linked company ID.' },
+      },
+      required: ['dealId'],
+    },
+    execute: async (
+      args: {
+        dealId: string;
+        title?: string;
+        amount?: number;
+        status?: string;
+        stageId?: string;
+        probability?: number;
+        closeDate?: string;
+        contactId?: string;
+        companyId?: string;
+      },
+      ctx
+    ) => {
+      const updateData: Record<string, unknown> = {};
+      if (args.title !== undefined) updateData.title = args.title;
+      if (args.amount !== undefined) updateData.amount = args.amount;
+      if (args.status !== undefined) updateData.status = args.status;
+      if (args.stageId !== undefined) updateData.pipelineStageId = args.stageId;
+      if (args.probability !== undefined) updateData.probability = args.probability;
+      if (args.closeDate !== undefined) updateData.closeDate = args.closeDate;
+      if (args.contactId !== undefined) updateData.contactId = args.contactId;
+      if (args.companyId !== undefined) updateData.companyId = args.companyId;
+
+      const updated = await crm.updateDeal(args.dealId, ctx.workspaceId, updateData);
+      return {
+        deal: {
+          id: updated.id,
+          title: updated.title,
+          amount: updated.amount,
+          status: updated.status,
+          stage: (updated as any).pipelineStage?.name ?? null,
+          closeDate: (updated as any).closeDate ?? null,
+        },
+        message: 'Deal updated successfully.',
+      };
+    },
+  },
+
+  // 6. add_contact_note
   {
     name: 'add_contact_note',
-    description: 'Add a note or activity log to a contact.',
+    description: 'Add a note or activity log to a contact\'s timeline. Use this ONLY when the person explicitly asks to add or log a note — never as the way to update a contact.',
     risk: 'write',
     minimumRole: 'member',
     parameters: {
@@ -293,8 +353,35 @@ export const crmTools: ToolDefinition[] = [
           stage: d.pipelineStage?.name,
           contact: d.contact ? `${d.contact.firstName} ${d.contact.lastName}`.trim() : null,
           company: d.company?.name,
+          // closeDate was omitted here, so the model borrowed dates from
+          // other deals (eval qa-03 hallucinated "December 1").
+          closeDate: d.closeDate ? new Date(d.closeDate).toISOString().slice(0, 10) : null,
         })),
         total: deals.length,
+      };
+    },
+  },
+
+  // list_pipelines (eval-gap fix: the assistant could not list pipelines)
+  {
+    name: 'list_pipelines',
+    description: 'List the workspace\'s sales pipelines with their stages.',
+    risk: 'read',
+    minimumRole: 'member',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    execute: async (_args: Record<string, never>, ctx) => {
+      const pipelines = await crm.listPipelines(ctx.workspaceId);
+      return {
+        pipelines: pipelines.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          isDefault: p.isDefault,
+          stages: (p.stages || []).map((s: any) => ({ id: s.id, name: s.name })),
+        })),
+        total: pipelines.length,
       };
     },
   },

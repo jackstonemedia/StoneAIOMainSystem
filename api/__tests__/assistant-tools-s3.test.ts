@@ -154,8 +154,9 @@ describe('Stage S3 Mode Gate Enforcement on New Tools', () => {
     expect(toolNames).toContain('reply_to_conversation');
     expect(toolNames).toContain('send_sms');
 
-    // Wave C: create_campaign_draft
-    expect(toolNames).toContain('create_campaign_draft');
+    // Wave C: create_campaign (the create_campaign_draft alias was deleted
+    // in the eval-gap pass 2026-11-14 — the two were functionally identical)
+    expect(toolNames).toContain('create_campaign');
 
     // Wave D: explain_platform
     expect(toolNames).toContain('explain_platform');

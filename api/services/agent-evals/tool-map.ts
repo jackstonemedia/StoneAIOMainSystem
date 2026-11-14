@@ -13,11 +13,11 @@ export const TOOL_NAME_MAP: Record<string, string> = {
  * these fail the queuedTools check honestly — they are capability gaps
  * in the shipping product, not harness bugs, and the run report must
  * name them as such.
+ *
+ * (Eval-gap pass 2026-11-14: update_deal and send_campaign were built, so
+ * this map is now empty. It stays as the extension point for future gaps.)
  */
-export const UNMAPPABLE_TOOLS: Record<string, string> = {
-  update_deal: 'the new assistant has no update_deal tool (it cannot update a deal)',
-  send_campaign: 'the new assistant has no send_campaign tool (campaigns are draft-only via create_campaign)',
-};
+export const UNMAPPABLE_TOOLS: Record<string, string> = {};
 
 export function mapToolName(oldName: string): string {
   return TOOL_NAME_MAP[oldName] ?? oldName;
