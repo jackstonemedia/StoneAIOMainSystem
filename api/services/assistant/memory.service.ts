@@ -7,6 +7,8 @@ import { withTenant } from './rls.js';
 import { assistantRepo } from './assistant.repo.js';
 import { hasMinimumRole } from './modes.js';
 import { tryGetAIClient, DEFAULT_MODEL } from '../../../packages/ai/client.js';
+import { db } from '../../../infrastructure/database/client.js';
+import { recordUsage, extractUsage } from '../agent/metering.js';
 import type { AssistantMemory } from '@prisma/client';
 
 export class AssistantMemoryService {
@@ -270,15 +272,7 @@ export class AssistantMemoryService {
     const ai = tryGetAIClient();
     if (!ai) return;
 
-    try {
-      const res = await ai.models.generateContent({
-        model: process.env.ASSISTANT_SMALL_MODEL || DEFAULT_MODEL,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `You are an assistant memory extractor. Analyze the user statement below and determine if the user is expressing a writing style preference, detail/depth preference (e.g., "Make it more detailed", "keep it concise"), tone guideline (e.g., "Make it sound more human and personal", "don't sound corporate"), formatting rule (e.g., "use bullet points", "never use emojis"), or persistent user/workspace fact.
+    const prompt = `You are an assistant memory extractor. Analyze the user statement below and determine if the user is expressing a writing style preference, detail/depth preference (e.g., "Make it more detailed", "keep it concise"), tone guideline (e.g., "Make it sound more human and personal", "don't sound corporate"), formatting rule (e.g., "use bullet points", "never use emojis"), or persistent user/workspace fact.
 
 When a user gives feedback on how they want content drafted, revised, or formatted, extract it as an ongoing preference.
 
@@ -292,7 +286,17 @@ If YES, output a single JSON object with:
 If NO persistent preference or fact is expressed, output {} only.
 Return VALID JSON ONLY (no markdown code blocks, no other text):
 
-"${userMessage.replace(/"/g, '\\"')}"`,
+"${userMessage.replace(/"/g, '\\"')}"`;
+
+    try {
+      const res = await ai.models.generateContent({
+        model: process.env.ASSISTANT_SMALL_MODEL || DEFAULT_MODEL,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: prompt,
               },
             ],
           },
@@ -300,6 +304,17 @@ Return VALID JSON ONLY (no markdown code blocks, no other text):
       });
 
       const rawText = res.text?.trim() || '';
+      // D4: record the extraction call's tokens into the monthly bucket.
+      // Never fatal: a recording failure must not change extraction.
+      try {
+        const usage = extractUsage(res, prompt, rawText);
+        await recordUsage(db as any, workspaceId, usage);
+        console.log(
+          `[AssistantMemory] recorded ${usage.input + usage.output} extraction tokens for workspace ${workspaceId}`,
+        );
+      } catch (recErr) {
+        console.error('[AssistantMemory] Failed to record extraction usage:', (recErr as Error)?.message);
+      }
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);

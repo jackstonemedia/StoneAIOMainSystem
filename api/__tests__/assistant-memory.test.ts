@@ -28,6 +28,11 @@ interface FixtureMessage {
 const mockMemories: Record<string, FixtureMemory> = {};
 const mockMessages: Record<string, FixtureMessage> = {};
 
+// D4: captures recordUsage upserts from the extraction path.
+const { mockAgentTokenUpsert } = vi.hoisted(() => ({
+  mockAgentTokenUpsert: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock('../../infrastructure/database/client.js', () => ({
   db: {
     $transaction: vi.fn().mockImplementation(async (callback) => {
@@ -135,6 +140,8 @@ vi.mock('../../infrastructure/database/client.js', () => ({
 
       return callback(txMock);
     }),
+    // D4: the monthly bucket recordUsage writes to (top-level, not via $transaction).
+    agentTokenUsage: { upsert: mockAgentTokenUpsert },
   },
 }));
 
@@ -145,6 +152,19 @@ vi.mock('../../packages/ai/client.js', () => ({
       generateContent: vi.fn().mockImplementation(async ({ contents }) => {
         const promptText = contents?.[0]?.parts?.[0]?.text || '';
         const lastLine = promptText.trim().split('\n').pop() || '';
+        // D4: metadata branch — returns usageMetadata so the recording
+        // test can assert exact counts (checked before the detail branch:
+        // the test message contains both markers).
+        if (lastLine.includes('METADATA-TEST')) {
+          return {
+            text: JSON.stringify({
+              key: 'Detail Level',
+              value: 'Prefers detailed, comprehensive explanations with thorough depth.',
+              category: 'preference',
+            }),
+            usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 30 },
+          };
+        }
         if (lastLine.includes('Make it more detailed')) {
           return {
             text: JSON.stringify({
@@ -180,6 +200,7 @@ describe('Assistant Memory Service', () => {
   beforeEach(() => {
     for (const key of Object.keys(mockMemories)) delete mockMemories[key];
     for (const key of Object.keys(mockMessages)) delete mockMessages[key];
+    mockAgentTokenUpsert.mockClear();
   });
 
   it('saves and lists user memories scoped to workspace and user', async () => {
@@ -295,6 +316,49 @@ describe('Assistant Memory Service', () => {
     const promptBlock = await memoryService.getMemoriesPromptBlock(ws1, user1);
     expect(promptBlock).toContain('Detail Level');
     expect(promptBlock).toContain('detailed, comprehensive explanations');
+  });
+
+  it('D4: records the extraction call usage (estimated) into the monthly bucket', async () => {
+    await memoryService.maybeExtractMemories(ws1, user1, 'Make it more detailed');
+
+    const memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.find((m) => m.key === 'Detail Level')).toBeDefined();
+    // No usageMetadata from the stubbed client, so the estimate fallback
+    // runs — the call is still recorded exactly once, for this workspace.
+    expect(mockAgentTokenUpsert).toHaveBeenCalledTimes(1);
+    const upsertArg = mockAgentTokenUpsert.mock.calls[0][0];
+    expect(upsertArg.where.workspaceId_month.workspaceId).toBe(ws1);
+    expect(upsertArg.create.inputTokens).toBeGreaterThan(0);
+    expect(upsertArg.create.outputTokens).toBeGreaterThan(0);
+    expect(upsertArg.create.totalTokens).toBe(
+      upsertArg.create.inputTokens + upsertArg.create.outputTokens,
+    );
+  });
+
+  it('D4: records the model-reported usage when usageMetadata is present', async () => {
+    await memoryService.maybeExtractMemories(ws1, user1, 'Make it more detailed. METADATA-TEST');
+
+    const memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.find((m) => m.key === 'Detail Level')).toBeDefined();
+    expect(mockAgentTokenUpsert).toHaveBeenCalledTimes(1);
+    const upsertArg = mockAgentTokenUpsert.mock.calls[0][0];
+    expect(upsertArg.create.inputTokens).toBe(120);
+    expect(upsertArg.create.outputTokens).toBe(30);
+    expect(upsertArg.create.totalTokens).toBe(150);
+  });
+
+  it('D4: a recording failure does not break extraction', async () => {
+    mockAgentTokenUpsert.mockRejectedValueOnce(new Error('db down'));
+
+    await memoryService.maybeExtractMemories(
+      ws1,
+      user1,
+      'Make it sound more human and personal.'
+    );
+
+    const memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.length).toBe(1);
+    expect(memories[0].key).toBe('Writing Tone');
   });
 
   it('searches past chats using keyword match with strict workspace scoping', async () => {
