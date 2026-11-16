@@ -8,6 +8,7 @@
 // settled tier names and prices. Unknown plans fall back to the
 // lowest tier, never higher.
 import type { PrismaClient } from '@prisma/client';
+import { TRIAL_DAYS } from '../billing/plans.js';
 
 /** Monthly token budgets by workspace plan string. */
 export const MONTHLY_BUDGETS: Record<string, number> = {
@@ -26,6 +27,65 @@ export const DEFAULT_BUDGET = 100_000;
 export function budgetForPlan(plan: string | null | undefined): number {
   if (!plan) return DEFAULT_BUDGET;
   return MONTHLY_BUDGETS[plan.toLowerCase()] ?? DEFAULT_BUDGET;
+}
+
+/**
+ * Trial token budget (Blueprint 3 Phase 3, D1 — Jack-confirmed
+ * 2026-11-10): a trialing workspace gets the pro-rated plan budget
+ * with a 500k floor, never the full plan budget. Basic 500,000 (the
+ * floor binds), Plus 583,333, Complete 2,333,333 for the 7-day trial.
+ * Floored to whole tokens, so the cap never exceeds the pro-rata
+ * share. TRIAL_DAYS stays 7 (Jack-confirmed); a 2-week trial is a
+ * one-line change he has not asked for.
+ */
+export const TRIAL_BUDGET_FLOOR = 500_000;
+
+export function trialBudgetForPlan(
+  plan: string | null | undefined,
+  trialDays: number = TRIAL_DAYS,
+): number {
+  return Math.max(
+    Math.floor((budgetForPlan(plan) * trialDays) / 30),
+    TRIAL_BUDGET_FLOOR,
+  );
+}
+
+export interface TrialWorkspaceShape {
+  plan?: string | null;
+  trialEndsAt?: Date | string | null;
+  subscriptionStatus?: string | null;
+}
+
+/**
+ * True only while the workspace is inside a live trial: Stripe
+ * reports 'trialing' and the trial end is still in the future.
+ * "Has never paid" needs no extra field: Stripe only reports
+ * 'trialing' before the first payment is collected, and trials are
+ * once per workspace (qualifiesForTrial in billing/plans.ts) — a
+ * trialing workspace has, by construction, never paid. A stale
+ * 'trialing' status with an expired trialEndsAt fails open to the
+ * full plan budget (the meter still blocks there), never to
+ * unmetered.
+ */
+export function isTrialingWorkspace(
+  ws: TrialWorkspaceShape | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!ws || ws.subscriptionStatus !== 'trialing') return false;
+  const endsAt = ws.trialEndsAt instanceof Date ? ws.trialEndsAt : ws.trialEndsAt ? new Date(ws.trialEndsAt) : null;
+  if (!endsAt || Number.isNaN(endsAt.getTime())) return false;
+  return endsAt > now;
+}
+
+/** The enforced monthly budget for a workspace: the trial budget
+ *  while trialing, else the plan budget. */
+export function budgetForWorkspace(
+  ws: TrialWorkspaceShape | null | undefined,
+  now: Date = new Date(),
+): number {
+  return isTrialingWorkspace(ws, now)
+    ? trialBudgetForPlan(ws?.plan ?? null)
+    : budgetForPlan(ws?.plan ?? null);
 }
 
 /** Calendar month bucket key, UTC. A new month is a new bucket. */
@@ -170,10 +230,10 @@ export async function checkBudget(
   const month = monthKey();
   const ws = await (db as any).workspace.findUnique({
     where: { id: workspaceId },
-    select: { plan: true },
+    select: { plan: true, trialEndsAt: true, subscriptionStatus: true },
   });
   const plan = ws?.plan ?? null;
-  const budget = budgetForPlan(plan);
+  const budget = budgetForWorkspace(ws);
   const used = (await getUsage(db, workspaceId, month)).total;
   return {
     allowed: opts.bypass === true || used < budget,
