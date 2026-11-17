@@ -386,6 +386,46 @@ async function resolveRecipientContactIds(
   return allContacts.filter(c => c.email && c.email.trim() && c.email.includes('@')).map(c => c.id);
 }
 
+/**
+ * Resolves the contact ids a campaign will actually send to.
+ *
+ * A campaign with direct CampaignRecipient rows and no list / segment /
+ * smartList audience — e.g. a CRM bulk-email draft, built from the contacts
+ * the user selected — sends to exactly those contacts, never the
+ * all-contacts fallback in resolveRecipientContactIds. A set audience
+ * always wins over direct rows: picking a list in the editor changes the
+ * audience, and the direct rows stop being the resolution.
+ *
+ * Direct rows are filtered to contacts that still have a valid email and
+ * deduplicated; a contact whose email was removed since the draft was
+ * built is skipped, not sent to.
+ */
+export async function resolveCampaignRecipientContactIds(
+  workspaceId: string,
+  campaign: { id: string; listId?: string | null; segmentId?: string | null; smartListId?: string | null }
+): Promise<string[]> {
+  const listId = (campaign as any).listId ?? null;
+  const segmentId = (campaign as any).segmentId ?? null;
+  const smartListId = (campaign as any).smartListId ?? null;
+  if (!listId && !segmentId && !smartListId) {
+    const direct = await db.campaignRecipient.findMany({
+      where: { campaignId: campaign.id },
+      select: { contactId: true },
+    });
+    if (direct.length > 0) {
+      const ids = [...new Set(direct.map((r) => r.contactId))];
+      const contacts = await db.contact.findMany({
+        where: { id: { in: ids }, workspaceId },
+        select: { id: true, email: true },
+      });
+      return contacts
+        .filter((c) => c.email && c.email.trim() && c.email.includes('@'))
+        .map((c) => c.id);
+    }
+  }
+  return resolveRecipientContactIds(workspaceId, listId, segmentId, smartListId);
+}
+
 async function checkSmartListId(workspaceId: string, id: string): Promise<string | null> {
   const sl = await db.smartList.findFirst({ where: { id, workspaceId }, select: { id: true } });
   return sl ? sl.id : null;
@@ -400,12 +440,7 @@ export async function getCampaignOutreachPlan(workspaceId: string, campaignId: s
   });
   if (!campaign) throw new Error('Campaign not found');
 
-  const contactIds = await resolveRecipientContactIds(
-    workspaceId,
-    campaign.listId,
-    campaign.segmentId,
-    (campaign as any).smartListId
-  );
+  const contactIds = await resolveCampaignRecipientContactIds(workspaceId, campaign);
 
   const { getWorkspaceOutreachCapacity } = await import('./mailbox-pool.service.js');
   const capacity = await getWorkspaceOutreachCapacity(workspaceId);
@@ -452,6 +487,11 @@ export async function sendCampaign(
     throw new Error('No active Gmail or Outlook mailbox connected. Please connect an outreach mailbox in Settings → Channels before launching.');
   }
 
+  // Resolve the audience BEFORE the SENT-clear below deletes the direct
+  // recipient rows: a re-send must go to the same contacts the draft was
+  // built for, not the all-contacts fallback.
+  const contactIds = await resolveCampaignRecipientContactIds(workspaceId, campaign);
+
   // If already SENT, clear old recipient records to execute a fresh send
   if (campaign.status === CampaignStatus.SENT) {
     await db.campaignRecipient.deleteMany({ where: { campaignId } });
@@ -474,14 +514,6 @@ export async function sendCampaign(
     data: { status: 'sending' },
   });
 
-  // Resolve recipients
-  const contactIds = await resolveRecipientContactIds(
-    workspaceId,
-    campaign.listId,
-    campaign.segmentId,
-    (campaign as any).smartListId
-  );
-
   if (contactIds.length === 0) {
     // No recipients — mark as SENT immediately
     await db.campaign.updateMany({
@@ -490,6 +522,12 @@ export async function sendCampaign(
     });
     return { queued: 0 };
   }
+
+  // The resolved list is the single source of truth: drop any rows the
+  // draft already carries (e.g. a bulk-email draft's direct rows) before
+  // the branches below create the resolved ones, so no contact is ever
+  // rowed — and emailed — twice.
+  await db.campaignRecipient.deleteMany({ where: { campaignId } });
 
   // Apply Multi-Day Schedule Planning
   const { planCampaignMultiDaySchedule, applyCampaignMultiDaySchedule } = await import('./outreach-scheduler.service.js');

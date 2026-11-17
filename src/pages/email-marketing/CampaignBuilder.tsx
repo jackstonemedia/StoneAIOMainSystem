@@ -13,6 +13,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractApiError } from '../../lib/apiClient';
+import { deriveAudienceCount } from '../../lib/campaignAudience';
 import { useToast } from '../../components/ui/Toast';
 import {
   Send, Save, Eye, ChevronLeft, ChevronDown, Loader2,
@@ -475,17 +476,28 @@ export default function CampaignBuilder() {
       } else if (campaign.listId) {
         setAudienceType('list');
         setListId(campaign.listId);
+      } else if (Array.isArray((campaign as any).recipients) && (campaign as any).recipients.length > 0) {
+        // Direct-recipient draft (e.g. CRM bulk email): no list audience.
+        // Clear any id the auto-select may have set before the campaign
+        // loaded, so saving the draft cannot silently change its audience.
+        setSmartListId('');
+        setSegmentId('');
+        setListId('');
       }
     }
   }, [campaign]);
 
-  // Default select first available smart list
+  // Default select first available smart list — never for a campaign whose
+  // real recipients are direct rows: that auto-select would overwrite the
+  // draft's audience with a list it never chose.
   useEffect(() => {
-    if (smartLists.length > 0 && !smartListId && !listId && !segmentId) {
+    const hasDirectRecipients =
+      Array.isArray((campaign as any)?.recipients) && (campaign as any).recipients.length > 0;
+    if (smartLists.length > 0 && !smartListId && !listId && !segmentId && !hasDirectRecipients) {
       setSmartListId(smartLists[0].id);
       setAudienceType('smartList');
     }
-  }, [smartLists, smartListId, listId, segmentId]);
+  }, [smartLists, smartListId, listId, segmentId, campaign]);
 
   // ── Drip Sequence Step Handlers ─────────────────────────────────────────────
 
@@ -937,7 +949,14 @@ export default function CampaignBuilder() {
   }
 
   const selectedSmartList = smartLists.find((s: any) => s.id === smartListId);
-  const targetRecipientCount = selectedSmartList?.contactCount ?? selectedSmartList?._count?.items ?? 'All';
+  // Direct-recipient drafts show their real recipient count; anything else
+  // keeps the smart-list count. The rule matches the send-side resolution,
+  // so the editor, the modal, and the launch all agree on the audience.
+  const { count: targetRecipientCount, isDirect: hasDirectAudience } = deriveAudienceCount(
+    campaign,
+    selectedSmartList,
+    { smartListId, segmentId, listId }
+  );
 
   return (
     <>
@@ -1141,7 +1160,7 @@ export default function CampaignBuilder() {
                 (campaignType === 'broadcast' && !subject && !abTestEnabled) ||
                 (campaignType === 'drip' && (!dripSteps[0]?.subject || dripSteps.length === 0)) ||
                 (audienceType === 'list' && !listId) ||
-                (audienceType === 'smartList' && !smartListId) ||
+                (audienceType === 'smartList' && !smartListId && !hasDirectAudience) ||
                 (audienceType === 'segment' && !segmentId)
               }
               className="flex items-center gap-1.5 px-4 py-1.5 bg-primary hover:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all shadow-interactive shrink-0 whitespace-nowrap"
@@ -1264,7 +1283,7 @@ export default function CampaignBuilder() {
                       Matching Contacts: <strong className="text-text-main">{targetRecipientCount}</strong>
                     </span>
                     <span className="text-[10px] font-semibold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
-                      CRM Smart Lists
+                      {hasDirectAudience ? 'Direct Recipients' : 'CRM Smart Lists'}
                     </span>
                   </div>
                 </div>
@@ -2231,7 +2250,7 @@ export default function CampaignBuilder() {
                 <div className="bg-surface-hover/50 border border-border/50 rounded-xl p-3 text-xs space-y-1">
                   <div className="flex justify-between text-text-muted">
                     <span>Target Audience:</span>
-                    <strong className="text-text-main">{selectedSmartList?.name || 'CRM Smart List'}</strong>
+                    <strong className="text-text-main">{hasDirectAudience ? 'Direct recipients' : (selectedSmartList?.name || 'CRM Smart List')}</strong>
                   </div>
                   <div className="flex justify-between text-text-muted">
                     <span>Total Audience:</span>

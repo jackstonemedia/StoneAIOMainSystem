@@ -14,6 +14,7 @@ import { SlideOverPanel } from '../../../components/ui/SlideOverPanel';
 import { ConfirmDelete } from '../../../components/ui/ConfirmDelete';
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/apiClient';
+import { saveAppointment } from '../../../lib/appointments';
 import type { Appointment } from '../../../types/business';
 import { AssistantLauncher } from '../../../components/assistant/AssistantLauncher';
 
@@ -433,19 +434,11 @@ export default function CalendarSchedulePage() {
 
   // ── Mutations ──
   const saveMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const isEdit = Boolean(payload.id);
-      try {
-        if (isEdit) {
-          const { data } = await apiClient.put(`/business/appointments/${payload.id}`, payload);
-          return data || payload;
-        }
-        const { data } = await apiClient.post('/business/appointments', payload);
-        return data || { ...payload, id: `apt-${Date.now()}` };
-      } catch {
-        return { ...payload, id: payload.id || `apt-local-${Date.now()}` };
-      }
-    },
+    // saveAppointment throws on a failed POST/PUT — the error reaches
+    // onError below (honest error toast, nothing added). It must never
+    // return a local id for a failed save: that is how phantom
+    // appointments and false "Appointment scheduled" toasts happened.
+    mutationFn: (payload: any) => saveAppointment(payload),
     onSuccess: (saved: Appointment) => {
       const isEdit = Boolean(form.id);
       if (isEdit) {
