@@ -3,6 +3,7 @@
  * Spec Section 7.7 & Phase 7 Wave D
  */
 
+import { db } from '../../../../infrastructure/database/client.js';
 import type { ToolDefinition } from './types.js';
 
 interface PlatformHelpTopic {
@@ -186,6 +187,35 @@ export const platformTools: ToolDefinition[] = [
         navigationPath: topic.navigationPath,
         summary: topic.summary,
         steps: topic.steps,
+      };
+    },
+  },
+
+  // 2. get_workspace_info (eval-gap fix: the assistant could not answer
+  // what business the workspace is, or what the agent is called — p4-ws-01)
+  {
+    name: 'get_workspace_info',
+    description: 'Get this workspace\'s business name, plan, and the assistant\'s name. Use this when the person asks what business this workspace is, what plan it is on, or what the agent is called.',
+    risk: 'read',
+    minimumRole: 'member',
+    parameters: {
+      type: 'object',
+      properties: {},
+    },
+    execute: async (_args: Record<string, never>, ctx) => {
+      const workspace = await db.workspace.findUnique({
+        where: { id: ctx.workspaceId },
+        select: { id: true, name: true, plan: true, subscriptionStatus: true, agentName: true },
+      });
+      if (!workspace) throw new Error('Workspace not found.');
+      return {
+        workspace: {
+          id: workspace.id,
+          name: workspace.name,
+          plan: workspace.plan,
+          subscriptionStatus: workspace.subscriptionStatus,
+        },
+        agentName: workspace.agentName,
       };
     },
   },

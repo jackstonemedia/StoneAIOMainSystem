@@ -10,7 +10,7 @@ export const communicationTools: ToolDefinition[] = [
   // 1. list_inbox_messages
   {
     name: 'list_inbox_messages',
-    description: 'List recent conversations and messages from the workspace inbox.',
+    description: 'List recent conversations and messages from the workspace inbox (email/SMS threads). Pass conversationId to read one thread\'s messages. Returns each thread with its recent messages — use this when the person asks what was said in a conversation.',
     risk: 'read',
     minimumRole: 'member',
     parameters: {
@@ -18,10 +18,45 @@ export const communicationTools: ToolDefinition[] = [
       properties: {
         channel: { type: 'string', description: 'Filter by channel: email, sms, etc.' },
         contactId: { type: 'string', description: 'Filter by contact ID.' },
+        conversationId: { type: 'string', description: 'Read the messages of one conversation thread by its UUID.' },
         limit: { type: 'number', description: 'Maximum conversations to return (default 20).' },
       },
     },
-    execute: async (args: { channel?: string; contactId?: string; limit?: number }, ctx) => {
+    execute: async (args: { channel?: string; contactId?: string; conversationId?: string; limit?: number }, ctx) => {
+      // Single-thread read: the thread's messages, oldest first.
+      // (Previously only the latest message per thread was returned, so
+      // earlier messages — e.g. "Is the retainer still open?" — were
+      // invisible to the assistant. Eval p4-conv-02.)
+      if (args.conversationId) {
+        const convo = await db.conversation.findFirst({
+          where: { id: args.conversationId, workspaceId: ctx.workspaceId },
+          include: { contact: { select: { id: true, firstName: true, lastName: true } } },
+        });
+        if (!convo) throw new Error('Conversation not found.');
+        const rows = await db.conversationMessage.findMany({
+          where: { conversationId: convo.id },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        });
+        const messages = rows.reverse().map((m: any) => ({
+          sender: m.sender,
+          body: m.body,
+          direction: m.direction,
+          createdAt: m.createdAt,
+        }));
+        return {
+          conversation: {
+            id: convo.id,
+            channel: convo.channel,
+            status: convo.status,
+            subject: convo.subject,
+            contact: convo.contact ? `${convo.contact.firstName} ${convo.contact.lastName}`.trim() : null,
+          },
+          messages,
+          total: messages.length,
+        };
+      }
+
       const take = Math.min(Math.max(args.limit || 20, 1), 50);
       const conversations = await db.conversation.findMany({
         where: {
@@ -35,7 +70,7 @@ export const communicationTools: ToolDefinition[] = [
           },
           messages: {
             orderBy: { createdAt: 'desc' },
-            take: 1,
+            take: 5,
           },
         },
         orderBy: { updatedAt: 'desc' },
@@ -52,8 +87,75 @@ export const communicationTools: ToolDefinition[] = [
           lastMessage: c.messages[0]?.body || null,
           lastMessageAt: c.lastMessageAt,
           unreadCount: c.unreadCount,
+          messages: [...c.messages].reverse().map((m: any) => ({
+            sender: m.sender,
+            body: m.body,
+            direction: m.direction,
+            createdAt: m.createdAt,
+          })),
         })),
         total: conversations.length,
+      };
+    },
+  },
+
+  // 1b. list_inbox_conversations (eval-gap fix: the assistant could not see
+  // the workspace inbox threads — they live in inboxConversation /
+  // inboxMessage, which list_inbox_messages never read. Eval p4-inbox-01/02.)
+  {
+    name: 'list_inbox_conversations',
+    description: 'List inbox conversation threads from the workspace inbox (subjects, status, contact, recent messages). Use this when the person asks to list or show inbox conversations or threads, or what came into the inbox.',
+    risk: 'read',
+    minimumRole: 'member',
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Filter by status: open, resolved, etc.' },
+        limit: { type: 'number', description: 'Maximum threads to return (default 20).' },
+      },
+    },
+    execute: async (args: { status?: string; limit?: number }, ctx) => {
+      const take = Math.min(Math.max(args.limit || 20, 1), 50);
+      const threads = await db.inboxConversation.findMany({
+        where: {
+          workspaceId: ctx.workspaceId,
+          ...(args.status ? { status: args.status } : {}),
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+          },
+        },
+        orderBy: { lastActivityAt: 'desc' },
+        take,
+      });
+
+      const contactIds = [...new Set(threads.map((t: any) => t.crmContactId).filter(Boolean))];
+      const contacts = contactIds.length
+        ? await db.contact.findMany({
+            where: { id: { in: contactIds }, workspaceId: ctx.workspaceId },
+            select: { id: true, firstName: true, lastName: true },
+          })
+        : [];
+      const nameById = new Map(contacts.map((c: any) => [c.id, `${c.firstName} ${c.lastName}`.trim()]));
+
+      return {
+        conversations: threads.map((t: any) => ({
+          id: t.id,
+          subject: t.subject,
+          status: t.status,
+          contact: t.crmContactId ? (nameById.get(t.crmContactId) ?? null) : null,
+          lastMessage: t.messages[0]?.content || null,
+          lastMessageAt: t.lastActivityAt,
+          unreadCount: t.unreadCount,
+          messages: [...t.messages].reverse().map((m: any) => ({
+            senderType: m.senderType,
+            content: m.content,
+            createdAt: m.createdAt,
+          })),
+        })),
+        total: threads.length,
       };
     },
   },
@@ -61,7 +163,7 @@ export const communicationTools: ToolDefinition[] = [
   // 2. draft_email
   {
     name: 'draft_email',
-    description: 'Create a draft email in the workspace inbox for review before sending.',
+    description: 'Create a draft email in the workspace inbox for review before sending. Use this only when the person asks to draft (not send) an email.',
     risk: 'write',
     minimumRole: 'member',
     parameters: {
@@ -114,7 +216,7 @@ export const communicationTools: ToolDefinition[] = [
   // 3. send_email
   {
     name: 'send_email',
-    description: 'Send an email to a recipient via the workspace email integration.',
+    description: 'Send an email to a recipient via the workspace email integration. Use this when the person asks to SEND an email — in draft mode it queues for approval and never sends without approval.',
     risk: 'send',
     capability: 'send_email',
     minimumRole: 'member',

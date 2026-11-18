@@ -122,9 +122,11 @@ describe('tool map', () => {
     expect(mapToolName('create_task')).toBe('create_task');
   });
 
-  it('names the unmappable tools and why', () => {
-    expect(UNMAPPABLE_TOOLS.update_deal).toContain('no update_deal tool');
-    expect(UNMAPPABLE_TOOLS.send_campaign).toContain('no send_campaign tool');
+  it('the unmappable map is empty — both former gaps were built', () => {
+    // Eval-gap pass 2026-11-14: update_deal and send_campaign now exist,
+    // so nothing is unmappable. The map stays as the extension point for
+    // future capability gaps.
+    expect(Object.keys(UNMAPPABLE_TOOLS)).toEqual([]);
   });
 });
 
@@ -169,14 +171,14 @@ describe('scoreCase with the assistant runner', () => {
     expect(status).toBe('pass');
   });
 
-  it('fails an unmappable expected tool and names the gap', () => {
+  it('fails a missing expected tool with the plain queued-tools detail', () => {
     const run = baseRun({ queuedTools: [] });
     const { checks, status } = scoreCase(
       baseCase({ expect: { queuedTools: ['update_deal'] } }),
       run,
     );
     expect(status).toBe('fail');
-    expect(checks.find((c) => c.name.includes('update_deal'))?.detail).toContain('no update_deal tool');
+    expect(checks.find((c) => c.name.includes('update_deal'))?.detail).toBe('queued tools were: (none)');
   });
 });
 

@@ -9,6 +9,11 @@
  * read-only and paused. It is now risk 'write': blocked in read-only,
  * a proposal in draft mode, executed in full mode. `list_user_memories`
  * is a genuine read and stays 'read'.
+ *
+ * Eval-gap pass (2026-11-14): the registry grew 45 -> 49 with 5 new
+ * tools (update_deal, send_campaign, list_pipelines, get_workspace_info,
+ * list_inbox_conversations) and create_campaign_draft deleted as a
+ * duplicate alias. The counts below pin 49.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { toolRegistry } from '../services/assistant/tools/registry.js';
@@ -72,12 +77,12 @@ describe('Tier 2 fix 17 — memory tools in the registry', () => {
     Object.keys(mockMemories).forEach((k) => delete mockMemories[k]);
   });
 
-  it('registry holds 45 tools including both memory tools', () => {
+  it('registry holds 49 tools including both memory tools', () => {
     const all = toolRegistry.getAllTools();
     const names = all.map((t) => t.name);
     expect(names).toContain('save_memory_preference');
     expect(names).toContain('list_user_memories');
-    expect(all.length).toBe(45);
+    expect(all.length).toBe(49);
   });
 
   it('both memory tools appear in the Gemini function declarations', () => {
@@ -85,7 +90,7 @@ describe('Tier 2 fix 17 — memory tools in the registry', () => {
     const names = decls.map((d) => d.name);
     expect(names).toContain('save_memory_preference');
     expect(names).toContain('list_user_memories');
-    expect(decls.length).toBe(45);
+    expect(decls.length).toBe(49);
   });
 
   it('save_memory_preference persists a preference a later turn can list', async () => {

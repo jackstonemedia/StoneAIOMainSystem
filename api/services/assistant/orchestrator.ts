@@ -602,6 +602,19 @@ export class AssistantOrchestrator {
         } catch (err) {
           console.warn('[Orchestrator] Proposal narration round threw:', (err as Error)?.message);
         }
+        // Deterministic fallback (added 2026-11-14): the narration round
+        // can come back with no text at all — the model sometimes emits
+        // a function call instead of text even with no tools declared
+        // (same mode as the §7b comment documents), and then the user
+        // still sees a proposal card and silence. A paused turn must
+        // never end silent: state plainly that something is waiting for
+        // approval. Never claims a send.
+        if (turnPaused && !accumulatedText.trim() && !isStopped && !signal?.aborted) {
+          accumulatedText = 'I’ve prepared this for your approval — it’s waiting below.';
+          if (res) {
+            this.sendSSE(res, 'delta', { text: accumulatedText });
+          }
+        }
       }
 
       // 8. Persist assistant message

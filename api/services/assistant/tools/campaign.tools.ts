@@ -4,7 +4,7 @@
  */
 
 import { db } from '../../../../infrastructure/database/client.js';
-import { createCampaign } from '../../email-marketing/campaigns.service.js';
+import { createCampaign, sendCampaign } from '../../email-marketing/campaigns.service.js';
 import type { ToolDefinition } from './types.js';
 
 export const campaignTools: ToolDefinition[] = [
@@ -98,10 +98,10 @@ export const campaignTools: ToolDefinition[] = [
     },
   },
 
-  // 3. create_campaign_draft
+  // 3. create_campaign
   {
-    name: 'create_campaign_draft',
-    description: 'Create a draft email marketing campaign in the workspace.',
+    name: 'create_campaign',
+    description: 'Create an email marketing campaign (draft status). This is the only campaign-creation tool — use it whenever the person asks to create a campaign.',
     risk: 'write',
     minimumRole: 'member',
     capability: 'campaigns',
@@ -132,48 +132,50 @@ export const campaignTools: ToolDefinition[] = [
           name: campaign.name,
           subject: campaign.subject,
           status: campaign.status,
-          listId: campaign.listId,
-          segmentId: campaign.segmentId,
         },
-        message: `Draft campaign "${campaign.name}" created successfully.`,
+        message: `Campaign "${campaign.name}" created.`,
       };
     },
   },
 
-  // 4. create_campaign (alias)
+  // 5. send_campaign (eval-gap fix: the assistant could not send a campaign —
+  // p4-camp-02, rt-authority-01, rt-urgency-01 all expect this tool queued).
+  // Wires to the existing sendCampaign service (Complete-gated, idempotent
+  // resume if already SENDING). Risk 'send', so in draft mode it queues as
+  // a proposal and never executes — queueing for exact approval is the
+  // correct behavior for a send request, including under fake urgency.
   {
-    name: 'create_campaign',
-    description: 'Create an email marketing campaign draft.',
-    risk: 'write',
+    name: 'send_campaign',
+    description: 'Send an existing email marketing campaign to its recipients. Use this when the person asks to send a campaign — never claim a campaign was sent without calling this tool.',
+    risk: 'send',
     minimumRole: 'member',
     capability: 'campaigns',
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Name of the campaign.' },
-        subject: { type: 'string', description: 'Subject line of the campaign.' },
-        bodyHtml: { type: 'string', description: 'HTML or text content of the email draft.' },
-        listId: { type: 'string', description: 'Optional ID of a contact list.' },
+        campaignId: { type: 'string', description: 'The UUID of the campaign to send.' },
+        name: { type: 'string', description: 'Name of the campaign to send (used when no campaignId is given).' },
       },
-      required: ['name', 'subject'],
     },
-    execute: async (args: { name: string; subject: string; bodyHtml?: string; listId?: string }, ctx) => {
-      const campaign = await createCampaign(ctx.workspaceId, {
-        name: args.name,
-        subject: args.subject,
-        blockJson: { html: args.bodyHtml || '<p>Draft email content</p>' },
-        listId: args.listId || null,
-      });
+    execute: async (args: { campaignId?: string; name?: string }, ctx) => {
+      let campaignId = args.campaignId;
+      if (!campaignId && args.name) {
+        const found = await db.campaign.findFirst({
+          where: { workspaceId: ctx.workspaceId, name: args.name },
+          select: { id: true },
+        });
+        if (!found) throw new Error(`No campaign named "${args.name}" was found.`);
+        campaignId = found.id;
+      }
+      if (!campaignId) throw new Error('send_campaign needs a campaignId or a campaign name.');
 
+      const result = await sendCampaign(ctx.workspaceId, campaignId);
       return {
         success: true,
-        campaign: {
-          id: campaign.id,
-          name: campaign.name,
-          subject: campaign.subject,
-          status: campaign.status,
-        },
-        message: `Campaign "${campaign.name}" created.`,
+        campaignId,
+        queued: result.queued,
+        failed: result.failed ?? 0,
+        message: `Campaign send started: ${result.queued} recipient(s) queued.`,
       };
     },
   },
