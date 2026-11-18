@@ -61,17 +61,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
     {
       label: 'Workspace',
       items: [
-        { 
-          name: 'Dashboard',    
-          path: '/dashboard?tab=overview',          
+        {
+          name: 'Dashboard',
+          path: '/dashboard',
           icon: LayoutDashboard,
-          subItems: [
-            { name: 'Overview', path: '/dashboard?tab=overview' },
-            { name: 'Revenue', path: '/dashboard?tab=revenue' },
-            { name: 'Activity', path: '/dashboard?tab=activity' },
-            { name: 'Calendar', path: '/dashboard?tab=calendar' },
-            { name: 'AI Control Panel', path: '/dashboard?tab=ai' },
-          ]
         },
         { 
           name: 'CRM',          

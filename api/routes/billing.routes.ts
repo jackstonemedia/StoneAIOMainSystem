@@ -446,6 +446,50 @@ router.post('/stripe/create-payment-intent', validate(createPaymentIntentSchema)
 // body always fails verification. Before 2026-11-07 the handler got the
 // parsed object (route-level raw() after json() is a no-op), so EVERY
 // production event 400'd. Fixed in agent/webhook-raw-body-fix.
+/**
+ * Email the workspace owner that their trial is ending (Tier 2 fix 3).
+ * Best-effort only: the owner's email lives in Clerk (the User table
+ * has no email column), and the send goes through the workspace's
+ * active Gmail connection. Any step can fail — no Clerk configured in
+ * dev, no Gmail connected — so the caller logs failures and moves on;
+ * the webhook itself never fails because of this.
+ */
+async function notifyTrialEnding(ws: {
+  id: string;
+  ownerId: string;
+  name: string;
+  trialEndsAt?: Date | null;
+}): Promise<void> {
+  const { clerkClient } = await import('@clerk/express');
+  const clerkUser = await clerkClient.users.getUser(ws.ownerId);
+  const ownerEmail =
+    clerkUser?.emailAddresses?.find((e: any) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ??
+    clerkUser?.emailAddresses?.[0]?.emailAddress;
+  if (!ownerEmail) {
+    console.warn(`[Stripe Webhook] trial_will_end: no email address found for workspace ${ws.id} owner; skipping email.`);
+    return;
+  }
+  const gmailConn = await (db as any).channelConnection.findFirst({
+    where: { workspaceId: ws.id, provider: 'gmail', isActive: true },
+  });
+  if (!gmailConn) {
+    console.warn(`[Stripe Webhook] trial_will_end: no active Gmail connection for workspace ${ws.id}; skipping email to ${ownerEmail}.`);
+    return;
+  }
+  const trialEnd = ws.trialEndsAt ? new Date(ws.trialEndsAt) : null;
+  const endLabel = trialEnd
+    ? trialEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'soon';
+  const appUrl = process.env.PUBLIC_APP_URL || process.env.VITE_APP_URL || 'http://localhost:5173';
+  const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
+  await sendGmailMessage(
+    gmailConn.id,
+    ownerEmail,
+    'Your Stone AIO trial ends soon',
+    `Hi,\n\nYour Stone AIO trial for the workspace "${ws.name}" ends on ${endLabel}. After that, the workspace moves to the Free plan unless you choose a paid plan.\n\nYou can pick a plan in Settings → Billing: ${appUrl}/settings?tab=billing\n\n— Stone AIO`,
+  );
+}
+
 export async function stripeWebhookHandler(req: Request, res: Response) {
   const sig = req.headers['stripe-signature'];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -489,15 +533,18 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const workspaceId = session.client_reference_id || session.metadata?.workspaceId;
-        const planId = session.metadata?.planId && isKnownPlan(session.metadata.planId)
-          ? normalizePlan(session.metadata.planId)
-          : 'plus';
+        const rawPlanId = session.metadata?.planId;
+        // A missing or unknown plan id is a configuration error, not a
+        // purchase — never fall back to a paid plan (Tier 2 fix 3).
+        const planId = rawPlanId && isKnownPlan(rawPlanId) ? normalizePlan(rawPlanId) : null;
         const customerId = session.customer as string;
         const subscriptionId = session.subscription as string;
 
         if (workspaceId) {
-          const planConfig = PLAN_CONFIGS[planId];
-          let subscriptionStatus = 'active';
+          // Only record a subscription status Stripe actually returned —
+          // never invent 'active' when no subscription was retrieved
+          // (a checkout without one must not clobber a past_due status).
+          let subscriptionStatus: string | undefined;
           let trialEndsAt: Date | undefined;
           try {
             const stripe = getStripe();
@@ -509,23 +556,40 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           } catch {
             // Non-fatal: the workspace update below still records the plan.
           }
-          await (db as any).workspace.update({
-            where: { id: workspaceId },
-            data: {
-              plan: planId,
-              stripeCustomerId: customerId || undefined,
-              stripeSubscriptionId: subscriptionId || undefined,
-              subscriptionStatus,
-              ...(trialEndsAt ? { trialEndsAt } : {}),
-              creditsLimit: planConfig.creditsLimit,
-            },
-          }).catch((e: any) => console.error('[Stripe Webhook] Workspace update error:', e));
+          if (!planId) {
+            console.error(
+              `[Stripe Webhook] checkout.session.completed for workspace ${workspaceId} has no valid metadata.planId (got ${JSON.stringify(rawPlanId ?? null)}) — leaving the plan unchanged.`,
+            );
+            // Record the Stripe linkage (factual) but grant NOTHING: no
+            // plan change, no credits change, no activation trigger.
+            await (db as any).workspace.update({
+              where: { id: workspaceId },
+              data: {
+                stripeCustomerId: customerId || undefined,
+                stripeSubscriptionId: subscriptionId || undefined,
+                ...(subscriptionStatus ? { subscriptionStatus } : {}),
+                ...(trialEndsAt ? { trialEndsAt } : {}),
+              },
+            }).catch((e: any) => console.error('[Stripe Webhook] Workspace update error:', e));
+          } else {
+            await (db as any).workspace.update({
+              where: { id: workspaceId },
+              data: {
+                plan: planId,
+                stripeCustomerId: customerId || undefined,
+                stripeSubscriptionId: subscriptionId || undefined,
+                ...(subscriptionStatus ? { subscriptionStatus } : {}),
+                ...(trialEndsAt ? { trialEndsAt } : {}),
+                creditsLimit: PLAN_CONFIGS[planId].creditsLimit,
+              },
+            }).catch((e: any) => console.error('[Stripe Webhook] Workspace update error:', e));
 
-          await emitTrigger(workspaceId, 'subscription.activated', {
-            planId,
-            customerId,
-            subscriptionId,
-          }).catch(() => {});
+            await emitTrigger(workspaceId, 'subscription.activated', {
+              planId,
+              customerId,
+              subscriptionId,
+            }).catch(() => {});
+          }
         }
         break;
       }
@@ -616,6 +680,13 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         const workspaceId = invoice.metadata?.workspaceId || ws?.id;
 
         if (workspaceId) {
+          // The payment failed: the subscription is past due until Stripe
+          // says otherwise. Stored here as well as on
+          // customer.subscription.updated (Tier 2 fix 3).
+          await (db as any).workspace.update({
+            where: { id: workspaceId },
+            data: { subscriptionStatus: 'past_due' },
+          }).catch(() => {});
           await emitTrigger(workspaceId, 'payment.failed', {
             invoiceId: invoice.id,
             amount: (invoice.amount_due || 0) / 100,
@@ -623,6 +694,27 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           }).catch(console.error);
         } else {
           console.warn('[Stripe Webhook] payment.failed: No workspace found for customer:', customerId);
+        }
+        break;
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        const sub = event.data.object as Stripe.Subscription;
+        const customerId = sub.customer as string;
+        const ws = customerId ? await (db as any).workspace.findFirst({ where: { stripeCustomerId: customerId } }) : null;
+        if (ws) {
+          // Record: fire the internal trigger so workflows can act on the
+          // ending trial. Never change the plan or the stored status here.
+          await emitTrigger(ws.id, 'trial.ending', {
+            customerId,
+            subscriptionId: sub.id,
+            trialEndsAt: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : undefined,
+          }).catch(() => {});
+          // Notify: email the workspace owner when possible. Any failure
+          // is logged, never fatal to the webhook.
+          await notifyTrialEnding(ws).catch((e: any) =>
+            console.warn('[Stripe Webhook] trial_will_end notify failed (non-fatal):', e?.message || String(e)),
+          );
         }
         break;
       }

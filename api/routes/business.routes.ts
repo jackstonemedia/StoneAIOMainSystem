@@ -344,14 +344,7 @@ export async function dispatchOutboundMessage({
       }).catch(() => null);
       throw new Error(`SMS sending failed: ${err.message}`);
     }
-  } else if (activeChannel === 'facebook' || activeChannel === 'instagram' || activeChannel === 'whatsapp') {
-    if (activeChannel === 'whatsapp') {
-      await db.conversationMessage.update({
-        where: { id: messageId },
-        data: { status: 'failed', errorMsg: 'WhatsApp sending is not set up yet.' },
-      }).catch(() => null);
-      throw new Error('WhatsApp sending is not set up yet.');
-    }
+  } else if (activeChannel === 'facebook' || activeChannel === 'instagram') {
     if (!convo?.externalId) {
       await db.conversationMessage.update({
         where: { id: messageId },

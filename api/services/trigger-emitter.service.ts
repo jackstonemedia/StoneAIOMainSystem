@@ -28,6 +28,7 @@ export type StoneAIOEvent =
   | 'payment.failed'
   | 'subscription.activated'
   | 'subscription.canceled'
+  | 'trial.ending'
   | 'sequence.enrolled'
   | 'sequence.completed'
   | 'task.created'

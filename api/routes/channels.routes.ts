@@ -4,6 +4,7 @@ import { db } from '../../infrastructure/database/client.js';
 import { encryptJson, decryptJson } from '../services/channels/encryption.js';
 import { getGmailAuthUrl, exchangeGmailCode } from '../services/channels/gmail.service.js';
 import { getOutlookAuthUrl, exchangeOutlookCode, createOutlookSubscription } from '../services/channels/outlook.service.js';
+import { signOAuthState, verifyOAuthState } from '../services/channels/oauth-state.js';
 import { subscribeToWorkspace } from '../services/channels/realtime.service.js';
 
 const router = Router();
@@ -46,11 +47,18 @@ router.get('/gmail/connect', (req, res) => {
   if (!process.env.GMAIL_CLIENT_ID) {
     return res.status(400).json({ error: 'Gmail OAuth is not configured on this server.' });
   }
-  const state = Buffer.from(JSON.stringify({
-    workspaceId: req.workspaceId,
-    userId: req.userId,
-    provider: 'gmail',
-  })).toString('base64');
+  let state: string;
+  try {
+    // Tier 2 Fix 1: state is HMAC-signed + expiring. An unsigned state can
+    // name any workspace — never issue one.
+    state = signOAuthState({
+      workspaceId: req.workspaceId,
+      userId: req.userId!,
+      provider: 'gmail',
+    });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? 'OAuth state signing is not configured.' });
+  }
   res.json({ url: getGmailAuthUrl(state) });
 });
 
@@ -61,7 +69,19 @@ router.get('/gmail/callback', async (req, res) => {
     if (error) return res.status(400).send(`OAuth error: ${error}`);
     if (!code || !rawState) return res.status(400).send('Missing code or state');
 
-    const state = JSON.parse(Buffer.from(rawState, 'base64').toString());
+    // Tier 2 Fix 1: verify signature + expiry + provider BEFORE trusting the
+    // workspace id in the state. This callback has no JWT (browser redirect),
+    // so the signed state is the only trust anchor. Tampered/expired state
+    // → 400, no binding, no token exchange.
+    let state;
+    try {
+      state = verifyOAuthState(rawState);
+    } catch (e: any) {
+      return res.status(400).send(`Invalid OAuth state: ${e?.message ?? 'verification failed'}`);
+    }
+    if (state.provider !== 'gmail') {
+      return res.status(400).send('Invalid OAuth state: provider mismatch');
+    }
 
     const { credentials, email } = await exchangeGmailCode(code);
 
@@ -101,11 +121,17 @@ router.get('/outlook/connect', (req, res) => {
   if (!process.env.OUTLOOK_CLIENT_ID) {
     return res.status(400).json({ error: 'Outlook OAuth is not configured on this server.' });
   }
-  const state = Buffer.from(JSON.stringify({
-    workspaceId: req.workspaceId,
-    userId: req.userId,
-    provider: 'outlook',
-  })).toString('base64');
+  let state: string;
+  try {
+    // Tier 2 Fix 1: same signed-state pattern as Gmail (identical hole).
+    state = signOAuthState({
+      workspaceId: req.workspaceId,
+      userId: req.userId!,
+      provider: 'outlook',
+    });
+  } catch (e: any) {
+    return res.status(400).json({ error: e?.message ?? 'OAuth state signing is not configured.' });
+  }
   res.json({ url: getOutlookAuthUrl(state) });
 });
 
@@ -116,7 +142,15 @@ router.get('/outlook/callback', async (req, res) => {
     if (error) return res.status(400).send(`OAuth error: ${error}`);
     if (!code || !rawState) return res.status(400).send('Missing code or state');
 
-    const state = JSON.parse(Buffer.from(rawState, 'base64').toString());
+    let state;
+    try {
+      state = verifyOAuthState(rawState);
+    } catch (e: any) {
+      return res.status(400).send(`Invalid OAuth state: ${e?.message ?? 'verification failed'}`);
+    }
+    if (state.provider !== 'outlook') {
+      return res.status(400).send('Invalid OAuth state: provider mismatch');
+    }
 
     const { credentials, email } = await exchangeOutlookCode(code);
 

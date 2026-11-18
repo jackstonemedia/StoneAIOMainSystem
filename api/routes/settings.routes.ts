@@ -110,13 +110,36 @@ router.get('/integrations', async (req, res) => {
 });
 
 // ── Team ──────────────────────────────────────────────────────────────────────
+// Resolve each member's display name from Clerk (best-effort). WorkspaceMember
+// rows carry only a Clerk userId — no name lives in our DB. When Clerk is
+// unavailable (dev bypass, no keys) the userId itself is the display name,
+// never an invented "John Doe".
+async function withMemberDisplayNames(members: any[]) {
+  if (members.length === 0) return members;
+  try {
+    const { clerkClient } = await import('@clerk/express');
+    const users = await clerkClient.users.getUserList({ userId: members.map((m: any) => m.userId) });
+    const byId = new Map((users.data as any[]).map((u: any) => [u.id, u]));
+    return members.map((m: any) => {
+      const u = byId.get(m.userId) as any;
+      const name = u
+        ? [u.firstName, u.lastName].filter(Boolean).join(' ') || u.emailAddresses?.[0]?.emailAddress
+        : null;
+      return { ...m, displayName: name || m.userId };
+    });
+  } catch {
+    return members.map((m: any) => ({ ...m, displayName: m.userId }));
+  }
+}
+
 router.get('/team', async (req, res) => {
   try {
     const members = await db.workspaceMember.findMany({ where: { workspaceId: req.workspaceId } });
     // Rows left by the old fake-invite flow (userId "pending_...") were never
     // members — they can never match a real Clerk user. Filter them from the
     // list instead of showing them as people.
-    res.json(members.filter((m: any) => !m.userId.startsWith('pending_')));
+    const visible = members.filter((m: any) => !m.userId.startsWith('pending_'));
+    res.json(await withMemberDisplayNames(visible));
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

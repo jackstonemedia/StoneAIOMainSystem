@@ -1,6 +1,6 @@
 // ── Inbox TypeScript Types ──────────────────────────────────────────────────
 
-export type InboxChannelType = 'live_chat' | 'email' | 'sms' | 'whatsapp' | 'facebook' | 'instagram' | 'api';
+export type InboxChannelType = 'live_chat' | 'email' | 'sms' | 'facebook' | 'instagram' | 'api';
 export type ConversationStatus = 'open' | 'resolved' | 'pending' | 'snoozed';
 export type ConversationPriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 export type MessageSenderType = 'agent' | 'contact' | 'bot' | 'system';

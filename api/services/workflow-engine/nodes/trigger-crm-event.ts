@@ -14,6 +14,11 @@ export const triggerCrmEvent: NodeImplementation = {
   color: '#8B5CF6',
   outputHandles: [{ id: 'default', label: 'Event', color: '#8B5CF6' }],
   configSchema: [
+    // NOTE (Tier 2 fix 14): 'Form Submitted' and 'Review Received' were
+    // removed — neither can ever fire. There is no form surface in the
+    // product (no Form model, no form route, no submission endpoint), and
+    // no review source exists (Tier 1 #7: no reputation backend at all).
+    // Re-adding either is a one-line change once its source exists.
     { key: 'eventType', label: 'Event Type', type: 'select', required: true, options: [
       { label: 'Contact Created', value: 'contact.created' },
       { label: 'Contact Updated', value: 'contact.updated' },
@@ -22,9 +27,7 @@ export const triggerCrmEvent: NodeImplementation = {
       { label: 'Deal Stage Changed', value: 'deal.stage_changed' },
       { label: 'Deal Won', value: 'deal.won' },
       { label: 'Deal Lost', value: 'deal.lost' },
-      { label: 'Form Submitted', value: 'form.submitted' },
       { label: 'Appointment Booked', value: 'appointment.booked' },
-      { label: 'Review Received', value: 'review.received' },
     ]},
     { key: 'pipelineId', label: 'Pipeline ID', type: 'text', advanced: true,
       placeholder: 'Leave empty to match all pipelines',

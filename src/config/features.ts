@@ -8,7 +8,6 @@ export interface FeatureFlags {
   sdr: boolean;
   leads: boolean;
   agents: boolean;
-  marketplace: boolean;
   assistant: boolean;
   projects: boolean;
   reputation: boolean;
@@ -23,7 +22,6 @@ export const FEATURES: FeatureFlags = {
   sdr: env.VITE_FEATURE_SDR === 'true',
   leads: env.VITE_FEATURE_LEADS === 'true',
   agents: env.VITE_FEATURE_AGENTS === 'true',
-  marketplace: env.VITE_FEATURE_MARKETPLACE === 'true',
   assistant: env.VITE_FEATURE_ASSISTANT === 'true',
   projects: env.VITE_FEATURE_PROJECTS === 'true',
   reputation: env.VITE_FEATURE_REPUTATION === 'true',

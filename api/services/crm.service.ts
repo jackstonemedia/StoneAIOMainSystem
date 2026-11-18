@@ -4,6 +4,7 @@
  */
 import { db } from '../../infrastructure/database/client.js';
 import { emitTrigger } from './trigger-emitter.service.js';
+import { AppError } from '../middleware/error.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -325,11 +326,24 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
   const where: any = { workspaceId };
 
   if (search) {
-    where.OR = [
-      { firstName: { contains: String(search) } },
-      { lastName: { contains: String(search) } },
-      { email: { contains: String(search) } },
-    ];
+    // Split into terms: a full name ("Alex Rivera") matches no single
+    // field as a substring, so the old single-contains query returned
+    // zero rows for every full-name search (found live by the Phase 4
+    // eval 2026-11-13 — the model burned rounds re-searching). Every
+    // term must appear in some field (first/last name, email, phone,
+    // company name). Case-insensitive: callers query in any case.
+    const terms = String(search).trim().split(/\s+/).filter(Boolean);
+    if (terms.length > 0) {
+      where.AND = terms.map((term) => ({
+        OR: [
+          { firstName: { contains: term, mode: 'insensitive' } },
+          { lastName: { contains: term, mode: 'insensitive' } },
+          { email: { contains: term, mode: 'insensitive' } },
+          { phone: { contains: term } },
+          { company: { name: { contains: term, mode: 'insensitive' } } },
+        ],
+      }));
+    }
   }
   if (status) where.status = status;
 
@@ -364,6 +378,8 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
             source: true,
             color: true,
             tagsJson: true,
+            ownerId: true,
+            assignedUserId: true,
             createdAt: true,
             updatedAt: true,
             company: { select: { id: true, name: true } },
@@ -418,6 +434,8 @@ export async function listContacts(workspaceId: string, filters: ContactFilters)
         source: true,
         color: true,
         tagsJson: true,
+        ownerId: true,
+        assignedUserId: true,
         createdAt: true,
         updatedAt: true,
         company: { select: { id: true, name: true } }
@@ -487,6 +505,35 @@ export async function createContact(workspaceId: string, data: any) {
   }
   const finalTagsJson = JSON.stringify(Array.from(new Set(tagsArray)));
 
+  // Owner + the other accepted fields the old code silently dropped (Tier 2
+  // fix 11). An owner/assignee must be a real member of this workspace —
+  // a stray id would render as a person who doesn't exist.
+  async function resolveMemberId(value: unknown, field: string): Promise<string | null> {
+    if (value === undefined || value === null || value === '') return null;
+    const id = String(value);
+    const member = await db.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId, userId: id } },
+    });
+    if (!member) throw new AppError(400, `${field} is not a member of this workspace`);
+    return id;
+  }
+  const ownerId = await resolveMemberId(data.ownerId, 'ownerId');
+  const assignedUserId = await resolveMemberId(data.assignedUserId, 'assignedUserId');
+
+  let customFieldsJson: string | null = null;
+  if (data.customFieldsJson !== undefined && data.customFieldsJson !== null) {
+    customFieldsJson = typeof data.customFieldsJson === 'string'
+      ? data.customFieldsJson
+      : JSON.stringify(data.customFieldsJson);
+  }
+
+  let dateOfBirth: Date | null = null;
+  if (data.dateOfBirth !== undefined && data.dateOfBirth !== null && data.dateOfBirth !== '') {
+    const parsed = new Date(data.dateOfBirth);
+    if (Number.isNaN(parsed.getTime())) throw new AppError(400, 'dateOfBirth is not a valid date');
+    dateOfBirth = parsed;
+  }
+
   const c = await db.contact.create({
     data: {
       workspaceId,
@@ -507,6 +554,10 @@ export async function createContact(workspaceId: string, data: any) {
       source: data.source ?? null,
       status: data.status ?? 'Lead',
       about: data.about ?? data.notes ?? null,
+      ownerId,
+      assignedUserId,
+      customFieldsJson,
+      dateOfBirth,
     },
     include: { company: true }
   });
@@ -672,6 +723,240 @@ export async function bulkContacts(workspaceId: string, action: string, contactI
   }
 
   return { success: true, affected: contactIds.length };
+}
+
+// ── Duplicate detection + merge (Tier 2 fix 7) ───────────────────────────────
+// The Contacts page used to detect duplicates client-side from the current
+// paginated page only, with exact-match email/phone and no merge action at
+// all. Detection is now workspace-wide and normalized; merging moves every
+// linked record to the kept contact in one transaction before deleting the
+// duplicates, so nothing the duplicates owned is lost to a cascade.
+
+/** Email match key: trimmed + lowercased. Empty → null (never a group). */
+export function normalizeContactEmail(email: unknown): string | null {
+  if (typeof email !== 'string') return null;
+  const norm = email.trim().toLowerCase();
+  return norm.length > 0 ? norm : null;
+}
+
+/** Phone match key: digits only, US country code stripped. Too short → null. */
+export function normalizeContactPhone(phone: unknown): string | null {
+  if (typeof phone !== 'string') return null;
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
+  return digits.length >= 7 ? digits : null;
+}
+
+export interface DuplicateContactSummary {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface DuplicateGroup {
+  key: string;
+  matchOn: 'email' | 'phone';
+  matchedValue: string;
+  contacts: DuplicateContactSummary[];
+}
+
+export async function findDuplicateGroups(workspaceId: string): Promise<DuplicateGroup[]> {
+  const contacts = await db.contact.findMany({
+    where: { workspaceId },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const byKey = new Map<string, { matchOn: 'email' | 'phone'; matchedValue: string; contacts: DuplicateContactSummary[] }>();
+  for (const c of contacts) {
+    const summary: DuplicateContactSummary = {
+      id: c.id,
+      name: `${c.firstName} ${c.lastName ?? ''}`.trim(),
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      createdAt: new Date(c.createdAt).toISOString(),
+    };
+    const emailKey = normalizeContactEmail(c.email);
+    if (emailKey) {
+      const key = `email:${emailKey}`;
+      if (!byKey.has(key)) byKey.set(key, { matchOn: 'email', matchedValue: emailKey, contacts: [] });
+      byKey.get(key)!.contacts.push(summary);
+    }
+    const phoneKey = normalizeContactPhone(c.phone);
+    if (phoneKey) {
+      const key = `phone:${phoneKey}`;
+      if (!byKey.has(key)) byKey.set(key, { matchOn: 'phone', matchedValue: phoneKey, contacts: [] });
+      const group = byKey.get(key)!;
+      if (!group.contacts.some((x) => x.id === c.id)) group.contacts.push(summary);
+    }
+  }
+  return [...byKey.entries()]
+    .filter(([, g]) => g.contacts.length > 1)
+    .map(([key, g]) => ({ key, ...g }));
+}
+
+function validationError(message: string): Error {
+  const err = new Error(message) as Error & { statusCode: number };
+  err.statusCode = 400;
+  return err;
+}
+
+/** Models whose rows point at a contact and must follow it in a merge. */
+const MERGE_MOVE_MODELS = [
+  'deal',
+  'task',
+  'activity',
+  'appointment',
+  'conversation',
+  'contactEvent',
+  'smartListItem',
+  'contactListMembership',
+  'campaignRecipient',
+  'automationEnrollment',
+  'emailEvent',
+  'recipientState',
+  'sdrLeadDossier',
+] as const;
+
+/**
+ * Merge duplicateIds into keepId. The kept contact keeps its own primary
+ * fields and earliest createdAt wins; tags are unioned; a duplicate's
+ * distinct email/phone is preserved in the kept contact's emailsJson /
+ * phonesJson; an ad-lead link is carried over when the kept contact has
+ * none. Every linked record moves first (unique-constrained lists are
+ * deduped so the move cannot collide), relations between the merged set
+ * are dropped instead of becoming self-relations, then the duplicates are
+ * deleted — all in one transaction.
+ */
+export async function mergeContacts(workspaceId: string, keepId: string, duplicateIds: string[]) {
+  if (!Array.isArray(duplicateIds) || duplicateIds.length === 0) {
+    throw validationError('duplicateIds (a non-empty array of contact ids) is required');
+  }
+  if (duplicateIds.includes(keepId)) {
+    throw validationError('The kept contact cannot also be listed as a duplicate.');
+  }
+  if (new Set(duplicateIds).size !== duplicateIds.length) {
+    throw validationError('duplicateIds contains a repeated id.');
+  }
+  const kept = await db.contact.findFirst({ where: { id: keepId, workspaceId } });
+  if (!kept) throw validationError('Kept contact not found in this workspace.');
+  const dups = await db.contact.findMany({
+    where: { id: { in: duplicateIds }, workspaceId },
+  });
+  if (dups.length !== duplicateIds.length) {
+    throw validationError('One or more duplicate contacts were not found in this workspace.');
+  }
+  // A merge target must actually be a duplicate of the kept contact:
+  // same normalized email or same normalized phone.
+  const keptEmail = normalizeContactEmail((kept as any).email);
+  const keptPhone = normalizeContactPhone((kept as any).phone);
+  for (const dup of dups) {
+    const sameEmail = keptEmail !== null && normalizeContactEmail((dup as any).email) === keptEmail;
+    const samePhone = keptPhone !== null && normalizeContactPhone((dup as any).phone) === keptPhone;
+    if (!sameEmail && !samePhone) {
+      throw validationError(`Contact ${dup.id} is not a duplicate of the kept contact (no shared email or phone).`);
+    }
+  }
+
+  const allIds = [keepId, ...duplicateIds];
+  return db.$transaction(async (tx: any) => {
+    // Tags: union across the whole set. Earliest createdAt wins.
+    const parseTags = (json: unknown): string[] => {
+      try {
+        const arr = JSON.parse(typeof json === 'string' ? json : '[]');
+        return Array.isArray(arr) ? arr.map(String) : [];
+      } catch {
+        return [];
+      }
+    };
+    const tags = [...new Set([...parseTags((kept as any).tagsJson), ...dups.flatMap((d: any) => parseTags(d.tagsJson))])];
+    const earliestCreatedAt = [kept, ...dups].reduce(
+      (min: Date, c: any) => (new Date(c.createdAt) < min ? new Date(c.createdAt) : min),
+      new Date((kept as any).createdAt),
+    );
+    // Preserve the duplicates' distinct email/phone in the multi-value
+    // fields so the merged-away addresses stay resolvable.
+    const mergeJsonList = (existing: unknown, values: (string | null | undefined)[]): string => {
+      const arr = parseTags(existing);
+      for (const v of values) {
+        if (typeof v === 'string' && v.trim() && !arr.includes(v.trim())) arr.push(v.trim());
+      }
+      return JSON.stringify(arr);
+    };
+    const emailsJson = mergeJsonList((kept as any).emailsJson, dups.map((d: any) => d.email));
+    const phonesJson = mergeJsonList((kept as any).phonesJson, dups.map((d: any) => d.phone));
+    const data: Record<string, unknown> = {
+      tagsJson: JSON.stringify(tags),
+      createdAt: earliestCreatedAt,
+      emailsJson,
+      phonesJson,
+    };
+    if (!(kept as any).adLeadId) {
+      const withAdLead = dups.find((d: any) => d.adLeadId);
+      if (withAdLead) data.adLeadId = withAdLead.adLeadId;
+    }
+    await tx.contact.update({ where: { id: keepId }, data });
+
+    // Unique-constrained lists: drop the duplicate's rows that would
+    // collide with a row the kept contact already has, then move the rest.
+    const keptListIds = (await tx.smartListItem.findMany({ where: { contactId: keepId }, select: { smartListId: true } })).map(
+      (r: any) => r.smartListId,
+    );
+    if (keptListIds.length > 0) {
+      await tx.smartListItem.deleteMany({ where: { contactId: { in: duplicateIds }, smartListId: { in: keptListIds } } });
+    }
+    const keptMembershipListIds = (await tx.contactListMembership.findMany({ where: { contactId: keepId }, select: { listId: true } })).map(
+      (r: any) => r.listId,
+    );
+    if (keptMembershipListIds.length > 0) {
+      await tx.contactListMembership.deleteMany({ where: { contactId: { in: duplicateIds }, listId: { in: keptMembershipListIds } } });
+    }
+    const keptDraftIds = (await tx.recipientState.findMany({ where: { contactId: keepId, workspaceId }, select: { draftId: true } })).map(
+      (r: any) => r.draftId,
+    );
+    if (keptDraftIds.length > 0) {
+      await tx.recipientState.deleteMany({ where: { contactId: { in: duplicateIds }, workspaceId, draftId: { in: keptDraftIds } } });
+    }
+
+    // Contact-to-contact relations: drop relations internal to the merge
+    // set (they would become self-relations), dedupe the rest against
+    // relations the kept contact already has, then move what remains.
+    await tx.contactRelation.deleteMany({
+      where: { sourceContactId: { in: allIds }, targetContactId: { in: allIds } },
+    });
+    const keptRelations = await tx.contactRelation.findMany({
+      where: { OR: [{ sourceContactId: keepId }, { targetContactId: keepId }] },
+      select: { sourceContactId: true, targetContactId: true, relationshipType: true },
+    });
+    const keptKeys = new Set(keptRelations.map((r: any) => `${r.sourceContactId}|${r.targetContactId}|${r.relationshipType}`));
+    const dupRelations = await tx.contactRelation.findMany({
+      where: { OR: [{ sourceContactId: { in: duplicateIds } }, { targetContactId: { in: duplicateIds } }] },
+    });
+    for (const rel of dupRelations) {
+      const movedSource = duplicateIds.includes(rel.sourceContactId) ? keepId : rel.sourceContactId;
+      const movedTarget = duplicateIds.includes(rel.targetContactId) ? keepId : rel.targetContactId;
+      if (keptKeys.has(`${movedSource}|${movedTarget}|${rel.relationshipType}`)) {
+        await tx.contactRelation.delete({ where: { id: rel.id } });
+      }
+    }
+    await tx.contactRelation.updateMany({ where: { sourceContactId: { in: duplicateIds } }, data: { sourceContactId: keepId } });
+    await tx.contactRelation.updateMany({ where: { targetContactId: { in: duplicateIds } }, data: { targetContactId: keepId } });
+
+    // Move every other linked record to the kept contact.
+    for (const model of MERGE_MOVE_MODELS) {
+      await tx[model].updateMany({ where: { contactId: { in: duplicateIds } }, data: { contactId: keepId } });
+    }
+
+    await tx.contact.deleteMany({ where: { id: { in: duplicateIds }, workspaceId } });
+    for (const dup of dups) {
+      emitTrigger(workspaceId, 'contact.deleted', {
+        contactId: dup.id,
+        name: `${(dup as any).firstName} ${((dup as any).lastName ?? '') as string}`.trim(),
+      }).catch((err) => console.error('[trigger]', err));
+    }
+    return { keptId: keepId, mergedIds: duplicateIds };
+  });
 }
 
 export async function importContacts(workspaceId: string, rows: any[], globalTags: string[] = []) {

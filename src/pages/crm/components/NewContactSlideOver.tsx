@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { X, ChevronDown, Plus, User, Building, Briefcase, Mail, Phone, Tag, Check, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SlideOverPanel } from '../../../components/ui/SlideOverPanel';
 import { NotionEditor } from '../../../components/editor/NotionEditor';
+import { apiFetch } from '../../../lib/apiClient';
 
 interface NewContactSlideOverProps {
   isOpen: boolean;
@@ -15,11 +17,6 @@ interface NewContactSlideOverProps {
   isPending: boolean;
   error?: string | null;
 }
-
-// Mocked Users for the CRM
-const mockUsers = [
-  { id: '1', name: 'John Doe (You)' }
-];
 
 const defaultLifecycleStages = ['Lead', 'Prospect', 'Client'];
 const defaultLeadStatuses = ['New', 'In Progress', 'Qualified'];
@@ -184,6 +181,12 @@ export function NewContactSlideOver({
   const [lifecycleStages, setLifecycleStages] = useState(defaultLifecycleStages);
   const [leadStatuses, setLeadStatuses] = useState(defaultLeadStatuses);
   const [customTags, setCustomTags] = useState<string[]>(defaultTags);
+
+  // Real workspace members for the owner dropdown — no mock users.
+  const { data: members = [] } = useQuery<any[]>({
+    queryKey: ['settings', 'team'],
+    queryFn: () => apiFetch('/api/settings/team').then(r => r.ok ? r.json() : []),
+  });
 
   // Phone Popover State
   const [showPhonePopover, setShowPhonePopover] = useState(false);
@@ -387,8 +390,8 @@ export function NewContactSlideOver({
                 className="w-full px-3 py-2 bg-surface-hover border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary transition-all appearance-none cursor-pointer"
               >
                 <option value="">— Unassigned —</option>
-                {mockUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
+                {members.map((m: any) => (
+                  <option key={m.userId} value={m.userId}>{m.displayName || m.userId}{m.role === 'admin' ? ' (Admin)' : ''}</option>
                 ))}
               </select>
               <ChevronDown className="w-4 h-4 text-text-muted absolute right-3 top-2.5 pointer-events-none" />

@@ -63,6 +63,25 @@ router.post('/contacts', validate({ body: ContactSchema }), async (req, res, nex
   } catch (e) { next(e); }
 });
 
+// ── Duplicate detection + merge (Tier 2 fix 7) ───────────────────────────────
+// NOTE: the scan route MUST stay above '/contacts/:id' or Express reads
+// 'duplicates' as a contact id.
+router.get('/contacts/duplicates', async (req, res) => {
+  try {
+    res.json(await crm.findDuplicateGroups(req.workspaceId));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/contacts/:id/merge', async (req, res) => {
+  try {
+    const result = await crm.mergeContacts(req.workspaceId, req.params.id, req.body?.duplicateIds);
+    res.json(result);
+  } catch (e: any) {
+    if (e?.statusCode === 400) return res.status(400).json({ error: e.message });
+    dbErr(res, e);
+  }
+});
+
 router.get('/contacts/:id', async (req, res) => {
   try {
     const c = await crm.getContact(req.params.id, req.workspaceId);
@@ -184,6 +203,86 @@ router.put('/companies/:id', async (req, res) => {
 router.delete('/companies/:id', async (req, res) => {
   try { await crm.deleteCompany(req.params.id, req.workspaceId); res.json({ success: true }); }
   catch (e) { dbErr(res, e); }
+});
+
+// ── Documents ───────────────────────────────────────────────────────────────────
+// CRM Documents page (src/pages/crm/Documents.tsx) — a Notion-style title +
+// content editor with debounced auto-save. Every route is workspace-scoped:
+// a document in another workspace reads as 404, never as data. The list
+// omits content (the page fetches it per document); the single-doc fetch
+// returns it. No file upload exists on this page — documents are text only.
+router.get('/documents', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const docs = await db.crmDocument.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, createdAt: true, updatedAt: true },
+    });
+    res.json(docs.map((d) => ({ ...d, type: 'document' })));
+  } catch (e) { dbErr(res, e); }
+});
+
+router.get('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const doc = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.post('/documents', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    if (req.body?.title !== undefined && typeof req.body.title !== 'string') {
+      return res.status(400).json({ error: 'title must be a string' });
+    }
+    if (req.body?.content !== undefined && typeof req.body.content !== 'string') {
+      return res.status(400).json({ error: 'content must be a string' });
+    }
+    const doc = await db.crmDocument.create({
+      data: {
+        workspaceId: req.workspaceId!,
+        title: req.body?.title?.trim() ? req.body.title.trim() : 'Untitled Document',
+        content: req.body?.content ?? '',
+        createdBy: req.userId ?? null,
+      },
+    });
+    res.status(201).json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.put('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    if (req.body?.title !== undefined && typeof req.body.title !== 'string') {
+      return res.status(400).json({ error: 'title must be a string' });
+    }
+    if (req.body?.content !== undefined && typeof req.body.content !== 'string') {
+      return res.status(400).json({ error: 'content must be a string' });
+    }
+    if (req.body?.title === undefined && req.body?.content === undefined) {
+      return res.status(400).json({ error: 'title or content is required' });
+    }
+    const existing = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    const data: { title?: string; content?: string } = {};
+    if (req.body.title !== undefined) data.title = req.body.title;
+    if (req.body.content !== undefined) data.content = req.body.content;
+    const doc = await db.crmDocument.update({ where: { id: req.params.id }, data });
+    res.json({ ...doc, type: 'document' });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.delete('/documents/:id', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const existing = await db.crmDocument.findFirst({ where: { id: req.params.id, workspaceId: req.workspaceId } });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    await db.crmDocument.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) { dbErr(res, e); }
 });
 
 // ── Deals ─────────────────────────────────────────────────────────────────────
@@ -484,17 +583,260 @@ router.post('/tags/merge', async (req, res) => {
   } catch (e) { dbErr(res, e); }
 });
 
+// ── CRM Settings (Tier 2 fix 8) ─────────────────────────────────────────────
+// The Settings page's Save button used to flip local state and nothing else,
+// while the inputs showed hardcoded defaults. Settings now persist in a
+// CrmSettings row (one per workspace). A workspace with no row gets blanks,
+// never invented defaults.
+const CRM_SETTINGS_STRING_FIELDS = ['crmName', 'defaultCurrency', 'fiscalYearStart', 'dealStageLabels', 'adminEmail', 'defaultRole'] as const;
+const CRM_SETTINGS_BOOL_FIELDS = ['notifyNewLead', 'notifyDealWon', 'notifyDealLost', 'weeklyDigest'] as const;
+
+router.get('/settings', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const row = await db.crmSettings.findUnique({ where: { workspaceId: req.workspaceId } });
+    if (row) return res.json(row);
+    res.json({
+      workspaceId: req.workspaceId,
+      crmName: null,
+      defaultCurrency: null,
+      fiscalYearStart: null,
+      dealStageLabels: null,
+      adminEmail: null,
+      defaultRole: null,
+      notifyNewLead: false,
+      notifyDealWon: false,
+      notifyDealLost: false,
+      weeklyDigest: false,
+    });
+  } catch (e) { dbErr(res, e); }
+});
+
+router.put('/settings', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const data: Record<string, unknown> = {};
+    for (const f of CRM_SETTINGS_STRING_FIELDS) {
+      const v = req.body?.[f];
+      if (v !== undefined) {
+        if (v !== null && typeof v !== 'string') return res.status(400).json({ error: `${f} must be a string or null` });
+        data[f] = v === '' ? null : v;
+      }
+    }
+    for (const f of CRM_SETTINGS_BOOL_FIELDS) {
+      const v = req.body?.[f];
+      if (v !== undefined) {
+        if (typeof v !== 'boolean') return res.status(400).json({ error: `${f} must be a boolean` });
+        data[f] = v;
+      }
+    }
+    const row = await db.crmSettings.upsert({
+      where: { workspaceId: req.workspaceId },
+      create: { workspaceId: req.workspaceId!, ...data },
+      update: data,
+    });
+    res.json(row);
+  } catch (e) { dbErr(res, e); }
+});
+
 // ── Bulk Actions ──────────────────────────────────────────────────────────────
+// Record one history row per completed bulk run. Recording is best-effort:
+// it must never fail the bulk response itself, so failures log and move on.
+// status is derived from the counts: completed (nothing failed), partial
+// (some failed), failed (nothing succeeded).
+async function recordBulkAction(db: any, row: {
+  workspaceId: string;
+  type: string;
+  label: string;
+  targetCount: number;
+  successCount: number;
+  failedCount: number;
+  createdBy?: string | null;
+}) {
+  const status = row.failedCount === 0 ? 'completed' : row.successCount === 0 ? 'failed' : 'partial';
+  try {
+    await db.bulkAction.create({ data: { ...row, status, completedAt: new Date() } });
+  } catch (err) {
+    console.error('[bulk-actions] failed to record bulk action', err);
+  }
+}
+
+router.get('/bulk-actions', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    res.json(await db.bulkAction.findMany({
+      where: { workspaceId: req.workspaceId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }));
+  } catch (e) { dbErr(res, e); }
+});
+
 router.post('/bulk', async (req, res) => {
   try {
     const { action, contactIds, payload } = BulkActionSchema.parse(req.body);
     const result = await crm.bulkContacts(req.workspaceId, action, contactIds, payload);
+    const { db } = await import('../../infrastructure/database/client.js');
     if ('csv' in result) {
+      const csv = result.csv ?? '';
+      const exported = csv.split('\n').length - 1; // header row excluded
+      await recordBulkAction(db, {
+        workspaceId: req.workspaceId!,
+        type: 'export',
+        label: `Export ${exported} contact${exported === 1 ? '' : 's'} (CSV)`,
+        targetCount: contactIds.length,
+        successCount: exported,
+        failedCount: contactIds.length - exported,
+        createdBy: req.userId ?? null,
+      });
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename="contacts.csv"');
-      return res.send(result.csv);
+      return res.send(csv);
     }
+    const affected = typeof result.affected === 'number' ? result.affected : contactIds.length;
+    const label =
+      action === 'tag' ? `Add tag: ${payload?.tag ?? ''} — ${affected} contact${affected === 1 ? '' : 's'}` :
+      action === 'delete' ? `Delete ${affected} contact${affected === 1 ? '' : 's'}` :
+      action === 'assign' ? `Assign ${affected} contact${affected === 1 ? '' : 's'}` :
+      `Bulk ${action} — ${affected} contact${affected === 1 ? '' : 's'}`;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: action,
+      label,
+      targetCount: contactIds.length,
+      successCount: affected,
+      failedCount: contactIds.length - affected,
+      createdBy: req.userId ?? null,
+    });
     res.json(result);
+  } catch (e) { dbErr(res, e); }
+});
+
+// Bulk email — creates a REAL email-marketing campaign draft addressed to the
+// selected contacts and returns it, so the UI can open the editor. Nothing
+// is sent here; the draft waits in Email Marketing until the user finishes
+// and sends it. Creating campaigns requires the Complete plan (enforced by
+// createCampaign via assertPlan) — a below-Complete workspace gets a 403
+// with code PLAN_REQUIRED, never a fake success toast.
+router.post('/bulk-email', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const contactIds = req.body?.contactIds;
+    if (!Array.isArray(contactIds) || contactIds.length === 0 || contactIds.some((id) => typeof id !== 'string' || !id.trim())) {
+      return res.status(400).json({ error: 'contactIds (a non-empty array of contact ids) is required' });
+    }
+    const contacts = await db.contact.findMany({
+      where: { id: { in: contactIds }, workspaceId: req.workspaceId },
+      select: { id: true, email: true },
+    });
+    const withEmail = contacts.filter((c) => typeof c.email === 'string' && c.email.includes('@'));
+    if (withEmail.length === 0) {
+      return res.status(400).json({ error: 'None of the selected contacts have an email address.' });
+    }
+    const { createCampaign } = await import('../services/email-marketing/campaigns.service.js');
+    const campaign = await createCampaign(req.workspaceId!, {
+      name: `Bulk email — ${withEmail.length} contact${withEmail.length === 1 ? '' : 's'}`,
+      subject: '',
+      blockJson: {},
+    });
+    await db.campaignRecipient.createMany({
+      data: withEmail.map((c) => ({ campaignId: campaign.id, contactId: c.id, status: 'PENDING' })),
+    });
+    const skippedNoEmail = contacts.length - withEmail.length;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: 'bulk_email',
+      label: `Bulk email draft — ${withEmail.length} contact${withEmail.length === 1 ? '' : 's'}${skippedNoEmail > 0 ? `, ${skippedNoEmail} without email` : ''}`,
+      targetCount: contacts.length,
+      successCount: withEmail.length,
+      failedCount: skippedNoEmail,
+      createdBy: req.userId ?? null,
+    });
+    res.status(201).json({
+      campaignId: campaign.id,
+      name: campaign.name,
+      recipientCount: withEmail.length,
+      skippedNoEmail,
+    });
+  } catch (e: any) {
+    if (e?.code === 'PLAN_REQUIRED') {
+      return res.status(403).json({ error: e.message, code: 'PLAN_REQUIRED', requiredPlan: 'complete' });
+    }
+    dbErr(res, e);
+  }
+});
+
+// Bulk SMS — sends a real SMS to each selected contact through the same
+// Twilio path the Conversations UI uses (dispatchOutboundMessage). The
+// Twilio connection is checked FIRST: with none connected the endpoint
+// fails fast and creates zero conversations and zero message rows. Each
+// contact gets its own conversation + outbound message row; a contact with
+// no phone is skipped (counted, no row). Per-contact send failures are
+// counted, never swallowed — the message row is marked failed by dispatch.
+router.post('/bulk-sms', async (req, res) => {
+  try {
+    const { db } = await import('../../infrastructure/database/client.js');
+    const contactIds = req.body?.contactIds;
+    const message = req.body?.message;
+    if (!Array.isArray(contactIds) || contactIds.length === 0 || contactIds.some((id) => typeof id !== 'string' || !id.trim())) {
+      return res.status(400).json({ error: 'contactIds (a non-empty array of contact ids) is required' });
+    }
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+    const twilioConn = await db.channelConnection.findFirst({
+      where: { workspaceId: req.workspaceId, provider: 'twilio', isActive: true },
+    });
+    if (!twilioConn) {
+      return res.status(400).json({ error: 'No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.' });
+    }
+    const contacts = await db.contact.findMany({
+      where: { id: { in: contactIds }, workspaceId: req.workspaceId },
+      select: { id: true, phone: true },
+    });
+    const { dispatchOutboundMessage } = await import('./business.routes.js');
+    const biz = await import('../services/business.service.js');
+    const results: { contactId: string; status: 'sent' | 'failed' | 'skipped'; error?: string }[] = [];
+    for (const contact of contacts) {
+      if (!contact.phone) {
+        results.push({ contactId: contact.id, status: 'skipped', error: 'No phone number.' });
+        continue;
+      }
+      const convo = await db.conversation.create({
+        data: { workspaceId: req.workspaceId!, contactId: contact.id, channel: 'sms', status: 'open', unreadCount: 0 },
+      });
+      const msg = await biz.sendConversationMessage(convo.id, message.trim(), req.userId ?? 'agent', 'outbound');
+      try {
+        await dispatchOutboundMessage({
+          workspaceId: req.workspaceId!,
+          conversationId: convo.id,
+          messageId: msg.id,
+          channel: 'sms',
+          body: message.trim(),
+        });
+        results.push({ contactId: contact.id, status: 'sent' });
+      } catch (err: any) {
+        results.push({ contactId: contact.id, status: 'failed', error: err.message });
+      }
+    }
+    const sent = results.filter((r) => r.status === 'sent').length;
+    const failed = results.filter((r) => r.status === 'failed').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
+    await recordBulkAction(db, {
+      workspaceId: req.workspaceId!,
+      type: 'bulk_sms',
+      label: `Bulk SMS — ${sent} sent, ${failed} failed, ${skipped} skipped`,
+      targetCount: contacts.length,
+      successCount: sent,
+      failedCount: failed + skipped,
+      createdBy: req.userId ?? null,
+    });
+    res.json({
+      sent,
+      failed,
+      skipped,
+      results,
+    });
   } catch (e) { dbErr(res, e); }
 });
 

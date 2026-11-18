@@ -8,21 +8,28 @@ interface Document {
   id: string;
   title: string;
   type: string;
+  content?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+async function throwOnError(res: Response) {
+  if (res.ok) return res;
+  const body = await res.json().catch(() => null);
+  throw new Error(body?.error || res.statusText || `Request failed (${res.status})`);
 }
 
 export default function Documents() {
   const queryClient = useQueryClient();
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Fetch documents list
-  const { data: documents = [], isLoading } = useQuery<Document[]>({
+  const { data: documents = [], isLoading, isError, error: listError } = useQuery<Document[]>({
     queryKey: ['crm', 'documents'],
     queryFn: async () => {
-      const res = await fetch('/api/crm/documents');
-      if (!res.ok) throw new Error('Failed to fetch documents');
+      const res = await throwOnError(await fetch('/api/crm/documents'));
       return res.json();
     }
   });
@@ -32,8 +39,7 @@ export default function Documents() {
     queryKey: ['crm', 'documents', selectedDocId],
     queryFn: async () => {
       if (!selectedDocId) return null;
-      const res = await fetch(`/api/crm/documents/${selectedDocId}`);
-      if (!res.ok) throw new Error('Failed to fetch document');
+      const res = await throwOnError(await fetch(`/api/crm/documents/${selectedDocId}`));
       return res.json();
     },
     enabled: !!selectedDocId
@@ -41,41 +47,48 @@ export default function Documents() {
 
   const createDoc = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/crm/documents', {
+      const res = await throwOnError(await fetch('/api/crm/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled Document', content: '' })
-      });
+      }));
       return res.json();
     },
     onSuccess: (newDoc) => {
+      setSaveError(null);
+      if (!newDoc?.id) return;
       queryClient.invalidateQueries({ queryKey: ['crm', 'documents'] });
       setSelectedDocId(newDoc.id);
-    }
+    },
+    onError: (err: Error) => setSaveError(err.message)
   });
 
   const updateDoc = useMutation({
     mutationFn: async (data: { id: string; title: string; content: string }) => {
-      const res = await fetch(`/api/crm/documents/${data.id}`, {
+      const res = await throwOnError(await fetch(`/api/crm/documents/${data.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      });
+      }));
       return res.json();
     },
     onSuccess: () => {
+      setSaveError(null);
       queryClient.invalidateQueries({ queryKey: ['crm', 'documents'] });
-    }
+    },
+    onError: (err: Error) => setSaveError(err.message)
   });
 
   const deleteDoc = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/crm/documents/${id}`, { method: 'DELETE' });
+      await throwOnError(await fetch(`/api/crm/documents/${id}`, { method: 'DELETE' }));
     },
     onSuccess: (_, deletedId) => {
+      setSaveError(null);
       queryClient.invalidateQueries({ queryKey: ['crm', 'documents'] });
       if (selectedDocId === deletedId) setSelectedDocId(null);
-    }
+    },
+    onError: (err: Error) => setSaveError(err.message)
   });
 
   // Debounced auto-save for content
@@ -150,6 +163,8 @@ export default function Documents() {
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
             {isLoading ? (
               <div className="p-4 text-[13px] text-text-muted text-center">Loading...</div>
+            ) : isError ? (
+              <div className="p-4 text-[13px] text-red-400 text-center">Couldn&apos;t load documents: {listError instanceof Error ? listError.message : 'Request failed'}</div>
             ) : filteredDocs.length === 0 ? (
               <div className="p-6 text-[13px] text-text-muted text-center">No documents found.</div>
             ) : (
@@ -183,6 +198,11 @@ export default function Documents() {
 
         {/* Main Canvas Editor */}
         <div className="flex-1 overflow-y-auto bg-surface/30 backdrop-blur-sm h-full">
+          {saveError && (
+            <div className="mx-8 mt-4 rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-2 text-[13px] text-red-300">
+              Couldn&apos;t save: {saveError}
+            </div>
+          )}
           {selectedDocId && selectedDoc ? (
             <div className="max-w-[900px] mx-auto py-12 px-8 md:px-16 pb-32 min-h-full">
               <input 

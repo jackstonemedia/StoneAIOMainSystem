@@ -3,8 +3,7 @@
  *
  * The Conversations UI dispatch (business.routes.ts) and the integrations
  * route both need to send a message to a Meta PSID; this is the one place
- * that knows how. The PSID is the conversation's externalId. WhatsApp has
- * no sender — callers must fail honestly instead of pretending it sent.
+ * that knows how. The PSID is the conversation's externalId.
  */
 import axios from 'axios';
 import { db } from '../../../infrastructure/database/client.js';

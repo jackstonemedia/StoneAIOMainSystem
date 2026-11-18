@@ -49,15 +49,15 @@ function formatEmailDate(iso: string) {
 }
 
 const CH_LABEL: Record<Channel, string> = {
-  sms: 'SMS', email: 'Email', whatsapp: 'WhatsApp', chat: 'Live Chat',
+  sms: 'SMS', email: 'Email', chat: 'Live Chat',
   facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', linkedin: 'LinkedIn'
 };
 const CH_COLOR: Record<Channel, string> = {
-  sms: '#7dd3fc', email: '#c4b5fd', whatsapp: '#86efac', chat: '#fbbf24',
+  sms: '#7dd3fc', email: '#c4b5fd', chat: '#fbbf24',
   facebook: '#1877F2', instagram: '#E4405F', tiktok: '#ff0050', linkedin: '#0A66C2'
 };
 const CH_ICON: Record<string, React.ComponentType<any>> = {
-  sms: Smartphone, email: Mail, whatsapp: Phone, chat: MessageSquare,
+  sms: Smartphone, email: Mail, chat: MessageSquare,
   facebook: Facebook, instagram: Instagram, tiktok: Video, linkedin: Linkedin
 };
 
@@ -1112,7 +1112,7 @@ export default function ConversationsTab() {
                 <div>
                   <label className="text-[10px] font-bold text-text-muted uppercase tracking-widest block mb-2">Channel</label>
                   <div className="flex flex-wrap gap-2">
-                    {(['email', 'sms', 'whatsapp', 'chat'] as const).map(ch => (
+                    {(['email', 'sms', 'chat'] as const).map(ch => (
                       <button key={ch} onClick={() => setNcChannel(ch)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
                           ncChannel === ch ? 'bg-slate-700/10 border-slate-700/40 text-slate-700' : 'border-border/50 text-text-muted hover:border-border hover:text-text-main'

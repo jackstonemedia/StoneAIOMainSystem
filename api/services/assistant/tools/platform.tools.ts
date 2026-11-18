@@ -79,7 +79,7 @@ const PLATFORM_HELP_INDEX: Record<string, PlatformHelpTopic> = {
     title: 'Conversations & Unified Inbox',
     category: 'Conversations',
     navigationPath: '/conversations',
-    summary: 'Multi-channel unified messaging across Email, SMS, WhatsApp, and Web Chat.',
+    summary: 'Multi-channel unified messaging across Email, SMS, and Web Chat.',
     steps: [
       'Click Conversations in the main sidebar.',
       'Select any thread from the left conversation list to read the message history.',
@@ -108,7 +108,7 @@ const PLATFORM_HELP_INDEX: Record<string, PlatformHelpTopic> = {
     steps: [
       'Click Automations in the main sidebar.',
       'Click "+ New Workflow" or select an existing workflow.',
-      'Select a trigger (e.g. Contact Created, Form Submitted, Deal Stage Changed).',
+      'Select a trigger (e.g. Contact Created, Deal Stage Changed, Appointment Booked).',
       'Add action nodes such as Send Email, Send SMS, Create Task, or Webhook.',
       'Test your workflow and toggle the status from Draft to Active to publish.'
     ]

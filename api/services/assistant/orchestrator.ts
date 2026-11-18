@@ -186,6 +186,10 @@ export class AssistantOrchestrator {
 
     try {
       // 7. Multi-turn Tool Execution Loop
+      // turnPaused records a proposal/approval pause (the loop breaks
+      // out of scope with pauseTurnAfterCall, so track it here for the
+      // final-round decision in 7b).
+      let turnPaused = false;
       for (let loopIndex = 0; loopIndex < this.maxToolLoops; loopIndex++) {
         if (signal?.aborted) {
           isStopped = true;
@@ -256,7 +260,14 @@ export class AssistantOrchestrator {
             // Tool not found
             history.push({
               role: 'assistant',
-              parts: [{ type: 'function_call', name: fc.name, args: fc.args }],
+              parts: [
+                {
+                  type: 'function_call',
+                  name: fc.name,
+                  args: fc.args,
+                  ...(fc.thoughtSignature ? { thoughtSignature: fc.thoughtSignature } : {}),
+                },
+              ],
             });
             history.push({
               role: 'user',
@@ -413,7 +424,14 @@ export class AssistantOrchestrator {
 
             history.push({
               role: 'assistant',
-              parts: [{ type: 'function_call', name: fc.name, args: fc.args }],
+              parts: [
+                {
+                  type: 'function_call',
+                  name: fc.name,
+                  args: fc.args,
+                  ...(fc.thoughtSignature ? { thoughtSignature: fc.thoughtSignature } : {}),
+                },
+              ],
             });
             history.push({
               role: 'user',
@@ -445,7 +463,14 @@ export class AssistantOrchestrator {
 
             history.push({
               role: 'assistant',
-              parts: [{ type: 'function_call', name: fc.name, args: fc.args }],
+              parts: [
+                {
+                  type: 'function_call',
+                  name: fc.name,
+                  args: fc.args,
+                  ...(fc.thoughtSignature ? { thoughtSignature: fc.thoughtSignature } : {}),
+                },
+              ],
             });
             history.push({
               role: 'user',
@@ -466,7 +491,116 @@ export class AssistantOrchestrator {
 
         // If turn was paused by a proposal or approval gate, stop outer loop
         if (pauseTurnAfterCall) {
+          turnPaused = true;
           break;
+        }
+      }
+
+      // 7b. Final text-only round: if the model spent every round on tool
+      // calls and never wrote a reply, the turn ends silent — no
+      // assistant message is saved when accumulatedText is empty, so the
+      // user gets nothing at all (found live by the Phase 4 eval
+      // 2026-11-13: 3 starter cases ended with zero text after 5-6 tool
+      // calls). Give it one last round with NO tools so it answers from
+      // the tool results. Skipped when the turn paused on a proposal /
+      // approval (the proposal card is the reply there). Strictly
+      // additive: any failure here logs and the turn ends as before.
+      if (!accumulatedText.trim() && !turnPaused && !isStopped && !signal?.aborted) {
+        // The model does not always take the hint: with no tools
+        // declared it may still emit a function call for the next tool
+        // it wants (verified live 2026-11-13 — a tools-less round came
+        // back as a list_tasks call and empty text). So the final round
+        // carries an explicit instruction to answer now from the results
+        // gathered so far. History is copied, not mutated.
+        const finalHistory = [
+          ...history,
+          {
+            role: 'user' as const,
+            parts: [
+              {
+                type: 'text',
+                text: 'Answer the user\u2019s original question now, using only the information from the tool results above. Do not call any more tools \u2014 just write your reply.',
+              },
+            ],
+          },
+        ];
+        try {
+          const finalStream = chatEngine.stream(finalHistory, {
+            systemPrompt,
+            thinking,
+            signal,
+          });
+          for await (const event of finalStream) {
+            if (signal?.aborted) {
+              isStopped = true;
+              break;
+            }
+            if (event.type === 'delta') {
+              accumulatedText += event.text;
+              if (res) {
+                this.sendSSE(res, 'delta', { text: event.text });
+              }
+            } else if (event.type === 'done') {
+              totalInputTokens += event.inputTokens;
+              totalOutputTokens += event.outputTokens;
+            } else if (event.type === 'error') {
+              console.warn('[Orchestrator] Final text-only round failed:', event.message);
+              break;
+            }
+            // function_call events cannot execute here (no tools
+            // declared); if the model still emits one, the turn ends
+            // with whatever text it produced.
+          }
+        } catch (err) {
+          console.warn('[Orchestrator] Final text-only round threw:', (err as Error)?.message);
+        }
+      }
+
+      // 7c. Narration for a paused turn: when the turn paused on a
+      // proposal/approval with no chat text at all, the user sees a
+      // proposal card and silence. Give the model one text-only round
+      // to briefly say what it prepared and that it is waiting for
+      // approval — never to claim it was sent. (Found by the Phase 4
+      // eval 2026-11-13: proposal turns ended with empty replies.)
+      if (turnPaused && !accumulatedText.trim() && !isStopped && !signal?.aborted) {
+        const narrateHistory = [
+          ...history,
+          {
+            role: 'user' as const,
+            parts: [
+              {
+                type: 'text',
+                text: 'You prepared something for the user\u2019s approval (see the tool call above). Briefly tell the user what you prepared and that it is waiting for their approval. Do not claim it was sent or completed.',
+              },
+            ],
+          },
+        ];
+        try {
+          const narrateStream = chatEngine.stream(narrateHistory, {
+            systemPrompt,
+            thinking,
+            signal,
+          });
+          for await (const event of narrateStream) {
+            if (signal?.aborted) {
+              isStopped = true;
+              break;
+            }
+            if (event.type === 'delta') {
+              accumulatedText += event.text;
+              if (res) {
+                this.sendSSE(res, 'delta', { text: event.text });
+              }
+            } else if (event.type === 'done') {
+              totalInputTokens += event.inputTokens;
+              totalOutputTokens += event.outputTokens;
+            } else if (event.type === 'error') {
+              console.warn('[Orchestrator] Proposal narration round failed:', event.message);
+              break;
+            }
+          }
+        } catch (err) {
+          console.warn('[Orchestrator] Proposal narration round threw:', (err as Error)?.message);
         }
       }
 

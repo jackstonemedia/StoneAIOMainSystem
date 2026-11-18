@@ -33,6 +33,9 @@ model Workspace {
   agents            Agent[]
   contacts          Contact[]
   companies         Company[]
+  crmDocuments      CrmDocument[]
+  crmSettings       CrmSettings?
+  bulkActions       BulkAction[]
   deals             Deal[]
   apiKeys           ApiKey[]
   integrations      Integration[]
@@ -900,6 +903,68 @@ model CompanyEvent {
 
   @@index([companyId])
   @@map("company_events")
+}
+
+model CrmDocument {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  title       String   @default("Untitled Document")
+  content     String?  @default("") @db.Text
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("crm_documents")
+}
+
+// CRM Settings (Tier 2 fix 8): the workspace's CRM preferences, one row
+// per workspace. All preference columns are nullable — a workspace with no
+// row (or a blank field) shows blank in the form, never a hardcoded
+// default like 'Stone AIO CRM' or 'jack@stoneaio.com'.
+model CrmSettings {
+  id               String   @id @default(uuid())
+  workspaceId      String   @unique @map("workspace_id")
+  crmName          String?  @map("crm_name")
+  defaultCurrency  String?  @map("default_currency")
+  fiscalYearStart  String?  @map("fiscal_year_start")
+  dealStageLabels  String?  @map("deal_stage_labels")
+  adminEmail       String?  @map("admin_email")
+  defaultRole      String?  @map("default_role")
+  notifyNewLead    Boolean  @default(false) @map("notify_new_lead")
+  notifyDealWon    Boolean  @default(false) @map("notify_deal_won")
+  notifyDealLost   Boolean  @default(false) @map("notify_deal_lost")
+  weeklyDigest     Boolean  @default(false) @map("weekly_digest")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("crm_settings")
+}
+
+// Bulk Action (Tier 2 fix 9): a recorded history row for every bulk run —
+// the inline runs from Contacts (/bulk, /bulk-email, /bulk-sms). The Bulk
+// Actions page used to hardcode `hasActions = false`, so no run was ever
+// visible. `label` and `completedAt` are extra fields beyond the Blueprint's
+// list: the page's table has Action Label and Completed columns.
+// status: 'completed' | 'partial' | 'failed' (derived from the counts).
+model BulkAction {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  type         String
+  label        String
+  targetCount  Int      @map("target_count")
+  successCount Int      @map("success_count")
+  failedCount  Int      @map("failed_count")
+  status       String   @default("completed")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  completedAt  DateTime? @map("completed_at")
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("bulk_actions")
 }
 
 model Pipeline {

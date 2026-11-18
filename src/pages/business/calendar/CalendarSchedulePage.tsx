@@ -283,108 +283,6 @@ function computeDayColumnLayout(events: Appointment[], hourHeight: number = 60):
   return result;
 }
 
-// Initial mock events
-function createDefaultSeedAppointments(): Appointment[] {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const d = now.getDate();
-  const nowIso = now.toISOString();
-
-  return [
-    {
-      id: 'apt-seed-1',
-      workspaceId: 'default',
-      contactId: 'c1',
-      title: 'Enterprise Architecture Sync',
-      type: 'demo',
-      location: 'Google Meet',
-      startTime: new Date(y, m, d, 10, 0).toISOString(),
-      endTime: new Date(y, m, d, 10, 45).toISOString(),
-      description: 'Review system requirements and enterprise data migration pipelines with engineering team.',
-      status: 'confirmed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c1', firstName: 'Sarah', lastName: 'Jenkins', email: 'sarah.j@acmecorp.com' } as any,
-    },
-    {
-      id: 'apt-seed-2',
-      workspaceId: 'default',
-      contactId: 'c2',
-      title: 'Q3 Product Strategy & Roadmap',
-      type: 'meeting',
-      location: 'Zoom Conference',
-      startTime: new Date(y, m, d, 14, 0).toISOString(),
-      endTime: new Date(y, m, d, 15, 0).toISOString(),
-      description: 'Discuss executive roadmap initiatives and deliverables for the upcoming quarter.',
-      status: 'confirmed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c2', firstName: 'David', lastName: 'Chen', email: 'david.chen@horizon.io' } as any,
-    },
-    {
-      id: 'apt-seed-3',
-      workspaceId: 'default',
-      contactId: 'c3',
-      title: 'Client Onboarding & Training',
-      type: 'video',
-      location: 'Microsoft Teams',
-      startTime: new Date(y, m, d + 1, 11, 30).toISOString(),
-      endTime: new Date(y, m, d + 1, 12, 15).toISOString(),
-      description: 'Walkthrough of workspace configuration, permissions, and AI agent setup.',
-      status: 'confirmed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c3', firstName: 'Elena', lastName: 'Rostova', email: 'elena@novatech.com' } as any,
-    },
-    {
-      id: 'apt-seed-4',
-      workspaceId: 'default',
-      contactId: 'c4',
-      title: 'Inbound Growth Discovery',
-      type: 'calls',
-      location: 'Direct Phone (+1 555-0192)',
-      startTime: new Date(y, m, d + 2, 9, 0).toISOString(),
-      endTime: new Date(y, m, d + 2, 9, 30).toISOString(),
-      description: 'Initial discovery call to evaluate custom automation workflows.',
-      status: 'confirmed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c4', firstName: 'Marcus', lastName: 'Vance', email: 'marcus@vancemedia.com' } as any,
-    },
-    {
-      id: 'apt-seed-5',
-      workspaceId: 'default',
-      contactId: 'c5',
-      title: 'Weekly Sprint Retrospective',
-      type: 'tasks',
-      location: 'Internal Workspace Room A',
-      startTime: new Date(y, m, d + 3, 16, 0).toISOString(),
-      endTime: new Date(y, m, d + 3, 17, 0).toISOString(),
-      description: 'Review completed sprint tickets, velocity metrics, and blockers.',
-      status: 'confirmed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c5', firstName: 'Team', lastName: 'Engineering', email: 'dev@stoneaio.com' } as any,
-    },
-    {
-      id: 'apt-seed-6',
-      workspaceId: 'default',
-      contactId: 'c6',
-      title: 'Consulting Advisory Session',
-      type: 'consultation',
-      location: 'Google Meet',
-      startTime: new Date(y, m, d - 1, 13, 0).toISOString(),
-      endTime: new Date(y, m, d - 1, 14, 0).toISOString(),
-      description: 'Strategic review of AI pipeline deployments.',
-      status: 'completed',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      contact: { id: 'c6', firstName: 'Amanda', lastName: 'Bates', email: 'amanda@apexcap.com' } as any,
-    },
-  ];
-}
-
 // Form Row Helper matching CRM SlideOvers 1-to-1
 const FormRow = ({ label, icon: Icon, required, children }: any) => (
   <div className="space-y-1.5">
@@ -448,7 +346,6 @@ export default function CalendarSchedulePage() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Local modifications state: tracks in-place edits, creations, and deletions
-  const defaultSeeds = useMemo(() => createDefaultSeedAppointments(), []);
   const [editedEvents, setEditedEvents] = useState<Record<string, Appointment>>({});
   const [createdEvents, setCreatedEvents] = useState<Appointment[]>([]);
   const [deletedEventIds, setDeletedEventIds] = useState<string[]>([]);
@@ -517,7 +414,8 @@ export default function CalendarSchedulePage() {
 
   // Combined events with accurate in-place edits and additions
   const allEvents = useMemo(() => {
-    const baseList = serverAppointments.length > 0 ? serverAppointments : defaultSeeds;
+    // No seed/fallback events: an empty workspace shows an empty calendar.
+    const baseList = serverAppointments;
     const deletedSet = new Set(deletedEventIds);
 
     // 1. Process base events: filter out deleted, apply in-place edits
@@ -531,7 +429,7 @@ export default function CalendarSchedulePage() {
       .map(apt => (editedEvents[apt.id] ? { ...apt, ...editedEvents[apt.id] } : apt));
 
     return [...updatedCreated, ...updatedBase];
-  }, [serverAppointments, defaultSeeds, editedEvents, createdEvents, deletedEventIds]);
+  }, [serverAppointments, editedEvents, createdEvents, deletedEventIds]);
 
   // ── Mutations ──
   const saveMutation = useMutation({

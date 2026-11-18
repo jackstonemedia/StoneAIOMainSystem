@@ -104,7 +104,7 @@ const STEP_PALETTE = [
 
 const TRIGGER_LABELS: Record<string, string> = {
   CONTACT_CREATED: 'Contact Created', TAG_ADDED: 'Tag Added', TAG_REMOVED: 'Tag Removed',
-  FORM_SUBMITTED: 'Form Submitted', LIST_JOINED: 'List Joined', DEAL_STAGE_CHANGED: 'Deal Stage Changed',
+  LIST_JOINED: 'List Joined', DEAL_STAGE_CHANGED: 'Deal Stage Changed',
   CUSTOM_FIELD_CHANGED: 'Custom Field Changed', DATE_BASED: 'Date Based',
   EMAIL_OPENED: 'Email Opened', EMAIL_LINK_CLICKED: 'Link Clicked',
   MANUAL_ENROLLMENT: 'Manual Enrollment', API_EVENT: 'API Event',

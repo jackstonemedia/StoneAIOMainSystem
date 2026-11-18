@@ -22,9 +22,19 @@ export async function seedEvalWorkspace() {
       id: EVAL_WORKSPACE_ID,
       name: 'Evalworks Test Business',
       ownerId: EVAL_USER_ID,
-      plan: 'pro',
+      // 'complete' (10M tokens/mo) so the monthly budget never gates the
+      // measurement — the eval scores quality, and the 402 block behavior
+      // is already covered by the spending-caps unit tests. A 142-case
+      // run is ~0.7–1M tokens normally, ~3.5M worst case.
+      plan: 'complete',
     },
   });
+
+  // Reset the eval workspace's usage so re-runs start at zero and the
+  // budget can never be half-spent by a previous partial run. This is
+  // the harness's own fixture workspace; nothing real lives here.
+  await (db as any).agentTokenUsage.deleteMany({ where: { workspaceId: EVAL_WORKSPACE_ID } });
+  await (db as any).assistantUsage.deleteMany({ where: { workspaceId: EVAL_WORKSPACE_ID } });
 
   await db.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId: EVAL_WORKSPACE_ID, userId: EVAL_USER_ID } },
@@ -259,6 +269,20 @@ export async function seedEvalWorkspace() {
         userId: EVAL_USER_ID,
         kind: 'rule',
         content: entry.rule,
+      },
+    });
+    // The SHIPPING assistant reads assistant_memories, not agentMemory —
+    // seed the same rules there so it runs with them too.
+    await (db as any).assistantMemory.upsert({
+      where: { id: `mem_asst_${entry.id}` },
+      update: { value: entry.rule },
+      create: {
+        id: `mem_asst_${entry.id}`,
+        workspaceId: EVAL_WORKSPACE_ID,
+        userId: EVAL_USER_ID,
+        key: `correction-${entry.id}`,
+        value: entry.rule,
+        category: 'preference',
       },
     });
   }

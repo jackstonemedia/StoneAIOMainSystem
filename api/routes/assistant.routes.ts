@@ -815,11 +815,25 @@ router.delete('/projects/:id', async (req: Request, res: Response, next: NextFun
 });
 
 // ── POST /projects/:id/files — add file to project ───────────────────────────
+// The client uploads the file bytes as base64; text is extracted server-side.
+// Client-supplied `extractedText`/`status` are stripped — the server decides
+// both from the actual bytes, so a PDF can no longer upload "successfully"
+// with no readable text.
 router.post('/projects/:id/files', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const workspaceId = req.workspaceId!;
     const userId = req.userId!;
-    const file = await projectService.addProjectFile(workspaceId, userId, req.params.id, req.body);
+    const { contentBase64, fileName, mimeType, size, storageUrl } = req.body ?? {};
+    if (typeof contentBase64 !== 'string' || !contentBase64) {
+      return res.status(400).json({ error: 'Upload requires the file content.' });
+    }
+    const file = await projectService.addProjectFile(workspaceId, userId, req.params.id, {
+      fileName,
+      mimeType,
+      size,
+      storageUrl,
+      contentBase64,
+    });
     res.status(201).json(file);
   } catch (err) {
     next(err);
