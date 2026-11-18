@@ -34,6 +34,10 @@ const mockMessages: Record<string, FixtureMessage> = {};
 
 vi.mock('../../infrastructure/database/client.js', () => ({
   db: {
+    // D4: lets the pre-flight budget check read (plan null → default
+    // budget, zero usage) instead of failing open with a noisy log.
+    workspace: { findUnique: vi.fn().mockResolvedValue(null) },
+    agentTokenUsage: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn().mockImplementation(async (callback) => {
       const txMock = {
         $executeRaw: vi.fn().mockResolvedValue(1),
@@ -126,6 +130,12 @@ vi.mock('../../infrastructure/database/client.js', () => ({
             thinking: 'auto',
           }),
         },
+        // D4: streamTurn reads workspace settings; the mock previously
+        // had no such delegate because no test ran a full turn.
+        assistantWorkspaceSettings: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...data })),
+        },
         assistantUsage: {
           upsert: vi.fn().mockResolvedValue({ id: 'usage-1' }),
         },
@@ -141,7 +151,7 @@ vi.mock('../../packages/ai/engine/chat-engine.js', () => ({
       yield { type: 'delta', text: 'Hello from Stone AI' };
       yield { type: 'done', inputTokens: 10, outputTokens: 20, fullText: 'Hello from Stone AI' };
     }),
-    generateTitle: vi.fn().mockResolvedValue('Calculated Title'),
+    generateTitle: vi.fn().mockResolvedValue({ title: 'Calculated Title', usage: { input: 5, output: 7 } }),
   },
 }));
 
@@ -308,5 +318,69 @@ describe('Assistant Multi-Tenant & Cross-User Strict Isolation Suite (P0 Gate)',
     expect(res.status).toBe(200);
     expect(res.body.workspaceId).toBe('ws-tenant-a');
     expect(res.body.userId).toBe('user-a-1');
+  });
+
+  it('10. D4: a first-exchange turn counts the title call in the turn total exactly once', async () => {
+    // NOTE: this calls streamTurn directly instead of going through the
+    // route — the route aborts its signal on req 'close', and supertest
+    // fires that as soon as the request body is sent, so no turn ever
+    // runs through the route under supertest (the loop breaks stopped
+    // with zero main-loop tokens). The direct call uses a live signal.
+    const { assistantOrchestrator } = await import('../services/assistant/orchestrator.js');
+
+    // Fresh conversation titled 'New Conversation' with no messages yet —
+    // the only fixture state where the title block runs.
+    mockConversations['convo-title-test'] = {
+      id: 'convo-title-test',
+      workspaceId: 'ws-tenant-a',
+      userId: 'user-a-1',
+      title: 'New Conversation',
+      mode: 'read_only',
+      thinking: 'auto',
+      createdAt: new Date('2026-10-04'),
+      updatedAt: new Date('2026-10-04'),
+    };
+
+    const sseChunks: string[] = [];
+    const fakeRes: any = {
+      writableEnded: false,
+      setHeader: () => {},
+      flushHeaders: () => {},
+      write: (chunk: string) => {
+        sseChunks.push(chunk);
+        return true;
+      },
+      end: () => {
+        fakeRes.writableEnded = true;
+      },
+      status: () => fakeRes,
+      json: () => {},
+    };
+
+    await assistantOrchestrator.streamTurn({
+      workspaceId: 'ws-tenant-a',
+      userId: 'user-a-1',
+      userRole: 'member',
+      userName: 'User',
+      conversationId: 'convo-title-test',
+      content: 'Hello, what deals do we have open?',
+      res: fakeRes,
+      signal: new AbortController().signal,
+    });
+
+    const stream = sseChunks.join('');
+    // The mocked main loop reports 10 in / 20 out; the mocked title call
+    // reports 5 in / 7 out. The 'done' event must carry 15 / 27 — the
+    // title tokens added to the turn total once, not dropped, not doubled.
+    // (incrementUsage receives the same totals, so the daily bucket holds
+    // turn + title exactly once too.)
+    const doneBlock = stream
+      .split('\n\n')
+      .find((b) => b.startsWith('event: done'));
+    expect(doneBlock).toBeDefined();
+    const doneData = JSON.parse(doneBlock!.split('data: ')[1]);
+    expect(doneData.inputTokens).toBe(15);
+    expect(doneData.outputTokens).toBe(27);
+    expect(mockConversations['convo-title-test'].title).toBe('Calculated Title');
   });
 });

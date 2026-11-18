@@ -101,32 +101,11 @@ export function nextResetLabel(d: Date = new Date()): string {
   return next.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
-/** Rough token estimate: ~4 chars per token. Estimates only. */
-export function estimateTokens(text: string): number {
-  if (!text) return 0;
-  return Math.ceil(text.length / 4);
-}
-
-export interface TokenUsage {
-  input: number;
-  output: number;
-}
-
-/**
- * Usage for one LLM call. Prefers usageMetadata when the response
- * carries it; otherwise estimates from the prompt/response text.
- */
-export function extractUsage(
-  res: any,
-  promptText: string,
-  responseText: string,
-): TokenUsage {
-  const meta = res?.usageMetadata;
-  if (meta && typeof meta.promptTokenCount === 'number' && typeof meta.candidatesTokenCount === 'number') {
-    return { input: meta.promptTokenCount, output: meta.candidatesTokenCount };
-  }
-  return { input: estimateTokens(promptText), output: estimateTokens(responseText) };
-}
+// Token usage helpers live in packages/ai/usage.ts (shared with the engine,
+// which cannot import the API layer). Imported here for local use and
+// re-exported so every existing import from metering.js keeps working.
+import { estimateTokens, extractUsage, type TokenUsage } from '../../../packages/ai/usage.js';
+export { estimateTokens, extractUsage, type TokenUsage } from '../../../packages/ai/usage.js';
 
 export interface UsageTotal extends TokenUsage {
   total: number;

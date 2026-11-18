@@ -6,6 +6,7 @@
  */
 
 import { tryGetAIClient } from '../client.js';
+import { extractUsage, type TokenUsage } from '../usage.js';
 
 export interface ChatEngineMessagePart {
   type: string;
@@ -296,12 +297,19 @@ export class ChatEngine {
 
   /**
    * Generates a short title (six words or fewer) for a conversation based on the first message.
+   *
+   * D4: returns the call's usage alongside the title so the caller can add
+   * it to the turn total — the title call is a real model call and was
+   * never counted. A failed or skipped call returns zero usage (no
+   * successful call, nothing to count); a successful call returns its
+   * usage even when the title itself falls back.
    */
-  async generateTitle(userMessage: string): Promise<string> {
+  async generateTitle(userMessage: string): Promise<{ title: string; usage: TokenUsage }> {
     const fallback = userMessage.trim().slice(0, 50) || 'New Conversation';
     const ai = tryGetAIClient();
-    if (!ai || !userMessage.trim()) return fallback;
+    if (!ai || !userMessage.trim()) return { title: fallback, usage: { input: 0, output: 0 } };
 
+    const prompt = `Generate a short, concise conversation title of 6 words or fewer summarizing this user request. Do not include quotes, markdown, or punctuation. Title only:\n\n${userMessage}`;
     try {
       const response = await ai.models.generateContent({
         model: this.smallModel,
@@ -310,7 +318,7 @@ export class ChatEngine {
             role: 'user',
             parts: [
               {
-                text: `Generate a short, concise conversation title of 6 words or fewer summarizing this user request. Do not include quotes, markdown, or punctuation. Title only:\n\n${userMessage}`,
+                text: prompt,
               },
             ],
           },
@@ -318,12 +326,13 @@ export class ChatEngine {
       });
 
       const title = response.text?.trim().replace(/^["']|["']$/g, '');
+      const usage = extractUsage(response, prompt, response.text ?? '');
       if (title && title.length < 80) {
-        return title;
+        return { title, usage };
       }
-      return fallback;
+      return { title: fallback, usage };
     } catch {
-      return fallback;
+      return { title: fallback, usage: { input: 0, output: 0 } };
     }
   }
 }

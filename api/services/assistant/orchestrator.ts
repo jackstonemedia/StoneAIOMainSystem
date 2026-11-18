@@ -630,7 +630,14 @@ export class AssistantOrchestrator {
         // 9. Generate title if this was the first exchange
         const exchangeCount = (convo.messages || []).length;
         if (exchangeCount <= 1 && convo.title === 'New Conversation') {
-          const generatedTitle = await chatEngine.generateTitle(content);
+          const { title: generatedTitle, usage: titleUsage } = await chatEngine.generateTitle(content);
+          // D4: the title call's tokens belong to this turn — add them to
+          // the turn total so the daily bucket holds turn + title exactly
+          // once (the 80% check and the 'done' event below read these
+          // same totals). The saved message row above still carries the
+          // main-loop tokens only; the bucket is the budget source.
+          totalInputTokens += titleUsage.input;
+          totalOutputTokens += titleUsage.output;
           if (generatedTitle && generatedTitle !== convo.title) {
             await assistantRepo.updateConversation(workspaceId, userId, conversationId, {
               title: generatedTitle,
