@@ -13,7 +13,7 @@ import {
   qualifiesForTrial,
   TRIAL_DAYS,
 } from '../services/billing/plans.js';
-import { getUsage, budgetForPlan, monthKey } from '../services/agent/metering.js';
+import { getUsage, budgetForWorkspace, isTrialingWorkspace, monthKey } from '../services/agent/metering.js';
 
 const createCheckoutSchema = {
   body: z.object({
@@ -310,13 +310,17 @@ router.get('/billing/subscription-status', async (req: Request, res: Response) =
     let tokenUsage = null;
     try {
       const usage = await getUsage(db as any, workspaceId);
-      const budget = budgetForPlan(currentPlan);
+      // Trial workspaces see their trial budget here (Blueprint 3
+      // Phase 3, D1) — the same number the pre-flight gate enforces —
+      // never the full plan budget.
+      const budget = budgetForWorkspace(ws as any);
       tokenUsage = {
         month: monthKey(),
         used: usage.total,
         input: usage.input,
         output: usage.output,
         budget,
+        isTrial: isTrialingWorkspace(ws as any),
         remaining: Math.max(0, budget - usage.total),
         pct: budget > 0 ? Math.round((usage.total / budget) * 100) : 0,
       };
