@@ -204,6 +204,21 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
     };
   });
 
+  // Won revenue over time (same buckets, won-deal value by updatedAt).
+  // Uses the same won-deal set as the headline revenue figure so the
+  // chart and the card can never disagree.
+  const revenueOverTime = Array.from({ length: bucketCount }, (_, i) => {
+    const bStart = new Date(currentFrom.getTime() + i * bucketSizeMs);
+    const bEnd = new Date(currentFrom.getTime() + (i + 1) * bucketSizeMs);
+    const value = wonDealsCurrent
+      .filter((d) => new Date(d.updatedAt) >= bStart && new Date(d.updatedAt) < bEnd)
+      .reduce((sum, d) => sum + (d.amount || 0), 0);
+    return {
+      date: bStart.toISOString().split('T')[0],
+      value,
+    };
+  });
+
   // 3. Conversations
   const emailSent = allMessages.filter((m) => m.channel === 'email' && m.direction === 'outbound').length;
   const emailReceived = allMessages.filter((m) => m.channel === 'email' && m.direction === 'inbound').length;
@@ -402,6 +417,7 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
       leadSources,
       staleDeals,
       contactsOverTime,
+      revenueOverTime,
     },
     conversations: {
       unreadCount: unreadConvosCount,
@@ -453,9 +469,17 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
     activityFeed: activityEvents.slice(0, 10),
 
     // Backward-compat fields for existing hooks
-    revenue: { current: wonValueCurrent, trend: [] },
+    revenue: {
+      current: wonValueCurrent,
+      trend: revenueOverTime.map((b) => b.value),
+      changePct: wonValueChangePct,
+    },
     pipeline: { value: pipelineValue },
-    contacts: { total: allContacts.length },
+    contacts: {
+      total: allContacts.length,
+      trend: contactsOverTime.map((b) => b.count),
+      changePct: contactsChangePct,
+    },
     open_conversations: openConvosCount,
     pipeline_stages: pipelineStages,
     email: {
