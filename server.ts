@@ -489,6 +489,30 @@ async function startServer() {
     });
     console.log('✅ Inbox snooze resumer: active (1-min interval)');
 
+    // ── Email Marketing: Automation runner (every minute + daily) ────────────
+    // Complete-platform item 1: Email Automations were CRUD-only — nothing
+    // ever evaluated triggers or advanced enrollments. The 1-min cron resumes
+    // WAIT-parked enrollments; the daily cron evaluates DATE_BASED triggers.
+    cron.schedule('* * * * *', async () => {
+      try {
+        const { resumeDueEnrollments } = await import('./api/services/email-marketing/automation-runner.service.js');
+        const resumed = await resumeDueEnrollments();
+        if (resumed > 0) {
+          console.log(`[AutomationRunner] Resumed ${resumed} WAIT-parked enrollment(s).`);
+        }
+      } catch (err) { console.error('[AutomationRunner]', err); }
+    });
+    cron.schedule('5 0 * * *', async () => {
+      try {
+        const { evaluateDateBasedAutomations } = await import('./api/services/email-marketing/automation-runner.service.js');
+        const enrolled = await evaluateDateBasedAutomations();
+        if (enrolled > 0) {
+          console.log(`[AutomationRunner] DATE_BASED enrolled ${enrolled} contact(s).`);
+        }
+      } catch (err) { console.error('[AutomationRunner]', err); }
+    });
+    console.log('✅ Email Marketing automation runner: active (1-min WAIT resumer + daily DATE_BASED)');
+
     // ── AI Assistant: Scheduled tasks runner (every minute) ───────────────
     // Blueprint 3 Phase 1: the Scheduled page had routes + a manual Run
     // button but nothing ever called executeTask on a schedule. The runner

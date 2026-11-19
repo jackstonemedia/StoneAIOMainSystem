@@ -1943,6 +1943,7 @@ enum EnrollmentExitReason {
   SUPPRESSED
   CONTACT_DELETED
   REPLIED
+  EXITED_BY_STEP
 }
 
 enum EmailEventType {
@@ -2110,6 +2111,9 @@ model AutomationEnrollment {
   automationId  String                @map("automation_id")
   contactId     String                @map("contact_id")
   currentStepId String?               @map("current_step_id")
+  resumeAt      DateTime?             @map("resume_at")
+  lastError     String?               @map("last_error")
+  attempts      Int                   @default(0)
   enrolledAt    DateTime              @default(now()) @map("enrolled_at")
   exitedAt      DateTime?             @map("exited_at")
   exitReason    EnrollmentExitReason? @map("exit_reason")
