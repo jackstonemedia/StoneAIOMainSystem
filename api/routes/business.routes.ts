@@ -530,12 +530,18 @@ router.patch('/conversations/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    const { status, starred, assignedUserId, subject } = req.body;
+    const { status, starred, assignedUserId, subject, snoozedUntil } = req.body;
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (starred !== undefined) data.starred = starred;
     if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
     if (subject !== undefined) data.subject = subject;
+    // The snooze control sends snoozedUntil with status 'snoozed'; the
+    // route used to drop it, so a snoozed thread had no wake time stored
+    // and could never re-open (Tranche A fix 10). Re-opening a thread
+    // clears the wake time unless a new one is given in the same call.
+    if (snoozedUntil !== undefined) data.snoozedUntil = snoozedUntil ? new Date(snoozedUntil) : null;
+    else if (status !== undefined && status !== 'snoozed') data.snoozedUntil = null;
     const updated = await db.conversation.update({
       where: { id: req.params.id },
       data,
