@@ -26,3 +26,19 @@ export async function saveAppointment(payload: any): Promise<Appointment> {
   const { data } = await apiClient.post('/business/appointments', payload);
   return data || { ...payload, id: `apt-${Date.now()}` };
 }
+
+/**
+ * Delete an appointment — throws on failure (Tranche A fix 19).
+ *
+ * The calendar page's delete mutation used to catch the DELETE error inside
+ * mutationFn ("ignore delete failure in optimistic cleanup") and return the
+ * id anyway, so onSuccess always ran: the appointment vanished from the
+ * local lists and "Appointment deleted" toasted for a delete the server
+ * never performed. A failed delete must reach the mutation's onError
+ * (honest error toast, appointment stays listed), never masquerade as a
+ * success. Same rule as saveAppointment above.
+ */
+export async function deleteAppointment(id: string): Promise<string> {
+  await apiClient.delete(`/business/appointments/${id}`);
+  return id;
+}

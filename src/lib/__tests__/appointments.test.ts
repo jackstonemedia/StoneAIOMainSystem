@@ -9,11 +9,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockApiClient = vi.hoisted(() => ({
   post: vi.fn(),
   put: vi.fn(),
+  delete: vi.fn(),
 }));
 
 vi.mock('../apiClient', () => ({ apiClient: mockApiClient }));
 
-import { saveAppointment } from '../appointments';
+import { saveAppointment, deleteAppointment } from '../appointments';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,5 +50,18 @@ describe('saveAppointment', () => {
     const saved = await saveAppointment({ title: 'Intro call' });
     expect(saved.id).toMatch(/^apt-/);
     expect(saved.title).toBe('Intro call');
+  });
+});
+
+describe('deleteAppointment (Tranche A fix 19)', () => {
+  it('a successful delete returns the id', async () => {
+    mockApiClient.delete.mockResolvedValueOnce({ data: { success: true } });
+    await expect(deleteAppointment('apt_1')).resolves.toBe('apt_1');
+    expect(mockApiClient.delete).toHaveBeenCalledWith('/business/appointments/apt_1');
+  });
+
+  it('a failed delete throws — the page must NOT remove the appointment or toast success', async () => {
+    mockApiClient.delete.mockRejectedValueOnce(new Error('Request failed with status code 500'));
+    await expect(deleteAppointment('apt_1')).rejects.toThrow('500');
   });
 });
