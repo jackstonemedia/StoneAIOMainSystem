@@ -46,6 +46,7 @@ import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js'
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
 import publicLandingRouter from './api/routes/public-landing.routes.js';
+import publicFunnelsRouter from './api/routes/public-funnels.routes.js';
 import invitesRouter, { publicInvitesRouter } from './api/routes/invites.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
@@ -311,6 +312,9 @@ async function startServer() {
 
   // ── Public landing pages (no JWT) ─────────────────────────────────────────
   app.use('/api/public/pages', publicLandingRouter);
+
+  // ── Public funnel steps (no JWT) ────────────────────────────────────────
+  app.use('/api/public/funnels', publicFunnelsRouter);
 
   // ── Public invite lookup (no JWT — the invitee may not have an account yet) ──
   app.use('/api/invites', publicInvitesRouter);
