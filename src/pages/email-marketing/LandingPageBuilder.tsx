@@ -135,6 +135,11 @@ export default function LandingPageBuilder() {
       toast('error', 'Could not unpublish', e instanceof Error ? e.message : 'Unknown error'),
   });
 
+  const { data: responses = [] } = useQuery({
+    queryKey: ['landing-pages', id, 'responses'],
+    queryFn: () => landingPagesApi.responses(id),
+  });
+
   const selected = sections.find((s) => s.id === selectedId) ?? null;
 
   const addSection = (type: PageSection['type']) => {
@@ -382,6 +387,34 @@ export default function LandingPageBuilder() {
                 placeholder="Shown in search results"
               />
             </label>
+          </div>
+
+          <div>
+            <h2 className="font-semibold mb-2">
+              Submissions ({responses.length})
+            </h2>
+            {responses.length === 0 ? (
+              <p className="text-text-muted">
+                No submissions yet — share the public URL to collect leads.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {responses.map((r) => (
+                  <div key={r.id} className="border border-border rounded px-3 py-2 bg-surface">
+                    <div className="font-medium">
+                      {r.contact ? `${r.contact.firstName} ${r.contact.lastName}`.trim() : 'Unknown'}
+                    </div>
+                    <div className="text-text-muted text-xs">{r.contact?.email ?? 'No email'}</div>
+                    <div className="text-text-muted text-xs">
+                      {new Date(r.submittedAt).toLocaleString()}
+                    </div>
+                    {typeof r.answers.message === 'string' && r.answers.message && (
+                      <div className="text-xs mt-1 whitespace-pre-wrap">{r.answers.message}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

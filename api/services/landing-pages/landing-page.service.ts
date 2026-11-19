@@ -301,3 +301,34 @@ export async function getLandingPageStats(workspaceId: string, id: string): Prom
   if (!page) throw new AppError(404, 'Landing page not found.');
   return toStats(page._count.views, page._count.responses);
 }
+
+export interface LandingPageResponseRow {
+  id: string;
+  submittedAt: Date;
+  answers: unknown;
+  contact: { id: string; firstName: string; lastName: string; email: string | null } | null;
+}
+
+/** Recent form submissions for a page, newest first (Slice 5 — analytics). */
+export async function listLandingPageResponses(
+  workspaceId: string,
+  id: string,
+  limit = 100,
+): Promise<LandingPageResponseRow[]> {
+  const page = await db.landingPage.findFirst({ where: { id, workspaceId } });
+  if (!page) throw new AppError(404, 'Landing page not found.');
+  const rows = await db.formResponse.findMany({
+    where: { pageId: id, workspaceId },
+    orderBy: { submittedAt: 'desc' },
+    take: limit,
+    include: {
+      contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    submittedAt: r.submittedAt,
+    answers: r.answersJson,
+    contact: r.contact,
+  }));
+}

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   pages: [] as any[],
   views: [] as any[],
   responses: [] as any[],
+  contacts: [] as any[],
 }));
 
 function matches(where: any, row: any): boolean {
@@ -77,6 +78,17 @@ vi.mock('../../infrastructure/database/client.js', () => ({
       }),
     },
     formResponse: {
+      findMany: vi.fn(async ({ where, orderBy, take }: any) => {
+        let rows = state.responses.filter((r) => matches(where, r));
+        if (orderBy?.submittedAt === 'desc') {
+          rows = [...rows].sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+        }
+        if (typeof take === 'number') rows = rows.slice(0, take);
+        return rows.map((r) => ({
+          ...r,
+          contact: state.contacts.find((c) => c.id === r.contactId) ?? null,
+        }));
+      }),
       deleteMany: vi.fn(async ({ where }: any) => {
         const before = state.responses.length;
         state.responses = state.responses.filter((r) => !matches(where, r));
@@ -126,6 +138,7 @@ describe('Landing Pages (Wave 1 item 1.1)', () => {
     state.pages = [];
     state.views = [];
     state.responses = [];
+    state.contacts = [];
   });
 
   it('lists pages with real stats, conversion null at 0 views', async () => {
@@ -263,6 +276,29 @@ describe('Landing Pages (Wave 1 item 1.1)', () => {
     const res = await request(app).get(`/api/landing-pages/${page.id}/stats`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ views: 4, submissions: 1, conversion: 25 });
+  });
+
+  it('responses endpoint lists submissions newest-first with contact info', async () => {
+    const page = seedPage();
+    state.contacts.push(
+      { id: 'ct_1', firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com' },
+      { id: 'ct_2', firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.com' },
+    );
+    state.responses.push(
+      { id: 'r1', pageId: page.id, workspaceId: 'ws_test', contactId: 'ct_1', answersJson: { email: 'ada@example.com' }, submittedAt: '2026-11-19T10:00:00.000Z' },
+      { id: 'r2', pageId: page.id, workspaceId: 'ws_test', contactId: 'ct_2', answersJson: { email: 'grace@example.com' }, submittedAt: '2026-11-19T12:00:00.000Z' },
+      { id: 'r3', pageId: 'other-page', workspaceId: 'ws_test', contactId: 'ct_1', answersJson: {}, submittedAt: '2026-11-19T13:00:00.000Z' },
+    );
+    const res = await request(app).get(`/api/landing-pages/${page.id}/responses`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].contact.email).toBe('grace@example.com');
+    expect(res.body[1].contact.email).toBe('ada@example.com');
+  });
+
+  it('responses endpoint 404s on an unknown page', async () => {
+    const res = await request(app).get('/api/landing-pages/lp_nope/responses');
+    expect(res.status).toBe(404);
   });
 
   it('templates endpoint lists the 3 starters', async () => {

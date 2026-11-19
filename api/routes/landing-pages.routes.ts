@@ -96,4 +96,12 @@ router.get(
   }),
 );
 
+// ── Responses (Slice 5 — analytics: who submitted, newest first) ────────────
+router.get(
+  '/:id/responses',
+  wrap(async (req, res) => {
+    res.json(await svc.listLandingPageResponses(req.workspaceId, req.params.id));
+  }),
+);
+
 export default router;

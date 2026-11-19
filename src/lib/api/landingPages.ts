@@ -15,6 +15,13 @@ export interface LandingPageTemplate {
   sections: unknown[];
 }
 
+export interface LandingPageResponseRow {
+  id: string;
+  submittedAt: string;
+  answers: Record<string, unknown>;
+  contact: { id: string; firstName: string; lastName: string; email: string | null } | null;
+}
+
 async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
@@ -55,6 +62,9 @@ export const landingPagesApi = {
   },
   stats(id: string): Promise<LandingPageStats> {
     return apiFetch(`/api/landing-pages/${id}/stats`).then(json<LandingPageStats>);
+  },
+  responses(id: string): Promise<LandingPageResponseRow[]> {
+    return apiFetch(`/api/landing-pages/${id}/responses`).then(json<LandingPageResponseRow[]>);
   },
 };
 
