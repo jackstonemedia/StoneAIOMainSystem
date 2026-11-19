@@ -67,6 +67,12 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       if (typeof body['error'] === 'string') message = body['error'];
       else if (typeof body['message'] === 'string') message = body['message'];
     } catch { /* body not JSON — keep status-based message */ }
+    // 2FA gate (Tranche A fix 17): an unverified session gets 403s until the
+    // TOTP challenge passes. Tell the TwoFactorGate to re-check and show
+    // the challenge screen instead of letting the app fail call by call.
+    if (typeof window !== 'undefined' && (message === '2FA_REQUIRED' || message === '2FA_SETUP_REQUIRED')) {
+      window.dispatchEvent(new CustomEvent('stone-2fa-required'));
+    }
     throw new Error(message);
   }
 
@@ -102,6 +108,10 @@ apiClient.interceptors.response.use(
       err.response?.data?.message ??
       err.message ??
       'An unexpected error occurred';
+    // 2FA gate (Tranche A fix 17): see apiFetch above.
+    if (typeof window !== 'undefined' && (message === '2FA_REQUIRED' || message === '2FA_SETUP_REQUIRED')) {
+      window.dispatchEvent(new CustomEvent('stone-2fa-required'));
+    }
     return Promise.reject(new Error(message));
   },
 );

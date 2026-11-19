@@ -56,6 +56,7 @@ import { runDueScheduledTasks } from './api/services/assistant/scheduled-task-ru
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
 import { resolveWorkspace }  from './api/middleware/workspace.js';
+import { requireTwoFactorVerified } from './api/middleware/requireTwoFactor.js';
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 import inboxRouter from './api/routes/inbox.routes.js';
@@ -310,6 +311,10 @@ async function startServer() {
 
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
+  // ── 2FA enforcement (Tranche A fix 17) — after resolveWorkspace, so the
+  // gate sees userId/workspaceId. Exempts the 2FA endpoints themselves, the
+  // public widget, and requests with no resolved user (see middleware).
+  app.use('/api', requireTwoFactorVerified);
 
   // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
   if (FEATURES.legacyAi) app.use('/api/ai',             aiLimiter, aiRouter);

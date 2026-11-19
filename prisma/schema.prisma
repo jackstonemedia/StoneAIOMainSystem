@@ -21,6 +21,7 @@ model Workspace {
   creditsLimit           Int                @default(500) @map("credits_limit")
   agentMode              String             @default("approve") @map("agent_mode")
   agentName              String             @default("AI Agent") @map("agent_name")
+  requireTwoFactor       Boolean            @default(false) @map("require_two_factor")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]
@@ -517,6 +518,20 @@ model UserTwoFactor {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("user_two_factor")
+}
+
+// One row per verified sign-in session (Tranche A fix 17). The session id is
+// the Clerk JWT `sid` (or `dev:<userId>` in non-production dev-bypass mode,
+// where there is no token). A fresh sign-in gets a fresh sid, so it must pass
+// the TOTP challenge again; rows older than 12h stop counting even for a
+// long-lived session. Rows are never deleted on a schedule — they are keyed
+// by session id and only read for the current session.
+model TwoFactorSession {
+  sessionId  String   @id @map("session_id")
+  userId     String   @map("user_id")
+  verifiedAt DateTime @default(now()) @map("verified_at")
+
+  @@map("two_factor_sessions")
 }
 
 model Agent {

@@ -147,7 +147,7 @@ export default function SettingsPage() {
     queryFn: () => apiFetch('/api/settings/2fa/status').then(r => r.ok ? r.json() : { enabled: false, configured: false }),
   });
 
-  useQuery<any>({
+  const { data: workspaceData } = useQuery<any>({
     queryKey: ['settings', 'workspace'],
     queryFn: () => apiFetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
     onSuccess: (d: any) => {
@@ -184,6 +184,14 @@ export default function SettingsPage() {
     mutationFn: () => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: wsName }) }).then(r => r.json()),
     onSuccess: () => { toast('success', 'Settings saved!'); qc.invalidateQueries({ queryKey: ['settings'] }); },
     onError: () => toast('error', 'Failed to save settings'),
+  });
+
+  // Workspace 2FA requirement (Tranche A fix 17) — admin/owner only, enforced
+  // server-side by the PUT route's requireRole guard.
+  const toggleRequire2FA = useMutation({
+    mutationFn: (next: boolean) => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requireTwoFactor: next }) }).then(async r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+    onSuccess: (_d, next) => { toast('success', next ? 'Two-factor authentication is now required for all members' : 'Workspace 2FA requirement turned off'); qc.invalidateQueries({ queryKey: ['settings', 'workspace'] }); qc.invalidateQueries({ queryKey: ['settings', '2fa-status'] }); },
+    onError: () => toast('error', 'Could not change the workspace 2FA requirement (admins only)'),
   });
 
   // Phase 2: AI Agent settings — display name, latitude mode, grants.
@@ -918,6 +926,20 @@ export default function SettingsPage() {
               ) : (
                 <button onClick={() => { setTwoFAMode('enable'); apiFetch('/api/settings/2fa/setup').then(r => r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
               )}
+            </div>
+            <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Require two-factor authentication</div>
+                <div className="text-[11px] text-text-muted mt-0.5">Every member must set up 2FA before they can use the workspace</div>
+              </div>
+              <button
+                onClick={() => toggleRequire2FA.mutate(!workspaceData?.requireTwoFactor)}
+                disabled={toggleRequire2FA.isPending}
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${workspaceData?.requireTwoFactor ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                aria-label={workspaceData?.requireTwoFactor ? 'Turn off workspace 2FA requirement' : 'Require 2FA for all members'}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${workspaceData?.requireTwoFactor ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>

@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { db } from '../../infrastructure/database/client.js';
 import { decryptString, encryptString } from '../services/channels/encryption.js';
 import { requireRole } from '../middleware/requireRole.js';
+import { getSessionId, isSessionTwoFactorVerified } from '../middleware/requireTwoFactor.js';
 
 // TOTP clock-skew tolerance: ±30s (one step) when verifying codes.
 const TOTP_TOLERANCE_SECONDS = 30;
@@ -20,12 +21,15 @@ router.get('/workspace', async (req, res) => {
 
 router.put('/workspace', requireRole('admin', 'owner'), async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, requireTwoFactor } = req.body;
     let ws = await db.workspace.findUnique({ where: { id: req.workspaceId } });
     if (ws) {
       ws = await db.workspace.update({
         where: { id: req.workspaceId },
-        data: { ...(name ? { name } : {}) },
+        data: {
+          ...(name ? { name } : {}),
+          ...(typeof requireTwoFactor === 'boolean' ? { requireTwoFactor } : {}),
+        },
       });
     } else {
       ws = await db.workspace.create({
@@ -33,6 +37,7 @@ router.put('/workspace', requireRole('admin', 'owner'), async (req, res) => {
           id: req.workspaceId,
           name: name || 'Stone AIO Workspace',
           ownerId: (req as any).auth?.userId || 'owner_default',
+          ...(typeof requireTwoFactor === 'boolean' ? { requireTwoFactor } : {}),
         },
       });
     }
@@ -239,9 +244,18 @@ router.get('/2fa/status', async (req, res) => {
   try {
     const userId = (req as any).userId as string | undefined;
     const row = userId ? await db.userTwoFactor.findUnique({ where: { userId } }) : null;
-    res.json({ enabled: !!row?.enabled, configured: !!row });
+    const ws = (req as any).workspaceId
+      ? await db.workspace.findUnique({ where: { id: (req as any).workspaceId }, select: { requireTwoFactor: true } })
+      : null;
+    res.json({
+      enabled: !!row?.enabled,
+      configured: !!row,
+      // Whether THIS sign-in session has passed the TOTP challenge (Fix 17).
+      verified: userId ? await isSessionTwoFactorVerified(req) : false,
+      requireTwoFactor: !!ws?.requireTwoFactor,
+    });
   } catch (e) {
-    res.json({ enabled: false, configured: false });
+    res.json({ enabled: false, configured: false, verified: false, requireTwoFactor: false });
   }
 });
 
@@ -288,9 +302,60 @@ router.post('/2fa/verify', async (req, res) => {
       where: { userId },
       data: { enabled: true, enabledAt: new Date() },
     });
+    // Enabling 2FA in this session proves it — the session is verified, so
+    // the user isn't immediately challenged again for the code just entered.
+    const sessionId = getSessionId(req);
+    if (sessionId) {
+      await db.twoFactorSession.upsert({
+        where: { sessionId },
+        update: { userId, verifiedAt: new Date() },
+        create: { sessionId, userId, verifiedAt: new Date() },
+      });
+    }
     res.json({ success: true, message: '2FA enabled successfully' });
   } catch (e) {
     console.error('[2FA verify]', e);
+    res.status(500).json({ error: 'Failed to verify code' });
+  }
+});
+
+// ── Security — 2FA challenge (Fix 17) ────────────────────────────────────────
+// Verifies a TOTP code for the CURRENT sign-in session. Called by the
+// TwoFactorGate after sign-in when 2FA is enabled and this session hasn't
+// passed the challenge yet. Success records the session as verified;
+// the requireTwoFactor middleware then lets API calls through.
+router.post('/2fa/challenge', async (req, res) => {
+  const { code } = req.body;
+  if (!code || String(code).length !== 6) {
+    return res.status(400).json({ error: 'A 6-digit verification code is required' });
+  }
+  try {
+    const userId = (req as any).userId as string | undefined;
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+    const row = await db.userTwoFactor.findUnique({ where: { userId } });
+    if (!row?.enabled) {
+      return res.status(400).json({ error: 'Two-factor authentication is not enabled for this account.' });
+    }
+    const ok = verifySync({
+      token: String(code),
+      secret: decryptString(row.secretEncrypted),
+      epochTolerance: TOTP_TOLERANCE_SECONDS,
+    }).valid;
+    if (!ok) {
+      return res.status(400).json({ error: 'Invalid code. Check your authenticator app and try again.' });
+    }
+    const sessionId = getSessionId(req);
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Could not identify this sign-in session. Sign in again.' });
+    }
+    await db.twoFactorSession.upsert({
+      where: { sessionId },
+      update: { userId, verifiedAt: new Date() },
+      create: { sessionId, userId, verifiedAt: new Date() },
+    });
+    res.json({ success: true, message: 'Two-factor verification passed' });
+  } catch (e) {
+    console.error('[2FA challenge]', e);
     res.status(500).json({ error: 'Failed to verify code' });
   }
 });
