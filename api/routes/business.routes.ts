@@ -573,18 +573,54 @@ router.post('/conversations/:id/mark-unread', async (req, res) => {
 // ── Retry Failed Message ──────────────────────────────────────────────────────
 router.post('/conversations/:id/messages/:msgId/retry', async (req, res) => {
   try {
-    const message = await db.conversationMessage.findUnique({
-      where: { id: req.params.msgId },
+    const message = await db.conversationMessage.findFirst({
+      where: { id: req.params.msgId, conversationId: req.params.id, conversation: { workspaceId: req.workspaceId } },
       include: { conversation: { include: { contact: true } } },
     });
     if (!message) return res.status(404).json({ error: 'Message not found' });
+    if (message.direction !== 'outbound') return res.status(400).json({ error: 'Only outbound messages can be retried' });
+    if (message.status !== 'failed') return res.status(400).json({ error: 'Only failed messages can be retried' });
 
-    // Mark as delivered / pending and update
-    const updated = await db.conversationMessage.update({
-      where: { id: message.id },
-      data: { status: 'delivered', errorMsg: null },
-    });
-    res.json(updated);
+    // Recover the original send parameters. The first dispatch stored the
+    // email envelope (toEmail / subject / htmlBody) on the message's
+    // attachments; fall back to the conversation's subject.
+    let toEmail: string | undefined;
+    let subject: string | null = message.conversation.subject ?? null;
+    let htmlBody: string | null = null;
+    try {
+      const meta = message.attachments ? JSON.parse(message.attachments) : null;
+      if (meta) {
+        if (meta.toEmail) toEmail = meta.toEmail;
+        if (meta.subject) subject = meta.subject;
+        if (meta.htmlBody) htmlBody = meta.htmlBody;
+      }
+    } catch { /* attachments are not a JSON envelope — retry with the stored body only */ }
+
+    try {
+      await dispatchOutboundMessage({
+        workspaceId: req.workspaceId!,
+        conversationId: message.conversationId,
+        messageId: message.id,
+        channel: message.channel ?? undefined,
+        toEmail,
+        subject,
+        body: message.body,
+        htmlBody,
+        channelConnectionId: message.conversation.channelConnectionId,
+      });
+    } catch (dispatchErr: any) {
+      console.error('[Outbound retry] Channel dispatch error:', dispatchErr.message);
+      return res.status(400).json({ error: dispatchErr.message });
+    }
+
+    // dispatch marks the row delivered on success but leaves the old
+    // errorMsg in place — clear it so the thread stops showing the error.
+    const refreshed = await db.conversationMessage.findUnique({ where: { id: message.id } });
+    if (refreshed?.status === 'delivered' && refreshed.errorMsg) {
+      await db.conversationMessage.update({ where: { id: message.id }, data: { errorMsg: null } }).catch(() => null);
+      return res.json(await db.conversationMessage.findUnique({ where: { id: message.id } }));
+    }
+    res.json(refreshed);
   } catch (e) { err500(res, e); }
 });
 
