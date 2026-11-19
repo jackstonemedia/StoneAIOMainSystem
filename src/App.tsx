@@ -24,6 +24,7 @@ import SSOCallback from './pages/SSOCallback';
 import Onboarding from './pages/Onboarding';
 const PublicBookingPage   = lazy(() => import('./pages/public/PublicBookingPage'));
 const PublicLandingPage   = lazy(() => import('./pages/public/PublicLandingPage'));
+const PublicFunnelStep    = lazy(() => import('./pages/public/PublicFunnelStep'));
 const InviteAcceptPage    = lazy(() => import('./pages/InviteAccept'));
 
 // CRM / Automations
@@ -107,6 +108,8 @@ const AutomationCanvas     = lazy(() => import('./pages/email-marketing/Automati
 const TemplatesList        = lazy(() => import('./pages/email-marketing/TemplatesList'));
 const LandingPagesList     = lazy(() => import('./pages/email-marketing/LandingPagesList'));
 const LandingPageBuilder   = lazy(() => import('./pages/email-marketing/LandingPageBuilder'));
+const FunnelsList          = lazy(() => import('./pages/email-marketing/FunnelsList'));
+const FunnelBuilder        = lazy(() => import('./pages/email-marketing/FunnelBuilder'));
 const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/CampaignAnalytics'));
 const BusinessProfilePage  = lazy(() => import('./pages/email-marketing/BusinessProfilePage'));
 const CreateWithAIPage     = lazy(() => import('./pages/email-marketing/CreateWithAIPage'));
@@ -164,6 +167,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route path="/book/:slug" element={<PublicBookingPage />} />
           <Route path="/book"       element={<PublicBookingPage />} />
           <Route path="/p/:slug"    element={<PublicLandingPage />} />
+          <Route path="/f/:slug/:step" element={<PublicFunnelStep />} />
           <Route path="/terms"      element={<TermsOfService />} />
           <Route path="/privacy"    element={<PrivacyPolicy />} />
           <Route path="/invite/:token" element={<InviteAcceptPage />} />
@@ -307,6 +311,8 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="templates" element={<ErrorBoundary><TemplatesList /></ErrorBoundary>} />
               <Route path="landing-pages" element={<ErrorBoundary><LandingPagesList /></ErrorBoundary>} />
               <Route path="landing-pages/:id" element={<ErrorBoundary><LandingPageBuilder /></ErrorBoundary>} />
+              <Route path="funnels" element={<ErrorBoundary><FunnelsList /></ErrorBoundary>} />
+              <Route path="funnels/:id" element={<ErrorBoundary><FunnelBuilder /></ErrorBoundary>} />
               <Route path="suppression" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
               <Route path="analytics" element={<ErrorBoundary><CampaignAnalytics /></ErrorBoundary>} />
               <Route path="profile" element={<ErrorBoundary><BusinessProfilePage /></ErrorBoundary>} />

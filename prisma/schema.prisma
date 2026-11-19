@@ -114,6 +114,11 @@ model Workspace {
   landingPageViews        LandingPageView[]
   formResponses           FormResponse[]
 
+  // Funnels (Wave 1 item 1.2)
+  funnels                 Funnel[]
+  funnelSteps             FunnelStep[]
+  funnelStepViews         FunnelStepView[]
+
   // Email Marketing relations
   emailLists                  EmailList[]
   contactListMemberships       ContactListMembership[]
@@ -2049,6 +2054,7 @@ model Campaign {
   workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   recipients         CampaignRecipient[]
   emails             CampaignEmail[]
+  funnelSteps        FunnelStep[]
 
   @@index([workspaceId])
   @@map("email_campaigns")
@@ -2742,6 +2748,7 @@ model LandingPage {
   workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   views     LandingPageView[]
   responses FormResponse[]
+  funnelSteps FunnelStep[]
 
   @@index([workspaceId])
   @@map("landing_pages")
@@ -2769,12 +2776,85 @@ model FormResponse {
   contactId   String?  @map("contact_id")
   answersJson Json     @map("answers_json")
   submittedAt DateTime @default(now()) @map("submitted_at")
+  // Funnel attribution (Wave 1 item 1.2): null for a direct page visit,
+  // set when the submission came through a funnel step.
+  funnelId    String?  @map("funnel_id")
+  funnelStepId String? @map("funnel_step_id")
 
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   page      LandingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
   contact   Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  funnel    Funnel?     @relation(fields: [funnelId], references: [id], onDelete: SetNull)
+  funnelStep FunnelStep? @relation(fields: [funnelStepId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId])
   @@index([pageId, submittedAt])
+  @@index([funnelStepId, submittedAt])
   @@map("form_responses")
+}
+
+// ── Funnels (Wave 1 item 1.2 / outline 02-18) ────────────────────────────────
+// Multi-step funnels on top of the landing-page builder: each step links a
+// landing page + an offer + a tag applied on submit + an optional campaign to
+// enroll the contact into. There is no drip-sequence entity in v1 — the
+// campaign enrollment is the runnable follow-up (see funnels Blueprint).
+model Funnel {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  name        String
+  slug        String    @unique
+  status      String    @default("draft") // 'draft' | 'published'
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  steps     FunnelStep[]
+  stepViews FunnelStepView[]
+  responses FormResponse[]
+
+  @@index([workspaceId])
+  @@map("funnels")
+}
+
+model FunnelStep {
+  id            String   @id @default(uuid())
+  workspaceId   String   @map("workspace_id")
+  funnelId      String   @map("funnel_id")
+  position      Int      @default(0)
+  landingPageId String   @map("landing_page_id")
+  offerTitle    String?  @map("offer_title")
+  offerBody     String?  @map("offer_body") @db.Text
+  tagOnSubmit   String?  @map("tag_on_submit")
+  campaignId    String?  @map("campaign_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnel      Funnel          @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  landingPage LandingPage     @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  campaign    Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  views       FunnelStepView[]
+  responses   FormResponse[]
+
+  @@index([workspaceId])
+  @@index([funnelId, position])
+  @@map("funnel_steps")
+}
+
+model FunnelStepView {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  funnelId    String   @map("funnel_id")
+  stepId      String   @map("step_id")
+  referrer    String?
+  viewedAt    DateTime @default(now()) @map("viewed_at")
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnel    Funnel     @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  step      FunnelStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([funnelId, stepId])
+  @@map("funnel_step_views")
 }
