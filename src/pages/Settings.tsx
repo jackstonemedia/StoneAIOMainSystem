@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
-  Plug, Globe, Phone, Mail, Copy, Eye, EyeOff, Plus,
+  Plug, Globe, Phone, Mail, Copy, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
   QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard, Bot
 } from 'lucide-react';
@@ -37,11 +37,6 @@ const INTEGRATIONS = [
     icon: Phone,
     color: 'text-red-400',
     bg: 'bg-red-400/10',
-    fields: [
-      { key: 'twilio_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxx', type: 'text' },
-      { key: 'twilio_token', label: 'Auth Token', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
-      { key: 'twilio_from', label: 'From Number', placeholder: '+1 (555) 000-0000', type: 'text' },
-    ],
   },
   {
     id: 'google',
@@ -51,10 +46,6 @@ const INTEGRATIONS = [
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     isChannelOAuth: 'gmail',
-    fields: [
-      { key: 'google_client_id', label: 'OAuth Client ID (Optional override)', placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
-      { key: 'google_client_secret', label: 'OAuth Client Secret (Optional override)', placeholder: 'GOCSPX-xxxxxxxxxxxx', type: 'password' },
-    ],
   },
   {
     id: 'outlook',
@@ -64,60 +55,45 @@ const INTEGRATIONS = [
     color: 'text-blue-400',
     bg: 'bg-blue-400/10',
     isChannelOAuth: 'outlook',
-    fields: [
-      { key: 'outlook_client_id', label: 'Application (client) ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', type: 'text' },
-      { key: 'outlook_client_secret', label: 'Client Secret', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
-    ],
   },
 ];
 
+// Only events with a real producer belong here (Tranche A fix 11).
+// The old list had eight toggles; seven promised notifications no code
+// ever sends (deal won, task overdue, campaign sent, appointment booked,
+// inbound SMS, new review, weekly summary), so they are gone. When a
+// producer is built for an event, its toggle comes back with it.
 const NOTIF_PREFS = [
-  { key: 'new_contact', label: 'New Contact Added', desc: 'When a contact is created via form or import' },
-  { key: 'deal_won', label: 'Deal Won', desc: 'When a deal moves to Won stage' },
-  { key: 'task_overdue', label: 'Task Overdue', desc: '24h before a task is due with no completion' },
-  { key: 'campaign_sent', label: 'Campaign Sent', desc: 'When a campaign finishes sending' },
-  { key: 'review_received', label: 'New Review', desc: 'When a new customer review is received' },
-  { key: 'apt_created', label: 'Appointment Booked', desc: 'When a new appointment is scheduled' },
-  { key: 'inbound_sms', label: 'Inbound SMS', desc: 'When a contact sends a message' },
-  { key: 'weekly_summary', label: 'Weekly Summary', desc: 'A weekly digest of key performance metrics' },
+  { key: 'new_contact', label: 'New Contact Added', desc: 'When an ad campaign brings in a new lead' },
 ];
-
-function FieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
-  const [show, setShow] = useState(false);
-  const isPass = props.type === 'password';
-  return (
-    <div className="relative">
-      <input
-        type={isPass && !show ? 'password' : 'text'}
-        placeholder={props.placeholder}
-        value={props.value}
-        onChange={e => props.onChange(e.target.value)}
-        className="w-full px-3 py-2 pr-10 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary font-mono placeholder:text-text-muted/50 placeholder:font-sans"
-      />
-      {isPass && (
-        <button type="button" onClick={() => setShow(s => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main transition-colors">
-          {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-        </button>
-      )}
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const { theme, setTheme, themes } = useTheme();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'general');
   const [wsName, setWsName] = useState('Stone AIO');
   const [wsId, setWsId] = useState('ws_default_stone_aio');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const [keyValues, setKeyValues] = useState<Record<string, string>>({});
-  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(
-    Object.fromEntries(NOTIF_PREFS.map(n => [n.key, true]))
-  );
+  // Notification preferences load from the API (Tranche A fix 11) — the old
+  // all-true useState init was a hardcoded default, and Save only toasted.
+  // notifEdits holds unsaved changes over the loaded values.
+  const { data: savedNotifPrefs } = useQuery<{ preferences: Record<string, boolean> }>({
+    queryKey: ['settings', 'notification-preferences'],
+    queryFn: () => apiFetch('/api/notifications/preferences').then(r => r.ok ? r.json() : null),
+  });
+  const [notifEdits, setNotifEdits] = useState<Record<string, boolean> | null>(null);
+  const notifPrefs: Record<string, boolean> = { ...(savedNotifPrefs?.preferences ?? {}), ...(notifEdits ?? {}) };
+  const setNotifPrefs = (updater: (p: Record<string, boolean>) => Record<string, boolean>) =>
+    setNotifEdits(edits => updater({ ...(savedNotifPrefs?.preferences ?? {}), ...(edits ?? {}) }));
+  const saveNotifPrefs = useMutation({
+    mutationFn: () => apiFetch('/api/notifications/preferences', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preferences: notifPrefs }) }).then(r => r.json()),
+    onSuccess: () => { setNotifEdits(null); qc.invalidateQueries({ queryKey: ['settings', 'notification-preferences'] }); toast('success', 'Notification preferences saved!'); },
+    onError: () => toast('error', 'Could not save notification preferences. Please try again.'),
+  });
   const [expandedIntegration, setExpandedIntegration] = useState<string | null>(null);
 
   useEffect(() => {
@@ -171,7 +147,7 @@ export default function SettingsPage() {
     queryFn: () => apiFetch('/api/settings/2fa/status').then(r => r.ok ? r.json() : { enabled: false, configured: false }),
   });
 
-  useQuery<any>({
+  const { data: workspaceData } = useQuery<any>({
     queryKey: ['settings', 'workspace'],
     queryFn: () => apiFetch('/api/settings/workspace').then(r => r.ok ? r.json() : null),
     onSuccess: (d: any) => {
@@ -179,11 +155,6 @@ export default function SettingsPage() {
       if (d?.id) setWsId(d.id);
     }
   } as any);
-
-  const { data: savedKeys = [] } = useQuery<any[]>({
-    queryKey: ['settings', 'api-keys'],
-    queryFn: () => apiFetch('/api/settings/api-keys').then(r => r.ok ? r.json() : []),
-  });
 
   const { data: channelConnections = [] } = useQuery<any[]>({
     queryKey: ['channel-connections'],
@@ -213,6 +184,14 @@ export default function SettingsPage() {
     mutationFn: () => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: wsName }) }).then(r => r.json()),
     onSuccess: () => { toast('success', 'Settings saved!'); qc.invalidateQueries({ queryKey: ['settings'] }); },
     onError: () => toast('error', 'Failed to save settings'),
+  });
+
+  // Workspace 2FA requirement (Tranche A fix 17) — admin/owner only, enforced
+  // server-side by the PUT route's requireRole guard.
+  const toggleRequire2FA = useMutation({
+    mutationFn: (next: boolean) => apiFetch('/api/settings/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requireTwoFactor: next }) }).then(async r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
+    onSuccess: (_d, next) => { toast('success', next ? 'Two-factor authentication is now required for all members' : 'Workspace 2FA requirement turned off'); qc.invalidateQueries({ queryKey: ['settings', 'workspace'] }); qc.invalidateQueries({ queryKey: ['settings', '2fa-status'] }); },
+    onError: () => toast('error', 'Could not change the workspace 2FA requirement (admins only)'),
   });
 
   // Phase 2: AI Agent settings — display name, latitude mode, grants.
@@ -325,13 +304,6 @@ export default function SettingsPage() {
     }
   };
 
-  const saveKey = useMutation({
-    mutationFn: ({ provider, key }: { provider: string; key: string }) =>
-      apiFetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
-    onSuccess: () => { toast('success', 'API key saved!'); qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] }); },
-    onError: () => toast('error', 'Failed to save key'),
-  });
-
   const inviteMember = useMutation({
     mutationFn: ({ email, role }: { email: string; role: string }) =>
       apiFetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(async r => {
@@ -374,7 +346,10 @@ export default function SettingsPage() {
     reader.readAsDataURL(file);
   };
 
-  const isConnected = (id: string) => savedKeys.some((k: any) => k.provider.startsWith(id));
+  // Connected = a real channel connection exists. (Tranche A fix 14: the old
+  // check read the orphan ApiKey store, so pasting any credential marked the
+  // integration "Connected" even though nothing ever used the key.)
+  const isConnected = (id: string) => (channelConnections || []).some((c: any) => c.provider === id);
 
   const tabContent: Record<string, React.ReactNode> = {
     billing: <Billing />,
@@ -737,68 +712,20 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* Collapsible API Keys Section */}
-                            <div className="pt-3 border-t border-border/60">
-                              <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">Custom OAuth Credentials (Optional)</p>
-                              <div className="space-y-3">
-                                {intg.fields.map(field => (
-                                  <div key={field.key}>
-                                    <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
-                                    <FieldInput
-                                      type={field.type}
-                                      placeholder={field.placeholder}
-                                      value={keyValues[field.key] || ''}
-                                      onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
-                                    />
-                                  </div>
-                                ))}
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const promises = intg.fields.map(f =>
-                                        keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                                      );
-                                      await Promise.all(promises);
-                                    } catch { toast('error', 'One or more keys failed to save'); }
-                                  }}
-                                  disabled={saveKey.isPending}
-                                  className="flex items-center gap-2 px-3.5 py-1.5 bg-surface-hover border border-border text-text-main rounded-md text-[12px] font-semibold hover:bg-surface transition-colors"
-                                >
-                                  {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                  Save Custom Keys
-                                </button>
-                              </div>
-                            </div>
                           </div>
                         ) : (
-                          <>
-                            {intg.fields.map(field => (
-                              <div key={field.key}>
-                                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
-                                <FieldInput
-                                  type={field.type}
-                                  placeholder={field.placeholder}
-                                  value={keyValues[field.key] || ''}
-                                  onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
-                                />
-                              </div>
-                            ))}
+                          <div className="p-5 rounded-xl border border-border bg-bg/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                              <div className="text-[14px] font-bold text-text-main">Manage SMS numbers</div>
+                              <div className="text-[12px] text-text-muted mt-0.5">Twilio numbers are provisioned and managed in Conversations settings.</div>
+                            </div>
                             <button
-                              onClick={async () => {
-                                try {
-                                  const promises = intg.fields.map(f =>
-                                    keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                                  );
-                                  await Promise.all(promises);
-                                } catch { toast('error', 'One or more keys failed to save'); }
-                              }}
-                              disabled={saveKey.isPending}
-                              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                              onClick={() => navigate('/conversations/settings/channels')}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-md transition-all shrink-0 cursor-pointer"
                             >
-                              {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                              Save {intg.label} Keys
+                              <Phone className="w-4 h-4" /> Manage SMS Numbers
                             </button>
-                          </>
+                          </div>
                         )}
                       </div>
                     </motion.div>
@@ -900,8 +827,8 @@ export default function SettingsPage() {
             ))}
           </div>
           <div className="px-6 py-4 border-t border-border bg-surface-hover/20">
-            <button onClick={() => toast('success', 'Notification preferences saved!')}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity">
+            <button onClick={() => saveNotifPrefs.mutate()} disabled={saveNotifPrefs.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50">
               <Save className="w-3.5 h-3.5" /> Save Preferences
             </button>
           </div>
@@ -999,6 +926,20 @@ export default function SettingsPage() {
               ) : (
                 <button onClick={() => { setTwoFAMode('enable'); apiFetch('/api/settings/2fa/setup').then(r => r.json()).then(d => { setTwoFASetup(d); setShowTwoFAModal(true); }); }} className="px-3 py-1.5 border border-border rounded-[6px] text-[12px] font-semibold text-text-muted hover:text-text-main hover:border-primary/40 transition-colors">Enable</button>
               )}
+            </div>
+            <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
+              <div>
+                <div className="text-[13px] font-semibold text-text-main">Require two-factor authentication</div>
+                <div className="text-[11px] text-text-muted mt-0.5">Every member must set up 2FA before they can use the workspace</div>
+              </div>
+              <button
+                onClick={() => toggleRequire2FA.mutate(!workspaceData?.requireTwoFactor)}
+                disabled={toggleRequire2FA.isPending}
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50 ${workspaceData?.requireTwoFactor ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                aria-label={workspaceData?.requireTwoFactor ? 'Turn off workspace 2FA requirement' : 'Require 2FA for all members'}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${workspaceData?.requireTwoFactor ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
             </div>
             <div className="flex items-center justify-between px-6 py-5 hover:bg-surface-hover/20 transition-colors">
               <div>

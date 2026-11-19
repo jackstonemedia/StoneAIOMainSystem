@@ -454,6 +454,23 @@ export async function fetchGmailHistory(connectionId: string): Promise<void> {
       } catch (replyErr) {
         console.warn('[Gmail Poller] Stop-on-reply handler error (non-fatal):', replyErr);
       }
+
+      // ── Auto-Reply Hook (Tranche A fix 12) ──────────────────────────────
+      // Replies exactly once per conversation, when no one has answered yet.
+      // Non-fatal: a failed auto-reply must never break inbound polling.
+      try {
+        const senderEmail = from.match(/<(.+?)>/)?.[1] ?? from.trim();
+        const { maybeSendAutoReply } = await import('./auto-reply.service.js');
+        await maybeSendAutoReply({
+          connectionId: conn.id,
+          conversationId: convo.id,
+          senderEmail,
+          subject,
+          threadId,
+        });
+      } catch (autoErr) {
+        console.warn('[Gmail Poller] Auto-reply handler error (non-fatal):', autoErr);
+      }
     }
   }
 

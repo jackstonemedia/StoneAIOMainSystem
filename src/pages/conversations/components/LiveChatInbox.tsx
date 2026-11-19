@@ -53,6 +53,19 @@ export default function LiveChatInbox() {
   });
   const messages: LiveChatMessage[] = messagesData?.messages ?? [];
 
+  // Opening a thread marks it read: a visitor message increments
+  // unreadCount on arrival, and this clears it so the badge does not
+  // stay stuck after the agent has seen the thread.
+  useEffect(() => {
+    if (!selectedId) return;
+    const convo = conversations.find((c) => c.id === selectedId);
+    if (convo && convo.unreadCount > 0) {
+      inboxApi.markRead(selectedId)
+        .then(() => qc.invalidateQueries({ queryKey: ['inbox', 'conversations'] }))
+        .catch(() => null);
+    }
+  }, [selectedId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, selectedId]);

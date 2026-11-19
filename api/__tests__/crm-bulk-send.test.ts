@@ -55,6 +55,12 @@ vi.mock('../../infrastructure/database/client.js', () => ({
     },
     channelConnection: {
       findFirst: vi.fn(async () => state.twilioConn),
+      // Tranche A fix 12: dispatch now re-reads the connection for the daily
+      // send-limit check (assertDailySendAvailable) and records each success.
+      findUnique: vi.fn(async ({ where }: any) =>
+        state.twilioConn?.id === where.id ? state.twilioConn : null,
+      ),
+      update: vi.fn(async () => ({})),
     },
     conversation: {
       create: vi.fn(async ({ data }: any) => {

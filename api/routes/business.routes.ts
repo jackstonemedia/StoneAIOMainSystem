@@ -144,6 +144,21 @@ router.get('/conversations/:id', async (req, res) => {
 // Exported for tests. Every branch follows the email branch's contract: the
 // message row is marked 'failed' with an errorMsg AND the call throws, so the
 // UI never shows a success for a message that never left the server.
+//
+// Quiet hours for SMS (Tranche A fix 12): 9pm–8am server-local time. The
+// workspace has no timezone setting, so the server's local clock is the
+// only one available; the form states the window as 9pm–8am.
+export const QUIET_HOURS_START = 21;
+export const QUIET_HOURS_END = 8;
+export function isWithinQuietHours(now: Date = new Date()): boolean {
+  const h = now.getHours();
+  return h >= QUIET_HOURS_START || h < QUIET_HOURS_END;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export async function dispatchOutboundMessage({
   workspaceId,
   conversationId,
@@ -154,6 +169,7 @@ export async function dispatchOutboundMessage({
   body,
   htmlBody,
   channelConnectionId,
+  includeSignature,
 }: {
   workspaceId: string;
   conversationId: string;
@@ -164,6 +180,7 @@ export async function dispatchOutboundMessage({
   body: string;
   htmlBody?: string | null;
   channelConnectionId?: string | null;
+  includeSignature?: boolean;
 }) {
   const convo = await db.conversation.findUnique({
     where: { id: conversationId },
@@ -252,10 +269,40 @@ export async function dispatchOutboundMessage({
     if (subject && subject !== convo?.subject) {
       await db.conversation.update({ where: { id: conversationId }, data: { subject } }).catch(() => null);
     }
+
+    // Tranche A fix 12 — daily send limit: the limit used to be enforced
+    // only by the email-marketing mailbox pool, so a Conversations reply
+    // could blow straight past it.
+    try {
+      const { assertDailySendAvailable } = await import('../services/email-marketing/mailbox-pool.service.js');
+      await assertDailySendAvailable(conn.id);
+    } catch (limitErr: any) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: limitErr.message },
+      }).catch(() => null);
+      throw limitErr;
+    }
+
+    // Tranche A fix 12 — signature: the composer sends includeSignature and
+    // the channel settings form saves a signature, but neither was ever
+    // honoured. Append the connection's saved signature when the sender
+    // opts in; without a saved signature nothing is appended (never invent
+    // one). The envelope below stores the final bodies so a retry
+    // reproduces the exact sent email.
+    let sendBody = body;
+    let sendHtmlBody = htmlBody ?? null;
+    if (includeSignature && conn.signature?.trim()) {
+      const sig = conn.signature.trim();
+      sendBody = `${body}\n\n${sig}`;
+      const htmlBase = htmlBody ?? body.replace(/\n/g, '<br/>');
+      sendHtmlBody = `${htmlBase}<br/><br/>${escapeHtml(sig).replace(/\n/g, '<br/>')}`;
+    }
+
     const now = new Date().toUTCString();
     await db.conversationMessage.update({
       where: { id: messageId },
-      data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: htmlBody ?? null }) },
+      data: { attachments: JSON.stringify({ toEmail: recipientEmail, subject: emailSubject, date: now, htmlBody: sendHtmlBody }) },
     }).catch(() => null);
 
     try {
@@ -265,7 +312,7 @@ export async function dispatchOutboundMessage({
           conn.id,
           recipientEmail,
           emailSubject,
-          htmlBody ?? body.replace(/\n/g, '<br/>'),
+          sendHtmlBody ?? sendBody.replace(/\n/g, '<br/>'),
           convo?.externalId ?? undefined,
         );
         if (sent) {
@@ -280,8 +327,8 @@ export async function dispatchOutboundMessage({
       } else {
         const { sendGmailMessage } = await import('../services/channels/gmail.service.js');
         const sent = await sendGmailMessage(
-          conn.id, recipientEmail, emailSubject, body,
-          convo?.externalId ?? undefined, htmlBody ?? undefined,
+          conn.id, recipientEmail, emailSubject, sendBody,
+          convo?.externalId ?? undefined, sendHtmlBody ?? undefined,
         );
         if (sent) {
           await db.conversationMessage.update({
@@ -301,6 +348,15 @@ export async function dispatchOutboundMessage({
       }).catch(() => null);
       throw new Error(`Email sending failed: ${err.message}`);
     }
+
+    // Post-send channel behaviour (Tranche A fix 12): the send counts
+    // toward the mailbox's daily total, and archiveOnReply archives the
+    // thread now that the reply is out.
+    const { recordSendSuccess } = await import('../services/email-marketing/mailbox-pool.service.js');
+    await recordSendSuccess(conn.id).catch(() => null);
+    if (conn.archiveOnReply) {
+      await db.conversation.update({ where: { id: conversationId }, data: { status: 'archived' } }).catch(() => null);
+    }
   } else if (activeChannel === 'sms') {
     const conn = await db.channelConnection.findFirst({
       where: { workspaceId, provider: 'twilio', isActive: true },
@@ -311,6 +367,23 @@ export async function dispatchOutboundMessage({
         data: { status: 'failed', errorMsg: 'No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.' },
       }).catch(() => null);
       throw new Error('No active Twilio connection found. Please connect Twilio in Settings > Integrations to send SMS.');
+    }
+    // Tranche A fix 12 — daily send limit + quiet hours. The limit was
+    // enforced only by the email-marketing mailbox pool, and quiet hours
+    // was a setting nothing read. Both now gate the send honestly: the
+    // message stays failed with an error naming the reason.
+    try {
+      const { assertDailySendAvailable } = await import('../services/email-marketing/mailbox-pool.service.js');
+      await assertDailySendAvailable(conn.id);
+      if (conn.quietHoursEnabled && isWithinQuietHours()) {
+        throw new Error('Quiet hours are on for this number (9pm–8am). The message was not sent.');
+      }
+    } catch (gateErr: any) {
+      await db.conversationMessage.update({
+        where: { id: messageId },
+        data: { status: 'failed', errorMsg: gateErr.message },
+      }).catch(() => null);
+      throw gateErr;
     }
     if (!convo?.contact?.phone) {
       await db.conversationMessage.update({
@@ -335,6 +408,14 @@ export async function dispatchOutboundMessage({
       }).catch(() => null);
       if (!convo?.externalId) {
         await db.conversation.update({ where: { id: conversationId }, data: { externalId: convo.contact.phone } }).catch(() => null);
+      }
+      // Post-send channel behaviour (Tranche A fix 12): the send counts
+      // toward the number's daily total, and archiveOnReply archives the
+      // thread now that the reply is out.
+      const { recordSendSuccess } = await import('../services/email-marketing/mailbox-pool.service.js');
+      await recordSendSuccess(conn.id).catch(() => null);
+      if (conn.archiveOnReply) {
+        await db.conversation.update({ where: { id: conversationId }, data: { status: 'archived' } }).catch(() => null);
       }
     } catch (err: any) {
       console.error('[Outbound SMS] ❌ Failed to send:', err.message);
@@ -462,7 +543,7 @@ router.post('/conversations/:id/messages', async (req, res) => {
     const {
       body: msgBody, sender, direction = 'outbound',
       channel: msgChannel, to: msgTo,
-      subject: msgSubject, htmlBody: msgHtmlBody,
+      subject: msgSubject, htmlBody: msgHtmlBody, includeSignature,
     } = req.body;
     if (!msgBody?.trim()) return res.status(400).json({ error: 'body is required' });
 
@@ -479,6 +560,9 @@ router.post('/conversations/:id/messages', async (req, res) => {
           subject: msgSubject,
           body: msgBody,
           htmlBody: msgHtmlBody,
+          // Tranche A fix 12: the composer sends this flag, but the route
+          // used to drop it — the Sig button did nothing.
+          includeSignature: includeSignature === true,
         });
       } catch (dispatchErr: any) {
         console.error('[Outbound dispatch] Channel dispatch error:', dispatchErr.message);
@@ -530,12 +614,18 @@ router.patch('/conversations/:id', async (req, res) => {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    const { status, starred, assignedUserId, subject } = req.body;
+    const { status, starred, assignedUserId, subject, snoozedUntil } = req.body;
     const data: Record<string, unknown> = {};
     if (status !== undefined) data.status = status;
     if (starred !== undefined) data.starred = starred;
     if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
     if (subject !== undefined) data.subject = subject;
+    // The snooze control sends snoozedUntil with status 'snoozed'; the
+    // route used to drop it, so a snoozed thread had no wake time stored
+    // and could never re-open (Tranche A fix 10). Re-opening a thread
+    // clears the wake time unless a new one is given in the same call.
+    if (snoozedUntil !== undefined) data.snoozedUntil = snoozedUntil ? new Date(snoozedUntil) : null;
+    else if (status !== undefined && status !== 'snoozed') data.snoozedUntil = null;
     const updated = await db.conversation.update({
       where: { id: req.params.id },
       data,
@@ -573,18 +663,54 @@ router.post('/conversations/:id/mark-unread', async (req, res) => {
 // ── Retry Failed Message ──────────────────────────────────────────────────────
 router.post('/conversations/:id/messages/:msgId/retry', async (req, res) => {
   try {
-    const message = await db.conversationMessage.findUnique({
-      where: { id: req.params.msgId },
+    const message = await db.conversationMessage.findFirst({
+      where: { id: req.params.msgId, conversationId: req.params.id, conversation: { workspaceId: req.workspaceId } },
       include: { conversation: { include: { contact: true } } },
     });
     if (!message) return res.status(404).json({ error: 'Message not found' });
+    if (message.direction !== 'outbound') return res.status(400).json({ error: 'Only outbound messages can be retried' });
+    if (message.status !== 'failed') return res.status(400).json({ error: 'Only failed messages can be retried' });
 
-    // Mark as delivered / pending and update
-    const updated = await db.conversationMessage.update({
-      where: { id: message.id },
-      data: { status: 'delivered', errorMsg: null },
-    });
-    res.json(updated);
+    // Recover the original send parameters. The first dispatch stored the
+    // email envelope (toEmail / subject / htmlBody) on the message's
+    // attachments; fall back to the conversation's subject.
+    let toEmail: string | undefined;
+    let subject: string | null = message.conversation.subject ?? null;
+    let htmlBody: string | null = null;
+    try {
+      const meta = message.attachments ? JSON.parse(message.attachments) : null;
+      if (meta) {
+        if (meta.toEmail) toEmail = meta.toEmail;
+        if (meta.subject) subject = meta.subject;
+        if (meta.htmlBody) htmlBody = meta.htmlBody;
+      }
+    } catch { /* attachments are not a JSON envelope — retry with the stored body only */ }
+
+    try {
+      await dispatchOutboundMessage({
+        workspaceId: req.workspaceId!,
+        conversationId: message.conversationId,
+        messageId: message.id,
+        channel: message.channel ?? undefined,
+        toEmail,
+        subject,
+        body: message.body,
+        htmlBody,
+        channelConnectionId: message.conversation.channelConnectionId,
+      });
+    } catch (dispatchErr: any) {
+      console.error('[Outbound retry] Channel dispatch error:', dispatchErr.message);
+      return res.status(400).json({ error: dispatchErr.message });
+    }
+
+    // dispatch marks the row delivered on success but leaves the old
+    // errorMsg in place — clear it so the thread stops showing the error.
+    const refreshed = await db.conversationMessage.findUnique({ where: { id: message.id } });
+    if (refreshed?.status === 'delivered' && refreshed.errorMsg) {
+      await db.conversationMessage.update({ where: { id: message.id }, data: { errorMsg: null } }).catch(() => null);
+      return res.json(await db.conversationMessage.findUnique({ where: { id: message.id } }));
+    }
+    res.json(refreshed);
   } catch (e) { err500(res, e); }
 });
 

@@ -47,6 +47,7 @@ export interface CrmMetrics {
     }>;
   };
   contactsOverTime: Array<{ date: string; count: number }>;
+  revenueOverTime: Array<{ date: string; value: number }>;
 }
 
 export interface ConversationMetrics {
@@ -146,6 +147,7 @@ export interface ActivityEvent {
 interface RevenueMetrics {
   current?: number;
   trend?: number[];
+  changePct?: number | null;
 }
 
 interface PipelineMetrics {
@@ -156,6 +158,7 @@ interface PipelineMetrics {
 interface ContactsMetrics {
   total?: number;
   trend?: number[];
+  changePct?: number | null;
 }
 
 interface PipelineStageMetrics {

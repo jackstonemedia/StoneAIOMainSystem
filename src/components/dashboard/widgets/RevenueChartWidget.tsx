@@ -9,10 +9,7 @@ interface RevenueChartWidgetProps {
   onRemove?: () => void;
 }
 
-const FALLBACK_SERIES = [38, 42, 41, 55, 52, 62, 58, 71, 68, 78, 82, 92];
-
 function AreaChart({ data, color }: { data: number[]; color: string }) {
-  if (!data.length) data = FALLBACK_SERIES;
   const max = Math.max(...data), min = Math.min(...data);
   const range = max - min || 1;
   const w = 300, h = 80;
@@ -41,7 +38,7 @@ const PERIODS: { id: '7d' | '30d' | '90d' | '1y'; label: string }[] = [
 ];
 
 function sliceForPeriod(series: number[], period: '7d' | '30d' | '90d' | '1y') {
-  if (!series.length) return FALLBACK_SERIES;
+  if (!series.length) return [];
   if (period === '1y') return series;
   if (period === '90d') return series.slice(-6);
   if (period === '30d') return series.slice(-4);
@@ -50,7 +47,7 @@ function sliceForPeriod(series: number[], period: '7d' | '30d' | '90d' | '1y') {
 
 export function RevenueChartWidget({ metrics, isLoading, isEditing, onRemove }: RevenueChartWidgetProps) {
   const [period, setPeriod] = useState<'7d' | '30d' | '90d' | '1y'>('1y');
-  const base = metrics?.revenue?.trend && metrics.revenue.trend.length ? metrics.revenue.trend : FALLBACK_SERIES;
+  const base = metrics?.revenue?.trend ?? [];
   const data = sliceForPeriod(base, period);
 
   return (
@@ -71,7 +68,7 @@ export function RevenueChartWidget({ metrics, isLoading, isEditing, onRemove }: 
           <div className="flex items-center justify-between mb-5">
             <div>
               <div className="text-sm font-semibold text-text-main">Revenue Trend</div>
-              <div className="text-xs text-text-muted mt-0.5">12-month rolling revenue</div>
+              <div className="text-xs text-text-muted mt-0.5">Won revenue over time</div>
             </div>
             <div className="flex bg-bg border border-border rounded-lg p-1">
               {PERIODS.map((p) => (
@@ -91,7 +88,11 @@ export function RevenueChartWidget({ metrics, isLoading, isEditing, onRemove }: 
             </div>
           </div>
           <div className="h-32">
-            <AreaChart data={data} color="var(--primary)" />
+            {data.length ? (
+              <AreaChart data={data} color="var(--primary)" />
+            ) : (
+              <p className="text-xs text-text-muted py-10 text-center">No revenue data yet.</p>
+            )}
           </div>
         </div>
       )}

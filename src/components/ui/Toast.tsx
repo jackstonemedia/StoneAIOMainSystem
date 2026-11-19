@@ -50,7 +50,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3" aria-live="polite">
+      {/* z-[1001]: toasts must stay visible above every overlay, including
+          SlideOverPanel (998/999) and ConfirmDelete (1000). At z-[100] an
+          error toast fired from inside a slide-over rendered underneath its
+          backdrop — the user never saw it. (Tranche A fix 19.) */}
+      <div className="fixed bottom-6 right-6 z-[1001] flex flex-col gap-3" aria-live="polite">
         {toasts.map(t => <ToastItem key={t.id} toast={t} onRemove={remove} />)}
       </div>
     </ToastContext.Provider>

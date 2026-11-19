@@ -21,6 +21,7 @@ model Workspace {
   creditsLimit           Int                @default(500) @map("credits_limit")
   agentMode              String             @default("approve") @map("agent_mode")
   agentName              String             @default("AI Agent") @map("agent_name")
+  requireTwoFactor       Boolean            @default(false) @map("require_two_factor")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
   members           WorkspaceMember[]
@@ -37,7 +38,6 @@ model Workspace {
   crmSettings       CrmSettings?
   bulkActions       BulkAction[]
   deals             Deal[]
-  apiKeys           ApiKey[]
   integrations      Integration[]
   appointments      Appointment[]
   conversations     Conversation[]
@@ -45,6 +45,7 @@ model Workspace {
   tasks             Task[]
   smartLists        SmartList[]
   notifications     Notification[]
+  notificationPreferences NotificationPreference[]
   customFields      CustomField[]
   tags              Tag[]
   webhookEndpoints  WebhookEndpoint[]
@@ -519,6 +520,20 @@ model UserTwoFactor {
   @@map("user_two_factor")
 }
 
+// One row per verified sign-in session (Tranche A fix 17). The session id is
+// the Clerk JWT `sid` (or `dev:<userId>` in non-production dev-bypass mode,
+// where there is no token). A fresh sign-in gets a fresh sid, so it must pass
+// the TOTP challenge again; rows older than 12h stop counting even for a
+// long-lived session. Rows are never deleted on a schedule — they are keyed
+// by session id and only read for the current session.
+model TwoFactorSession {
+  sessionId  String   @id @map("session_id")
+  userId     String   @map("user_id")
+  verifiedAt DateTime @default(now()) @map("verified_at")
+
+  @@map("two_factor_sessions")
+}
+
 model Agent {
   id          String         @id @default(uuid())
   workspaceId String         @map("workspace_id")
@@ -751,19 +766,6 @@ model Activity {
   @@map("activities")
 }
 
-model ApiKey {
-  id           String    @id @default(uuid())
-  workspaceId  String    @map("workspace_id")
-  provider     String
-  keyEncrypted String    @map("key_encrypted")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([workspaceId, provider])
-  @@map("api_keys")
-}
-
 model Integration {
   id           String    @id @default(uuid())
   workspaceId  String    @map("workspace_id")
@@ -809,6 +811,19 @@ model ChannelConnection {
   minDelaySeconds           Int       @default(90) @map("min_delay_seconds")
   maxDelaySeconds           Int       @default(180) @map("max_delay_seconds")
   warmupDay                 Int       @default(0) @map("warmup_day")
+  // Channel behaviour (Tranche A fix 12). These used to be form fields the
+  // PATCH route silently dropped and echoed back as defaults — the settings
+  // vanished on reload and never affected a send. Only fields with a real
+  // hook live here: signature (email dispatch), autoReply/autoReplyText
+  // (inbound email auto-reply), archiveOnReply (dispatch), quietHoursEnabled
+  // (SMS dispatch). Fields with no hook (two-way sync, STOP handling,
+  // business-hours auto-reply, forwarding number) were removed from the
+  // form instead of persisted-but-ignored.
+  signature                 String?
+  autoReply                 Boolean   @default(false) @map("auto_reply")
+  autoReplyText             String?   @map("auto_reply_text")
+  archiveOnReply            Boolean   @default(false) @map("archive_on_reply")
+  quietHoursEnabled         Boolean   @default(false) @map("quiet_hours_enabled")
 
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
@@ -852,6 +867,7 @@ model Conversation {
   lastMessageAt       DateTime?             @map("last_message_at")
   assignedUserId      String?               @map("assigned_user_id")
   starred             Boolean               @default(false)
+  snoozedUntil        DateTime?             @map("snoozed_until") // wake time; the 1-min resumer re-opens the thread when it passes (Tranche A fix 10)
   createdAt           DateTime              @default(now()) @map("created_at")
   updatedAt           DateTime              @updatedAt @map("updated_at")
   workspace           Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1046,6 +1062,23 @@ model Notification {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+// Per-workspace in-app notification preferences (Tranche A fix 11).
+// One row per toggle key; a missing row means the default (enabled).
+// Only keys with a real producer belong here — a toggle that promises a
+// notification no code ever sends is a lie, not a setting.
+model NotificationPreference {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  key         String
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@map("notification_preferences")
 }
 
 model CustomField {

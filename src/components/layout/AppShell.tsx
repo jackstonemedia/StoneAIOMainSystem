@@ -10,6 +10,7 @@ import CommandPalette from '../ui/CommandPalette';
 import NotificationPanel from '../ui/NotificationPanel';
 
 import { ToastProvider } from '../ui/Toast';
+import TwoFactorGate from '../auth/TwoFactorGate';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -97,7 +98,12 @@ export default function AppShell() {
             )}
             <Suspense fallback={<ContentFallback />}>
               <div key={location.pathname.split('/').slice(0, 2).join('/')} className="flex flex-col h-full w-full" style={{ animation: 'appShellFadeIn 0.18s cubic-bezier(0.16,1,0.3,1) both' }}>
-                <Outlet />
+                {/* 2FA gate (Tranche A fix 17): blocks the shell until this
+                    sign-in session passes the TOTP challenge, when 2FA is
+                    enabled or the workspace requires it. */}
+                <TwoFactorGate>
+                  <Outlet />
+                </TwoFactorGate>
               </div>
             </Suspense>
           </main>

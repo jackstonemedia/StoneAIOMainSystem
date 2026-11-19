@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { apiFetch } from '../../lib/apiClient';
 import {
-  Users, DollarSign, MessageSquare, Mail, FileText, Calendar,
-  Star, TrendingUp, TrendingDown, ArrowUpRight, BarChart3,
+  Users, DollarSign, MessageSquare, Calendar,
+  TrendingUp, TrendingDown, BarChart3,
   Activity, Target, Download, RefreshCw, CheckCircle2
 } from 'lucide-react';
 
@@ -26,7 +26,7 @@ function BarChart({ data, color = 'var(--primary)' }: { data: { label: string; v
   return (
     <div className="flex items-end gap-2 h-28">
       {data.map((d, i) => (
-        <div key={i} className="flex flex-col items-center gap-1 flex-1">
+        <div key={i} className="flex flex-col items-center justify-end gap-1 flex-1 h-full">
           <motion.div
             initial={{ scaleY: 0 }}
             animate={{ scaleY: 1 }}
@@ -108,7 +108,7 @@ export default function Analytics() {
 
   const { data: overview, isLoading, refetch } = useQuery<any>({
     queryKey: ['analytics', 'overview', range],
-    queryFn: () => apiFetch(`/api/analytics/overview?days=${range}`).then(r => r.ok ? r.json() : null),
+    queryFn: () => apiFetch(`/api/business/analytics/overview?days=${range}`).then(r => r.ok ? r.json() : null),
     staleTime: 60000,
   });
 
@@ -122,8 +122,6 @@ export default function Analytics() {
       ['Won Deals', overview.deals?.won],
       ['Won Revenue', overview.deals?.wonValue],
       ['Open Conversations', overview.conversations?.open],
-      ['Form Submissions', overview.forms?.submissions],
-      ['Avg Rating', overview.reviews?.avgRating],
     ];
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -132,14 +130,17 @@ export default function Analytics() {
   };
 
   const kpis = overview ? [
-    { label: 'Total Contacts', value: (overview.contacts?.total || 0).toLocaleString(), sub: `+${overview.contacts?.newThisPeriod || 0} this period`, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10', trend: 'up' as const, trendPct: '+5.2%', delay: 0 },
-    { label: 'Revenue (Won Deals)', value: fmt(overview.deals?.wonValue || 0), sub: `${overview.deals?.won || 0} deals closed`, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', trend: 'up' as const, trendPct: '+12.4%', delay: 0.05 },
-    { label: 'Pipeline Value', value: fmt(overview.deals?.totalValue || 0), sub: `${overview.deals?.total || 0} active deals`, icon: Target, color: 'text-primary', bg: 'bg-primary/10', trend: null, delay: 0.1 },
+    // No trend badges: the backend returns no prior-period comparison,
+    // so a trend would be invented. (The old '+5.2%' / '+12.4%' were
+    // hardcoded.) The badge in KpiCard stays for when a real trend exists.
+    { label: 'Total Contacts', value: (overview.contacts?.total || 0).toLocaleString(), sub: `+${overview.contacts?.newThisPeriod || 0} this period`, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10', trend: null, delay: 0 },
+    { label: 'Revenue (Won Deals)', value: fmt(overview.deals?.wonValue || 0), sub: `${overview.deals?.won || 0} deals closed`, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', trend: null, delay: 0.05 },
+    // Pipeline value is the OPEN pipeline: total value minus won value,
+    // over the open deals. (The old card showed every deal's value —
+    // won included — and counted won deals as active.)
+    { label: 'Pipeline Value', value: fmt((overview.deals?.totalValue || 0) - (overview.deals?.wonValue || 0)), sub: `${(overview.deals?.total || 0) - (overview.deals?.won || 0)} open deals`, icon: Target, color: 'text-primary', bg: 'bg-primary/10', trend: null, delay: 0.1 },
     { label: 'Open Conversations', value: overview.conversations?.open || 0, sub: 'Active threads', icon: MessageSquare, color: 'text-violet-400', bg: 'bg-violet-400/10', trend: null, delay: 0.15 },
-    { label: 'Form Submissions', value: overview.forms?.submissions || 0, sub: `${overview.forms?.total || 0} active forms`, icon: FileText, color: 'text-amber-400', bg: 'bg-amber-400/10', trend: null, delay: 0.2 },
     { label: 'Appointments', value: overview.appointments?.total || 0, sub: `${overview.appointments?.completed || 0} completed`, icon: Calendar, color: 'text-cyan-400', bg: 'bg-cyan-400/10', trend: null, delay: 0.25 },
-    { label: 'Avg Review Rating', value: overview.reviews?.avgRating ? `${overview.reviews.avgRating}★` : '—', sub: `${overview.reviews?.total || 0} reviews`, icon: Star, color: 'text-amber-400', bg: 'bg-amber-400/10', trend: null, delay: 0.3 },
-    { label: 'Campaigns', value: overview.campaigns?.total || 0, sub: 'Total campaigns', icon: Mail, color: 'text-indigo-400', bg: 'bg-indigo-400/10', trend: null, delay: 0.35 },
   ] : [];
 
   const monthlyData = (overview?.monthlyRevenue || []).map((m: any) => ({ label: m.month, value: m.won || 0 }));
@@ -176,7 +177,7 @@ export default function Analytics() {
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {isLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="bg-surface border border-border rounded-[12px] p-5 h-[120px] animate-pulse">
                 <div className="w-9 h-9 bg-surface-hover rounded-[8px] mb-3" />
                 <div className="h-6 bg-surface-hover rounded w-1/2 mb-2" />
@@ -262,11 +263,8 @@ export default function Analytics() {
                 <tbody className="divide-y divide-border/40">
                   {[
                     { module: 'CRM Contacts', metric: 'Total Contacts', value: (overview?.contacts?.total || 0).toLocaleString(), status: 'active' },
-                    { module: 'Opportunities', metric: 'Pipeline Value', value: fmt(overview?.deals?.totalValue || 0), status: 'active' },
+                    { module: 'Opportunities', metric: 'Pipeline Value', value: fmt((overview?.deals?.totalValue || 0) - (overview?.deals?.wonValue || 0)), status: 'active' },
                     { module: 'Conversations', metric: 'Open Threads', value: overview?.conversations?.open || 0, status: overview?.conversations?.open > 10 ? 'attention' : 'active' },
-                    { module: 'Campaigns',     metric: 'Total Campaigns', value: overview?.campaigns?.total || 0, status: 'active' },
-                    { module: 'Forms',         metric: 'Submissions', value: overview?.forms?.submissions || 0, status: 'active' },
-                    { module: 'Reputation',    metric: 'Avg Rating', value: overview?.reviews?.avgRating ? `${overview.reviews.avgRating} / 5.0` : '—', status: (overview?.reviews?.avgRating || 0) >= 4 ? 'good' : 'attention' },
                   ].map((row, i) => (
                     <tr key={i} className="hover:bg-surface-hover/30 transition-colors">
                       <td className="px-6 py-3.5 text-[13px] font-semibold text-text-main">{row.module}</td>

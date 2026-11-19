@@ -41,6 +41,14 @@ vi.mock('../../infrastructure/database/client.js', () => ({
         return row;
       }),
     },
+    // Tranche A fix 17: POST /2fa/verify upserts a session row (enabling 2FA
+    // proves the session), and GET /2fa/status reads it back.
+    twoFactorSession: {
+      findUnique: vi.fn(async () => null),
+      upsert: vi.fn(async ({ where, update, create }: any) => ({
+        sessionId: where.sessionId, ...create, ...update,
+      })),
+    },
     // Not hit by these tests; present so the router module loads.
     workspace: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
     workspaceMember: { findMany: vi.fn(async () => []), create: vi.fn(), delete: vi.fn() },
@@ -132,7 +140,11 @@ describe('Settings Security (Tier 1 Fix 1)', () => {
     expect(ok.body.success).toBe(true);
 
     const status = await request(app).get('/api/settings/2fa/status');
-    expect(status.body).toEqual({ enabled: true, configured: true });
+    // Fix 17 extended the status payload with `verified` (this session) and
+    // `requireTwoFactor` (workspace policy). This test's stub session store
+    // never records a verification, so `verified` reads false here — the
+    // verified-true path is covered in two-factor-enforcement.test.ts.
+    expect(status.body).toEqual({ enabled: true, configured: true, verified: false, requireTwoFactor: false });
   });
 
   it('2FA verify without a stored secret refuses instead of enabling', async () => {
@@ -163,7 +175,8 @@ describe('Settings Security (Tier 1 Fix 1)', () => {
     expect(ok.status).toBe(200);
 
     const status = await request(app).get('/api/settings/2fa/status');
-    expect(status.body).toEqual({ enabled: false, configured: false });
+    // Fix 17 extended the status payload (see the note on the verify test).
+    expect(status.body).toEqual({ enabled: false, configured: false, verified: false, requireTwoFactor: false });
   });
 
   it('the password endpoint is gone — no fake success can survive', async () => {

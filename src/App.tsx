@@ -61,6 +61,7 @@ const ConvLayout        = lazy(() => import('./pages/conversations/Conversations
 const ConvInbox         = lazy(() => import('./pages/conversations/ConversationsInbox'));
 const ConvSettingsLayout = lazy(() => import('./pages/conversations/settings/ConversationsSettingsLayout'));
 const ConvChannels      = lazy(() => import('./pages/conversations/settings/ConversationsChannelsSettings'));
+const ConvLiveChat      = lazy(() => import('./pages/conversations/settings/ConversationsLiveChatSettings'));
 const ConvTemplates     = lazy(() => import('./pages/conversations/settings/ConversationsTemplatesSettings'));
 const ConvTags          = lazy(() => import('./pages/conversations/settings/ConversationsTagsSettings'));
 
@@ -317,6 +318,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="settings" element={<ErrorBoundary><ConvSettingsLayout /></ErrorBoundary>}>
                 <Route index element={<Navigate to="channels" replace />} />
                 <Route path="channels"  element={<ErrorBoundary><ConvChannels /></ErrorBoundary>} />
+                <Route path="live-chat" element={<ErrorBoundary><ConvLiveChat /></ErrorBoundary>} />
                 <Route path="templates" element={<ErrorBoundary><ConvTemplates /></ErrorBoundary>} />
                 <Route path="tags"      element={<ErrorBoundary><ConvTags /></ErrorBoundary>} />
               </Route>

@@ -14,7 +14,7 @@ import { SlideOverPanel } from '../../../components/ui/SlideOverPanel';
 import { ConfirmDelete } from '../../../components/ui/ConfirmDelete';
 import { useToast } from '../../../components/ui/Toast';
 import { apiClient } from '../../../lib/apiClient';
-import { saveAppointment } from '../../../lib/appointments';
+import { saveAppointment, deleteAppointment } from '../../../lib/appointments';
 import type { Appointment } from '../../../types/business';
 import { AssistantLauncher } from '../../../components/assistant/AssistantLauncher';
 
@@ -462,14 +462,12 @@ export default function CalendarSchedulePage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      try {
-        await apiClient.delete(`/business/appointments/${id}`);
-      } catch {
-        // ignore delete failure in optimistic cleanup
-      }
-      return id;
-    },
+    // deleteAppointment throws on failure (Tranche A fix 19) — the old
+    // mutationFn swallowed the DELETE error and returned the id anyway, so
+    // onSuccess always ran and "Appointment deleted" toasted for a delete
+    // the server never performed. Now a failed delete reaches onError and
+    // the appointment stays listed.
+    mutationFn: (id: string) => deleteAppointment(id),
     onSuccess: (deletedId) => {
       setDeletedEventIds(prev => [...prev, deletedId]);
       setEditedEvents(prev => {

@@ -56,6 +56,7 @@ import { runDueScheduledTasks } from './api/services/assistant/scheduled-task-ru
 // ── Middleware ────────────────────────────────────────────────────────────────
 import { errorHandler }      from './api/middleware/error.js';
 import { resolveWorkspace }  from './api/middleware/workspace.js';
+import { requireTwoFactorVerified } from './api/middleware/requireTwoFactor.js';
 
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 import inboxRouter from './api/routes/inbox.routes.js';
@@ -310,6 +311,10 @@ async function startServer() {
 
   // ── Workspace Resolution (all remaining /api/* routes require JWT) ─────────
   app.use('/api', resolveWorkspace);
+  // ── 2FA enforcement (Tranche A fix 17) — after resolveWorkspace, so the
+  // gate sees userId/workspaceId. Exempts the 2FA endpoints themselves, the
+  // public widget, and requests with no resolved user (see middleware).
+  app.use('/api', requireTwoFactorVerified);
 
   // ── AI / Agent routes (rate-limited more aggressively — expensive Gemini calls) ──
   if (FEATURES.legacyAi) app.use('/api/ai',             aiLimiter, aiRouter);
@@ -456,6 +461,21 @@ async function startServer() {
       } catch (err) { console.error('[EmailMarketing Cron]', err); }
     });
     console.log('✅ Email Marketing campaign scheduler: active (1-min interval)');
+
+    // ── Inbox: Snooze resumer (every minute) ─────────────────────────────
+    // Tranche A fix 10: snoozing set status 'snoozed' but nothing ever
+    // woke the thread. Due snoozed conversations in both inbox models
+    // go back to 'open' when their wake time passes.
+    cron.schedule('* * * * *', async () => {
+      try {
+        const { resumeDueSnoozedConversations } = await import('./api/services/inbox/snooze-resumer.service.js');
+        const resumed = await resumeDueSnoozedConversations();
+        if (resumed.legacy + resumed.inbox > 0) {
+          console.log(`[SnoozeResumer] Re-opened ${resumed.legacy} legacy + ${resumed.inbox} inbox snoozed conversation(s).`);
+        }
+      } catch (err) { console.error('[SnoozeResumer]', err); }
+    });
+    console.log('✅ Inbox snooze resumer: active (1-min interval)');
 
     // ── AI Assistant: Scheduled tasks runner (every minute) ───────────────
     // Blueprint 3 Phase 1: the Scheduled page had routes + a manual Run

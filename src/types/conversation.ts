@@ -78,17 +78,13 @@ export interface ChannelConnection {
   warmupDay?: number;
   createdAt: string;
   updatedAt?: string;
-  // Configuration options
-  twoWaySync?: boolean;
+  // Configuration options — only fields with a real hook (Tranche A fix 12).
+  // Two-way sync, STOP handling, business-hours auto-reply and forwarding
+  // were removed: the settings vanished on reload and nothing honoured them.
   signature?: string;
   autoReply?: boolean;
   autoReplyText?: string;
-  sharedWithUserIds?: string[];
   archiveOnReply?: boolean;
-  forwardingNumber?: string;
-  businessHoursAutoReply?: boolean;
-  teamRoutingId?: string;
-  stopStartHandling?: boolean;
   quietHoursEnabled?: boolean;
 }
 

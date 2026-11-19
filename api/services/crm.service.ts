@@ -148,7 +148,7 @@ export async function getDashboard(workspaceId: string) {
     db.contact.count({ where: { workspaceId } }),
     db.contact.count({ where: { workspaceId, createdAt: { gte: firstOfMonth } } }),
     db.deal.findMany({ where: { workspaceId }, include: { pipelineStage: true } }),
-    db.deal.findMany({ where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: thirtyDaysAgo } } }),
+    db.deal.findMany({ where: { workspaceId, OR: [{ status: 'won' }, { pipelineStage: { isWon: true } }], updatedAt: { gte: thirtyDaysAgo } } }),
     db.activity.count({ where: { workspaceId, createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
     db.task.count({ where: { workspaceId, status: 'pending', dueDate: { lt: new Date() } } }),
     db.activity.findMany({ where: { workspaceId }, orderBy: { createdAt: 'desc' }, take: 8 }),
@@ -156,9 +156,10 @@ export async function getDashboard(workspaceId: string) {
     db.pipeline.findMany({ where: { workspaceId }, include: { stages: { orderBy: { order: 'asc' } } } }),
   ]);
 
-  const openDeals = allDeals.filter(
-    (d) => d.pipelineStage?.name !== 'Won' && d.pipelineStage?.name !== 'Lost',
-  );
+  // A deal is won/lost by flag, never by stage name (see business.service.ts).
+  const isWonDeal = (d: any) => d.status === 'won' || d.pipelineStage?.isWon;
+  const isLostDeal = (d: any) => d.status === 'lost' || d.pipelineStage?.isLost;
+  const openDeals = allDeals.filter((d) => !isWonDeal(d) && !isLostDeal(d));
   const wonDealsValue = wonDealsLast30.reduce((s, d) => s + d.amount, 0);
   const openDealsValue = openDeals.reduce((s, d) => s + d.amount, 0);
 
@@ -180,8 +181,8 @@ export async function getDashboard(workspaceId: string) {
       })
     : [];
 
-  const totalWon = allDeals.filter((d) => d.pipelineStage?.name === 'Won').length;
-  const totalLost = allDeals.filter((d) => d.pipelineStage?.name === 'Lost').length;
+  const totalWon = allDeals.filter(isWonDeal).length;
+  const totalLost = allDeals.filter(isLostDeal).length;
   const conversionRate = totalWon + totalLost > 0 ? (totalWon / (totalWon + totalLost)) * 100 : 0;
 
   return {

@@ -36,6 +36,17 @@ export interface LiveChatMessage {
   createdAt: string;
 }
 
+export interface InboxChannel {
+  id: string;
+  name: string;
+  channelType: string;
+  isEnabled: boolean;
+  embedToken: string | null;
+  welcomeMessage: string | null;
+  awayMessage: string | null;
+  widgetColor: string;
+}
+
 const BASE = '/inbox';
 
 export const inboxApi = {
@@ -54,4 +65,29 @@ export const inboxApi = {
   // the message is delivered to the website visitor in real time.
   sendMessage: (conversationId: string, content: string): Promise<LiveChatMessage> =>
     apiClient.post(`${BASE}/conversations/${conversationId}/messages`, { content }).then((r: any) => r.data),
+
+  // Clears the unread badge when an agent opens the thread.
+  markRead: (conversationId: string): Promise<{ success: boolean }> =>
+    apiClient.post(`${BASE}/conversations/${conversationId}/mark-read`).then((r: any) => r.data),
+
+  // ── Live chat provisioning + channels (Tranche A fix 13) ────────────────
+  // POST /provision used to have no caller at all: a fresh workspace had
+  // no live-chat channel and no way to get one.
+  getProvisionStatus: (): Promise<{ provisioned: boolean }> =>
+    apiClient.get(`${BASE}/provision`).then((r: any) => r.data),
+
+  provision: (): Promise<{ success: boolean }> =>
+    apiClient.post(`${BASE}/provision`).then((r: any) => r.data),
+
+  listChannels: (): Promise<InboxChannel[]> =>
+    apiClient.get(`${BASE}/channels`).then((r: any) => r.data),
+
+  createChannel: (data: { name: string; channelType: string; welcomeMessage?: string; awayMessage?: string }): Promise<InboxChannel> =>
+    apiClient.post(`${BASE}/channels`, data).then((r: any) => r.data),
+
+  updateChannel: (id: string, data: Partial<InboxChannel>): Promise<InboxChannel> =>
+    apiClient.patch(`${BASE}/channels/${id}`, data).then((r: any) => r.data),
+
+  getEmbedCode: (id: string): Promise<{ token: string; html: string }> =>
+    apiClient.get(`${BASE}/channels/${id}/embed`).then((r: any) => r.data),
 };

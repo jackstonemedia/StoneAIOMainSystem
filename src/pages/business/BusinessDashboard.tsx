@@ -1,74 +1,152 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useUser } from '@clerk/clerk-react';
 import {
-  TrendingUp, Users, Mail, DollarSign, Calendar, FileText,
-  BarChart3, Plus,
-  MessageSquare, ChevronRight, Star, Bot
+  TrendingUp, Users, Mail, DollarSign, Calendar,
+  BarChart3, Plus, MessageSquare, ChevronRight, Star, AlertTriangle
 } from 'lucide-react';
 import { MetricCard } from '../../components/ui/MetricCard';
-import { apiFetch } from '../../lib/apiClient';
+import { FEATURES } from '../../config/features';
+import { useDashboardMetrics } from '../../hooks/useDashboardMetrics';
+import type { DateRange } from '../../types/dashboard';
 
-const SPARKLINES = {
-  revenue:   [38,42,41,55,52,62,58,71,68,78,82,92],
-  pipeline:  [120,130,118,145,140,160,155,175,170,185,195,210],
-  contacts:  [2100,2180,2220,2300,2380,2450,2520,2610,2680,2750,2800,2847],
-  conversion:[22,24,23,26,25,27,24,26,25,27,26,25],
+// Every number on this page comes from GET /business/metrics (real data).
+// There are no hardcoded fallbacks: an empty workspace shows zeros and
+// empty states, never invented revenue, contacts, or activity.
+
+const PERIODS: Array<{ id: '7d' | '30d' | '90d' | '1y'; label: string }> = [
+  { id: '7d', label: '7d' },
+  { id: '30d', label: '30d' },
+  { id: '90d', label: '90d' },
+  { id: '1y', label: '1y' },
+];
+
+const PERIOD_LABEL: Record<'7d' | '30d' | '90d' | '1y', string> = {
+  '7d': 'last 7 days',
+  '30d': 'last 30 days',
+  '90d': 'last 90 days',
+  '1y': 'last 12 months',
 };
 
-const ACTIVITY = [
-  { type:'deal',    text:'Enterprise License moved to Negotiation',   time:'2m ago',   icon:DollarSign, hex:'#EF4444' },
-  { type:'campaign',text:'Black Friday email campaign sent to 14.5k', time:'1h ago',   icon:Mail,       hex:'#52677D' },
-  { type:'contact', text:'23 new leads imported from web form',       time:'3h ago',   icon:Users,      hex:'#52677D' },
-  { type:'agent',   text:'Lead Scorer completed 142 evaluations',     time:'4h ago',   icon:Bot,        hex:'#52677D' },
-  { type:'review',  text:'5★ review received on Google',              time:'5h ago',   icon:Star,       hex:'#10B981' },
-];
+const REVENUE_LABEL: Record<'7d' | '30d' | '90d' | '1y', string> = {
+  '7d': 'Revenue · 7 days',
+  '30d': 'Monthly Revenue',
+  '90d': 'Revenue · 90 days',
+  '1y': 'Revenue · 12 months',
+};
 
-const SCHEDULE = [
-  { title:'Discovery call — Acme Corp',    time:'2:00 PM', contact:'Sarah Chen',   type:'call',    hex:'#52677D' },
-  { title:'Product demo — Enterprise tier',time:'3:30 PM', contact:'Mike Johnson', type:'video',   hex:'#52677D' },
-  { title:'Contract review follow-up',     time:'4:15 PM', contact:'Lisa Wang',    type:'meeting', hex:'#10B981' },
-];
+const ACTIVITY_ICONS: Record<string, typeof Users> = {
+  contact_created: Users,
+  deal_won: DollarSign,
+  appointment_booked: Calendar,
+  campaign_sent: Mail,
+  workflow_failed: AlertTriangle,
+};
+
+function changeProps(pct: number | null | undefined): { change?: string; trend: 'up' | 'down' | 'neutral' } {
+  if (pct == null) return { trend: 'neutral' };
+  return {
+    change: `${pct >= 0 ? '+' : ''}${pct}%`,
+    trend: pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral',
+  };
+}
+
+function timeAgo(iso: string | Date): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function sampleLabels(dates: string[]): string[] {
+  if (dates.length <= 6) return dates.map(shortDate);
+  const step = (dates.length - 1) / 5;
+  return Array.from({ length: 6 }, (_, i) => shortDate(dates[Math.round(i * step)]));
+}
 
 // Simple SVG area chart
 function AreaChart({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data), min = Math.min(...data), range = max - min || 1;
   const w = 300, h = 80;
-  const pts = data.map((v, i) => ({ x: (i / (data.length-1))*w, y: h - ((v-min)/range)*h }));
-  const pathD = pts.map((p,i) => `${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
-  const areaD = `M0,${h} L${pts.map(p=>`${p.x},${p.y}`).join(' L')} L${w},${h} Z`;
+  const pts = data.map((v, i) => ({ x: (i / (data.length - 1)) * w, y: h - ((v - min) / range) * h }));
+  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const areaD = `M0,${h} L${pts.map(p => `${p.x},${p.y}`).join(' L')} L${w},${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full" preserveAspectRatio="none">
       <defs>
         <linearGradient id={`ag-${color}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25"/>
-          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaD} fill={`url(#ag-${color})`}/>
-      <path d={pathD} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d={areaD} fill={`url(#ag-${color})`} />
+      <path d={pathD} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 export default function BusinessDashboard() {
   const navigate = useNavigate();
+  const [period, setPeriod] = useState<DateRange>('30d');
+  const { metrics, isLoading } = useDashboardMetrics(period);
 
-  const { data: metrics, isLoading } = useQuery<any>({
-    queryKey: ['business_metrics'],
-    queryFn: () => apiFetch('/api/business/metrics').then(r => r.ok ? r.json() : null),
+  // useUser() throws when there is no <ClerkProvider /> — in dev auth bypass
+  // the app mounts no provider, so fall back to null (greeting drops the name).
+  let user: ReturnType<typeof useUser>['user'] | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    user = useUser().user;
+  } catch {
+    user = null;
+  }
+  const hour = new Date().getHours();
+  const dayPart = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = user?.firstName ? `${dayPart}, ${user.firstName}` : dayPart;
+
+  // Real numbers only — nullish checks so a real 0 renders as 0, never a fallback.
+  const revenueCurrent = metrics?.revenue?.current ?? 0;
+  const revenueChange = metrics?.revenue?.changePct ?? null;
+  const revenueSeries = metrics?.crm?.revenueOverTime ?? [];
+  const revenueValues = revenueSeries.map((b) => b.value);
+  const revenueTotal = revenueValues.reduce((s, v) => s + v, 0);
+  const pipelineValue = metrics?.pipeline?.value ?? 0;
+  const contactsTotal = metrics?.contacts?.total ?? 0;
+  const contactsChange = metrics?.contacts?.changePct ?? null;
+
+  const pipeline = Array.isArray(metrics?.pipeline_stages) ? metrics.pipeline_stages : [];
+  const totalPipelineCount = pipeline.reduce((s: number, p: any) => s + (p.count || 0), 0);
+
+  const activity = Array.isArray(metrics?.activityFeed) ? metrics.activityFeed : [];
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+  const todaysAppointments = (Array.isArray(metrics?.calendar?.upcomingAppointments)
+    ? metrics.calendar.upcomingAppointments
+    : []
+  ).filter((a: any) => {
+    const t = new Date(a.startTime).getTime();
+    return t >= todayStart.getTime() && t <= todayEnd.getTime();
   });
 
-
-
-  const pipeline = Array.isArray(metrics?.pipeline_stages) ? metrics.pipeline_stages : (metrics?.pipeline_stages || [
-    { name:'Lead',        count:45, value:120000, color:'#52677D' },
-    { name:'Qualified',   count:28, value:240000, color:'#52677D' },
-    { name:'Proposal',    count:15, value:180000, color:'#10B981' },
-    { name:'Negotiation', count:8,  value:305000, color:'#EF4444' },
-    { name:'Won',         count:18, value:210000, color:'#10B981' },
-  ]);
-  const totalPipelineCount = (Array.isArray(pipeline) ? pipeline : []).reduce((s:number,p:any)=>s+(p.count || 0),0);
+  const quickActions = [
+    { label: 'New Campaign', icon: Mail, path: '/email-marketing/campaigns', hex: '#52677D' },
+    { label: 'Add Contact', icon: Users, path: '/crm/contacts', hex: '#52677D' },
+    { label: 'Analytics', icon: BarChart3, path: '/business/analytics', hex: '#52677D' },
+    { label: 'Send Message', icon: MessageSquare, path: '/conversations', hex: '#10B981' },
+    ...(FEATURES.reputation
+      ? [{ label: 'Reputation', icon: Star, path: '/business/reputation', hex: '#EF4444' }]
+      : []),
+  ];
 
   if (isLoading) {
     return (
@@ -89,17 +167,17 @@ export default function BusinessDashboard() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-text-main tracking-tight">Business Overview</h1>
-            <p className="text-sm text-text-muted mt-1.5">Good evening, Jack — here's your business at a glance.</p>
+            <p className="text-sm text-text-muted mt-1.5">{greeting} — here&apos;s your business at a glance.</p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/business/campaigns')}
+              onClick={() => navigate('/email-marketing/campaigns')}
               className="btn-secondary text-sm py-2 px-4"
             >
               <Mail className="w-4 h-4" /> New Campaign
             </button>
             <button
-              onClick={() => navigate('/business/crm/contacts')}
+              onClick={() => navigate('/crm/contacts')}
               className="btn-primary text-sm py-2 px-4"
             >
               <Plus className="w-4 h-4" /> Add Contact
@@ -107,12 +185,11 @@ export default function BusinessDashboard() {
           </div>
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-4 gap-4 stagger-children">
-          <MetricCard label="Monthly Revenue"   value={metrics?.revenue?.current ? `$${metrics.revenue.current.toLocaleString()}` : "$48,250"} change="+12.5%" trend="up"   icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={metrics?.revenue?.trend || SPARKLINES.revenue}   delay={0}  />
-          <MetricCard label="Pipeline Value"    value={metrics?.pipeline?.value ? `$${metrics.pipeline.value.toLocaleString()}` : "$182,400"} change="+8.2%"  trend="up"   icon={TrendingUp}  iconColor="text-text-muted"    iconBg="bg-primary/100/10"    sparkline={metrics?.pipeline?.trend || SPARKLINES.pipeline}  delay={60} />
-          <MetricCard label="Active Contacts"   value={metrics?.contacts?.total ? metrics.contacts.total.toLocaleString() : "2,847"}   change="+156"   trend="up"   icon={Users}       iconColor="text-text-muted"  iconBg="bg-primary/100/10"  sparkline={metrics?.contacts?.trend || SPARKLINES.contacts}  delay={120}/>
-          <MetricCard label="Conversion Rate"   value={metrics?.conversion?.rate ? `${metrics.conversion.rate}%` : "24.8%"}   change="-1.2%"  trend="down" icon={BarChart3}   iconColor="text-text-muted"   iconBg="bg-primary/100/10"   sparkline={metrics?.conversion?.trend || SPARKLINES.conversion} delay={180}/>
+        {/* Metric Cards — real values; a real 0 shows as 0, never an invented number */}
+        <div className="grid grid-cols-3 gap-4 stagger-children">
+          <MetricCard label={REVENUE_LABEL[period as '7d' | '30d' | '90d' | '1y']} value={`$${revenueCurrent.toLocaleString()}`} {...changeProps(revenueChange)} icon={DollarSign} iconColor="text-emerald-400" iconBg="bg-emerald-500/10" sparkline={metrics?.revenue?.trend} delay={0} />
+          <MetricCard label="Pipeline Value" value={`$${pipelineValue.toLocaleString()}`} icon={TrendingUp} iconColor="text-text-muted" iconBg="bg-primary/100/10" delay={60} />
+          <MetricCard label="Active Contacts" value={contactsTotal.toLocaleString()} {...changeProps(contactsChange)} icon={Users} iconColor="text-text-muted" iconBg="bg-primary/100/10" sparkline={metrics?.contacts?.trend} delay={120} />
         </div>
 
         {/* Main grid */}
@@ -121,118 +198,145 @@ export default function BusinessDashboard() {
           {/* Left 2/3 */}
           <div className="col-span-2 space-y-6">
 
-            {/* Revenue chart */}
+            {/* Revenue chart — won deal value per bucket, from the real series */}
             <div className="card-surface p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-semibold text-text-main">Revenue Trend</h2>
-                  <p className="text-xs text-text-muted mt-0.5">12-month rolling revenue</p>
+                  <p className="text-xs text-text-muted mt-0.5">Won deal value · {PERIOD_LABEL[period as '7d' | '30d' | '90d' | '1y']}</p>
                 </div>
                 <div className="flex bg-bg border border-border rounded-lg p-1">
-                  {['7d','30d','90d','1y'].map((p,i) => (
-                    <button key={p} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${i===1?'bg-surface text-primary border border-border shadow-sm':'text-text-muted hover:text-text-main'}`}>{p}</button>
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPeriod(p.id)}
+                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${period === p.id ? 'bg-surface text-primary border border-border shadow-sm' : 'text-text-muted hover:text-text-main'}`}
+                    >
+                      {p.label}
+                    </button>
                   ))}
                 </div>
               </div>
               <div className="h-32">
-                <AreaChart data={SPARKLINES.revenue} color="var(--primary)" />
+                <AreaChart data={revenueValues.length ? revenueValues : [0]} color="var(--primary)" />
               </div>
               <div className="flex justify-between mt-2">
-                {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(m=>(
-                  <span key={m} className="text-[10px] text-text-muted">{m}</span>
+                {sampleLabels(revenueSeries.map((b) => b.date)).map((label) => (
+                  <span key={label} className="text-[10px] text-text-muted">{label}</span>
                 ))}
               </div>
+              {revenueTotal === 0 && (
+                <p className="text-xs text-text-muted mt-3">No won revenue in this period yet.</p>
+              )}
             </div>
 
-            {/* Pipeline Funnel */}
+            {/* Pipeline Funnel — real stages, empty state when there are no deals */}
             <div className="card-surface p-6">
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h2 className="font-semibold text-text-main">Sales Pipeline</h2>
                   <p className="text-xs text-text-muted mt-0.5">{totalPipelineCount} active deals</p>
                 </div>
-                <Link to="/business/crm/deals" className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
-                  View all <ChevronRight className="w-3 h-3"/>
+                <Link to="/crm/opportunities" className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
+                  View all <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
-              <div className="space-y-3">
-                {(Array.isArray(pipeline) ? pipeline : []).map((stage: any, i: number) => {
-                  const pct = Math.round(((stage.count || 0) / (totalPipelineCount || 1)) * 100);
-                  return (
-                    <div key={i} className="group cursor-pointer" onClick={() => navigate('/business/crm/deals')}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium text-text-main">{stage.name}</span>
-                        <div className="flex items-center gap-4">
-                          <span className="text-xs text-text-muted">{stage.count} deals</span>
-                          <span className="text-sm font-semibold text-text-main">${(stage.value/1000).toFixed(0)}k</span>
+              {pipeline.length === 0 ? (
+                <p className="text-sm text-text-muted py-4">No deals yet — your pipeline will show up here once you add deals.</p>
+              ) : (
+                <div className="space-y-3">
+                  {pipeline.map((stage: any, i: number) => {
+                    const pct = Math.round(((stage.count || 0) / (totalPipelineCount || 1)) * 100);
+                    return (
+                      <div key={i} className="group cursor-pointer" onClick={() => navigate('/crm/opportunities')}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-sm font-medium text-text-main">{stage.name}</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-xs text-text-muted">{stage.count} deals</span>
+                            <span className="text-sm font-semibold text-text-main">${(stage.value / 1000).toFixed(0)}k</span>
+                          </div>
+                        </div>
+                        <div className="h-2 bg-border/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700 group-hover:opacity-90"
+                            style={{ width: `${pct}%`, backgroundColor: stage.color, boxShadow: `0 0 8px ${stage.color}40` }}
+                          />
                         </div>
                       </div>
-                      <div className="h-2 bg-border/40 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-700 group-hover:opacity-90"
-                          style={{ width: `${pct}%`, backgroundColor: stage.color, boxShadow: `0 0 8px ${stage.color}40` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Recent Activity */}
+            {/* Recent Activity — real events from the backend, empty state when none */}
             <div className="card-surface overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <h2 className="font-semibold text-text-main">Recent Activity</h2>
-                <Link to="/business/crm/activities" className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors">
-                  View all <ChevronRight className="w-3 h-3"/>
-                </Link>
               </div>
-              <div className="divide-y divide-border/60">
-                {ACTIVITY.map((item, i) => (
-                  <div key={i} className="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-hover transition-colors group">
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ background: `${item.hex}18`, color: item.hex, border: '1px solid var(--border)' }}
-                    >
-                      <item.icon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-main truncate">{item.text}</p>
-                    </div>
-                    <span className="text-xs text-text-muted shrink-0">{item.time}</span>
-                  </div>
-                ))}
-              </div>
+              {activity.length === 0 ? (
+                <p className="text-sm text-text-muted px-6 py-5">No activity yet — new leads, won deals, and appointments will show up here.</p>
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {activity.map((item: any) => {
+                    const Icon = ACTIVITY_ICONS[item.type] || Users;
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-4 px-6 py-3.5 hover:bg-surface-hover transition-colors group cursor-pointer"
+                        onClick={() => navigate(item.link)}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: '#52677D18', color: '#52677D', border: '1px solid var(--border)' }}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-text-main truncate">{item.title}</p>
+                          <p className="text-xs text-text-muted truncate">{item.subtitle}</p>
+                        </div>
+                        <span className="text-xs text-text-muted shrink-0">{timeAgo(item.timestamp)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Right 1/3 */}
           <div className="space-y-6">
 
-            {/* Today's schedule */}
+            {/* Today's schedule — real upcoming appointments, today only */}
             <div className="card-surface overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                 <h2 className="font-semibold text-text-main flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary"/> Today
+                  <Calendar className="w-4 h-4 text-primary" /> Today
                 </h2>
                 <Link to="/business/calendar" className="text-xs font-medium text-primary hover:text-primary/80 transition-colors">Full calendar →</Link>
               </div>
               <div className="p-4 space-y-3">
-                {SCHEDULE.map((ev, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                    style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = ev.hex)}
-                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border)')}
-                  >
-                    <div className="w-1.5 h-12 rounded-full shrink-0 mt-0.5" style={{ background: ev.hex }} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-text-main truncate group-hover:text-primary transition-colors">{ev.title}</p>
-                      <p className="text-xs text-text-muted mt-0.5">{ev.time} · {ev.contact}</p>
+                {todaysAppointments.length === 0 ? (
+                  <p className="text-sm text-text-muted px-1 py-2">No appointments today.</p>
+                ) : (
+                  todaysAppointments.map((ev: any) => (
+                    <div
+                      key={ev.id}
+                      className="flex items-start gap-3 p-3 rounded-xl transition-all"
+                      style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                    >
+                      <div className="w-1.5 h-12 rounded-full shrink-0 mt-0.5" style={{ background: '#52677D' }} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text-main truncate">{ev.title}</p>
+                        <p className="text-xs text-text-muted mt-0.5">
+                          {new Date(ev.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {ev.contactName ? ` · ${ev.contactName}` : ''}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
                 <button
                   onClick={() => navigate('/business/calendar')}
                   className="w-full py-2 border border-dashed border-border rounded-xl text-xs text-text-muted hover:border-primary/40 hover:text-primary transition-colors"
@@ -242,18 +346,11 @@ export default function BusinessDashboard() {
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Actions — real routes only; Reputation only when the feature is on */}
             <div className="card-surface p-5">
               <h2 className="font-semibold text-text-main mb-4">Quick Actions</h2>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label:'New Campaign',  icon:Mail,         path:'/business/campaigns',    hex:'#52677D' },
-                  { label:'Add Contact',   icon:Users,        path:'/business/crm/contacts', hex:'#52677D' },
-                  { label:'Create Form',   icon:FileText,     path:'/business/forms',        hex:'#BDC4D4' },
-                  { label:'Analytics',     icon:BarChart3,    path:'/business/analytics',    hex:'#52677D' },
-                  { label:'Send Message',  icon:MessageSquare,path:'/conversations',           hex:'#10B981' },
-                  { label:'Reputation',    icon:Star,         path:'/business/reputation',   hex:'#EF4444' },
-                ].map((a, i) => (
+                {quickActions.map((a, i) => (
                   <button
                     key={i}
                     onClick={() => navigate(a.path)}
@@ -272,29 +369,6 @@ export default function BusinessDashboard() {
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* AI Summary */}
-            <div className="card-surface p-5 border border-primary/20">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-teal flex items-center justify-center">
-                  <Bot className="w-3 h-3 text-white" />
-                </div>
-                <h2 className="font-semibold text-text-main text-sm">AI Insights</h2>
-                <span className="badge badge-info ml-auto">Live</span>
-              </div>
-              <ul className="space-y-2">
-                {[
-                  '3 deals stagnant for 14+ days — follow up needed',
-                  'Email open rate up 4% after subject line change',
-                  'Top lead: TechStart Inc. (score 94)',
-                ].map((insight, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-text-muted leading-relaxed">
-                    <span className="w-1 h-1 rounded-full bg-primary shrink-0 mt-1.5" />
-                    {insight}
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </div>

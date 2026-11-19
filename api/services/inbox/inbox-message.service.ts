@@ -68,6 +68,12 @@ export async function createMessage(workspaceId: string, conversationId: string,
   // Automatically update conversation lastActivityAt and status if pending
   // AND dispatch outbound message if it's an email channel
   const convoUpdate: any = { lastActivityAt: new Date() };
+  // A visitor message is unread until an agent opens the thread. The
+  // legacy webhook inbound path already increments unreadCount; the
+  // widget/live-chat path never did, so new chats never badged.
+  if (data.senderType === 'contact') {
+    convoUpdate.unreadCount = { increment: 1 };
+  }
   if (data.senderType === 'agent' && !data.private) {
     const convo = await db.inboxConversation.findUnique({
       where: { id: conversationId },

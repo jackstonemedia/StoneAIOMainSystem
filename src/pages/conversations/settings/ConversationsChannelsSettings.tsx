@@ -87,7 +87,6 @@ function GmailSection({ connections, onDisconnect, onReconnect }: {
             {isExpanded && (
               <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-3 bg-slate-50 dark:bg-slate-950">
                 {[
-                  { key: 'twoWaySync', label: 'Two-way sync', desc: 'Sync replies sent from Gmail directly into conversations' },
                   { key: 'autoReply', label: 'Auto-reply when away', desc: 'Send auto-reply when no one is available' },
                   { key: 'archiveOnReply', label: 'Archive on reply', desc: 'Auto-archive conversations after you reply' },
                 ].map(opt => (
@@ -221,9 +220,7 @@ function TwilioSection({ connections, onDisconnect }: {
             {isExpanded && (
               <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-3 bg-slate-50 dark:bg-slate-950">
                 {[
-                  { key: 'stopStartHandling', label: 'STOP/START keyword handling', desc: 'Auto opt-out contacts who reply STOP' },
-                  { key: 'quietHoursEnabled', label: 'Quiet hours enforcement', desc: 'Pause SMS during non-business hours' },
-                  { key: 'businessHoursAutoReply', label: 'Business hours auto-reply', desc: 'Auto-reply outside business hours' },
+                  { key: 'quietHoursEnabled', label: 'Quiet hours enforcement', desc: 'Block SMS sends between 9pm and 8am' },
                 ].map(opt => (
                   <div key={opt.key} className="flex items-start justify-between gap-4">
                     <div>
@@ -241,15 +238,6 @@ function TwilioSection({ connections, onDisconnect }: {
                   </div>
                 ))}
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Forwarding number</label>
-                  <input
-                    defaultValue={conn.forwardingNumber ?? ''}
-                    onBlur={e => update.mutate({ id: conn.id, data: { forwardingNumber: e.target.value } })}
-                    placeholder="+1 555 000 0000"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                </div>
               </div>
             )}
           </div>
