@@ -12,7 +12,7 @@
  * Edges: standard flow; CONDITION_BRANCH has two output handles: "Yes" / "No".
  */
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import {
   ReactFlow, Background, Controls, MiniMap, Panel,
   addEdge, useNodesState, useEdgesState,
@@ -24,6 +24,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { nanoid } from 'nanoid';
+import {
+  defaultStepConfig, defaultTriggerConfig, configSummary,
+  FIREABLE_TRIGGER_TYPES, RUNNABLE_STEP_TYPES,
+} from '../../lib/automationCanvas';
+import { crmApi } from '../../lib/api/crm';
+import { landingPagesApi } from '../../lib/api/landingPages';
+import AutomationConfigPanel from './AutomationConfigPanel';
 import {
   Mail, Clock, GitBranch, Tag, Target, Globe,
   LogOut, Plus, Save, ArrowLeft, Zap, List,
@@ -72,6 +79,9 @@ function AutomationNode({ data, selected }: { data: any; selected?: boolean }) {
         </div>
         <div className="text-white font-bold text-xs leading-snug">{data.label || cfg.label}</div>
         {data.description && <div className="text-white/60 text-[11px] mt-1 leading-relaxed">{data.description}</div>}
+        {data.stepType !== 'TRIGGER' && configSummary(data.stepType, data.config) && (
+          <div className="text-white/80 text-[11px] mt-1 leading-relaxed">{configSummary(data.stepType, data.config)}</div>
+        )}
       </div>
 
       {/* Output handles */}
@@ -95,16 +105,16 @@ const nodeTypes: NodeTypes = { automationNode: AutomationNode };
 
 // ── Step type palette ─────────────────────────────────────────────────────────
 
-const STEP_PALETTE = [
-  'SEND_EMAIL', 'WAIT', 'CONDITION_BRANCH', 'ADD_TAG', 'REMOVE_TAG',
-  'UPDATE_FIELD', 'ADD_TO_LIST', 'REMOVE_FROM_LIST', 'WEBHOOK_CALL', 'GOAL_CHECK', 'EXIT_AUTOMATION',
-] as const;
+// Only steps the runner can execute. ADD_TO_LIST / REMOVE_FROM_LIST are NOT
+// offered: there is no List model (only filter-based Segments), so there is
+// nothing to add a contact to. See src/lib/automationCanvas.ts.
+const STEP_PALETTE = [...RUNNABLE_STEP_TYPES] as const;
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const TRIGGER_LABELS: Record<string, string> = {
   CONTACT_CREATED: 'Contact Created', TAG_ADDED: 'Tag Added', TAG_REMOVED: 'Tag Removed',
-  LIST_JOINED: 'List Joined', DEAL_STAGE_CHANGED: 'Deal Stage Changed',
+  FORM_SUBMITTED: 'Form Submitted', LIST_JOINED: 'List Joined', DEAL_STAGE_CHANGED: 'Deal Stage Changed',
   CUSTOM_FIELD_CHANGED: 'Custom Field Changed', DATE_BASED: 'Date Based',
   EMAIL_OPENED: 'Email Opened', EMAIL_LINK_CLICKED: 'Link Clicked',
   MANUAL_ENROLLMENT: 'Manual Enrollment', API_EVENT: 'API Event',
@@ -162,8 +172,48 @@ export default function AutomationCanvas() {
 
   const [automationName, setAutomationName] = useState('New Automation');
   const [triggerType, setTriggerType] = useState('CONTACT_CREATED');
+  const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown>>({});
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // Option lists for trigger config (pipelines -> stages, campaigns, landing pages).
+  const { data: pipelines } = useQuery({
+    queryKey: ['crm', 'pipelines'],
+    queryFn: () => crmApi.getPipelines(),
+  });
+  const { data: campaignsData } = useQuery({
+    queryKey: ['email-marketing', 'campaigns'],
+    queryFn: () => apiClient.get('/email-marketing/campaigns').then((r) => r.data),
+  });
+  const { data: landingPages } = useQuery({
+    queryKey: ['email-marketing', 'landing-pages'],
+    queryFn: () => landingPagesApi.list(),
+  });
+  const stageOptions = useMemo(
+    () =>
+      (pipelines || []).flatMap((p: any) =>
+        (p.stages || []).map((s: any) => ({ id: s.id, label: `${p.name} / ${s.name}` })),
+      ),
+    [pipelines],
+  );
+  const campaignOptions = Array.isArray(campaignsData)
+    ? campaignsData
+    : (campaignsData as any)?.campaigns || [];
+  const pageOptions: { id: string; name: string; slug: string }[] = Array.isArray(landingPages)
+    ? landingPages
+    : [];
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
+  const updateSelectedNodeData = (patch: Record<string, unknown>) => {
+    if (!selectedNodeId) return;
+    setNodes((nds) => nds.map((n) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...patch } } : n)));
+  };
+  const deleteSelectedNode = () => {
+    if (!selectedNodeId || selectedNode?.data?.stepType === 'TRIGGER') return;
+    setNodes((nds) => nds.filter((n) => n.id !== selectedNodeId));
+    setEdges((eds) => eds.filter((e) => e.source !== selectedNodeId && e.target !== selectedNodeId));
+    setSelectedNodeId(null);
+  };
 
   const { isLoading, data: automationData } = useQuery({
     queryKey: ['email-marketing', 'automation', automationId],
@@ -176,6 +226,7 @@ export default function AutomationCanvas() {
     if (!automationData) return;
     setAutomationName(automationData.name);
     setTriggerType(automationData.triggerType);
+    setTriggerConfig({ ...defaultTriggerConfig(automationData.triggerType), ...(automationData.triggerConfig || {}) });
     setNodes(buildInitialNodes(automationData));
     setEdges(buildInitialEdges(automationData));
   }, [automationData]);
@@ -187,13 +238,13 @@ export default function AutomationCanvas() {
         const created = await createAutomation({
           name: automationName,
           triggerType,
-          triggerConfig: {},
+          triggerConfig,
           canvasJson,
           status: 'DRAFT',
         });
         return created.id as string;
       }
-      await saveAutomation(automationId!, { name: automationName, canvasJson });
+      await saveAutomation(automationId!, { name: automationName, canvasJson, triggerConfig });
       return automationId!;
     },
     onSuccess: (id: string) => {
@@ -217,7 +268,7 @@ export default function AutomationCanvas() {
       id: nanoid(),
       type: 'automationNode',
       position: { x: 300 + (Math.random() * 80 - 40), y: 160 + nodes.length * 110 },
-      data: { stepType, label: cfg.label, description: '' },
+      data: { stepType, label: cfg.label, description: '', config: defaultStepConfig(stepType) },
     };
     setNodes(nds => [...nds, newNode]);
   };
@@ -261,8 +312,8 @@ export default function AutomationCanvas() {
               disabled={!isNew}
               className="bg-transparent text-text-main font-bold focus:outline-none cursor-pointer"
             >
-              {Object.entries(TRIGGER_LABELS).map(([k, v]) => (
-                <option key={k} value={k} className="bg-surface text-text-main">{v}</option>
+              {FIREABLE_TRIGGER_TYPES.map((k) => (
+                <option key={k} value={k} className="bg-surface text-text-main">{TRIGGER_LABELS[k]}</option>
               ))}
             </select>
           </div>
@@ -288,6 +339,8 @@ export default function AutomationCanvas() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          onPaneClick={() => setSelectedNodeId(null)}
           nodeTypes={nodeTypes}
           fitView
           className="bg-bg"
@@ -323,6 +376,19 @@ export default function AutomationCanvas() {
             </div>
           </Panel>
         </ReactFlow>
+
+        <AutomationConfigPanel
+          node={selectedNode}
+          triggerType={triggerType}
+          triggerConfig={triggerConfig}
+          onTriggerConfigChange={(patch) => setTriggerConfig((c) => ({ ...c, ...patch }))}
+          onNodeDataChange={updateSelectedNodeData}
+          onDeleteNode={deleteSelectedNode}
+          onClose={() => setSelectedNodeId(null)}
+          stageOptions={stageOptions}
+          campaignOptions={campaignOptions}
+          pageOptions={pageOptions}
+        />
       </div>
     </div>
   );
