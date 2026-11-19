@@ -20,6 +20,8 @@ router.get('/connections', async (req, res) => {
         dailySendLimit: true, sentTodayCount: true, status: true,
         lastSentAt: true, lastResetAt: true, consecutiveBounces: true,
         minDelaySeconds: true, maxDelaySeconds: true, warmupDay: true,
+        signature: true, autoReply: true, autoReplyText: true,
+        archiveOnReply: true, quietHoursEnabled: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -249,16 +251,26 @@ router.patch('/connections/:id', async (req, res) => {
     if (!conn) return res.status(404).json({ error: 'Not found' });
     if (conn.workspaceId !== req.workspaceId) return res.status(403).json({ error: 'Forbidden' });
 
+    // Tranche A fix 12: the route used to destructure nine behaviour fields
+    // (twoWaySync, signature, autoReply, autoReplyText, sharedWithUserIds,
+    // archiveOnReply, forwardingNumber, businessHoursAutoReply,
+    // teamRoutingId, stopStartHandling, quietHoursEnabled), persist none of
+    // them, and echo them back as ?? defaults — the settings vanished on
+    // reload and never affected a send. Only the five fields with a real
+    // hook are accepted now; the rest were removed from the form.
     const {
       label, isActive, dailySendLimit, status,
-      twoWaySync, signature, autoReply, autoReplyText,
-      sharedWithUserIds, archiveOnReply, forwardingNumber, businessHoursAutoReply,
-      teamRoutingId, stopStartHandling, quietHoursEnabled
+      signature, autoReply, autoReplyText, archiveOnReply, quietHoursEnabled,
     } = req.body;
 
     const data: any = {};
     if (label !== undefined) data.label = label;
     if (isActive !== undefined) data.isActive = isActive;
+    if (signature !== undefined) data.signature = signature || null;
+    if (autoReply !== undefined) data.autoReply = !!autoReply;
+    if (autoReplyText !== undefined) data.autoReplyText = autoReplyText || null;
+    if (archiveOnReply !== undefined) data.archiveOnReply = !!archiveOnReply;
+    if (quietHoursEnabled !== undefined) data.quietHoursEnabled = !!quietHoursEnabled;
 
     if (dailySendLimit !== undefined) {
       const limit = Number(dailySendLimit);
@@ -286,20 +298,7 @@ router.patch('/connections/:id', async (req, res) => {
       data,
     });
 
-    res.json({
-      ...updated,
-      twoWaySync: twoWaySync ?? true,
-      signature: signature ?? '',
-      autoReply: autoReply ?? false,
-      autoReplyText: autoReplyText ?? '',
-      sharedWithUserIds: sharedWithUserIds ?? [],
-      archiveOnReply: archiveOnReply ?? false,
-      forwardingNumber: forwardingNumber ?? '',
-      businessHoursAutoReply: businessHoursAutoReply ?? false,
-      teamRoutingId: teamRoutingId ?? '',
-      stopStartHandling: stopStartHandling ?? true,
-      quietHoursEnabled: quietHoursEnabled ?? false,
-    });
+    res.json(updated);
   } catch (e) { res.status(500).json({ error: String(e) }); }
 });
 

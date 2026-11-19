@@ -276,3 +276,33 @@ export async function resetDailyQuotas(targetDate: Date = new Date()): Promise<{
 
   return { resetCount: result.count };
 }
+
+/**
+ * Daily send-limit gate for the Conversations send path (Tranche A fix 12).
+ * The limit used to be enforced only by the email-marketing mailbox pool,
+ * so a Conversations reply could blow straight past it. Re-reads the
+ * connection (fresh counts), resets a stale counter with the same UTC-day
+ * rule as resetDailyQuotas, and throws when the connection has already
+ * sent its daily allowance. Callers mark the message failed and surface
+ * the error, following the dispatch contract.
+ */
+export async function assertDailySendAvailable(connectionId: string): Promise<void> {
+  const conn = await db.channelConnection.findUnique({ where: { id: connectionId } });
+  if (!conn) return;
+  const now = new Date();
+  const startOfTodayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  let sentToday = conn.sentTodayCount ?? 0;
+  if (!conn.lastResetAt || conn.lastResetAt < startOfTodayUtc) {
+    await db.channelConnection.update({
+      where: { id: connectionId },
+      data: { sentTodayCount: 0, lastResetAt: now },
+    });
+    sentToday = 0;
+  }
+  const limit = conn.dailySendLimit ?? 40;
+  if (sentToday >= limit) {
+    throw new Error(
+      `Daily send limit reached for this ${conn.provider === 'twilio' ? 'number' : 'mailbox'} (${sentToday}/${limit} sent today). Raise the limit in Settings or wait until tomorrow.`,
+    );
+  }
+}

@@ -810,6 +810,19 @@ model ChannelConnection {
   minDelaySeconds           Int       @default(90) @map("min_delay_seconds")
   maxDelaySeconds           Int       @default(180) @map("max_delay_seconds")
   warmupDay                 Int       @default(0) @map("warmup_day")
+  // Channel behaviour (Tranche A fix 12). These used to be form fields the
+  // PATCH route silently dropped and echoed back as defaults — the settings
+  // vanished on reload and never affected a send. Only fields with a real
+  // hook live here: signature (email dispatch), autoReply/autoReplyText
+  // (inbound email auto-reply), archiveOnReply (dispatch), quietHoursEnabled
+  // (SMS dispatch). Fields with no hook (two-way sync, STOP handling,
+  // business-hours auto-reply, forwarding number) were removed from the
+  // form instead of persisted-but-ignored.
+  signature                 String?
+  autoReply                 Boolean   @default(false) @map("auto_reply")
+  autoReplyText             String?   @map("auto_reply_text")
+  archiveOnReply            Boolean   @default(false) @map("archive_on_reply")
+  quietHoursEnabled         Boolean   @default(false) @map("quiet_hours_enabled")
 
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")

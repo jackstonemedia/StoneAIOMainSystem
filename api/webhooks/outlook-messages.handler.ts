@@ -103,6 +103,22 @@ export async function outlookWebhookHandler(req: Request, res: Response): Promis
       } catch (replyErr) {
         console.warn('[Outlook Webhook] Stop-on-reply handler error (non-fatal):', replyErr);
       }
+
+      // ── Auto-Reply Hook (Tranche A fix 12) ──────────────────────────────
+      // Replies exactly once per conversation, when no one has answered yet.
+      // Non-fatal: a failed auto-reply must never break the webhook.
+      try {
+        const { maybeSendAutoReply } = await import('../services/channels/auto-reply.service.js');
+        await maybeSendAutoReply({
+          connectionId: conn.id,
+          conversationId: convo.id,
+          senderEmail: from,
+          subject,
+          threadId,
+        });
+      } catch (autoErr) {
+        console.warn('[Outlook Webhook] Auto-reply handler error (non-fatal):', autoErr);
+      }
     } catch (err) {
       console.error('[Outlook Webhook] Error:', err);
     }
