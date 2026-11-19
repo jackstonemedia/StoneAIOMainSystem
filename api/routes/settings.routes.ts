@@ -76,31 +76,6 @@ router.put('/workspace', requireRole('admin', 'owner'), async (req, res) => {
   }
 });
 
-// ── API Keys ──────────────────────────────────────────────────────────────────
-router.get('/api-keys', async (req, res) => {
-  try {
-    const keys = await db.apiKey.findMany({ where: { workspaceId: req.workspaceId } });
-    res.json(keys.map(k => ({ ...k, keyEncrypted: k.keyEncrypted ? '••••' + k.keyEncrypted.slice(-4) : '' })));
-  } catch (e) { res.json([]); }
-});
-
-router.put('/api-keys', requireRole('admin'), async (req, res) => {
-  try {
-    const { provider, key } = req.body;
-    if (!provider || !key) return res.status(400).json({ error: 'provider and key required' });
-    const encrypted = encryptString(key);
-    const existing = await db.apiKey.findUnique({
-      where: { workspaceId_provider: { workspaceId: req.workspaceId, provider } },
-    });
-    if (existing) {
-      await db.apiKey.update({ where: { id: existing.id }, data: { keyEncrypted: encrypted } });
-    } else {
-      await db.apiKey.create({ data: { workspaceId: req.workspaceId, provider, keyEncrypted: encrypted } });
-    }
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
-});
-
 // ── Integrations ──────────────────────────────────────────────────────────────
 router.get('/integrations', async (req, res) => {
   try {

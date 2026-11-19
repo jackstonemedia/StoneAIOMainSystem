@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
-  Plug, Globe, Phone, Mail, Copy, Eye, EyeOff, Plus,
+  Plug, Globe, Phone, Mail, Copy, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
   QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard, Bot
 } from 'lucide-react';
@@ -37,11 +37,6 @@ const INTEGRATIONS = [
     icon: Phone,
     color: 'text-red-400',
     bg: 'bg-red-400/10',
-    fields: [
-      { key: 'twilio_sid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxx', type: 'text' },
-      { key: 'twilio_token', label: 'Auth Token', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
-      { key: 'twilio_from', label: 'From Number', placeholder: '+1 (555) 000-0000', type: 'text' },
-    ],
   },
   {
     id: 'google',
@@ -51,10 +46,6 @@ const INTEGRATIONS = [
     color: 'text-red-400',
     bg: 'bg-red-400/10',
     isChannelOAuth: 'gmail',
-    fields: [
-      { key: 'google_client_id', label: 'OAuth Client ID (Optional override)', placeholder: 'xxxx.apps.googleusercontent.com', type: 'text' },
-      { key: 'google_client_secret', label: 'OAuth Client Secret (Optional override)', placeholder: 'GOCSPX-xxxxxxxxxxxx', type: 'password' },
-    ],
   },
   {
     id: 'outlook',
@@ -64,10 +55,6 @@ const INTEGRATIONS = [
     color: 'text-blue-400',
     bg: 'bg-blue-400/10',
     isChannelOAuth: 'outlook',
-    fields: [
-      { key: 'outlook_client_id', label: 'Application (client) ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', type: 'text' },
-      { key: 'outlook_client_secret', label: 'Client Secret', placeholder: '••••••••••••••••••••••••••••', type: 'password' },
-    ],
   },
 ];
 
@@ -80,39 +67,17 @@ const NOTIF_PREFS = [
   { key: 'new_contact', label: 'New Contact Added', desc: 'When an ad campaign brings in a new lead' },
 ];
 
-function FieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
-  const [show, setShow] = useState(false);
-  const isPass = props.type === 'password';
-  return (
-    <div className="relative">
-      <input
-        type={isPass && !show ? 'password' : 'text'}
-        placeholder={props.placeholder}
-        value={props.value}
-        onChange={e => props.onChange(e.target.value)}
-        className="w-full px-3 py-2 pr-10 bg-bg border border-border rounded-[6px] text-[13px] text-text-main focus:outline-none focus:border-primary font-mono placeholder:text-text-muted/50 placeholder:font-sans"
-      />
-      {isPass && (
-        <button type="button" onClick={() => setShow(s => !s)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main transition-colors">
-          {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function SettingsPage() {
   const { theme, setTheme, themes } = useTheme();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'general');
   const [wsName, setWsName] = useState('Stone AIO');
   const [wsId, setWsId] = useState('ws_default_stone_aio');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const [keyValues, setKeyValues] = useState<Record<string, string>>({});
   // Notification preferences load from the API (Tranche A fix 11) — the old
   // all-true useState init was a hardcoded default, and Save only toasted.
   // notifEdits holds unsaved changes over the loaded values.
@@ -190,11 +155,6 @@ export default function SettingsPage() {
       if (d?.id) setWsId(d.id);
     }
   } as any);
-
-  const { data: savedKeys = [] } = useQuery<any[]>({
-    queryKey: ['settings', 'api-keys'],
-    queryFn: () => apiFetch('/api/settings/api-keys').then(r => r.ok ? r.json() : []),
-  });
 
   const { data: channelConnections = [] } = useQuery<any[]>({
     queryKey: ['channel-connections'],
@@ -336,13 +296,6 @@ export default function SettingsPage() {
     }
   };
 
-  const saveKey = useMutation({
-    mutationFn: ({ provider, key }: { provider: string; key: string }) =>
-      apiFetch('/api/settings/api-keys', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key }) }).then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); }),
-    onSuccess: () => { toast('success', 'API key saved!'); qc.invalidateQueries({ queryKey: ['settings', 'api-keys'] }); },
-    onError: () => toast('error', 'Failed to save key'),
-  });
-
   const inviteMember = useMutation({
     mutationFn: ({ email, role }: { email: string; role: string }) =>
       apiFetch('/api/settings/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(async r => {
@@ -385,7 +338,10 @@ export default function SettingsPage() {
     reader.readAsDataURL(file);
   };
 
-  const isConnected = (id: string) => savedKeys.some((k: any) => k.provider.startsWith(id));
+  // Connected = a real channel connection exists. (Tranche A fix 14: the old
+  // check read the orphan ApiKey store, so pasting any credential marked the
+  // integration "Connected" even though nothing ever used the key.)
+  const isConnected = (id: string) => (channelConnections || []).some((c: any) => c.provider === id);
 
   const tabContent: Record<string, React.ReactNode> = {
     billing: <Billing />,
@@ -748,68 +704,20 @@ export default function SettingsPage() {
                               </div>
                             )}
 
-                            {/* Collapsible API Keys Section */}
-                            <div className="pt-3 border-t border-border/60">
-                              <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">Custom OAuth Credentials (Optional)</p>
-                              <div className="space-y-3">
-                                {intg.fields.map(field => (
-                                  <div key={field.key}>
-                                    <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
-                                    <FieldInput
-                                      type={field.type}
-                                      placeholder={field.placeholder}
-                                      value={keyValues[field.key] || ''}
-                                      onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
-                                    />
-                                  </div>
-                                ))}
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const promises = intg.fields.map(f =>
-                                        keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                                      );
-                                      await Promise.all(promises);
-                                    } catch { toast('error', 'One or more keys failed to save'); }
-                                  }}
-                                  disabled={saveKey.isPending}
-                                  className="flex items-center gap-2 px-3.5 py-1.5 bg-surface-hover border border-border text-text-main rounded-md text-[12px] font-semibold hover:bg-surface transition-colors"
-                                >
-                                  {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                  Save Custom Keys
-                                </button>
-                              </div>
-                            </div>
                           </div>
                         ) : (
-                          <>
-                            {intg.fields.map(field => (
-                              <div key={field.key}>
-                                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">{field.label}</label>
-                                <FieldInput
-                                  type={field.type}
-                                  placeholder={field.placeholder}
-                                  value={keyValues[field.key] || ''}
-                                  onChange={v => setKeyValues(prev => ({ ...prev, [field.key]: v }))}
-                                />
-                              </div>
-                            ))}
+                          <div className="p-5 rounded-xl border border-border bg-bg/60 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                              <div className="text-[14px] font-bold text-text-main">Manage SMS numbers</div>
+                              <div className="text-[12px] text-text-muted mt-0.5">Twilio numbers are provisioned and managed in Conversations settings.</div>
+                            </div>
                             <button
-                              onClick={async () => {
-                                try {
-                                  const promises = intg.fields.map(f =>
-                                    keyValues[f.key] ? saveKey.mutateAsync({ provider: f.key, key: keyValues[f.key] }) : Promise.resolve()
-                                  );
-                                  await Promise.all(promises);
-                                } catch { toast('error', 'One or more keys failed to save'); }
-                              }}
-                              disabled={saveKey.isPending}
-                              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
+                              onClick={() => navigate('/conversations/settings/channels')}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-md transition-all shrink-0 cursor-pointer"
                             >
-                              {saveKey.isPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                              Save {intg.label} Keys
+                              <Phone className="w-4 h-4" /> Manage SMS Numbers
                             </button>
-                          </>
+                          </div>
                         )}
                       </div>
                     </motion.div>

@@ -37,7 +37,6 @@ model Workspace {
   crmSettings       CrmSettings?
   bulkActions       BulkAction[]
   deals             Deal[]
-  apiKeys           ApiKey[]
   integrations      Integration[]
   appointments      Appointment[]
   conversations     Conversation[]
@@ -750,19 +749,6 @@ model Activity {
   company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("activities")
-}
-
-model ApiKey {
-  id           String    @id @default(uuid())
-  workspaceId  String    @map("workspace_id")
-  provider     String
-  keyEncrypted String    @map("key_encrypted")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([workspaceId, provider])
-  @@map("api_keys")
 }
 
 model Integration {

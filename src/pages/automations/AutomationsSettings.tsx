@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Settings, Save, Github, Copy, Server, Bell } from 'lucide-react';
+import { Settings, Save, Github, Bell } from 'lucide-react';
 import { useToast } from '../../components/ui/Toast';
 
 export default function AutomationsSettings() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'general' | 'git' | 'mcp' | 'notifications'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'git' | 'notifications'>('general');
 
   const handleSave = () => {
     toast('success', 'Settings saved');
@@ -29,9 +29,6 @@ export default function AutomationsSettings() {
           </button>
           <button onClick={() => setActiveTab('git')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'git' ? 'bg-accent/10 text-accent font-medium' : 'text-text-muted hover:text-text-main hover:bg-bg'}`}>
             <Github className="w-4 h-4" /> Environment
-          </button>
-          <button onClick={() => setActiveTab('mcp')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'mcp' ? 'bg-accent/10 text-accent font-medium' : 'text-text-muted hover:text-text-main hover:bg-bg'}`}>
-            <Server className="w-4 h-4" /> MCP Server
           </button>
           <button onClick={() => setActiveTab('notifications')} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${activeTab === 'notifications' ? 'bg-accent/10 text-accent font-medium' : 'text-text-muted hover:text-text-main hover:bg-bg'}`}>
             <Bell className="w-4 h-4" /> Notifications
@@ -84,41 +81,6 @@ export default function AutomationsSettings() {
                     <div className="pt-2 flex items-center gap-3">
                       <button onClick={handleSave} className="px-4 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90">Save Git Settings</button>
                       <button className="px-4 py-2 border border-border text-text-muted text-sm font-medium rounded-lg hover:bg-surface">Test Connection</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'mcp' && (
-              <div className="space-y-6">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-base font-semibold text-text-main">Model Context Protocol (MCP)</h2>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <span className="text-sm font-medium text-text-muted">Enable MCP Server</span>
-                      <input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" />
-                    </label>
-                  </div>
-                  <p className="text-sm text-text-muted mb-4">Expose your automation tools, connections, and flows to external AI agents via the MCP standard.</p>
-                  
-                  <div className="bg-surface border border-border rounded-xl p-5 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1.5">Server URL</label>
-                      <div className="flex gap-2">
-                        <input type="text" readOnly value="https://api.stoneaio.com/v1/mcp/env_123456" className="flex-1 px-3 py-2 bg-bg border border-border rounded-lg text-sm font-mono text-text-muted" />
-                        <button className="px-3 py-2 bg-surface border border-border text-text-muted rounded-lg hover:bg-bg" title="Copy"><Copy className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                    
-                    <div className="pt-2 border-t border-border">
-                      <h3 className="text-sm font-medium text-text-main mb-3">Tool Categories</h3>
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-3"><input type="checkbox" disabled checked className="w-4 h-4 accent-accent opacity-50" /><span className="text-sm text-text-muted">Discovery (Always on)</span></label>
-                        <label className="flex items-center gap-3"><input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" /><span className="text-sm text-text-main">Flow Management (Read/Write)</span></label>
-                        <label className="flex items-center gap-3"><input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" /><span className="text-sm text-text-main">Testing & Runs</span></label>
-                        <label className="flex items-center gap-3"><input type="checkbox" className="w-4 h-4 accent-accent" /><span className="text-sm text-text-main">Tables Access</span></label>
-                      </div>
                     </div>
                   </div>
                 </div>
