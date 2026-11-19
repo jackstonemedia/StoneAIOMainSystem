@@ -16,6 +16,7 @@ const FULLSCREEN_PATTERNS = [
   '/email-marketing/campaigns/:campaignId',
   '/email-marketing/automations/new',
   '/email-marketing/automations/:automationId',
+  '/email-marketing/landing-pages/:id',
   '/email-marketing/create-with-ai',
 ];
 

@@ -4,27 +4,9 @@
  * apiFetch throws with it, so the UI shows the honest reason.
  */
 import { apiFetch } from '../apiClient';
+import type { LandingPage, LandingPageStats, PageSection } from '../../types';
 
-export interface LandingPageStats {
-  views: number;
-  submissions: number;
-  conversion: number | null;
-}
-
-export interface LandingPage {
-  id: string;
-  workspaceId: string;
-  name: string;
-  slug: string;
-  status: 'draft' | 'published';
-  seoTitle: string | null;
-  seoDesc: string | null;
-  sectionsJson: unknown;
-  publishedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  stats: LandingPageStats;
-}
+export type { LandingPage, LandingPageStats, PageSection };
 
 export interface LandingPageTemplate {
   id: string;
@@ -40,6 +22,9 @@ async function json<T>(res: Response): Promise<T> {
 export const landingPagesApi = {
   list(): Promise<LandingPage[]> {
     return apiFetch('/api/landing-pages').then(json<LandingPage[]>);
+  },
+  get(id: string): Promise<LandingPage> {
+    return apiFetch(`/api/landing-pages/${id}`).then(json<LandingPage>);
   },
   templates(): Promise<LandingPageTemplate[]> {
     return apiFetch('/api/landing-pages/templates').then(json<LandingPageTemplate[]>);

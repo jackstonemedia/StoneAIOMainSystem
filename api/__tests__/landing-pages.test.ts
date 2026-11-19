@@ -178,6 +178,23 @@ describe('Landing Pages (Wave 1 item 1.1)', () => {
     expect(other.status).toBe(404);
   });
 
+  it('update persists sectionsJson (regression: client sends sectionsJson)', async () => {
+    const page = seedPage({
+      sectionsJson: [{ id: 's1', type: 'hero', config: { heading: 'Old' } }],
+    });
+    const res = await request(app)
+      .put(`/api/landing-pages/${page.id}`)
+      .send({
+        sectionsJson: [
+          { id: 's1', type: 'hero', config: { heading: 'New' } },
+          { id: 's2', type: 'text', config: { body: 'Added' } },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.sectionsJson[0].config.heading).toBe('New');
+    expect(res.body.sectionsJson).toHaveLength(2);
+  });
+
   it('refuses a slug change on a published page', async () => {
     const page = seedPage({
       status: 'published',

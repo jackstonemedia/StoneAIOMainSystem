@@ -148,7 +148,7 @@ export async function createLandingPage(
     slug?: unknown;
     seoTitle?: unknown;
     seoDesc?: unknown;
-    sections?: unknown;
+    sectionsJson?: unknown;
     templateId?: unknown;
   },
 ): Promise<LandingPageWithStats> {
@@ -160,8 +160,8 @@ export async function createLandingPage(
     const template = getLandingPageTemplate(input.templateId);
     if (!template) throw new AppError(400, `Unknown template: ${input.templateId}.`);
     sections = withFreshIds(template.sections);
-  } else if (input.sections !== undefined) {
-    sections = validateSections(input.sections);
+  } else if (input.sectionsJson !== undefined) {
+    sections = validateSections(input.sectionsJson);
   }
 
   const slugBase =
@@ -194,7 +194,7 @@ export async function updateLandingPage(
     slug?: unknown;
     seoTitle?: unknown;
     seoDesc?: unknown;
-    sections?: unknown;
+    sectionsJson?: unknown;
   },
 ): Promise<LandingPageWithStats> {
   const page = await db.landingPage.findFirst({ where: { id, workspaceId } });
@@ -221,8 +221,8 @@ export async function updateLandingPage(
   if (input.seoDesc !== undefined) {
     data.seoDesc = typeof input.seoDesc === 'string' ? input.seoDesc : null;
   }
-  if (input.sections !== undefined) {
-    data.sectionsJson = validateSections(input.sections);
+  if (input.sectionsJson !== undefined) {
+    data.sectionsJson = validateSections(input.sectionsJson);
   }
 
   const updated = await db.landingPage.update({
