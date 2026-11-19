@@ -23,6 +23,7 @@ import Signup from './pages/Signup';
 import SSOCallback from './pages/SSOCallback';
 import Onboarding from './pages/Onboarding';
 const PublicBookingPage   = lazy(() => import('./pages/public/PublicBookingPage'));
+const PublicLandingPage   = lazy(() => import('./pages/public/PublicLandingPage'));
 const InviteAcceptPage    = lazy(() => import('./pages/InviteAccept'));
 
 // CRM / Automations
@@ -161,6 +162,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/book/:slug" element={<PublicBookingPage />} />
           <Route path="/book"       element={<PublicBookingPage />} />
+          <Route path="/p/:slug"    element={<PublicLandingPage />} />
           <Route path="/terms"      element={<TermsOfService />} />
           <Route path="/privacy"    element={<PrivacyPolicy />} />
           <Route path="/invite/:token" element={<InviteAcceptPage />} />

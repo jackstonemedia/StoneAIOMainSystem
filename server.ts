@@ -45,6 +45,7 @@ import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
+import publicLandingRouter from './api/routes/public-landing.routes.js';
 import invitesRouter, { publicInvitesRouter } from './api/routes/invites.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
@@ -305,6 +306,9 @@ async function startServer() {
 
   // ── Public calendar booking & ICS downloads (no JWT) ──────────────────────────
   app.use('/api/public/calendar', publicBookingRouter);
+
+  // ── Public landing pages (no JWT) ─────────────────────────────────────────
+  app.use('/api/public/pages', publicLandingRouter);
 
   // ── Public invite lookup (no JWT — the invitee may not have an account yet) ──
   app.use('/api/invites', publicInvitesRouter);
