@@ -54,6 +54,7 @@
  */
 
 import { db } from '../../../infrastructure/database/client.js';
+import { emitTrigger } from '../trigger-emitter.service.js';
 import {
   detectExitSignals,
   exitStatusFor,
@@ -889,6 +890,8 @@ async function tagContact(workspaceId: string, contactId: string, tagName: strin
     if (!tags.includes(name)) {
       tags.push(name);
       await db.contact.update({ where: { id: contactId }, data: { tagsJson: JSON.stringify(tags) } });
+      // Slice 1c: the tag was really added — fire TAG_ADDED automations.
+      emitTrigger(workspaceId, 'contact.tag_added', { contactId, tag: name }).catch(() => {});
     }
   } catch (err) {
     console.error('[ReactionEngine] Tag failed:', (err as Error).message);

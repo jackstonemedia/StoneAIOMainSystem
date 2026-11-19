@@ -505,6 +505,32 @@ router.delete('/automations/:automationId', asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Slice 1c: manual enrollment — the "Enroll" button in AutomationsList.
+// Only MANUAL_ENROLLMENT automations accept it; the service throws a
+// plain-words error otherwise (surfaced as 400 here).
+router.post('/automations/:automationId/enroll', asyncHandler(async (req, res) => {
+  const { contactId } = req.body as { contactId?: unknown };
+  if (typeof contactId !== 'string' || !contactId.trim()) {
+    res.status(400).json({ error: 'contactId is required.' });
+    return;
+  }
+  const { enrollContactManually } = await import(
+    '../services/email-marketing/automation-runner.service.js'
+  );
+  try {
+    const enrollment = await enrollContactManually(getWid(req), req.params.automationId, contactId.trim());
+    if (!enrollment) {
+      res.json({ ok: true, enrolled: false, reason: 'Contact is already active in this automation, or already ran it and re-entry is off.' });
+      return;
+    }
+    res.json({ ok: true, enrolled: true, enrollmentId: enrollment.id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Enrollment failed.';
+    const status = /not found/i.test(message) ? 404 : 400;
+    res.status(status).json({ error: message });
+  }
+}));
+
 // ── Open & Click Tracking (public routes — no resolveWorkspace) ─────────────
 // Registered in server.ts before resolveWorkspace middleware so recipient clicks/opens
 // are tracked immediately without requiring authentication.

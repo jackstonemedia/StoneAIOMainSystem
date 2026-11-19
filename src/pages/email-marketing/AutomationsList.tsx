@@ -6,19 +6,24 @@
  * status filter pills, and bottom paginator controls.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { HeaderPortal } from '../../components/layout/HeaderPortal';
-import { Plus, Zap, Trash2, Play, Pause, ChevronRight, AlertCircle, Search, Edit2 } from 'lucide-react';
+import { Plus, Zap, Trash2, Play, Pause, ChevronRight, AlertCircle, Search, Edit2, UserPlus, X } from 'lucide-react';
 
 const api = {
   getAutomations: () => apiClient.get('/email-marketing/automations').then(r => r.data),
   deleteAutomation: (id: string) => apiClient.delete(`/email-marketing/automations/${id}`),
   activateAutomation: (id: string) => apiClient.patch(`/email-marketing/automations/${id}`, { status: 'ACTIVE' }),
   pauseAutomation: (id: string) => apiClient.patch(`/email-marketing/automations/${id}`, { status: 'PAUSED' }),
+  // Slice 1c: manual enrollment for MANUAL_ENROLLMENT automations.
+  enrollContact: (automationId: string, contactId: string) =>
+    apiClient.post(`/email-marketing/automations/${automationId}/enroll`, { contactId }).then(r => r.data),
+  searchContacts: (search: string) =>
+    apiClient.get('/crm/contacts', { params: { search, limit: 10 } }).then(r => r.data?.contacts ?? []),
 };
 
 const STATUS_COLOR: Record<string, { label: string; badgeClass: string }> = {
@@ -71,6 +76,41 @@ export default function AutomationsList() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['email-marketing', 'automations'] });
       toast('success', 'Automation Paused');
+    },
+  });
+
+  // Slice 1c: manual enrollment modal state (MANUAL_ENROLLMENT only).
+  const [enrollTarget, setEnrollTarget] = useState<any | null>(null);
+  const [enrollSearch, setEnrollSearch] = useState('');
+  const [enrollResults, setEnrollResults] = useState<any[]>([]);
+  const [enrollSearching, setEnrollSearching] = useState(false);
+
+  useEffect(() => {
+    if (!enrollTarget) return;
+    setEnrollSearching(true);
+    const t = setTimeout(() => {
+      api.searchContacts(enrollSearch)
+        .then(setEnrollResults)
+        .catch(() => setEnrollResults([]))
+        .finally(() => setEnrollSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [enrollTarget, enrollSearch]);
+
+  const enrollMutation = useMutation({
+    mutationFn: ({ automationId, contactId }: { automationId: string; contactId: string }) =>
+      api.enrollContact(automationId, contactId),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['email-marketing', 'automations'] });
+      if (data?.enrolled) {
+        toast('success', 'Contact Enrolled', 'The contact entered the automation.');
+      } else {
+        toast('info', 'Already Enrolled', data?.reason ?? 'This contact is already in this automation.');
+      }
+      setEnrollTarget(null);
+    },
+    onError: (err: any) => {
+      toast('error', 'Enrollment Failed', err?.response?.data?.error ?? err?.message ?? 'Could not enroll this contact.');
     },
   });
 
@@ -293,6 +333,17 @@ export default function AutomationsList() {
                           </button>
                         )}
 
+                        {/* Slice 1c: manual enrollment — only for MANUAL_ENROLLMENT automations that are ACTIVE. */}
+                        {a.triggerType === 'MANUAL_ENROLLMENT' && a.status === 'ACTIVE' && (
+                          <button
+                            onClick={() => { setEnrollTarget(a); setEnrollSearch(''); setEnrollResults([]); }}
+                            className="flex items-center gap-1 px-2.5 py-1 border border-border bg-surface-hover hover:bg-surface text-text-main rounded-[6px] text-[11px] font-semibold transition-all shadow-sm"
+                            title="Enroll a contact in this automation"
+                          >
+                            <UserPlus className="w-3 h-3" /> Enroll
+                          </button>
+                        )}
+
                         <button
                           onClick={() => navigate(`/email-marketing/automations/${a.id}`)}
                           className="p-1 text-text-muted hover:text-text-main rounded-[6px] transition-colors"
@@ -358,6 +409,60 @@ export default function AutomationsList() {
           </div>
         </div>
       </div>
+
+      {/* Slice 1c: manual enrollment modal */}
+      {enrollTarget && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" onClick={() => setEnrollTarget(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative w-full max-w-md rounded-xl border border-border bg-surface shadow-2xl p-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[15px] font-semibold text-text-main">Enroll a contact</h3>
+                <p className="text-[12px] text-text-muted mt-0.5">
+                  {enrollTarget.name} — the contact enters the automation now.
+                </p>
+              </div>
+              <button onClick={() => setEnrollTarget(null)} className="p-1 text-text-muted hover:text-text-main rounded-[6px]" title="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="relative mt-4">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                autoFocus
+                value={enrollSearch}
+                onChange={e => setEnrollSearch(e.target.value)}
+                placeholder="Search contacts by name or email…"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-surface-hover text-[13px] text-text-main placeholder:text-text-muted outline-none focus:border-primary"
+              />
+            </div>
+            <div className="mt-3 max-h-64 overflow-y-auto">
+              {enrollSearching ? (
+                <p className="text-[13px] text-text-muted py-3 text-center">Searching…</p>
+              ) : enrollResults.length === 0 ? (
+                <p className="text-[13px] text-text-muted py-3 text-center">No contacts found.</p>
+              ) : (
+                enrollResults.map((c: any) => (
+                  <button
+                    key={c.id}
+                    disabled={enrollMutation.isPending}
+                    onClick={() => enrollMutation.mutate({ automationId: enrollTarget.id, contactId: c.id })}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors disabled:opacity-50"
+                  >
+                    <span className="block text-[13px] font-medium text-text-main">
+                      {c.firstName} {c.lastName}
+                    </span>
+                    <span className="block text-[12px] text-text-muted">{c.email ?? c.phone ?? 'No contact details'}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

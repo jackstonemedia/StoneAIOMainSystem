@@ -10,11 +10,13 @@
  * additions: the step's tag is APPENDED to the contact's tags (the funnel's
  * stated purpose — feeding the contact into a segment that matches the
  * tag), and the contact is enrolled as a PENDING recipient of the step's
- * campaign, if one is set and still exists. Deliberately emits NO trigger
- * — submissions do not start automations in v1 (outline 02-21 is separate).
+ * campaign, if one is set and still exists. Emits form.submitted (Slice 1c)
+ * so FORM_SUBMITTED automations fire — the old "no trigger in v1" note died
+ * with the runner.
  */
 import { db } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../middleware/error.js';
+import { emitTrigger } from '../trigger-emitter.service.js';
 
 export interface PublicFunnelStep {
   funnelId: string;
@@ -128,7 +130,7 @@ function cleanField(v: unknown): string {
   return typeof v === 'string' ? v.trim().slice(0, MAX_FIELD) : '';
 }
 
-async function applyTag(contactId: string, tag: string): Promise<void> {
+async function applyTag(workspaceId: string, contactId: string, tag: string): Promise<void> {
   const contact = await db.contact.findUnique({
     where: { id: contactId },
     select: { tagsJson: true },
@@ -147,6 +149,8 @@ async function applyTag(contactId: string, tag: string): Promise<void> {
       where: { id: contactId },
       data: { tagsJson: JSON.stringify(tags) },
     });
+    // Slice 1c: the step tag was really added — fire TAG_ADDED automations.
+    emitTrigger(workspaceId, 'contact.tag_added', { contactId, tag }).catch(() => {});
   }
 }
 
@@ -185,6 +189,7 @@ export async function submitFunnelStepForm(
   const lastName = nameParts.slice(1).join(' ') || '';
 
   let contact = await db.contact.findFirst({ where: { workspaceId, email } });
+  const isNewContact = !contact;
   if (!contact) {
     contact = await db.contact.create({
       data: { workspaceId, firstName, lastName, email, phone: phone || undefined, source: 'funnel' },
@@ -198,7 +203,7 @@ export async function submitFunnelStepForm(
     select: { tagOnSubmit: true, campaignId: true },
   });
   if (funnelStep?.tagOnSubmit) {
-    await applyTag(contact.id, funnelStep.tagOnSubmit);
+    await applyTag(workspaceId, contact.id, funnelStep.tagOnSubmit);
   }
   if (funnelStep?.campaignId) {
     await enrollInCampaign(funnelStep.campaignId, contact.id);
@@ -214,6 +219,15 @@ export async function submitFunnelStepForm(
       funnelStepId: step.stepId,
     },
   });
+
+  // Slice 1c: a real funnel-step submission — fire FORM_SUBMITTED
+  // automations (pageId = the step's landing page, so page-scoped configs
+  // match). A genuinely NEW contact is also a contact.created event — this
+  // path creates contacts directly, not via crm.createContact.
+  if (isNewContact) {
+    emitTrigger(workspaceId, 'contact.created', { contactId: contact.id, email, source: 'funnel' }).catch(() => {});
+  }
+  emitTrigger(workspaceId, 'form.submitted', { contactId: contact.id, pageId: step.page.id }).catch(() => {});
 
   // Same response whether the contact was new or existing — the visitor
   // cannot probe whether an email is already in the CRM.

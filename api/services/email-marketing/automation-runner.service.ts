@@ -181,6 +181,42 @@ async function maybeEnroll(
   return enrollment as { id: string };
 }
 
+/**
+ * Manual enrollment (Slice 1c) — the "Enroll" button in AutomationsList.
+ * Only MANUAL_ENROLLMENT automations accept it: enrolling a contact by
+ * hand into a CONTACT_CREATED automation would bypass its trigger, so the
+ * route returns a plain-words 400 for that. Returns the enrollment, or
+ * null when the reentry guard declines (already active in this automation,
+ * or one-run-per-contact and already ran).
+ */
+export async function enrollContactManually(
+  workspaceId: string,
+  automationId: string,
+  contactId: string,
+): Promise<{ id: string } | null> {
+  if (!(await isAutomationAllowed(workspaceId))) {
+    throw new Error('Automations require the Complete plan.');
+  }
+  const automation = await db.automation.findFirst({
+    where: { id: automationId, workspaceId },
+  });
+  if (!automation) throw new Error('Automation not found.');
+  if (automation.status !== 'ACTIVE') {
+    throw new Error(
+      `Automation is ${automation.status} — activate it before enrolling contacts.`,
+    );
+  }
+  if (automation.triggerType !== 'MANUAL_ENROLLMENT') {
+    throw new Error('Only MANUAL_ENROLLMENT automations accept manual enrollment.');
+  }
+  const contact = await db.contact.findFirst({
+    where: { id: contactId, workspaceId },
+    select: { id: true },
+  });
+  if (!contact) throw new Error('Contact not found.');
+  return maybeEnroll(automation, contactId);
+}
+
 export async function evaluateAutomationTrigger(
   workspaceId: string,
   event: AutomationTriggerEvent,

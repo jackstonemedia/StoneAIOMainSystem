@@ -599,8 +599,45 @@ export async function createContact(workspaceId: string, data: any) {
   return formatContact(c);
 }
 
+// Slice 1c helpers: parse a tagsJson/customFieldsJson value into a list /
+// object without throwing on malformed stored JSON.
+function parseTagList(v: unknown): string[] {
+  if (!v) return [];
+  try {
+    const p = typeof v === 'string' ? JSON.parse(v) : v;
+    return Array.isArray(p) ? p.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function diffCustomFieldNames(oldJson: unknown, newJson: unknown): string[] {
+  if (newJson === undefined || newJson === null) return [];
+  const parse = (v: unknown): Record<string, unknown> => {
+    if (!v) return {};
+    if (typeof v === 'object') return v as Record<string, unknown>;
+    try {
+      const p = JSON.parse(String(v));
+      return p && typeof p === 'object' ? p : {};
+    } catch {
+      return {};
+    }
+  };
+  const oldFields = parse(oldJson);
+  const newFields = parse(newJson);
+  const keys = new Set([...Object.keys(oldFields), ...Object.keys(newFields)]);
+  return [...keys].filter((k) => JSON.stringify(oldFields[k]) !== JSON.stringify(newFields[k]));
+}
+
 export async function updateContact(id: string, workspaceId: string, raw: any) {
   const { name, tags, businessName, company, ...data } = raw;
+
+  // Slice 1c: load the pre-update tags + custom fields so the emit below
+  // can diff them (tag add/remove + which custom field names changed).
+  const before = await db.contact.findUnique({
+    where: { id, workspaceId },
+    select: { tagsJson: true, customFieldsJson: true },
+  });
 
   if (tags !== undefined) {
     data.tagsJson = Array.isArray(tags) ? JSON.stringify(tags) : String(tags || '[]');
@@ -638,9 +675,28 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
   }
 
   const formatted = formatContact(c);
+
+  // Slice 1c: tag add/remove diff — the runner's TAG_ADDED / TAG_REMOVED
+  // triggers only fire when the tag actually changed on this update.
+  if (data.tagsJson !== undefined && before) {
+    const oldTags = parseTagList(before.tagsJson);
+    const newTags = parseTagList(data.tagsJson);
+    for (const tag of newTags.filter((t) => !oldTags.includes(t))) {
+      emitTrigger(workspaceId, 'contact.tag_added', { contactId: formatted.id, tag }).catch((err) => console.error('[trigger]', err));
+    }
+    for (const tag of oldTags.filter((t) => !newTags.includes(t))) {
+      emitTrigger(workspaceId, 'contact.tag_removed', { contactId: formatted.id, tag }).catch((err) => console.error('[trigger]', err));
+    }
+  }
+
+  // Slice 1c: which custom field NAMES changed (the runner matches
+  // CUSTOM_FIELD_CHANGED against this list, not the raw column name).
+  const changedCustomFields = diffCustomFieldNames(before?.customFieldsJson, data.customFieldsJson);
+
   emitTrigger(workspaceId, 'contact.updated', {
     contactId: formatted.id,
     updatedFields: Object.keys(data),
+    changedCustomFields,
     contact: formatted,
   }).catch(err => console.error('[trigger]', err));
 
@@ -1198,14 +1254,14 @@ export async function updateDeal(id: string, workspaceId: string, raw: any) {
       contactId: deal.contactId,
     }).catch(err => console.error('[trigger]', err));
 
-    if (deal.pipelineStage?.name === 'Won') {
+    if (deal.pipelineStage?.isWon) {
       emitTrigger(workspaceId, 'deal.won', {
         dealId: deal.id,
         title: deal.title,
         value: deal.amount,
         contactId: deal.contactId,
       }).catch(err => console.error('[trigger]', err));
-    } else if (deal.pipelineStage?.name === 'Lost') {
+    } else if (deal.pipelineStage?.isLost) {
       emitTrigger(workspaceId, 'deal.lost', {
         dealId: deal.id,
         title: deal.title,
@@ -1583,6 +1639,9 @@ export async function renameTag(id: string, workspaceId: string, newName: string
     if (tags.includes(oldName)) {
       const newTags = tags.map((t: string) => t === oldName ? newName : t);
       await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+      // Slice 1c: a rename is a remove of the old tag + an add of the new one.
+      emitTrigger(workspaceId, 'contact.tag_removed', { contactId: c.id, tag: oldName }).catch((err) => console.error('[trigger]', err));
+      emitTrigger(workspaceId, 'contact.tag_added', { contactId: c.id, tag: newName }).catch((err) => console.error('[trigger]', err));
     }
   }
   return { success: true };
@@ -1600,6 +1659,8 @@ export async function deleteTag(id: string, workspaceId: string) {
     if (tags.includes(tag.name)) {
       const newTags = tags.filter((t: string) => t !== tag.name);
       await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+      // Slice 1c: the tag was really removed from this contact.
+      emitTrigger(workspaceId, 'contact.tag_removed', { contactId: c.id, tag: tag.name }).catch((err) => console.error('[trigger]', err));
     }
   }
   return { success: true };
@@ -1615,8 +1676,14 @@ export async function mergeTags(sourceTagId: string, targetTagId: string, worksp
     const tags = JSON.parse(c.tagsJson ?? '[]');
     if (tags.includes(sourceTag.name)) {
       const newTags = tags.filter((t: string) => t !== sourceTag.name);
-      if (!newTags.includes(targetTag.name)) newTags.push(targetTag.name);
+      const addedTarget = !newTags.includes(targetTag.name);
+      if (addedTarget) newTags.push(targetTag.name);
       await db.contact.update({ where: { id: c.id }, data: { tagsJson: JSON.stringify(newTags) } });
+      // Slice 1c: source tag removed; target tag added only when it was new.
+      emitTrigger(workspaceId, 'contact.tag_removed', { contactId: c.id, tag: sourceTag.name }).catch((err) => console.error('[trigger]', err));
+      if (addedTarget) {
+        emitTrigger(workspaceId, 'contact.tag_added', { contactId: c.id, tag: targetTag.name }).catch((err) => console.error('[trigger]', err));
+      }
     }
   }
 

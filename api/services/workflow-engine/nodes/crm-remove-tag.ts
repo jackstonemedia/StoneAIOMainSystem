@@ -2,6 +2,7 @@
 import type { NodeImplementation, NodeExecuteResult } from '../node-runner.js';
 import type { NodeConfigField, WorkflowItem, ExecutionContext } from '../../../../src/types/automation.js';
 import { db } from '../../../../infrastructure/database/client.js';
+import { emitTrigger } from '../../trigger-emitter.service.js';
 
 export const crmRemoveTag: NodeImplementation = {
   type: 'crm.remove_tag',
@@ -30,7 +31,12 @@ export const crmRemoveTag: NodeImplementation = {
     let tags: string[] = [];
     try { tags = JSON.parse((contact as any).tagsJson || '[]'); } catch { tags = []; }
     const filtered = tags.filter((t: string) => t !== tag);
-    await db.contact.update({ where: { id: entityId }, data: { tagsJson: JSON.stringify(filtered) } as any });
+    if (filtered.length !== tags.length) {
+      await db.contact.update({ where: { id: entityId }, data: { tagsJson: JSON.stringify(filtered) } as any });
+      // Slice 1c: the tag was really removed — fire TAG_REMOVED automations
+      // (mirrors crm.add_tag, which already emits contact.tag_added).
+      emitTrigger(context.workspaceId, 'contact.tag_removed', { contactId: entityId, tag }).catch(() => {});
+    }
 
     return { output: [{ json: { entityId, tag, tags: filtered } }] };
   },

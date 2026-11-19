@@ -28,6 +28,7 @@ const fakeDb = vi.hoisted(() => {
     },
     automation: {
       findMany: async ({ where }: any = {}) => automations.filter((a) => match(a, where)),
+      findFirst: async ({ where }: any = {}) => automations.find((a) => match(a, where)) ?? null,
       findUnique: async ({ where }: any) => automations.find((a) => a.id === where.id) ?? null,
       create: async ({ data }: any) => {
         const row = { id: nextId(), ...data };
@@ -60,6 +61,7 @@ const fakeDb = vi.hoisted(() => {
     },
     contact: {
       findUnique: async ({ where }: any) => contacts.find((c) => c.id === where.id) ?? null,
+      findFirst: async ({ where }: any = {}) => contacts.find((c) => match(c, where)) ?? null,
       findMany: async ({ where }: any = {}) => contacts.filter((c) => match(c, where)),
       update: async ({ where, data }: any) => {
         const row = contacts.find((c) => c.id === where.id);
@@ -120,6 +122,7 @@ vi.mock('../services/channels/outlook.service.js', () => ({
 
 import {
   evaluateAutomationTrigger,
+  enrollContactManually,
   advanceEnrollment,
   resumeDueEnrollments,
   evaluateDateBasedAutomations,
@@ -393,6 +396,64 @@ describe('automation runner (complete-platform item 1)', () => {
     const enr = fakeDb.enrollments[0];
     expect(enr.exitedAt).toBeNull();
     expect(enr.lastError).toMatch(/No available outreach mailboxes/);
+  });
+
+  // Slice 1c — manual enrollment.
+  it('enrollContactManually enrolls into a MANUAL_ENROLLMENT automation and runs its steps', async () => {
+    const contact = seedContact();
+    seedAutomation({
+      triggerType: 'MANUAL_ENROLLMENT',
+      canvasJson: { nodes: [node('n1', 'ADD_TAG', { tag: 'hand-picked' })], edges: [] },
+    });
+    const enrollment = await enrollContactManually('ws1', 'au1', contact.id);
+    expect(enrollment).not.toBeNull();
+    expect(fakeDb.enrollments).toHaveLength(1);
+    expect(fakeDb.enrollments[0].exitReason).toBe('COMPLETED_ALL_STEPS');
+    expect(JSON.parse(contact.tagsJson)).toEqual(['hand-picked']);
+  });
+
+  it('enrollContactManually returns null on a second enroll when reentry is off', async () => {
+    const contact = seedContact();
+    seedAutomation({
+      triggerType: 'MANUAL_ENROLLMENT',
+      canvasJson: { nodes: [node('n1', 'ADD_TAG', { tag: 'hand-picked' })], edges: [] },
+    });
+    await enrollContactManually('ws1', 'au1', contact.id);
+    const second = await enrollContactManually('ws1', 'au1', contact.id);
+    expect(second).toBeNull();
+    expect(fakeDb.enrollments).toHaveLength(1);
+  });
+
+  it('enrollContactManually refuses a CONTACT_CREATED automation', async () => {
+    const contact = seedContact();
+    seedAutomation({ triggerType: 'CONTACT_CREATED' });
+    await expect(enrollContactManually('ws1', 'au1', contact.id)).rejects.toThrow(
+      /Only MANUAL_ENROLLMENT automations/,
+    );
+    expect(fakeDb.enrollments).toHaveLength(0);
+  });
+
+  it('enrollContactManually refuses a DRAFT automation', async () => {
+    const contact = seedContact();
+    seedAutomation({ triggerType: 'MANUAL_ENROLLMENT', status: 'DRAFT' });
+    await expect(enrollContactManually('ws1', 'au1', contact.id)).rejects.toThrow(/DRAFT/);
+    expect(fakeDb.enrollments).toHaveLength(0);
+  });
+
+  it('enrollContactManually throws for an unknown automation or contact', async () => {
+    const contact = seedContact();
+    await expect(enrollContactManually('ws1', 'nope', contact.id)).rejects.toThrow(/Automation not found/);
+    seedAutomation({ triggerType: 'MANUAL_ENROLLMENT' });
+    await expect(enrollContactManually('ws1', 'au1', 'ghost')).rejects.toThrow(/Contact not found/);
+    expect(fakeDb.enrollments).toHaveLength(0);
+  });
+
+  it('enrollContactManually refuses when the plan is below Complete', async () => {
+    fakeDb.workspaces[0].plan = 'basic';
+    const contact = seedContact();
+    seedAutomation({ triggerType: 'MANUAL_ENROLLMENT' });
+    await expect(enrollContactManually('ws1', 'au1', contact.id)).rejects.toThrow(/Complete plan/);
+    expect(fakeDb.enrollments).toHaveLength(0);
   });
 
   it('renderAutomationTemplate substitutes known fields and leaves unknown keys alone', () => {

@@ -58,7 +58,9 @@ router.post('/contacts', validate({ body: ContactSchema }), async (req, res, nex
       });
     } catch (err) { console.error('Failed to log contact creation event', err); }
 
-    emitTrigger(req.workspaceId, 'contact.created', contact as Record<string, unknown>).catch(console.error);
+    // Slice 1c: NO route-level contact.created emit — crm.createContact
+    // already emits it (with contactId + tags). The old second emit here
+    // fired every workflow + automation twice for one creation.
     res.json(contact);
   } catch (e) { next(e); }
 });
@@ -93,7 +95,9 @@ router.get('/contacts/:id', async (req, res) => {
 router.put('/contacts/:id', async (req, res) => {
   try {
     const updated = await crm.updateContact(req.params.id, req.workspaceId, req.body);
-    emitTrigger(req.workspaceId, 'contact.updated', { updated }).catch(console.error);
+    // Slice 1c: NO route-level contact.updated emit — crm.updateContact
+    // already emits it (with the tag diff + changedCustomFields). The old
+    // second emit here fired every workflow + automation twice per edit.
     res.json(updated);
   } catch (e) { dbErr(res, e); }
 });
@@ -330,10 +334,11 @@ router.get('/deals/:id', async (req, res) => {
 
 router.put('/deals/:id', async (req, res) => {
   try { 
-    const deal = await crm.updateDeal(req.params.id, req.workspaceId, req.body); 
-    if (req.body.stageId) emitTrigger(req.workspaceId, 'deal.stage_changed', { deal, newStage: req.body.stageId }).catch(console.error);
-    if (req.body.status === 'won') emitTrigger(req.workspaceId, 'deal.won', deal as Record<string, unknown>).catch(console.error);
-    if (req.body.status === 'lost') emitTrigger(req.workspaceId, 'deal.lost', deal as Record<string, unknown>).catch(console.error);
+    const deal = await crm.updateDeal(req.params.id, req.workspaceId, req.body);
+    // Slice 1c: NO route-level stage_changed / won / lost emits —
+    // crm.updateDeal already emits them (stage_changed only on an actual
+    // stage change, won/lost by the isWon/isLost flags). The old emits here
+    // fired every workflow + automation twice, and won/lost by status text.
     emitTrigger(req.workspaceId, 'deal.updated', { deal }).catch(console.error);
     res.json(deal);
   } catch (e) { dbErr(res, e); }

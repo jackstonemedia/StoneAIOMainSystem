@@ -1,4 +1,11 @@
 import { db } from '../../infrastructure/database/client.js';
+// Static (not lazy) import: the runner only statically imports db +
+// plan-guard, neither of which imports this module, so there is no cycle —
+// and a static import makes concurrent dispatches share one module
+// instance. (A per-call dynamic import stalled the SECOND concurrent
+// dispatch in the test runner: vite-node never settled the duplicate
+// import. Real Node shares the load, but the static form is also faster.)
+import { evaluateAutomationTrigger } from './email-marketing/automation-runner.service.js';
 
 // ── All internal Stone AIO event types ────────────────────────────────────────
 export type StoneAIOEvent =
@@ -6,6 +13,7 @@ export type StoneAIOEvent =
   | 'contact.updated'
   | 'contact.deleted'
   | 'contact.tag_added'
+  | 'contact.tag_removed'
   | 'contact.health_score_changed'
   | 'deal.created'
   | 'deal.updated'
@@ -37,7 +45,9 @@ export type StoneAIOEvent =
 /**
  * emitTrigger — fire-and-forget internal event publisher.
  *
- * Fires events to the native workflow engine.
+ * Fires events to BOTH consumers:
+ *  - the native workflow engine (CrmTriggerSubscription → queueService)
+ *  - the email Automation runner (evaluateAutomationTrigger — Slice 1c)
  *
  * This function NEVER throws — a trigger failure must never
  * block or fail the originating request.
@@ -51,6 +61,12 @@ export async function emitTrigger(
   dispatchToNativeEngine(workspaceId, event, payload).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[TRIGGER ERROR NATIVE] ${event} ${workspaceId} — ${message}`);
+  });
+
+  // ── Dispatch to Email Automations (Slice 1c) ───────────────────────────────
+  dispatchToAutomations(workspaceId, event, payload).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[TRIGGER ERROR AUTOMATIONS] ${event} ${workspaceId} — ${message}`);
   });
 }
 
@@ -117,4 +133,86 @@ async function dispatchToNativeEngine(
       })
     )
   );
+}
+
+/**
+ * Normalize a StoneAIOEvent into an AutomationTriggerEvent and hand it to
+ * the email Automation runner (Slice 1c). Unmapped events are ignored —
+ * the runner only cares about the 8 event→trigger mappings in
+ * EVENT_TO_TRIGGER.
+ *
+ * Normalization notes (the emit sites do NOT all share one payload shape):
+ *  - contact.created / contact.updated carry `contactId` directly (service
+ *    emits); the runner also resolves contactId from payload.contact.id /
+ *    payload.deal.contactId as a fallback.
+ *  - deal.stage_changed (service emit) carries `newStageId` + `contactId`;
+ *    the route's old `{ deal, newStage }` shape was a second, duplicate
+ *    emit and was removed in Slice 1c — only the service shape is mapped.
+ *  - contact.updated carries `changedCustomFields` (custom field NAMES that
+ *    changed — computed by updateContact from a before/after diff); the
+ *    runner matches CUSTOM_FIELD_CHANGED against that list.
+ *  - form.submitted carries `contactId` + `pageId` (landing page id; the
+ *    raw capture webhook has no page, so pageId is absent and matches
+ *    "any page" configs).
+ */
+async function dispatchToAutomations(
+  workspaceId: string,
+  event: StoneAIOEvent,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const p = payload as Record<string, unknown>;
+  const contactId =
+    typeof p.contactId === 'string' ? (p.contactId as string) : undefined;
+  const base = { payload: p };
+
+  switch (event) {
+    case 'contact.created':
+      return evaluateAutomationTrigger(workspaceId, { type: event, contactId, ...base });
+    case 'contact.tag_added':
+    case 'contact.tag_removed':
+      return evaluateAutomationTrigger(workspaceId, {
+        type: event,
+        contactId,
+        tag: typeof p.tag === 'string' ? (p.tag as string) : undefined,
+        ...base,
+      });
+    case 'form.submitted':
+      return evaluateAutomationTrigger(workspaceId, {
+        type: event,
+        contactId,
+        pageId: typeof p.pageId === 'string' ? (p.pageId as string) : undefined,
+        ...base,
+      });
+    case 'deal.stage_changed':
+      return evaluateAutomationTrigger(workspaceId, {
+        type: event,
+        contactId,
+        stageId:
+          typeof p.newStageId === 'string'
+            ? (p.newStageId as string)
+            : typeof p.newStage === 'string'
+              ? (p.newStage as string)
+              : undefined,
+        ...base,
+      });
+    case 'contact.updated':
+      return evaluateAutomationTrigger(workspaceId, {
+        type: event,
+        contactId,
+        changedFields: Array.isArray(p.changedCustomFields)
+          ? (p.changedCustomFields as string[])
+          : [],
+        ...base,
+      });
+    case 'campaign.opened':
+    case 'campaign.clicked':
+      return evaluateAutomationTrigger(workspaceId, {
+        type: event,
+        contactId,
+        campaignId: typeof p.campaignId === 'string' ? (p.campaignId as string) : undefined,
+        ...base,
+      });
+    default:
+      return;
+  }
 }

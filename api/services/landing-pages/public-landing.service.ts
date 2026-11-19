@@ -6,6 +6,7 @@
  */
 import { db } from '../../../infrastructure/database/client.js';
 import { AppError } from '../../middleware/error.js';
+import { emitTrigger } from '../trigger-emitter.service.js';
 
 export interface PublicLandingPage {
   id: string;
@@ -66,8 +67,8 @@ function cleanField(v: unknown): string {
  * or links a contact, so the no-email case cannot happen. Follows the
  * public-booking precedent exactly: match by (workspaceId, email), create
  * with first-word firstName ('Guest' when no name), never modify an
- * existing contact. Deliberately emits NO trigger — submissions do not
- * start automations in v1 (outline 02-21 is a separate item).
+ * existing contact. Emits form.submitted (Slice 1c) so FORM_SUBMITTED
+ * automations fire — the old "no trigger in v1" note died with the runner.
  */
 export async function submitLandingPageForm(
   slug: string,
@@ -88,6 +89,7 @@ export async function submitLandingPageForm(
   const lastName = nameParts.slice(1).join(' ') || '';
 
   let contact = await db.contact.findFirst({ where: { workspaceId, email } });
+  const isNewContact = !contact;
   if (!contact) {
     contact = await db.contact.create({
       data: { workspaceId, firstName, lastName, email, phone: phone || undefined, source: 'landing_page' },
@@ -102,6 +104,15 @@ export async function submitLandingPageForm(
       answersJson: { name, email, phone, message },
     },
   });
+
+  // Slice 1c: a real form submission — fire FORM_SUBMITTED automations.
+  // A genuinely NEW contact here is also a contact.created event (this
+  // path creates contacts directly, not via crm.createContact which emits
+  // it) — so CONTACT_CREATED automations fire for form captures too.
+  if (isNewContact) {
+    emitTrigger(workspaceId, 'contact.created', { contactId: contact.id, email, source: 'landing_page' }).catch(() => {});
+  }
+  emitTrigger(workspaceId, 'form.submitted', { contactId: contact.id, pageId: page.id }).catch(() => {});
 
   // Same response whether the contact was new or existing — the visitor
   // cannot probe whether an email is already in the CRM.
