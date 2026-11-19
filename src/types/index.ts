@@ -164,24 +164,38 @@ export interface FormField {
 }
 
 export interface FormResponse extends BaseEntity {
-  formId: string;
-  contactId?: string;
-  answersJson: string;
+  workspaceId: string;
+  pageId: string;
+  contactId: string | null;
+  answersJson: Record<string, unknown>;
+  submittedAt: string;
+}
+
+export interface LandingPageStats {
+  views: number;
+  submissions: number;
+  /** Null when there are no views — never a fabricated 0%. */
+  conversion: number | null;
 }
 
 export interface LandingPage extends BaseEntity {
+  workspaceId: string;
   name: string;
   slug: string;
   status: 'draft' | 'published';
-  seoTitle?: string;
-  seoDesc?: string;
-  sectionsJson: string;
+  seoTitle: string | null;
+  seoDesc: string | null;
+  sectionsJson: PageSection[];
+  publishedAt: string | null;
+  stats: LandingPageStats;
 }
+
+export type LandingPageSectionType = 'hero' | 'text' | 'image' | 'form' | 'cta';
 
 export interface PageSection {
   id: string;
-  type: string;
-  config: any;
+  type: LandingPageSectionType;
+  config: Record<string, unknown>;
 }
 
 export interface Automation extends BaseEntity {

@@ -45,6 +45,7 @@ import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
 import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
+import publicLandingRouter from './api/routes/public-landing.routes.js';
 import invitesRouter, { publicInvitesRouter } from './api/routes/invites.routes.js';
 
 // ── Email Marketing Module ─────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ import inboxCopilotRouter from './api/routes/inbox-copilot.routes.js';
 
 // ── Channel routes + webhook handlers + realtime ─────────────────────────────
 import channelsRouter from './api/routes/channels.routes.js';
+import landingPagesRouter from './api/routes/landing-pages.routes.js';
 import { twilioSmsHandler } from './api/webhooks/twilio-sms.handler.js';
 import { formCaptureWebhook } from './api/webhooks/forms.webhook.js';
 import { outlookWebhookHandler } from './api/webhooks/outlook-messages.handler.js';
@@ -306,6 +308,9 @@ async function startServer() {
   // ── Public calendar booking & ICS downloads (no JWT) ──────────────────────────
   app.use('/api/public/calendar', publicBookingRouter);
 
+  // ── Public landing pages (no JWT) ─────────────────────────────────────────
+  app.use('/api/public/pages', publicLandingRouter);
+
   // ── Public invite lookup (no JWT — the invitee may not have an account yet) ──
   app.use('/api/invites', publicInvitesRouter);
 
@@ -330,6 +335,7 @@ async function startServer() {
   app.use('/api/opportunities',  opportunitiesRouter);
   app.use('/api/crm',            crmRouter);
   app.use('/api/business',       businessRouter);
+  app.use('/api/landing-pages',  landingPagesRouter);
   app.use('/api/settings',       settingsRouter);
   app.use('/api/invites',         invitesRouter); // accept (authed; lookup is public, above)
   app.use('/api/notifications',  notificationsRouter);

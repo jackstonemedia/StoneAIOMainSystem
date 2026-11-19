@@ -119,6 +119,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Automations', path: '/email-marketing/automations' },
             { name: 'Analytics',   path: '/email-marketing/analytics' },
             { name: 'Templates',   path: '/email-marketing/templates' },
+            { name: 'Landing Pages', path: '/email-marketing/landing-pages' },
             { name: 'Suppression', path: '/email-marketing/suppression' },
             { name: 'Profile',     path: '/email-marketing/profile' },
             { name: 'Outreach Mailboxes', path: '/settings?tab=outreach' },
