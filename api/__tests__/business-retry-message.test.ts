@@ -40,6 +40,12 @@ vi.mock('../../infrastructure/database/client.js', () => ({
         if (where.id) return state.gmailConn?.id === where.id ? state.gmailConn : state.twilioConn?.id === where.id ? state.twilioConn : null;
         return null;
       }),
+      // Tranche A fix 12: dispatch now re-reads the connection for the daily
+      // send-limit check (assertDailySendAvailable) and records each success.
+      findUnique: vi.fn(async ({ where }: any) =>
+        state.gmailConn?.id === where.id ? state.gmailConn : state.twilioConn?.id === where.id ? state.twilioConn : null,
+      ),
+      update: vi.fn(async () => ({})),
     },
     conversationMessage: {
       findFirst: vi.fn(async ({ where }: any) => {
