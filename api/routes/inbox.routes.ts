@@ -90,6 +90,17 @@ router.post('/conversations/:id/messages', async (req, res) => {
   res.json(await createMessage((req as any).workspaceId, req.params.id, data));
 });
 
+// Mark Read — clears the unread badge when an agent opens the thread.
+// (The legacy Conversations inbox has its own toggle on business.routes;
+// this is the inbox-model equivalent, which never existed.)
+router.post('/conversations/:id/mark-read', async (req, res) => {
+  await db.inboxConversation.updateMany({
+    where: { id: req.params.id, workspaceId: (req as any).workspaceId },
+    data: { unreadCount: 0 },
+  });
+  res.json({ success: true });
+});
+
 // Conversation Labels
 router.post('/conversations/:id/labels', async (req, res) => res.json(await addConversationLabel((req as any).workspaceId, req.params.id, req.body.labelId)));
 router.delete('/conversations/:id/labels/:labelId', async (req, res) => res.json(await removeConversationLabel((req as any).workspaceId, req.params.id, req.params.labelId)));

@@ -54,4 +54,8 @@ export const inboxApi = {
   // the message is delivered to the website visitor in real time.
   sendMessage: (conversationId: string, content: string): Promise<LiveChatMessage> =>
     apiClient.post(`${BASE}/conversations/${conversationId}/messages`, { content }).then((r: any) => r.data),
+
+  // Clears the unread badge when an agent opens the thread.
+  markRead: (conversationId: string): Promise<{ success: boolean }> =>
+    apiClient.post(`${BASE}/conversations/${conversationId}/mark-read`).then((r: any) => r.data),
 };
