@@ -70,10 +70,10 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
       include: { pipelineStage: true, contact: { select: { firstName: true, lastName: true, email: true } } },
     }),
     db.deal.findMany({
-      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: currentFrom, lte: currentTo } },
+      where: { workspaceId, OR: [{ status: 'won' }, { pipelineStage: { isWon: true } }], updatedAt: { gte: currentFrom, lte: currentTo } },
     }),
     db.deal.findMany({
-      where: { workspaceId, pipelineStage: { name: 'Won' }, updatedAt: { gte: prevFrom, lt: currentFrom } },
+      where: { workspaceId, OR: [{ status: 'won' }, { pipelineStage: { isWon: true } }], updatedAt: { gte: prevFrom, lt: currentFrom } },
     }),
     db.conversation.count({ where: { workspaceId, unreadCount: { gt: 0 } } }),
     db.conversation.count({ where: { workspaceId, status: 'open' } }),
@@ -127,9 +127,14 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
   ]);
 
   // 1. Headline Numbers
-  const openDeals = allDeals.filter(
-    (d) => d.pipelineStage?.name !== 'Won' && d.pipelineStage?.name !== 'Lost' && d.pipelineStage?.name !== 'Closed',
-  );
+  // A deal is won/lost by flag, never by stage name: either its status
+  // says so or its stage is flagged. The default Sales template names
+  // the won stage 'Closed', so name matching counted zero wins and
+  // counted every closed-won deal as lost. (Same rule as
+  // opportunities.service.ts wonCount/lostCount.)
+  const isWonDeal = (d: any) => d.status === 'won' || d.pipelineStage?.isWon;
+  const isLostDeal = (d: any) => d.status === 'lost' || d.pipelineStage?.isLost;
+  const openDeals = allDeals.filter((d) => !isWonDeal(d) && !isLostDeal(d));
   const pipelineValue = openDeals.reduce((sum, d) => sum + (d.amount || 0), 0);
   const wonCountCurrent = wonDealsCurrent.length;
   const wonValueCurrent = wonDealsCurrent.reduce((sum, d) => sum + (d.amount || 0), 0);
@@ -140,8 +145,8 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
   const contactsChangePct = contactsPrev > 0 ? Math.round(((contactsCurrent - contactsPrev) / contactsPrev) * 100) : null;
 
   // 2. CRM / Pipeline
-  const wonTotal = allDeals.filter((d) => d.pipelineStage?.name === 'Won').length;
-  const lostTotal = allDeals.filter((d) => d.pipelineStage?.name === 'Lost' || d.pipelineStage?.name === 'Closed').length;
+  const wonTotal = allDeals.filter(isWonDeal).length;
+  const lostTotal = allDeals.filter(isLostDeal).length;
   const winRate = (wonTotal + lostTotal) > 0 ? Math.round((wonTotal / (wonTotal + lostTotal)) * 1000) / 10 : null;
 
   const STAGE_COLORS: Record<string, string> = {
@@ -337,7 +342,7 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
     });
   });
 
-  allDeals.filter((d) => d.pipelineStage?.name === 'Won').slice(0, 5).forEach((d) => {
+  allDeals.filter(isWonDeal).slice(0, 5).forEach((d) => {
     activityEvents.push({
       id: 'deal-' + d.id,
       type: 'deal_won',
@@ -399,7 +404,7 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
         value: wonValueCurrent,
         changePct: wonValueChangePct,
         wonCountChangePct,
-        allTimeValue: allDeals.filter((d) => d.pipelineStage?.name === 'Won').reduce((sum, d) => sum + (d.amount || 0), 0),
+        allTimeValue: allDeals.filter(isWonDeal).reduce((sum, d) => sum + (d.amount || 0), 0),
       },
       unreadConversations: {
         count: unreadConvosCount,
@@ -916,28 +921,40 @@ export async function getAnalyticsOverview(workspaceId: string, days = 30) {
     db.contact.count({ where: { workspaceId } }),
     db.contact.count({ where: { workspaceId, createdAt: { gte: from } } }),
     db.deal.findMany({ where: { workspaceId }, include: { pipelineStage: true } }),
-    db.deal.findMany({ where: { workspaceId, createdAt: { gte: from }, pipelineStage: { name: 'Won' } }, include: { pipelineStage: true } }),
+    db.deal.findMany({ where: { workspaceId, createdAt: { gte: from }, OR: [{ status: 'won' }, { pipelineStage: { isWon: true } }] }, include: { pipelineStage: true } }),
     db.conversation.count({ where: { workspaceId, status: 'open' } }),
     db.appointment.count({ where: { workspaceId } }),
     db.appointment.count({ where: { workspaceId, status: 'completed' } }),
   ]);
 
-  const allWon = allDeals.filter((d) => d.pipelineStage?.name === 'Won');
+  // A deal is won by flag, never by stage name (see getBusinessMetrics).
+  const isWonDeal = (d: any) => d.status === 'won' || d.pipelineStage?.isWon;
+  const allWon = allDeals.filter(isWonDeal);
   const now = new Date();
 
   const monthlyRevenue = Array.from({ length: 6 }, (_, i) => {
     const m = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     const mEnd = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
     const monthWon = allDeals.filter(
-      (d) => d.pipelineStage?.name === 'Won' && d.updatedAt >= m && d.updatedAt < mEnd,
+      (d) => isWonDeal(d) && d.updatedAt >= m && d.updatedAt < mEnd,
     );
     return { month: m.toLocaleString('default', { month: 'short' }), won: monthWon.reduce((s, d) => s + d.amount, 0), deals: monthWon.length };
   });
 
-  const byStage = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'].map((name) => ({
-    name,
-    count: allDeals.filter((d) => d.pipelineStage?.name === name).length,
-    value: allDeals.filter((d) => d.pipelineStage?.name === name).reduce((s, d) => s + d.amount, 0),
+  // byStage lists the stages that actually have deals — the old hardcoded
+  // name list omitted 'Closed', so a default-template workspace's won
+  // deals vanished from it entirely.
+  const stagesById = new Map<string, NonNullable<(typeof allDeals)[number]['pipelineStage']>>();
+  for (const d of allDeals) {
+    if (d.pipelineStage && !stagesById.has(d.pipelineStage.id)) {
+      stagesById.set(d.pipelineStage.id, d.pipelineStage);
+    }
+  }
+  const presentStages = [...stagesById.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const byStage = presentStages.map((stage) => ({
+    name: stage.name,
+    count: allDeals.filter((d) => d.pipelineStage?.id === stage.id).length,
+    value: allDeals.filter((d) => d.pipelineStage?.id === stage.id).reduce((s, d) => s + d.amount, 0),
   }));
 
   return {

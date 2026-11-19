@@ -66,8 +66,8 @@ async function main() {
     db.pipelineStage.upsert({ where: { id: 'ps_qualified' },   update: {}, create: { id: 'ps_qualified',   pipelineId: 'pl_standard', name: 'Qualified',   color: '#818cf8', order: 1, probability: 30  } }),
     db.pipelineStage.upsert({ where: { id: 'ps_proposal' },    update: {}, create: { id: 'ps_proposal',    pipelineId: 'pl_standard', name: 'Proposal',    color: '#fbbf24', order: 2, probability: 60  } }),
     db.pipelineStage.upsert({ where: { id: 'ps_negotiation' }, update: {}, create: { id: 'ps_negotiation', pipelineId: 'pl_standard', name: 'Negotiation', color: '#a78bfa', order: 3, probability: 80  } }),
-    db.pipelineStage.upsert({ where: { id: 'ps_won' },         update: {}, create: { id: 'ps_won',         pipelineId: 'pl_standard', name: 'Won',         color: '#34d399', order: 4, probability: 100 } }),
-    db.pipelineStage.upsert({ where: { id: 'ps_lost' },        update: {}, create: { id: 'ps_lost',        pipelineId: 'pl_standard', name: 'Lost',        color: '#ef4444', order: 5, probability: 0   } }),
+    db.pipelineStage.upsert({ where: { id: 'ps_won' },         update: { isWon: true }, create: { id: 'ps_won',         pipelineId: 'pl_standard', name: 'Won',         color: '#34d399', order: 4, probability: 100, isWon: true } }),
+    db.pipelineStage.upsert({ where: { id: 'ps_lost' },        update: { isLost: true }, create: { id: 'ps_lost',        pipelineId: 'pl_standard', name: 'Lost',        color: '#ef4444', order: 5, probability: 0, isLost: true } }),
   ]);
   console.log(`✅ Pipeline: ${pipeline.name} (${stages.length} stages)`);
 
