@@ -5,6 +5,7 @@
 
 import { db } from '../../../infrastructure/database/client.js';
 import { emitTrigger } from '../trigger-emitter.service.js';
+import { isNotificationEnabled } from '../notifications/preferences.service.js';
 import type { FacebookLeadSubmission } from './facebook-ads.service.js';
 import type { GoogleLeadFormSubmission } from './google-ads.service.js';
 
@@ -229,7 +230,10 @@ export async function listLeads(
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-async function notifyNewLead(workspaceId: string, contactId: string, campaignName: string, campaignId: string) {
+export async function notifyNewLead(workspaceId: string, contactId: string, campaignName: string, campaignId: string) {
+  // Honour the workspace's new-contact preference (Tranche A fix 11):
+  // a workspace that turned the toggle off gets no notification.
+  if (!(await isNotificationEnabled(workspaceId, 'new_contact'))) return;
   try {
     await db.notification.create({
       data: {

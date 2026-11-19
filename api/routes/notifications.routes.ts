@@ -1,7 +1,30 @@
 import { Router } from 'express';
 import { db } from '../../infrastructure/database/client.js';
+import {
+  getNotificationPreferences,
+  setNotificationPreferences,
+} from '../services/notifications/preferences.service.js';
 
 const router = Router();
+
+// ── Notification preferences (Tranche A fix 11) ─────────────────────────────
+// The Settings toggles used to be local state that only showed a toast.
+// They now persist per workspace and the producers read them.
+router.get('/preferences', async (req, res) => {
+  try {
+    res.json({ preferences: await getNotificationPreferences(req.workspaceId!) });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load notification preferences' });
+  }
+});
+router.put('/preferences', async (req, res) => {
+  try {
+    const prefs = (req.body?.preferences ?? {}) as Record<string, boolean>;
+    res.json({ preferences: await setNotificationPreferences(req.workspaceId!, prefs) });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to save notification preferences' });
+  }
+});
 
 // SSE clients registry
 const sseClients = new Set<any>();

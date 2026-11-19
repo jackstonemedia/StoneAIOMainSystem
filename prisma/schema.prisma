@@ -45,6 +45,7 @@ model Workspace {
   tasks             Task[]
   smartLists        SmartList[]
   notifications     Notification[]
+  notificationPreferences NotificationPreference[]
   customFields      CustomField[]
   tags              Tag[]
   webhookEndpoints  WebhookEndpoint[]
@@ -1047,6 +1048,23 @@ model Notification {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+// Per-workspace in-app notification preferences (Tranche A fix 11).
+// One row per toggle key; a missing row means the default (enabled).
+// Only keys with a real producer belong here — a toggle that promises a
+// notification no code ever sends is a lie, not a setting.
+model NotificationPreference {
+  id          String    @id @default(uuid())
+  workspaceId String    @map("workspace_id")
+  key         String
+  enabled     Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@map("notification_preferences")
 }
 
 model CustomField {

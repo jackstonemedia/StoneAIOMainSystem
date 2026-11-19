@@ -71,15 +71,13 @@ const INTEGRATIONS = [
   },
 ];
 
+// Only events with a real producer belong here (Tranche A fix 11).
+// The old list had eight toggles; seven promised notifications no code
+// ever sends (deal won, task overdue, campaign sent, appointment booked,
+// inbound SMS, new review, weekly summary), so they are gone. When a
+// producer is built for an event, its toggle comes back with it.
 const NOTIF_PREFS = [
-  { key: 'new_contact', label: 'New Contact Added', desc: 'When a contact is created via form or import' },
-  { key: 'deal_won', label: 'Deal Won', desc: 'When a deal moves to Won stage' },
-  { key: 'task_overdue', label: 'Task Overdue', desc: '24h before a task is due with no completion' },
-  { key: 'campaign_sent', label: 'Campaign Sent', desc: 'When a campaign finishes sending' },
-  { key: 'review_received', label: 'New Review', desc: 'When a new customer review is received' },
-  { key: 'apt_created', label: 'Appointment Booked', desc: 'When a new appointment is scheduled' },
-  { key: 'inbound_sms', label: 'Inbound SMS', desc: 'When a contact sends a message' },
-  { key: 'weekly_summary', label: 'Weekly Summary', desc: 'A weekly digest of key performance metrics' },
+  { key: 'new_contact', label: 'New Contact Added', desc: 'When an ad campaign brings in a new lead' },
 ];
 
 function FieldInput(props: { type?: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
@@ -115,9 +113,22 @@ export default function SettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [keyValues, setKeyValues] = useState<Record<string, string>>({});
-  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>(
-    Object.fromEntries(NOTIF_PREFS.map(n => [n.key, true]))
-  );
+  // Notification preferences load from the API (Tranche A fix 11) — the old
+  // all-true useState init was a hardcoded default, and Save only toasted.
+  // notifEdits holds unsaved changes over the loaded values.
+  const { data: savedNotifPrefs } = useQuery<{ preferences: Record<string, boolean> }>({
+    queryKey: ['settings', 'notification-preferences'],
+    queryFn: () => apiFetch('/api/notifications/preferences').then(r => r.ok ? r.json() : null),
+  });
+  const [notifEdits, setNotifEdits] = useState<Record<string, boolean> | null>(null);
+  const notifPrefs: Record<string, boolean> = { ...(savedNotifPrefs?.preferences ?? {}), ...(notifEdits ?? {}) };
+  const setNotifPrefs = (updater: (p: Record<string, boolean>) => Record<string, boolean>) =>
+    setNotifEdits(edits => updater({ ...(savedNotifPrefs?.preferences ?? {}), ...(edits ?? {}) }));
+  const saveNotifPrefs = useMutation({
+    mutationFn: () => apiFetch('/api/notifications/preferences', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preferences: notifPrefs }) }).then(r => r.json()),
+    onSuccess: () => { setNotifEdits(null); qc.invalidateQueries({ queryKey: ['settings', 'notification-preferences'] }); toast('success', 'Notification preferences saved!'); },
+    onError: () => toast('error', 'Could not save notification preferences. Please try again.'),
+  });
   const [expandedIntegration, setExpandedIntegration] = useState<string | null>(null);
 
   useEffect(() => {
@@ -900,8 +911,8 @@ export default function SettingsPage() {
             ))}
           </div>
           <div className="px-6 py-4 border-t border-border bg-surface-hover/20">
-            <button onClick={() => toast('success', 'Notification preferences saved!')}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity">
+            <button onClick={() => saveNotifPrefs.mutate()} disabled={saveNotifPrefs.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-[6px] text-[13px] font-semibold hover:opacity-90 transition-opacity disabled:opacity-50">
               <Save className="w-3.5 h-3.5" /> Save Preferences
             </button>
           </div>
