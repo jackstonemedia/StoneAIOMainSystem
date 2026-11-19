@@ -103,6 +103,7 @@ const ListsAndSegments     = lazy(() => import('./pages/email-marketing/ListsAnd
 const AutomationsList      = lazy(() => import('./pages/email-marketing/AutomationsList'));
 const AutomationCanvas     = lazy(() => import('./pages/email-marketing/AutomationCanvas'));
 const TemplatesList        = lazy(() => import('./pages/email-marketing/TemplatesList'));
+const LandingPagesList     = lazy(() => import('./pages/email-marketing/LandingPagesList'));
 const CampaignAnalytics    = lazy(() => import('./pages/email-marketing/CampaignAnalytics'));
 const BusinessProfilePage  = lazy(() => import('./pages/email-marketing/BusinessProfilePage'));
 const CreateWithAIPage     = lazy(() => import('./pages/email-marketing/CreateWithAIPage'));
@@ -300,6 +301,7 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="automations/:automationId" element={<ErrorBoundary><AutomationCanvas /></ErrorBoundary>} />
               <Route path="audience" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
               <Route path="templates" element={<ErrorBoundary><TemplatesList /></ErrorBoundary>} />
+              <Route path="landing-pages" element={<ErrorBoundary><LandingPagesList /></ErrorBoundary>} />
               <Route path="suppression" element={<ErrorBoundary><ListsAndSegments /></ErrorBoundary>} />
               <Route path="analytics" element={<ErrorBoundary><CampaignAnalytics /></ErrorBoundary>} />
               <Route path="profile" element={<ErrorBoundary><BusinessProfilePage /></ErrorBoundary>} />

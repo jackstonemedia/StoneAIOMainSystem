@@ -108,6 +108,11 @@ model Workspace {
   contactSegments         ContactSegment[]
   inboxCampaigns          InboxCampaign[]
 
+  // Landing Pages (Wave 1 item 1.1)
+  landingPages            LandingPage[]
+  landingPageViews        LandingPageView[]
+  formResponses           FormResponse[]
+
   // Email Marketing relations
   emailLists                  EmailList[]
   contactListMemberships       ContactListMembership[]
@@ -622,6 +627,7 @@ model Contact {
   smartListItems        SmartListItem[]
   relationshipsAsSource ContactRelation[] @relation("source_contact")
   relationshipsAsTarget ContactRelation[] @relation("target_contact")
+  formResponses         FormResponse[]
   // Ad attribution — source field holds 'GOOGLE_ADS' | 'FACEBOOK_ADS' when applicable
   adLeadId              String?           @unique @map("ad_lead_id")
   adLead                AdLead?           @relation("ContactAdLead", fields: [adLeadId], references: [id], onDelete: SetNull)
@@ -2681,4 +2687,61 @@ model AssistantProjectLink {
 
   @@index([workspaceId, projectId])
   @@map("assistant_project_links")
+}
+
+// ── Landing Pages (Wave 1 item 1.1 / outline 02-17) ──────────────────────────
+// Shape follows the dead stubs in src/types/index.ts (LandingPage /
+// PageSection / FormResponse) — they were scaffold leftovers with zero
+// importers; this build makes them real.
+model LandingPage {
+  id           String    @id @default(uuid())
+  workspaceId  String    @map("workspace_id")
+  name         String
+  slug         String    @unique
+  status       String    @default("draft") // 'draft' | 'published'
+  seoTitle     String?   @map("seo_title")
+  seoDesc      String?   @map("seo_desc")
+  sectionsJson Json      @map("sections_json")
+  publishedAt  DateTime? @map("published_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  views     LandingPageView[]
+  responses FormResponse[]
+
+  @@index([workspaceId])
+  @@map("landing_pages")
+}
+
+model LandingPageView {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  pageId      String   @map("page_id")
+  referrer    String?
+  viewedAt    DateTime @default(now()) @map("viewed_at")
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page      LandingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([pageId, viewedAt])
+  @@map("landing_page_views")
+}
+
+model FormResponse {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  pageId      String   @map("page_id")
+  contactId   String?  @map("contact_id")
+  answersJson Json     @map("answers_json")
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page      LandingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  contact   Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([pageId, submittedAt])
+  @@map("form_responses")
 }
