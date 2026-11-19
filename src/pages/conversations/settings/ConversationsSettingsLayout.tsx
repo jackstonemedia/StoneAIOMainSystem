@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Mail, MessageSquare, Tag, ArrowLeft } from 'lucide-react';
+import { Mail, MessageSquare, MessagesSquare, Tag, ArrowLeft } from 'lucide-react';
 
 const tabs = [
   { to: '/conversations/settings/channels', label: 'Channels', icon: Mail },
+  { to: '/conversations/settings/live-chat', label: 'Live Chat', icon: MessagesSquare },
   { to: '/conversations/settings/templates', label: 'Templates', icon: MessageSquare },
   { to: '/conversations/settings/tags', label: 'Tags', icon: Tag },
 ];
