@@ -11,6 +11,10 @@ export default function LeadScoreRing({ score = 0, size = 36, strokeWidth = 3, s
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clampedScore / 100) * circumference;
 
+  // Lead scoring (item 7): a total of 0 means "no positive signal yet" —
+  // it renders as "—" with an empty ring, never as a "0" that looks scored.
+  const unscored = clampedScore === 0;
+
   const getColor = (s: number) => {
     if (s >= 75) return '#52677D'; // green
     if (s >= 50) return '#52677D'; // amber
@@ -52,7 +56,7 @@ export default function LeadScoreRing({ score = 0, size = 36, strokeWidth = 3, s
           className="absolute text-[9px] font-bold leading-none"
           style={{ color }}
         >
-          {clampedScore}
+          {unscored ? '—' : clampedScore}
         </span>
       )}
     </div>

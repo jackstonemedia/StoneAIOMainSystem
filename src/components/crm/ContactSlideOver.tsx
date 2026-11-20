@@ -42,8 +42,7 @@ export default function ContactSlideOver({ isOpen, onClose }: ContactSlideOverPr
       title: formData.title || null,
       location: formData.location || null,
       // Required fields with safe defaults
-      leadScore: 0,
-      healthScore: 0,
+      // (leadScore is server-computed — item 7 — never sent from the client)
       ownerId: null,
       dndEnabled: false,
       preferredChannel: 'email',

@@ -15,6 +15,7 @@ import { useToast } from '../../components/ui/Toast';
 import { getTagColor } from '../../lib/tagColors';
 import { apiFetch } from '../../lib/apiClient';
 import { NotionEditor } from '../../components/editor/NotionEditor';
+import LeadScoreRing from '../../components/crm/LeadScoreRing';
 import * as Dialog from '@radix-ui/react-dialog';
 
 
@@ -60,6 +61,14 @@ export default function ContactDetail() {
     queryFn: () => apiFetch('/api/crm/contacts').then(r => r.ok ? r.json().then(d => d.contacts || []) : [])
   });
   const contact = contacts.find((c: any) => c.id === id);
+
+  // Lead-score breakdown (item 7): the list row carries the stored score,
+  // but the checkable breakdown lives on the detail endpoint only — the
+  // list must not pay for a per-contact compute.
+  const { data: contactDetail } = useQuery<any>({
+    queryKey: ['contact', id],
+    queryFn: () => apiFetch(`/api/crm/contacts/${id}`).then(r => (r.ok ? r.json() : null)),
+  });
 
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ['contact-events', id],
@@ -269,7 +278,26 @@ export default function ContactDetail() {
               </div>
             </div>
           </div>
-          
+
+          {/* Lead score (item 7): computed from real data — recency +
+              engagement + pipeline + completeness. A 0 renders as "—":
+              no positive signal yet, not a scored zero. */}
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-border/50">
+            <LeadScoreRing score={contactDetail?.leadScore ?? contact.leadScore ?? 0} size={38} strokeWidth={3} />
+            <div className="flex flex-col">
+              <span className="text-[12px] font-bold text-text-main">
+                Lead score {contactDetail?.scoreBand ? `· ${contactDetail.scoreBand}` : ''}
+              </span>
+              <span className="text-[11px] text-text-muted">
+                {contactDetail?.scoreBreakdown
+                  ? `${contactDetail.scoreBreakdown.recency} recency + ${contactDetail.scoreBreakdown.engagement} engagement + ${contactDetail.scoreBreakdown.pipeline} pipeline + ${contactDetail.scoreBreakdown.completeness} completeness`
+                  : (contactDetail?.leadScore ?? contact.leadScore ?? 0) === 0
+                    ? 'No signals yet'
+                    : 'Score computed from recent activity, email engagement, deals, and profile completeness.'}
+              </span>
+            </div>
+          </div>
+
           <div className="p-4 flex items-center gap-2 border-b border-border/50 cursor-pointer hover:bg-surface-hover/30 transition-colors" onClick={() => setHideEmptyFields(!hideEmptyFields)}>
             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${hideEmptyFields ? 'bg-white border-white' : 'bg-transparent border-border'}`}>
               {hideEmptyFields && <CheckSquare className="w-3.5 h-3.5 text-black" />}

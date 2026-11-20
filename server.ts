@@ -518,6 +518,19 @@ async function startServer() {
     });
     console.log('✅ Email Marketing automation runner: active (1-min WAIT resumer + daily DATE_BASED)');
 
+    // ── Lead scoring: nightly backfill (complete-platform item 7) ─────────
+    // Scores decay as the 90-day windows age, so every contact is
+    // recomputed daily even if no hook fired for them. The hooks keep
+    // scores fresh intraday; this is the safety net.
+    cron.schedule('30 0 * * *', async () => {
+      try {
+        const { recomputeAllLeadScores } = await import('./api/services/crm.service.js');
+        const { checked, changed } = await recomputeAllLeadScores();
+        if (changed > 0) console.log(`[LeadScoring] Nightly backfill: ${changed}/${checked} score(s) changed.`);
+      } catch (err) { console.error('[LeadScoring]', err); }
+    });
+    console.log('✅ Lead scoring nightly backfill: active (daily 00:30)');
+
     // ── Workflow Engine: resume paused runs (every minute) ───────────────
     // Complete-platform item 1, Slice 2: logic.wait pauses a run, but the
     // old BullMQ repeat job fired once per boot on Redis-less deploys

@@ -88,6 +88,16 @@ router.get('/contacts/:id', async (req, res) => {
   try {
     const c = await crm.getContact(req.params.id, req.workspaceId);
     if (!c) return res.status(404).json({ error: 'Not found' });
+    // Lead scoring (item 7): attach the checkable breakdown + band so the
+    // detail page can show why the number is what it is. Computed without
+    // writing — the stored leadScore is the persisted value.
+    try {
+      const breakdown = await crm.computeLeadScore(c.id, req.workspaceId);
+      if (breakdown) {
+        (c as any).scoreBreakdown = breakdown.components;
+        (c as any).scoreBand = breakdown.band;
+      }
+    } catch { /* the contact itself still loads without a breakdown */ }
     res.json(c);
   } catch (e) { dbErr(res, e); }
 });
@@ -157,7 +167,10 @@ router.get('/companies/:id', async (req, res) => {
   try {
     const c = await crm.getCompany(req.params.id, req.workspaceId);
     if (!c) return res.status(404).json({ error: 'Not found' });
-    res.json(c);
+    // Company health (item 7, Option A): computed on read from the
+    // included contacts + deals — no new column. Null renders "—".
+    const { health, contactCount, openDealCount } = crm.computeCompanyHealth(c as any);
+    res.json({ ...c, healthScore: health, healthDetail: { contactCount, openDealCount } });
   } catch (e) { dbErr(res, e); }
 });
 

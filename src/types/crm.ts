@@ -13,7 +13,6 @@ export interface Contact {
   location: string | null;
   title: string | null;
   leadScore: number;
-  healthScore: number;
   ownerId: string | null;
   dndEnabled: boolean;
   preferredChannel: string;
@@ -30,6 +29,9 @@ export interface Contact {
   updatedAt: string;
   /** Populated when fetched with relations */
   company?: Pick<Company, 'id' | 'name'> | null;
+  /** Lead-score breakdown (item 7) — attached by GET /contacts/:id only */
+  scoreBreakdown?: { recency: number; engagement: number; pipeline: number; completeness: number };
+  scoreBand?: 'Hot' | 'Warm' | 'Cool' | 'Cold';
 }
 
 export interface Company {
@@ -47,6 +49,9 @@ export interface Company {
   /** Populated when fetched with relations */
   contacts?: Pick<Contact, 'id' | 'firstName' | 'lastName' | 'email'>[];
   deals?: Pick<Deal, 'id' | 'title' | 'amount'>[];
+  /** Company health, Option A (item 7) — computed on read by GET /companies/:id; null renders "—" */
+  healthScore?: number | null;
+  healthDetail?: { contactCount: number; openDealCount: number };
 }
 
 export interface Deal {
@@ -139,7 +144,8 @@ export interface SmartListFilter {
 
 export type CreateContactInput = Omit<
   Contact,
-  'id' | 'workspaceId' | 'createdAt' | 'updatedAt' | 'company'
+  // leadScore is server-computed (item 7) — never sent on create.
+  'id' | 'workspaceId' | 'createdAt' | 'updatedAt' | 'company' | 'leadScore' | 'scoreBreakdown' | 'scoreBand'
 >;
 
 export type UpdateContactInput = Partial<CreateContactInput>;

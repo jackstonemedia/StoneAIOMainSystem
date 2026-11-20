@@ -616,7 +616,6 @@ model Contact {
   location              String?
   title                 String?
   leadScore             Int               @default(0) @map("lead_score")
-  healthScore           Int               @default(0) @map("health_score")
   ownerId               String?           @map("owner_id")
   dndEnabled            Boolean           @default(false) @map("dnd_enabled")
   preferredChannel      String            @default("email") @map("preferred_channel")
@@ -632,7 +631,6 @@ model Contact {
   preferredName         String?           @map("preferred_name")
   socialProfilesJson    String?           @map("social_profiles_json")
   addressesJson         String?           @map("addresses_json")
-  engagementScore       Int               @default(0) @map("engagement_score")
   contactType           String?           @map("contact_type")
   reportingManagerId    String?           @map("reporting_manager_id")
   teamId                String?           @map("team_id")

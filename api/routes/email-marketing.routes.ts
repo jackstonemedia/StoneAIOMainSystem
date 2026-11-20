@@ -110,6 +110,7 @@ import {
   isSafeRedirectUrl,
 } from '../lib/crypto-tokens.js';
 import { env } from '../../infrastructure/config/env.js';
+import { recomputeLeadScore } from '../services/crm.service.js';
 
 const router = Router();
 
@@ -667,6 +668,10 @@ export async function handleTrackClick(req: Request, res: Response): Promise<voi
         },
       });
 
+      // Lead scoring (item 7): a real (non-bot) click is an engagement
+      // signal; a bot click is recorded but never counts. Fire-and-forget.
+      if (workspaceId && contactId) recomputeLeadScore(contactId, workspaceId).catch(() => {});
+
       // 3. Record contact event for CRM timeline
       try {
         await db.contactEvent.create({
@@ -747,6 +752,10 @@ export async function handleTrackOpen(req: Request, res: Response): Promise<void
           lastEmailOpenedAt: new Date(),
         },
       });
+
+      // Lead scoring (item 7): an open is an engagement signal.
+      // Fire-and-forget.
+      recomputeLeadScore(contactId, workspaceId).catch(() => {});
 
       // 3. Emit internal trigger
       try {

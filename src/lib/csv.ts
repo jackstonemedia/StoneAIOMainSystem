@@ -127,8 +127,9 @@ export function mapCSVToContacts(
 
       switch (contactField) {
         case 'leadScore':
-        case 'healthScore':
-          (contact as any)[contactField] = parseInt(value, 10) || 0;
+          // Scores are server-computed (item 7) — a CSV column can no longer
+          // set one. The case is kept so an old mapping parses without
+          // crashing, but the value is dropped.
           break;
         case 'dndEnabled':
           (contact as any)[contactField] = value.toLowerCase() === 'true' || value === '1';
@@ -167,7 +168,6 @@ export const CONTACT_FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: 'status',       label: 'Status' },
   { value: 'tags',         label: 'Tags (comma-separated)' },
   { value: 'about',        label: 'Notes / About' },
-  { value: 'leadScore',    label: 'Lead Score' },
   { value: 'preferredChannel', label: 'Preferred Channel' },
 ];
 

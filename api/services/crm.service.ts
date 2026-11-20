@@ -471,6 +471,172 @@ export async function getContact(id: string, workspaceId: string) {
   return formatContact(contact);
 }
 
+// ── Lead scoring (complete-platform item 7) ──────────────────────────────────
+// One lead score, 0–100, computed from real rows only. Design:
+// workspace/launch/lead-health-scoring-design.md; build decisions:
+// workspace/launch/lead-health-scoring-build.md.
+//   Recency 30 + Engagement 30 + Pipeline 25 + Completeness 15.
+// Bands: 75+ Hot / 50–74 Warm / 25–49 Cool / 0–24 Cold. A total of 0
+// renders as "—" in the UI, never "0" — that is the fix for the
+// decorative-zero lie (the columns were never written before this item).
+
+export function scoreBand(total: number): 'Hot' | 'Warm' | 'Cool' | 'Cold' {
+  if (total >= 75) return 'Hot';
+  if (total >= 50) return 'Warm';
+  if (total >= 25) return 'Cool';
+  return 'Cold';
+}
+
+export interface LeadScoreBreakdown {
+  total: number;
+  band: 'Hot' | 'Warm' | 'Cool' | 'Cold';
+  components: { recency: number; engagement: number; pipeline: number; completeness: number };
+  storedLeadScore: number;
+}
+
+const LEAD_SCORE_DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function computeLeadScore(
+  contactId: string,
+  workspaceId: string,
+  now: Date = new Date(),
+): Promise<LeadScoreBreakdown | null> {
+  const contact = await db.contact.findUnique({
+    where: { id: contactId, workspaceId },
+    select: { id: true, email: true, phone: true, companyId: true, ownerId: true, lastContactedAt: true, leadScore: true },
+  });
+  if (!contact) return null;
+
+  const cutoff90 = new Date(now.getTime() - 90 * LEAD_SCORE_DAY_MS);
+
+  // ── Recency (30): latest touch across lastContactedAt, ContactEvent,
+  // Activity, Conversation.lastMessageAt. Two tables carry system
+  // bookkeeping that is NOT a touch with the person and must be excluded,
+  // or "—" is unreachable: every contact is "touched" at birth by its own
+  // creation record. ContactEvent: 'contact_created' (create route),
+  // 'deal_created' (deal route — the deal is already credited by the
+  // pipeline component, and creating a deal is not interacting with the
+  // person). Activity: 'contact.created' / 'contact.updated' /
+  // 'contacts.imported' / 'contact_created'. A future type that IS a real
+  // interaction counts automatically.
+  const [latestEvent, latestActivity, latestConversation] = await Promise.all([
+    db.contactEvent.findFirst({ where: { contactId, type: { notIn: ['contact_created', 'deal_created'] } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    db.activity.findFirst({ where: { contactId, type: { notIn: ['contact.created', 'contact.updated', 'contacts.imported', 'contact_created'] } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    db.conversation.findFirst({ where: { contactId, workspaceId, lastMessageAt: { not: null } }, orderBy: { lastMessageAt: 'desc' }, select: { lastMessageAt: true } }),
+  ]);
+  const touches = [contact.lastContactedAt, latestEvent?.createdAt, latestActivity?.createdAt, latestConversation?.lastMessageAt]
+    .filter((d): d is Date => !!d);
+  const lastTouch = touches.length ? new Date(Math.max(...touches.map((d) => d.getTime()))) : null;
+  const ageDays = lastTouch == null ? Infinity : (now.getTime() - lastTouch.getTime()) / LEAD_SCORE_DAY_MS;
+  const recency = ageDays <= 7 ? 30 : ageDays <= 30 ? 20 : ageDays <= 90 ? 10 : 0;
+
+  // ── Engagement (30): best non-bot EmailEvent in 90d. ──
+  const events = await db.emailEvent.findMany({
+    where: {
+      contactId, workspaceId, occurredAt: { gte: cutoff90 },
+      eventType: { in: ['OPENED', 'CLICKED', 'REPLIED', 'BOUNCED', 'COMPLAINED', 'UNSUBSCRIBED'] },
+    },
+    select: { eventType: true, isBotSuspected: true },
+  });
+  const hasNegative = events.some((e) => e.eventType === 'BOUNCED' || e.eventType === 'COMPLAINED' || e.eventType === 'UNSUBSCRIBED');
+  let engagement = 0;
+  if (!hasNegative) {
+    const real = events.filter((e) => !e.isBotSuspected);
+    if (real.some((e) => e.eventType === 'REPLIED')) engagement = 30;
+    else if (real.some((e) => e.eventType === 'CLICKED')) engagement = 20;
+    else if (real.some((e) => e.eventType === 'OPENED')) engagement = 10;
+  }
+
+  // ── Pipeline (25): highest-probability open deal, else a recent win. ──
+  const deals = await db.deal.findMany({
+    where: { contactId, workspaceId },
+    include: { pipelineStage: { select: { isWon: true, isLost: true } } },
+  });
+  const openDeals = deals.filter((d) => !(d.pipelineStage?.isWon || d.pipelineStage?.isLost));
+  let pipeline = 0;
+  if (openDeals.length > 0) {
+    const best = openDeals.reduce((a, b) => ((b.probability ?? 0) > (a.probability ?? 0) ? b : a));
+    pipeline = 10 + Math.round(((best.probability ?? 0) * 15) / 100);
+  } else {
+    const recentWin = deals.some((d) => {
+      if (!d.pipelineStage?.isWon) return false;
+      const wonAt = (d as any).closeDate ?? (d as any).updatedAt ?? (d as any).createdAt;
+      return wonAt && new Date(wonAt).getTime() >= cutoff90.getTime();
+    });
+    if (recentWin) pipeline = 15;
+  }
+
+  // ── Completeness (15) ──
+  const completeness = (contact.email ? 5 : 0) + (contact.phone ? 5 : 0) + (contact.companyId ? 3 : 0) + (contact.ownerId ? 2 : 0);
+
+  const total = recency + engagement + pipeline + completeness;
+  return { total, band: scoreBand(total), components: { recency, engagement, pipeline, completeness }, storedLeadScore: contact.leadScore ?? 0 };
+}
+
+// Recompute + persist one contact's score. Never throws — a scoring failure
+// must not break the write path that triggered it. Writes only when the
+// value changed, so a recompute is not pointless updatedAt churn.
+export async function recomputeLeadScore(contactId: string, workspaceId: string): Promise<LeadScoreBreakdown | null> {
+  try {
+    const score = await computeLeadScore(contactId, workspaceId);
+    if (!score) return null;
+    if (score.total !== score.storedLeadScore) {
+      await db.contact.update({ where: { id: contactId, workspaceId }, data: { leadScore: score.total } });
+    }
+    return score;
+  } catch (e) {
+    console.error('[lead-score] recompute failed for', contactId, e);
+    return null;
+  }
+}
+
+// Nightly backfill (server.ts cron 30 0 * * *): scores decay as windows age,
+// so every contact is recomputed daily even if no hook fired for them.
+export async function recomputeAllLeadScores(): Promise<{ checked: number; changed: number }> {
+  let checked = 0;
+  let changed = 0;
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await db.contact.findMany({
+      take: 500,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      orderBy: { id: 'asc' },
+      select: { id: true, workspaceId: true },
+    });
+    if (page.length === 0) break;
+    for (const c of page) {
+      checked += 1;
+      const score = await recomputeLeadScore(c.id, c.workspaceId);
+      if (score && score.total !== score.storedLeadScore) changed += 1;
+    }
+    cursor = page[page.length - 1].id;
+    if (page.length < 500) break;
+  }
+  return { checked, changed };
+}
+
+// ── Company health (complete-platform item 7, health Option A) ─────────────
+// Computed on read, no new column: average leadScore of the company's
+// contacts; if it has no contacts but open deals, the average pipeline
+// component of those deals; else null (renders "—").
+export function computeCompanyHealth(company: {
+  contacts?: Array<{ leadScore?: number | null }> | null;
+  deals?: Array<{ probability?: number | null; pipelineStage?: { isWon?: boolean; isLost?: boolean } | null }> | null;
+}): { health: number | null; contactCount: number; openDealCount: number } {
+  const contacts = company.contacts ?? [];
+  const deals = company.deals ?? [];
+  const openDeals = deals.filter((d) => !(d.pipelineStage?.isWon || d.pipelineStage?.isLost));
+  if (contacts.length > 0) {
+    const avg = contacts.reduce((s, c) => s + (c.leadScore ?? 0), 0) / contacts.length;
+    return { health: Math.round(avg), contactCount: contacts.length, openDealCount: openDeals.length };
+  }
+  if (openDeals.length > 0) {
+    const avg = openDeals.reduce((s, d) => s + 10 + Math.round(((d.probability ?? 0) * 15) / 100), 0) / openDeals.length;
+    return { health: Math.round(avg), contactCount: 0, openDealCount: openDeals.length };
+  }
+  return { health: null, contactCount: 0, openDealCount: 0 };
+}
+
 export async function createContact(workspaceId: string, data: any) {
   let finalCompanyId = data.companyId ?? null;
 
@@ -596,6 +762,10 @@ export async function createContact(workspaceId: string, data: any) {
     console.error('[crm.activity] Failed to log contact.created', e);
   }
 
+  // Lead scoring (item 7): a new contact's score is its completeness until
+  // signals arrive. Fire-and-forget — scoring never blocks the create.
+  recomputeLeadScore(c.id, workspaceId).catch(() => {});
+
   return formatContact(c);
 }
 
@@ -631,6 +801,13 @@ function diffCustomFieldNames(oldJson: unknown, newJson: unknown): string[] {
 
 export async function updateContact(id: string, workspaceId: string, raw: any) {
   const { name, tags, businessName, company, ...data } = raw;
+
+  // Lead scoring (item 7): scores are server-computed only. A client that
+  // round-trips the displayed score (the ContactDetail edit form does)
+  // must not be able to set it — the recompute below overwrites it anyway.
+  delete (data as any).leadScore;
+  delete (data as any).healthScore;
+  delete (data as any).engagementScore;
 
   // Slice 1c: load the pre-update tags + custom fields so the emit below
   // can diff them (tag add/remove + which custom field names changed).
@@ -715,6 +892,10 @@ export async function updateContact(id: string, workspaceId: string, raw: any) {
   } catch (e) {
     console.error('[crm.activity] Failed to log contact.updated', e);
   }
+
+  // Lead scoring (item 7): an edit can change the completeness fields, so
+  // recompute. Fire-and-forget.
+  recomputeLeadScore(id, workspaceId).catch(() => {});
 
   return formatted;
 }
@@ -1147,6 +1328,15 @@ export async function importContacts(workspaceId: string, rows: any[], globalTag
         }
       });
     } catch { /* ignore */ }
+
+    // Lead scoring (item 7): imported contacts are raw creates (no
+    // createContact hook), so score them now — otherwise every import
+    // shows "—" until the nightly backfill. Fire-and-forget.
+    (async () => {
+      for (const contactId of created) {
+        await recomputeLeadScore(contactId, workspaceId).catch(() => {});
+      }
+    })().catch(() => {});
   }
 
   return { success: true, imported: created.length };
@@ -1168,7 +1358,9 @@ export async function listCompanies(workspaceId: string, search?: string, indust
 export async function getCompany(id: string, workspaceId: string) {
   return db.company.findUnique({
     where: { id, workspaceId },
-    include: { contacts: true, deals: true },
+    // Deals carry their stage so the company-health roll-up (item 7) can
+    // tell open from won/lost without a second query.
+    include: { contacts: true, deals: { include: { pipelineStage: true } } },
   });
 }
 
@@ -1227,6 +1419,9 @@ export async function createDeal(workspaceId: string, userId: string, data: Deal
     pipelineId: deal.pipelineStage?.pipelineId,
   }).catch(err => console.error('[trigger]', err));
 
+  // Lead scoring (item 7): a new deal changes the pipeline component.
+  if (deal.contactId) recomputeLeadScore(deal.contactId, workspaceId).catch(() => {});
+
   return deal;
 }
 
@@ -1271,11 +1466,17 @@ export async function updateDeal(id: string, workspaceId: string, raw: any) {
     }
   }
 
+  // Lead scoring (item 7): a stage move changes the pipeline component
+  // (and a win/loss changes the fallback). Fire-and-forget.
+  if (deal.contactId) recomputeLeadScore(deal.contactId, workspaceId).catch(() => {});
+
   return deal;
 }
 
 export async function deleteDeal(id: string, workspaceId: string) {
-  await db.deal.delete({ where: { id, workspaceId } });
+  const deleted = await db.deal.delete({ where: { id, workspaceId } });
+  // Lead scoring (item 7): removing a deal can drop the pipeline component.
+  if (deleted.contactId) recomputeLeadScore(deleted.contactId, workspaceId).catch(() => {});
 }
 
 // ── Pipelines ─────────────────────────────────────────────────────────────────

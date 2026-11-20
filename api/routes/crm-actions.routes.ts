@@ -1,6 +1,7 @@
 import express from 'express';
 import twilio from 'twilio';
 import { db } from '../../infrastructure/database/client.js';
+import { recomputeLeadScore } from '../services/crm.service.js';
 
 const router = express.Router();
 
@@ -40,6 +41,9 @@ router.post('/sms', async (req, res) => {
     });
 
     await db.contact.update({ where: { id: contactId }, data: { lastContactedAt: new Date() } });
+
+    // Lead scoring (item 7): an outbound touch is a recency signal.
+    recomputeLeadScore(contactId, req.workspaceId).catch(() => {});
 
     res.json({ success: true, event });
   } catch (err: any) {
@@ -90,6 +94,9 @@ router.post('/email', async (req, res) => {
     });
 
     await db.contact.update({ where: { id: contactId }, data: { lastContactedAt: new Date() } });
+
+    // Lead scoring (item 7): an outbound touch is a recency signal.
+    recomputeLeadScore(contactId, req.workspaceId).catch(() => {});
 
     res.json({ success: true, event });
   } catch (err: any) {

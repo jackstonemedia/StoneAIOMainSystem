@@ -12,6 +12,7 @@ import { apiFetch } from '../../lib/apiClient';
 import { useToast } from '../../components/ui/Toast';
 import { NotionEditor } from '../../components/editor/NotionEditor';
 import { AssistantLauncher } from '../../components/assistant/AssistantLauncher';
+import LeadScoreRing from '../../components/crm/LeadScoreRing';
 
 interface Company {
   id: string;
@@ -26,6 +27,9 @@ interface Company {
   createdAt: string;
   updatedAt?: string;
   tagsJson?: string;
+  /** Company health, Option A (item 7) — computed on read by GET /companies/:id; null renders "—" */
+  healthScore?: number | null;
+  healthDetail?: { contactCount: number; openDealCount: number };
 }
 
 interface Contact {
@@ -355,6 +359,23 @@ export default function CompanyDetail() {
                     {company.industry}
                   </span>
                 )}
+              </div>
+            </div>
+
+            {/* Company health (item 7, Option A): average lead score of its
+                contacts, or the pipeline component of its open deals when it
+                has no contacts. Null / 0 renders as "—": no signal yet. */}
+            <div className="px-4 py-3 flex items-center gap-3 border-b border-border/50">
+              <LeadScoreRing score={company.healthScore ?? 0} size={38} strokeWidth={3} />
+              <div className="flex flex-col">
+                <span className="text-[12px] font-bold text-white">Health</span>
+                <span className="text-[11px] text-text-muted">
+                  {company.healthScore == null || company.healthScore === 0
+                    ? 'No signals yet'
+                    : company.healthDetail?.contactCount
+                      ? `Average lead score across ${company.healthDetail.contactCount} contact${company.healthDetail.contactCount !== 1 ? 's' : ''}`
+                      : `From ${company.healthDetail?.openDealCount ?? 0} open deal${(company.healthDetail?.openDealCount ?? 0) !== 1 ? 's' : ''}`}
+                </span>
               </div>
             </div>
 

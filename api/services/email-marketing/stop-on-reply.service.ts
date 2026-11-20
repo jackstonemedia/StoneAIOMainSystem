@@ -12,6 +12,7 @@
 
 import { db } from '../../../infrastructure/database/client.js';
 import { EmailEventType, EnrollmentExitReason } from '@prisma/client';
+import { recomputeLeadScore } from '../crm.service.js';
 
 export interface InboundReplyPayload {
   workspaceId: string;
@@ -76,6 +77,10 @@ export async function handleInboundLeadReply(payload: InboundReplyPayload): Prom
       lastContactedAt: receivedAt,
     },
   });
+
+  // Lead scoring (item 7): a reply is the strongest engagement signal
+  // (and a recency touch). Fire-and-forget.
+  recomputeLeadScore(contact.id, workspaceId).catch(() => {});
 
   // 3. Find and halt pending campaign recipients
   const pendingRecipients = await db.campaignRecipient.findMany({

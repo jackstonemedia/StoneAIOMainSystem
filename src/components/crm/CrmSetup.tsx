@@ -28,8 +28,7 @@ export default function CrmSetup() {
           phone: null,
           location: null,
           title: null,
-          leadScore: 0,
-          healthScore: 0,
+          // (leadScore is server-computed — item 7 — never sent from the client)
           ownerId: null,
           dndEnabled: false,
           preferredChannel: 'email',

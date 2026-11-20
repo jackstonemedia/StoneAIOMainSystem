@@ -159,7 +159,6 @@ export default function ThreadInfoPanel({ conv, onClose, initialTab }: { conv: C
   const email = crmContact?.email ?? conv.contact?.email ?? '';
   const phone = crmContact?.phone ?? conv.contact?.phone ?? '';
   const companyName = crmContact?.company?.name ?? '';
-  const leadScore = crmContact?.leadScore ?? 0;
   const contactStatus = crmContact?.status ?? 'Lead';
   const contactTags: string[] = crmContact?.tags ?? (Array.isArray(conv.tags) ? conv.tags : (conv.tagsJson ? JSON.parse(conv.tagsJson as any) : []));
 

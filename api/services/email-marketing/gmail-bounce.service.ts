@@ -28,6 +28,7 @@
  */
 
 import { db } from '../../../infrastructure/database/client.js';
+import { recomputeLeadScore } from '../crm.service.js';
 
 export interface ParsedBounce {
   recipientEmail: string;
@@ -177,6 +178,11 @@ export async function applyBounce(
       metadata: JSON.parse(JSON.stringify({ soft: parsed.statusClass === 'soft', statusCode: parsed.statusCode, dsnGmailId, via: mapped.via })) as never,
     },
   });
+
+  // Lead scoring (item 7): a bounce zeroes the engagement component.
+  // Fire-and-forget.
+  recomputeLeadScore(contactId, workspaceId).catch(() => {});
+
   const hard = parsed.statusClass === 'hard';
   let suppress = hard;
   if (!hard) {
