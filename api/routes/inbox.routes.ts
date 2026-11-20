@@ -111,6 +111,70 @@ router.post('/conversations/:id/typing', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Unified inbox (complete-platform item 2) ─────────────────────────────
+// ONE list + thread over BOTH stores (legacy Conversation + inbox
+// InboxConversation), read-both. A thread's `source` decides which
+// store a reply / mark-read goes to — the reply always takes the
+// owning store's real path, so delivery never changes.
+router.get('/unified', async (req, res) => {
+  const { listUnifiedThreads } = await import('../services/inbox/unified-inbox.service.js');
+  const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const assignedUserId = typeof req.query.assignedUserId === 'string' ? req.query.assignedUserId : undefined;
+  res.json(await listUnifiedThreads((req as any).workspaceId, {
+    q,
+    status,
+    unreadOnly: req.query.unreadOnly === 'true',
+    assignedUserId,
+    callerUserId: (req as any).userId,
+    page: Number(req.query.page || 1),
+    pageSize: Number(req.query.pageSize || 25),
+  }));
+});
+
+router.get('/unified/unread', async (req, res) => {
+  const { getUnifiedUnread } = await import('../services/inbox/unified-inbox.service.js');
+  res.json({ unread: await getUnifiedUnread((req as any).workspaceId) });
+});
+
+router.get('/unified/:source/:id', async (req, res) => {
+  const { getUnifiedThread } = await import('../services/inbox/unified-inbox.service.js');
+  const source = req.params.source as 'legacy' | 'live';
+  if (source !== 'legacy' && source !== 'live') return res.status(400).json({ error: 'source must be legacy or live' });
+  const thread = await getUnifiedThread((req as any).workspaceId, source, req.params.id);
+  if (!thread) return res.status(404).json({ error: 'Conversation not found' });
+  res.json(thread);
+});
+
+router.post('/unified/:source/:id/messages', async (req, res) => {
+  const { sendUnifiedReply } = await import('../services/inbox/unified-inbox.service.js');
+  const source = req.params.source as 'legacy' | 'live';
+  if (source !== 'legacy' && source !== 'live') return res.status(400).json({ error: 'source must be legacy or live' });
+  if (!req.body?.body?.trim()) return res.status(400).json({ error: 'body is required' });
+  try {
+    const msg = await sendUnifiedReply((req as any).workspaceId, source, req.params.id, req.body.body, (req as any).userId, {
+      toEmail: req.body.toEmail,
+      subject: req.body.subject,
+      htmlBody: req.body.htmlBody,
+      includeSignature: req.body.includeSignature === true,
+    });
+    res.json(msg);
+  } catch (e: any) {
+    // The legacy dispatcher throws on a failed send (no connection, no
+    // recipient, over the daily limit) — surface it as a 400, exactly
+    // as the legacy composer route does, instead of a 500.
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post('/unified/:source/:id/mark-read', async (req, res) => {
+  const { markUnifiedRead } = await import('../services/inbox/unified-inbox.service.js');
+  const source = req.params.source as 'legacy' | 'live';
+  if (source !== 'legacy' && source !== 'live') return res.status(400).json({ error: 'source must be legacy or live' });
+  await markUnifiedRead((req as any).workspaceId, source, req.params.id);
+  res.json({ success: true });
+});
+
 // Labels
 router.get('/labels', async (req, res) => res.json(await listLabels((req as any).workspaceId)));
 router.post('/labels', async (req, res) => res.json(await createLabel((req as any).workspaceId, req.body)));
