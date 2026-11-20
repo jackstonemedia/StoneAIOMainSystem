@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { conversationsApi, channelConnectionsApi } from '../lib/api/conversations';
 import { getStoredToken } from '../lib/apiClient';
+import { getSelectedWorkspaceId } from '../lib/workspaceSelection';
 import { queryKeys } from '../lib/queryKeys';
 import type { Conversation, SendMessageInput } from '../types/conversation';
 
@@ -23,6 +24,10 @@ export function useConversations() {
       let url = '/api/channels/sse';
       const token = await getStoredToken();
       if (token) url += `?token=${encodeURIComponent(token)}`;
+      // Workspace selection (item 4): EventSource cannot set headers, so the
+      // selection travels as a query param (GET only, membership-checked).
+      const selectedWorkspaceId = getSelectedWorkspaceId();
+      if (selectedWorkspaceId) url += `${url.includes('?') ? '&' : '?'}workspaceId=${encodeURIComponent(selectedWorkspaceId)}`;
 
       if (cancelled) return;
       es = new EventSource(url);

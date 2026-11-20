@@ -100,6 +100,30 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
       return next();
     }
 
+    // ── Client-selected workspace (complete-platform item 4) ──────────────
+    // The client sends its selection as an `x-workspace-id` header (or, for
+    // EventSource streams that cannot set headers, a `?workspaceId=` query
+    // param on GET requests only). It is honoured ONLY when the user is a
+    // member of that workspace; anything else fails loudly with 400 — the
+    // same stance as the eval override above — never a silent landing in
+    // the wrong workspace. No selection = first membership (today's
+    // behaviour, unchanged).
+    const selectedWorkspaceId =
+      (typeof req.headers['x-workspace-id'] === 'string' && req.headers['x-workspace-id']) ||
+      (req.method === 'GET' && typeof req.query.workspaceId === 'string' ? req.query.workspaceId : null) ||
+      null;
+    if (selectedWorkspaceId) {
+      const selectedMember = await db.workspaceMember.findFirst({
+        where: { userId, workspaceId: selectedWorkspaceId },
+        select: { workspaceId: true },
+      });
+      if (!selectedMember) {
+        return res.status(400).json({ error: 'Workspace selection rejected: you are not a member of that workspace' });
+      }
+      req.workspaceId = selectedMember.workspaceId;
+      return next();
+    }
+
     // ── Look up workspace via WorkspaceMember ─────────────────────────────────
     const member = await db.workspaceMember.findFirst({
       where: { userId },

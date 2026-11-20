@@ -9,9 +9,11 @@ import {
   LogOut, ChevronsUpDown, List, PanelLeftClose, PanelLeftOpen,
   Building2, Briefcase, AlignEndVertical, ListFilter, Mail, MessageSquareText,
   AppWindow, Share2, CheckSquare, LayoutList, Sparkles, Megaphone,
-  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen, CreditCard
+  Shield, History, Package, Bot, Network, Lock, PaintBucket, Key, Link2, Table2, GitMerge, Play, Target, MailOpen, CreditCard, Check, Plus
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiFetch } from '../../lib/apiClient';
+import { getSelectedWorkspaceId, setSelectedWorkspaceId } from '../../lib/workspaceSelection';
 import { IS_DEV_AUTH_BYPASS } from '../../lib/clerkConfig';
 import { FEATURES } from '../../config/features';
 
@@ -56,6 +58,47 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
 
   const initial = user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || 'U';
   const fullName = user?.fullName || user?.emailAddresses?.[0]?.emailAddress || 'User';
+
+  // ── Workspaces (complete-platform item 4) ────────────────────────────────
+  // The list comes from the server (isCurrent = the middleware-resolved id,
+  // which honours the selection header this fetch itself sends).
+  const { data: workspaces } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: async () => {
+      const r = await apiFetch('/api/workspaces');
+      return (await r.json()) as Array<{ id: string; name: string; plan: string; role: string; isCurrent: boolean }>;
+    },
+    staleTime: 60_000,
+  });
+  const currentWorkspace = workspaces?.find((w) => w.isCurrent) ?? workspaces?.[0] ?? null;
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [createWorkspaceError, setCreateWorkspaceError] = useState('');
+
+  const switchWorkspace = (id: string) => {
+    setSelectedWorkspaceId(id);
+    setProfileMenuOpen(false);
+    // Full reload: every query re-resolves against the new workspace.
+    window.location.reload();
+  };
+
+  const createWorkspace = async () => {
+    const name = newWorkspaceName.trim();
+    if (!name) return;
+    setCreateWorkspaceError('');
+    try {
+      const r = await apiFetch('/api/workspaces', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const created = await r.json();
+      setSelectedWorkspaceId(created.id);
+      window.location.reload();
+    } catch (err: any) {
+      setCreateWorkspaceError(err?.message || 'Could not create workspace');
+    }
+  };
 
   const navGroups = [
     {
@@ -393,6 +436,60 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                   <p className="text-[12px] font-semibold" style={{ color: 'var(--sidebar-text-main)' }}>{fullName}</p>
                   <p className="text-[11px]" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.7 }}>{user?.emailAddresses?.[0]?.emailAddress ?? ''}</p>
                 </div>
+                {/* Workspaces (complete-platform item 4) */}
+                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <p className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.7 }}>Workspaces</p>
+                  {workspaces?.map((w) => (
+                    <button
+                      key={w.id}
+                      onClick={() => { if (!w.isCurrent) switchWorkspace(w.id); }}
+                      className="w-full flex items-center gap-2 px-1 py-1.5 text-[13px] font-medium text-left rounded-lg transition-colors hover:bg-[var(--sidebar-active)]"
+                      style={{ color: 'var(--sidebar-text-main)' }}
+                    >
+                      <span className="w-4 shrink-0 flex justify-center">
+                        {w.isCurrent && <Check className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                      </span>
+                      <span className="truncate flex-1">{w.name}</span>
+                      <span className="text-[10px] shrink-0" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.7 }}>{w.role}</span>
+                    </button>
+                  ))}
+                  {creatingWorkspace ? (
+                    <div className="mt-1">
+                      <input
+                        autoFocus
+                        value={newWorkspaceName}
+                        onChange={(e) => setNewWorkspaceName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') createWorkspace(); if (e.key === 'Escape') setCreatingWorkspace(false); }}
+                        placeholder="New workspace name…"
+                        className="w-full px-2 py-1.5 text-[13px] rounded-lg border border-border bg-surface text-text-main focus:outline-none"
+                      />
+                      {createWorkspaceError && <p className="text-[11px] text-red-500 mt-1">{createWorkspaceError}</p>}
+                      <div className="flex gap-2 mt-1.5">
+                        <button
+                          onClick={createWorkspace}
+                          className="px-2.5 py-1 text-[12px] font-semibold rounded-lg bg-primary text-white"
+                        >
+                          Create
+                        </button>
+                        <button
+                          onClick={() => { setCreatingWorkspace(false); setNewWorkspaceName(''); setCreateWorkspaceError(''); }}
+                          className="px-2.5 py-1 text-[12px] font-medium rounded-lg"
+                          style={{ color: 'var(--sidebar-text-muted)' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setCreatingWorkspace(true)}
+                      className="w-full flex items-center gap-2 px-1 py-1.5 text-[13px] font-medium rounded-lg transition-colors hover:bg-[var(--sidebar-active)]"
+                      style={{ color: 'var(--sidebar-text-muted)' }}
+                    >
+                      <Plus className="w-3.5 h-3.5 shrink-0" strokeWidth={2} /> Create new workspace
+                    </button>
+                  )}
+                </div>
                 <button
                   onClick={() => { setProfileMenuOpen(false); navigate('/crm/smart-lists'); }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors hover:bg-[var(--sidebar-active)]"
@@ -454,7 +551,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
                 <>
                   <div className="flex flex-col justify-center leading-tight min-w-0 flex-1">
                     <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--sidebar-text-main)' }}>{fullName}</span>
-                    <span className="text-[10px] truncate" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.6 }}>Enterprise CRM</span>
+                    <span className="text-[10px] truncate" style={{ color: 'var(--sidebar-text-muted)', opacity: 0.6 }}>{currentWorkspace?.name ?? ''}</span>
                   </div>
                   <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--sidebar-text-muted)' }} />
                 </>

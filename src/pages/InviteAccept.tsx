@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { apiFetch } from '../lib/apiClient';
+import { setSelectedWorkspaceId } from '../lib/workspaceSelection';
 import { useUser } from '@clerk/clerk-react';
 import { IS_DEV_AUTH_BYPASS } from '../lib/clerkConfig';
 
@@ -69,6 +70,9 @@ export default function InviteAcceptPage() {
         return;
       }
       if (!r.ok) throw new Error(d?.error || 'Could not accept this invite.');
+      // Complete-platform item 4: land the invitee in the invited workspace,
+      // not whichever workspace findFirst would have returned.
+      if (d?.workspaceId) setSelectedWorkspaceId(d.workspaceId);
       setState({ kind: 'accepted' });
     } catch (err: any) {
       setState({ kind: 'error', message: err?.message || 'Could not accept this invite.' });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getStoredToken } from '../lib/apiClient';
+import { getSelectedWorkspaceId } from '../lib/workspaceSelection';
 
 const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -22,9 +23,13 @@ export function useNotificationsSSE({ withAuth = true }: { withAuth?: boolean } 
       const token = withAuth ? await getStoredToken() : 'dev_bypass_token';
       if (!isSubscribed) return;
 
+      // Workspace selection (item 4): EventSource cannot set headers, so the
+      // selection travels as a query param (GET only, membership-checked).
+      const selectedWorkspaceId = getSelectedWorkspaceId();
+      const wsParam = selectedWorkspaceId ? `workspaceId=${encodeURIComponent(selectedWorkspaceId)}` : '';
       const url = token
-        ? `${API_BASE_URL}/api/notifications/sse?token=${token}`
-        : `${API_BASE_URL}/api/notifications/sse`;
+        ? `${API_BASE_URL}/api/notifications/sse?token=${token}${wsParam ? `&${wsParam}` : ''}`
+        : `${API_BASE_URL}/api/notifications/sse${wsParam ? `?${wsParam}` : ''}`;
 
       eventSource = new EventSource(url);
 

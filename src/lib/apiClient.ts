@@ -6,6 +6,7 @@
  * so no requests ever fire without it — regardless of React render timing.
  */
 import axios from 'axios';
+import { getSelectedWorkspaceId, WORKSPACE_HEADER } from './workspaceSelection';
 
 // Module-level ref: updated by AuthTokenProvider when Clerk session is ready
 let _getToken: (() => Promise<string | null>) | null = null;
@@ -51,6 +52,9 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     'Content-Type': 'application/json',
     ...((options.headers ?? {}) as Record<string, string>),
   };
+  // Workspace selection (item 4): the server honours it only on membership.
+  const selectedWorkspaceId = getSelectedWorkspaceId();
+  if (selectedWorkspaceId) headers[WORKSPACE_HEADER] = selectedWorkspaceId;
   if (_getToken) {
     try {
       const token = await _getToken();
@@ -86,6 +90,9 @@ export const apiClient = axios.create({
 
 // ── Request interceptor — always registered, token fetched per-request ─────────
 apiClient.interceptors.request.use(async (config) => {
+  // Workspace selection (item 4): the server honours it only on membership.
+  const selectedWorkspaceId = getSelectedWorkspaceId();
+  if (selectedWorkspaceId) config.headers[WORKSPACE_HEADER] = selectedWorkspaceId;
   if (_getToken) {
     try {
       const token = await _getToken();
