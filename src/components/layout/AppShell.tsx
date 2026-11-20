@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { ThemeProvider } from '../../context/ThemeContext';
 import { Menu, X } from 'lucide-react';
@@ -11,6 +11,8 @@ import NotificationPanel from '../ui/NotificationPanel';
 
 import { ToastProvider } from '../ui/Toast';
 import TwoFactorGate from '../auth/TwoFactorGate';
+import { apiFetch } from '../../lib/apiClient';
+import { getSelectedWorkspaceId } from '../../lib/workspaceSelection';
 
 function ContentFallback() {
   return <div className="flex-1 h-full w-full" style={{ background: 'var(--bg)' }} />;
@@ -22,6 +24,32 @@ export default function AppShell() {
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const isDevBypass = IS_DEV_AUTH_BYPASS;
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // ── Onboarding first-login redirect (complete-platform item 6) ────────────
+  // The server decides (GET /api/onboarding/status: owner + flag unset);
+  // the shell just navigates. Once per tab session per selected workspace,
+  // so leaving onboarding mid-flow doesn't bounce the user back on the next
+  // page load; closing the tab re-arms it. /onboarding itself is outside
+  // this shell, so the redirect cannot loop.
+  useEffect(() => {
+    const key = `onboarding-checked-${getSelectedWorkspaceId() ?? 'default'}`;
+    if (sessionStorage.getItem(key)) return;
+    let cancelled = false;
+    apiFetch('/api/onboarding/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { shouldRedirect?: boolean } | null) => {
+        if (cancelled) return;
+        sessionStorage.setItem(key, '1');
+        if (s?.shouldRedirect) navigate('/onboarding', { replace: true });
+      })
+      .catch(() => {
+        // Onboarding is a nicety, never a blocker: a failed status check
+        // must not break the app. The check re-arms next session.
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onOpenCmd   = () => setCommandPaletteOpen(true);

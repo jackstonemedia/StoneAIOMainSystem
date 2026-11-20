@@ -25,6 +25,7 @@ import opportunitiesRouter from './api/routes/opportunities.routes.js';
 import businessRouter      from './api/routes/business.routes.js';
 import settingsRouter      from './api/routes/settings.routes.js';
 import gdprRouter          from './api/routes/gdpr.routes.js';
+import onboardingRouter    from './api/routes/onboarding.routes.js';
 import workspacesRouter    from './api/routes/workspaces.routes.js';
 import notificationsRouter from './api/routes/notifications.routes.js';
 import billingRouter, { stripeWebhookHandler } from './api/routes/billing.routes.js';
@@ -345,6 +346,7 @@ async function startServer() {
   app.use('/api/funnels',       funnelsRouter);
   app.use('/api/settings',       settingsRouter);
   app.use('/api/gdpr',           gdprRouter);
+  app.use('/api/onboarding',     onboardingRouter);
   app.use('/api/workspaces',     workspacesRouter);
   app.use('/api/invites',         invitesRouter); // accept (authed; lookup is public, above)
   app.use('/api/notifications',  notificationsRouter);

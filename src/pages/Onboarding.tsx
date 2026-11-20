@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Sparkles, Loader2 } from 'lucide-react';
 import { THEMES } from '../context/ThemeContext';
@@ -22,6 +22,23 @@ export default function Onboarding() {
   const [animating, setAnimating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+
+  // ── Page guard (complete-platform item 6) ───────────────────────────────
+  // Direct navigation to /onboarding respects the flag: if this login
+  // should NOT see onboarding (already completed, or not the owner),
+  // bounce to the app. The AppShell redirect is the first-login path;
+  // this is the direct-URL path.
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch('/api/onboarding/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { shouldRedirect?: boolean } | null) => {
+        if (!cancelled && s && !s.shouldRedirect) navigate('/crm', { replace: true });
+      })
+      .catch(() => { /* a failed check never blocks the page itself */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const totalSteps = 3;
 
@@ -48,6 +65,14 @@ export default function Onboarding() {
       }
     } catch (e) {
       console.error('[Onboarding] Failed to save workspace settings:', e);
+    }
+    // Mark onboarding done (complete-platform item 6) — the flag is what
+    // stops the first-login redirect from firing again. A failed mark
+    // still lets the user in; the redirect re-arms next session.
+    try {
+      await apiFetch('/api/onboarding/complete', { method: 'POST', body: JSON.stringify({}) });
+    } catch (e) {
+      console.error('[Onboarding] Failed to mark onboarding complete:', e);
     } finally {
       setIsSubmitting(false);
     }
@@ -63,7 +88,20 @@ export default function Onboarding() {
     navigate('/crm');
   };
 
-  // Orb positions for ambient background
+  // Skip (complete-platform item 6): mark onboarding done with no changes
+  // and go straight to the app. The flag — not the answers — is what
+  // stops the redirect.
+  const skip = async () => {
+    setIsSubmitting(true);
+    try {
+      await apiFetch('/api/onboarding/complete', { method: 'POST', body: JSON.stringify({}) });
+    } catch (e) {
+      console.error('[Onboarding] Failed to mark onboarding complete:', e);
+    } finally {
+      setIsSubmitting(false);
+    }
+    navigate('/crm');
+  };
   const orbs = [
     { w: 700, h: 500, top: '-20%', left: '-10%', color: 'rgba(67,97,238,0.12)', blur: 120, delay: 0 },
     { w: 500, h: 500, top: '40%', right: '-15%', color: 'rgba(6,214,160,0.10)', blur: 140, delay: 1.5 },
@@ -120,6 +158,15 @@ export default function Onboarding() {
         <div className="stone-logo w-8 h-8 text-xs">S</div>
         <span className="text-sm font-semibold text-text-main hidden sm:block">Stone AIO</span>
       </div>
+
+      {/* Skip — marks onboarding done with no changes (complete-platform item 6) */}
+      <button
+        onClick={skip}
+        disabled={isSubmitting}
+        className="absolute top-6 right-8 z-10 text-sm font-semibold text-text-muted hover:text-text-main transition-colors disabled:opacity-50"
+      >
+        Skip
+      </button>
 
       {/* Card */}
       <div

@@ -21,6 +21,7 @@ model Workspace {
   creditsLimit           Int                @default(500) @map("credits_limit")
   agentMode              String             @default("approve") @map("agent_mode")
   agentName              String             @default("AI Agent") @map("agent_name")
+  onboardingCompletedAt  DateTime?          @map("onboarding_completed_at")
   requireTwoFactor       Boolean            @default(false) @map("require_two_factor")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
