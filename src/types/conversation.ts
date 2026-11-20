@@ -86,6 +86,13 @@ export interface ChannelConnection {
   autoReplyText?: string;
   archiveOnReply?: boolean;
   quietHoursEnabled?: boolean;
+  // Cold inbound (complete-platform item 3): the Gmail poller only
+  // processes mail from senders the workspace has emailed first, unless
+  // this is on. filteredColdCount / lastFilteredColdAt count the mail the
+  // filter dropped while the opt-in was off, so it is visible, not silent.
+  allowColdInbound?: boolean;
+  filteredColdCount?: number;
+  lastFilteredColdAt?: string | null;
 }
 
 export interface ConversationTemplate {

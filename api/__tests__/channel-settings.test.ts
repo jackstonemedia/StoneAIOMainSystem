@@ -8,6 +8,7 @@
  * (signature on email when the sender opts in, daily send limit on the
  * Conversations send path, quiet hours on SMS, archive-after-reply), and
  * the fields with no hook are gone from the form and the response.
+ * (Item 3 added a sixth: allowColdInbound, honoured by the Gmail poller.)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
@@ -145,7 +146,7 @@ describe('channel settings (Fix 12)', () => {
       .patch('/channels/connections/conn_1')
       .send({
         signature: '— Jack', autoReply: true, autoReplyText: 'We are away.',
-        archiveOnReply: true, quietHoursEnabled: true,
+        archiveOnReply: true, quietHoursEnabled: true, allowColdInbound: true,
         twoWaySync: true, forwardingNumber: '+15550000000', stopStartHandling: true,
       });
     expect(res.status).toBe(200);
@@ -154,6 +155,7 @@ describe('channel settings (Fix 12)', () => {
     expect(res.body.autoReplyText).toBe('We are away.');
     expect(res.body.archiveOnReply).toBe(true);
     expect(res.body.quietHoursEnabled).toBe(true);
+    expect(res.body.allowColdInbound).toBe(true);
     expect(res.body).not.toHaveProperty('twoWaySync');
     expect(res.body).not.toHaveProperty('forwardingNumber');
     expect(res.body).not.toHaveProperty('stopStartHandling');
@@ -166,6 +168,7 @@ describe('channel settings (Fix 12)', () => {
     state.connectionsList = [{
       id: 'conn_1', provider: 'gmail', signature: '— Jack', autoReply: true,
       autoReplyText: 'Away.', archiveOnReply: false, quietHoursEnabled: true,
+      allowColdInbound: false, filteredColdCount: 3, lastFilteredColdAt: new Date('2026-11-19T01:00:00.000Z'),
       dailySendLimit: 40, sentTodayCount: 0, status: 'ACTIVE', isActive: true,
     }];
     const app = makeApp(channelsRouter, '/channels');
@@ -173,6 +176,9 @@ describe('channel settings (Fix 12)', () => {
     expect(res.status).toBe(200);
     expect(res.body[0].signature).toBe('— Jack');
     expect(res.body[0].quietHoursEnabled).toBe(true);
+    expect(res.body[0].allowColdInbound).toBe(false);
+    expect(res.body[0].filteredColdCount).toBe(3);
+    expect(res.body[0].lastFilteredColdAt).toBe('2026-11-19T01:00:00.000Z');
   });
 
   it('email dispatch appends the saved signature only when the sender opts in', async () => {

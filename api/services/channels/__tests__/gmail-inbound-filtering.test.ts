@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { hasSentEmailToRecipient } from '../gmail.service.js';
+import { hasSentEmailToRecipient, shouldFilterColdInbound, recordFilteredColdInbound } from '../gmail.service.js';
 import { db } from '../../../../infrastructure/database/client.js';
 
 vi.mock('../../../../infrastructure/database/client.js', () => ({
@@ -12,6 +12,9 @@ vi.mock('../../../../infrastructure/database/client.js', () => ({
     },
     campaignRecipient: {
       findFirst: vi.fn(),
+    },
+    channelConnection: {
+      update: vi.fn(),
     },
   },
 }));
@@ -96,5 +99,42 @@ describe('hasSentEmailToRecipient', () => {
 
     const result = await hasSentEmailToRecipient(workspaceId, 'stranger@random.com', 'thread-stranger');
     expect(result).toBe(false);
+  });
+});
+
+describe('shouldFilterColdInbound (complete-platform item 3)', () => {
+  it('never filters mail from a sender the workspace emailed first', () => {
+    expect(shouldFilterColdInbound(true, false)).toBe(false);
+    expect(shouldFilterColdInbound(true, true)).toBe(false);
+  });
+
+  it('never filters when the connection opts in to cold inbound', () => {
+    expect(shouldFilterColdInbound(false, true)).toBe(false);
+  });
+
+  it('filters a cold sender when the opt-in is off', () => {
+    expect(shouldFilterColdInbound(false, false)).toBe(true);
+  });
+});
+
+describe('recordFilteredColdInbound (complete-platform item 3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('counts the filtered message on the connection with a timestamp', async () => {
+    await recordFilteredColdInbound('conn_gm');
+    expect(db.channelConnection.update).toHaveBeenCalledWith({
+      where: { id: 'conn_gm' },
+      data: {
+        filteredColdCount: { increment: 1 },
+        lastFilteredColdAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('never throws — a failed count must not break inbound polling', async () => {
+    (db.channelConnection.update as any).mockRejectedValueOnce(new Error('db down'));
+    await expect(recordFilteredColdInbound('conn_gm')).resolves.toBeUndefined();
   });
 });

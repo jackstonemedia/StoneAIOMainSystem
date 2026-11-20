@@ -22,6 +22,7 @@ router.get('/connections', async (req, res) => {
         minDelaySeconds: true, maxDelaySeconds: true, warmupDay: true,
         signature: true, autoReply: true, autoReplyText: true,
         archiveOnReply: true, quietHoursEnabled: true,
+        allowColdInbound: true, filteredColdCount: true, lastFilteredColdAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -256,11 +257,13 @@ router.patch('/connections/:id', async (req, res) => {
     // archiveOnReply, forwardingNumber, businessHoursAutoReply,
     // teamRoutingId, stopStartHandling, quietHoursEnabled), persist none of
     // them, and echo them back as ?? defaults — the settings vanished on
-    // reload and never affected a send. Only the five fields with a real
-    // hook are accepted now; the rest were removed from the form.
+    // reload and never affected a send. Only the six fields with a real
+    // hook are accepted now (allowColdInbound joined in item 3 — the Gmail
+    // poller honours it); the rest were removed from the form.
     const {
       label, isActive, dailySendLimit, status,
       signature, autoReply, autoReplyText, archiveOnReply, quietHoursEnabled,
+      allowColdInbound,
     } = req.body;
 
     const data: any = {};
@@ -271,6 +274,7 @@ router.patch('/connections/:id', async (req, res) => {
     if (autoReplyText !== undefined) data.autoReplyText = autoReplyText || null;
     if (archiveOnReply !== undefined) data.archiveOnReply = !!archiveOnReply;
     if (quietHoursEnabled !== undefined) data.quietHoursEnabled = !!quietHoursEnabled;
+    if (allowColdInbound !== undefined) data.allowColdInbound = !!allowColdInbound;
 
     if (dailySendLimit !== undefined) {
       const limit = Number(dailySendLimit);

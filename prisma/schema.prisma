@@ -835,6 +835,17 @@ model ChannelConnection {
   autoReplyText             String?   @map("auto_reply_text")
   archiveOnReply            Boolean   @default(false) @map("archive_on_reply")
   quietHoursEnabled         Boolean   @default(false) @map("quiet_hours_enabled")
+  // Cold inbound (complete-platform item 3): the Gmail poller only
+  // processes mail from senders the workspace has emailed first
+  // (hasSentEmailToRecipient). allowColdInbound lifts ONLY that gate —
+  // spam / promotions / list / automated-sender filters still apply.
+  // Default false: existing connections keep today's behaviour.
+  // filteredColdCount + lastFilteredColdAt make the filter visible
+  // instead of silent: every cold message dropped while the opt-in is
+  // off is counted on the connection and shown in channel settings.
+  allowColdInbound          Boolean   @default(false) @map("allow_cold_inbound")
+  filteredColdCount         Int       @default(0) @map("filtered_cold_count")
+  lastFilteredColdAt        DateTime? @map("last_filtered_cold_at")
 
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")

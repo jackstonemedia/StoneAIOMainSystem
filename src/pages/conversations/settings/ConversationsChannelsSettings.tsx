@@ -86,9 +86,26 @@ function GmailSection({ connections, onDisconnect, onReconnect }: {
 
             {isExpanded && (
               <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-3 bg-slate-50 dark:bg-slate-950">
+                {/* Cold inbound (complete-platform item 3): the Gmail poller
+                    only processes mail from senders this workspace has emailed
+                    first. The filter is stated here, the opt-in lives below,
+                    and filtered mail is counted, not silently dropped. */}
+                <div className="rounded-lg bg-slate-100 dark:bg-slate-800/60 px-3 py-2.5">
+                  <p className="text-[12px] font-semibold text-slate-900 dark:text-white">Cold inbound</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Only email from people you've emailed first arrives in the inbox. Mail from new senders is filtered out.
+                  </p>
+                  {(conn.filteredColdCount ?? 0) > 0 && (
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      {conn.filteredColdCount} cold message{conn.filteredColdCount === 1 ? '' : 's'} filtered
+                      {conn.lastFilteredColdAt ? ` · last ${new Date(conn.lastFilteredColdAt).toLocaleString()}` : ''}
+                    </p>
+                  )}
+                </div>
                 {[
                   { key: 'autoReply', label: 'Auto-reply when away', desc: 'Send auto-reply when no one is available' },
                   { key: 'archiveOnReply', label: 'Archive on reply', desc: 'Auto-archive conversations after you reply' },
+                  { key: 'allowColdInbound', label: 'Receive email from new senders', desc: 'Turn off the sent-first filter for this Gmail account' },
                 ].map(opt => (
                   <div key={opt.key} className="flex items-start justify-between gap-4">
                     <div>

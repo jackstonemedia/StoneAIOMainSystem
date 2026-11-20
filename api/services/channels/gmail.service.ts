@@ -176,6 +176,33 @@ export async function sendGmailMessage(
  * If the user has not sent an email to this address first through the software,
  * incoming emails from this sender must NOT show up in conversations or auto-create contacts.
  */
+/**
+ * Cold-inbound rule (complete-platform item 3). The Gmail poller only
+ * processes mail from senders the workspace has emailed first — unless the
+ * connection opts in to cold inbound. Spam / promotions / list /
+ * automated-sender filters still apply either way; this gate is only about
+ * the sent-first rule.
+ */
+export function shouldFilterColdInbound(sentFirst: boolean, allowColdInbound: boolean): boolean {
+  return !sentFirst && !allowColdInbound;
+}
+
+/**
+ * Make a filtered cold message visible instead of silently gone: count it
+ * on the connection (shown in channel settings with lastFilteredColdAt).
+ * Non-fatal — a failed count must never break inbound polling.
+ */
+export async function recordFilteredColdInbound(connectionId: string): Promise<void> {
+  try {
+    await db.channelConnection.update({
+      where: { id: connectionId },
+      data: { filteredColdCount: { increment: 1 }, lastFilteredColdAt: new Date() },
+    });
+  } catch (err) {
+    console.warn('[Gmail Poller] Failed to record filtered cold inbound (non-fatal):', err);
+  }
+}
+
 export async function hasSentEmailToRecipient(
   workspaceId: string,
   recipientEmail: string,
@@ -356,8 +383,12 @@ export async function fetchGmailHistory(connectionId: string): Promise<void> {
       }
 
       // Only process inbound email if we have sent an email to this sender address first through the software
+      // — unless this connection opts in to cold inbound (item 3).
+      // Cold + opt-in off: filter VISIBLY (count it on the connection)
+      // instead of silently dropping the message.
       const sentFirst = await hasSentEmailToRecipient(conn.workspaceId, senderEmail, threadId);
-      if (!sentFirst) {
+      if (shouldFilterColdInbound(sentFirst, conn.allowColdInbound ?? false)) {
+        await recordFilteredColdInbound(conn.id);
         continue;
       }
 
