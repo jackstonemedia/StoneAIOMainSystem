@@ -7,9 +7,10 @@ import {
   Palette, Bell, Users, Shield, Save, Check, Building2,
   Plug, Globe, Phone, Mail, Copy, Plus,
   ChevronRight, RefreshCw, CheckCircle2, X, Loader2, Upload,
-  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard, Bot
+  QrCode, Monitor, Trash2, Code, ExternalLink, Unlink, CreditCard, Bot, Database
 } from 'lucide-react';
 import Billing from './Billing';
+import DataPrivacySettings from './settings/DataPrivacySettings';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../components/ui/Toast';
 import { apiFetch } from '../lib/apiClient';
@@ -27,6 +28,7 @@ const TABS = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'team', label: 'Team', icon: Users },
   { id: 'security', label: 'Security', icon: Shield },
+  { id: 'privacy', label: 'Data & Privacy', icon: Database },
 ];
 
 const INTEGRATIONS = [
@@ -952,6 +954,8 @@ export default function SettingsPage() {
         </div>
       </div>
     ),
+    // Data & Privacy (complete-platform item 5 — GDPR).
+    privacy: <DataPrivacySettings workspaceName={workspaceData?.name} />,
   };
 
   // ── Modals ────────────────────────────────────────────────────────────────
