@@ -115,7 +115,7 @@ function GmailSection({ connections, onDisconnect, onReconnect }: {
                     <button
                       onClick={() => update.mutate({ id: conn.id, data: { [opt.key]: !(conn as any)[opt.key] } })}
                       className={`relative w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5 ${
-                        (conn as any)[opt.key] ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                        (conn as any)[opt.key] ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
                       }`}
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(conn as any)[opt.key] ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -130,7 +130,7 @@ function GmailSection({ connections, onDisconnect, onReconnect }: {
                       defaultValue={conn.autoReplyText ?? ''}
                       onBlur={e => update.mutate({ id: conn.id, data: { autoReplyText: e.target.value } })}
                       rows={2}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
                     />
                   </div>
                 )}
@@ -142,7 +142,7 @@ function GmailSection({ connections, onDisconnect, onReconnect }: {
                     onBlur={e => update.mutate({ id: conn.id, data: { signature: e.target.value } })}
                     rows={3}
                     placeholder="Your email signature…"
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
                   />
                 </div>
               </div>
@@ -247,7 +247,7 @@ function TwilioSection({ connections, onDisconnect }: {
                     <button
                       onClick={() => update.mutate({ id: conn.id, data: { [opt.key]: !(conn as any)[opt.key] } })}
                       className={`relative w-9 h-5 rounded-full transition-colors shrink-0 mt-0.5 ${
-                        (conn as any)[opt.key] ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                        (conn as any)[opt.key] ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'
                       }`}
                     >
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(conn as any)[opt.key] ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -283,7 +283,7 @@ function TwilioSection({ connections, onDisconnect }: {
               onChange={e => setAreaCode(e.target.value)}
               placeholder="Area code (e.g. 415)"
               maxLength={3}
-              className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-[13px] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <button
               onClick={searchNumbers}
@@ -305,7 +305,7 @@ function TwilioSection({ connections, onDisconnect }: {
                   <button
                     onClick={() => provision.mutate(n.phoneNumber)}
                     disabled={provision.isPending}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[12px] font-semibold rounded-lg disabled:opacity-50 transition-colors"
+                    className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-[12px] font-semibold rounded-lg disabled:opacity-50 transition-colors"
                   >
                     {provision.isPending ? 'Provisioning…' : 'Select'}
                   </button>

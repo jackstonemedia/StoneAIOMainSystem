@@ -139,8 +139,8 @@ export default function Analytics() {
     // over the open deals. (The old card showed every deal's value —
     // won included — and counted won deals as active.)
     { label: 'Pipeline Value', value: fmt((overview.deals?.totalValue || 0) - (overview.deals?.wonValue || 0)), sub: `${(overview.deals?.total || 0) - (overview.deals?.won || 0)} open deals`, icon: Target, color: 'text-primary', bg: 'bg-primary/10', trend: null, delay: 0.1 },
-    { label: 'Open Conversations', value: overview.conversations?.open || 0, sub: 'Active threads', icon: MessageSquare, color: 'text-violet-400', bg: 'bg-violet-400/10', trend: null, delay: 0.15 },
-    { label: 'Appointments', value: overview.appointments?.total || 0, sub: `${overview.appointments?.completed || 0} completed`, icon: Calendar, color: 'text-cyan-400', bg: 'bg-cyan-400/10', trend: null, delay: 0.25 },
+    { label: 'Open Conversations', value: overview.conversations?.open || 0, sub: 'Active threads', icon: MessageSquare, color: 'text-text-main', bg: 'bg-primary/10', trend: null, delay: 0.15 },
+    { label: 'Appointments', value: overview.appointments?.total || 0, sub: `${overview.appointments?.completed || 0} completed`, icon: Calendar, color: 'text-text-main', bg: 'bg-primary/10', trend: null, delay: 0.25 },
   ] : [];
 
   const monthlyData = (overview?.monthlyRevenue || []).map((m: any) => ({ label: m.month, value: m.won || 0 }));

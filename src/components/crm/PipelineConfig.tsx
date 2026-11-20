@@ -206,7 +206,7 @@ export function PipelinesTab({ pipelines, onRefresh, onBack }: { pipelines: Pipe
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
           { label: 'Total Pipelines', value: pipelines.length, icon: GitBranch, color: 'text-primary', bg: 'bg-primary/10' },
-          { label: 'Total Stages', value: pipelines.reduce((s, p) => s + (p.stages?.length || 0), 0), icon: GitBranch, color: 'text-violet-400', bg: 'bg-violet-400/10' },
+          { label: 'Total Stages', value: pipelines.reduce((s, p) => s + (p.stages?.length || 0), 0), icon: GitBranch, color: 'text-text-muted', bg: 'bg-primary/10' },
           { label: 'Default Pipeline', value: pipelines.find(p => p.isDefault)?.name || '—', icon: Check, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
         ].map((stat, i) => (
           <div key={i} className="bg-surface border border-border rounded-[10px] px-5 py-4 flex items-center gap-4 shadow-sm">

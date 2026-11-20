@@ -184,7 +184,6 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps = {}
             { name: 'Connections', path: '/automations/connections' },
             { name: 'Tables', path: '/automations/tables' },
             { name: 'Releases', path: '/automations/releases' },
-            { name: 'Settings', path: '/automations/settings' }
           ]
         },
       ]

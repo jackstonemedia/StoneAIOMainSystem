@@ -49,10 +49,10 @@ function TagRow({ tag, onEdit, onDelete, onMerge }: {
         </span>
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={onMerge} className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors" title="Merge into another tag">
+        <button onClick={onMerge} className="p-1.5 text-slate-400 hover:text-text-main rounded-lg transition-colors" title="Merge into another tag">
           <Tag className="w-4 h-4" />
         </button>
-        <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg transition-colors">
+        <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-text-main rounded-lg transition-colors">
           <Pencil className="w-4 h-4" />
         </button>
         <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-colors">
@@ -89,7 +89,7 @@ function MergeModal({ source, allTags, onConfirm, onCancel }: {
           <button
             onClick={() => onConfirm(targetId)}
             disabled={!targetId}
-            className="flex-1 py-2 text-[13px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+            className="flex-1 py-2 text-[13px] font-semibold bg-primary hover:bg-primary-hover text-white rounded-lg disabled:opacity-50 transition-colors"
           >
             Merge
           </button>
@@ -153,7 +153,7 @@ export default function ConversationsTagsSettings() {
         </div>
         <button
           onClick={() => { setShowCreate(true); setEditId(null); resetForm(); }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[13px] font-semibold transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-semibold transition-colors"
         >
           <Plus className="w-4 h-4" /> New Tag
         </button>
@@ -171,7 +171,7 @@ export default function ConversationsTagsSettings() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Tag name…"
-                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-[13px] bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-[13px] bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
@@ -201,7 +201,7 @@ export default function ConversationsTagsSettings() {
             <button
               onClick={() => editId ? update.mutate() : create.mutate()}
               disabled={!name.trim() || create.isPending || update.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-50"
             >
               {(create.isPending || update.isPending) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {editId ? 'Save Changes' : 'Create Tag'}

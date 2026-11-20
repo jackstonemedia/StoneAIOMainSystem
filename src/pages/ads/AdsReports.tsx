@@ -36,8 +36,8 @@ const REPORT_TYPES = [
     name: 'Trend Analysis',
     description: 'Daily trend trajectory, volume changes, and conversion rates.',
     icon: TrendingUp,
-    color: 'text-purple-500',
-    bg: 'bg-purple-500/10',
+    color: 'text-primary',
+    bg: 'bg-primary/10',
   },
 ];
 

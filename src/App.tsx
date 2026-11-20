@@ -33,7 +33,6 @@ const AutomationsLayout  = lazy(() => import('./pages/automations/AutomationsLay
 const AutomationsTables  = lazy(() => import('./pages/automations/AutomationsTables'));
 const AutomationsTableDetail = lazy(() => import('./pages/automations/AutomationsTableDetail'));
 const AutomationsReleases = lazy(() => import('./pages/automations/AutomationsReleases'));
-const AutomationsSettings = lazy(() => import('./pages/automations/AutomationsSettings'));
 const WorkflowBuilder = lazy(() => import('./pages/automations/WorkflowBuilder'));
 const Billing            = lazy(() => import('./pages/Billing'));
 const SettingsPage       = lazy(() => import('./pages/Settings'));
@@ -235,7 +234,6 @@ function AppRoutes({ withAuth = false }: { withAuth?: boolean }) {
               <Route path="tables" element={<ErrorBoundary><AutomationsTables /></ErrorBoundary>} />
               <Route path="tables/:tableId" element={<ErrorBoundary><AutomationsTableDetail /></ErrorBoundary>} />
               <Route path="releases" element={<ErrorBoundary><AutomationsReleases /></ErrorBoundary>} />
-              <Route path="settings" element={<ErrorBoundary><AutomationsSettings /></ErrorBoundary>} />
             </Route>
 
 

@@ -505,13 +505,13 @@ export default function CompanyDetail() {
               <div className="space-y-3 pt-5 border-t border-border/50 mt-6">
                 <div className="flex items-center justify-between text-white">
                   <span className="text-[13px] font-bold flex items-center gap-2">
-                    <Tag className="w-3.5 h-3.5 text-violet-400" /> Tags &amp; Labels
+                    <Tag className="w-3.5 h-3.5 text-text-muted" /> Tags &amp; Labels
                   </span>
                   {!isAddingTag && (
                     <button
                       type="button"
                       onClick={() => setIsAddingTag(true)}
-                      className="text-[11px] font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                      className="text-[11px] font-semibold text-text-main hover:text-text-main flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3" /> Add
                     </button>
@@ -548,7 +548,7 @@ export default function CompanyDetail() {
                       onChange={e => setNewTagInput(e.target.value)}
                       onKeyDown={handleAddTag}
                       placeholder="Type tag & press Enter..."
-                      className="flex-1 bg-surface border border-violet-500 rounded-[6px] text-[12px] font-medium text-white py-1 px-2.5 focus:outline-none"
+                      className="flex-1 bg-surface border border-primary rounded-[6px] text-[12px] font-medium text-white py-1 px-2.5 focus:outline-none"
                     />
                     <button
                       type="button"
@@ -561,7 +561,7 @@ export default function CompanyDetail() {
                           setIsAddingTag(false);
                         }
                       }}
-                      className="px-2.5 py-1 bg-violet-600 text-white rounded text-[11px] font-bold"
+                      className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-bold"
                     >
                       Add
                     </button>

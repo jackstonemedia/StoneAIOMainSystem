@@ -59,7 +59,7 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean, o
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-start justify-center pt-[10vh] px-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
       <div 
         className="w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}

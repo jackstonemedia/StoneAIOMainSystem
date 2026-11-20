@@ -22,7 +22,8 @@ router.get('/metrics', async (req, res) => {
   try {
     const from = req.query.from as string | undefined;
     const to = req.query.to as string | undefined;
-    res.json(await biz.getBusinessMetrics(req.workspaceId, from, to));
+    const tz = req.query.tz as string | undefined;
+    res.json(await biz.getBusinessMetrics(req.workspaceId, from, to, tz));
   } catch (e) { err500(res, e); }
 });
 

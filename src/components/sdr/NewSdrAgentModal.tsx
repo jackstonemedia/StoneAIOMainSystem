@@ -87,7 +87,7 @@ export function NewSdrAgentModal({ isOpen, onClose, onSuccess }: NewSdrAgentModa
         {/* Header */}
         <div className="p-6 border-b border-border/60 flex items-center justify-between bg-surface-hover/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white shadow-sm">
               <Target className="w-5 h-5" />
             </div>
             <div>
@@ -232,7 +232,7 @@ export function NewSdrAgentModal({ isOpen, onClose, onSuccess }: NewSdrAgentModa
                     <span><strong>Step 1 (Day 0)</strong>: Bespoke Website Icebreaker + Value Angle</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 font-bold text-[11px] flex items-center justify-center">2</span>
+                    <span className="w-5 h-5 rounded-full bg-primary/20 text-text-main font-bold text-[11px] flex items-center justify-center">2</span>
                     <span><strong>Step 2 (Day 3)</strong>: Low-friction context bump</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -291,15 +291,15 @@ export function NewSdrAgentModal({ isOpen, onClose, onSuccess }: NewSdrAgentModa
                   onClick={() => setMode('AUTOPILOT')}
                   className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
                     mode === 'AUTOPILOT'
-                      ? 'border-purple-500 bg-purple-500/10 ring-2 ring-purple-500/20'
+                      ? 'border-primary bg-primary/10 ring-2 ring-primary/20'
                       : 'border-border/60 bg-surface hover:border-border'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black uppercase text-purple-400 tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-black uppercase text-text-main tracking-wider flex items-center gap-1.5">
                       <Bot className="w-4 h-4" /> Autopilot (Full Auto)
                     </span>
-                    {mode === 'AUTOPILOT' && <Check className="w-4 h-4 text-purple-400" />}
+                    {mode === 'AUTOPILOT' && <Check className="w-4 h-4 text-text-main" />}
                   </div>
                   <p className="text-xs text-text-muted leading-relaxed">
                     Self-driving outreach. AI continuously finds prospects, drafts personalized emails, and dispatches them automatically on schedule.
@@ -332,7 +332,7 @@ export function NewSdrAgentModal({ isOpen, onClose, onSuccess }: NewSdrAgentModa
             <button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending}
-              className="px-6 py-2.5 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-interactive cursor-pointer"
+              className="px-6 py-2.5 bg-primary hover:opacity-90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-interactive cursor-pointer"
             >
               {createMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

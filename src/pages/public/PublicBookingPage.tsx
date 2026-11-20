@@ -303,7 +303,7 @@ export default function PublicBookingPage() {
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 py-3 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold border border-slate-700 transition-all hover:scale-[1.01]"
                 >
-                  <CalendarPlus className="w-4 h-4 text-sky-400" />
+                  <CalendarPlus className="w-4 h-4 text-text-muted" />
                   Add to Outlook
                 </a>
               </div>
@@ -345,7 +345,7 @@ export default function PublicBookingPage() {
           <div className="lg:col-span-5 p-6 sm:p-8 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col justify-between bg-slate-900/50">
             <div>
               <div className="flex items-center gap-2.5 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-black text-white text-base shadow-md">
+                <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center font-black text-white text-base shadow-md">
                   S
                 </div>
                 <div>
@@ -393,7 +393,7 @@ export default function PublicBookingPage() {
                   <span>{selectedDuration} Minutes Strategy Call</span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                  <Sparkles className="w-4 h-4 text-text-muted" />
                   <span>Video Conference Details Provided Upon Booking</span>
                 </div>
               </div>

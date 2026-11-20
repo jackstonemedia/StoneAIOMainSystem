@@ -1053,7 +1053,7 @@ export default function CampaignBuilder() {
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover transition-colors"
                     >
-                      <Split className="w-4 h-4 text-purple-400 shrink-0" />
+                      <Split className="w-4 h-4 text-text-main shrink-0" />
                       <span className="flex-1 min-w-0">
                         <span className="block text-[13px] font-semibold text-text-main">A/B test</span>
                         <span className="block text-[12px] text-text-muted">Test two subjects against each other</span>
@@ -1192,10 +1192,10 @@ export default function CampaignBuilder() {
 
         {/* ── A/B Split Testing Variant Switcher Bar ──────────────────────── */}
         {abTestEnabled && (
-          <div className="bg-purple-950/40 border-b border-purple-500/20 px-6 py-2.5 flex items-center justify-between shrink-0 flex-wrap gap-3">
+          <div className="bg-primary/10 border-b border-primary/20 px-6 py-2.5 flex items-center justify-between shrink-0 flex-wrap gap-3">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                <Split className="w-4 h-4 text-purple-400" /> A/B Split Variants:
+              <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                <Split className="w-4 h-4 text-text-main" /> A/B Split Variants:
               </span>
 
               {/* Variant A tab */}
@@ -1206,7 +1206,7 @@ export default function CampaignBuilder() {
                 }}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
                   activeVariant === 'A'
-                    ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                    ? 'bg-primary text-white border-primary shadow-md'
                     : 'bg-surface/80 border-border/50 text-text-muted hover:text-text-main hover:border-border'
                 }`}
               >
@@ -1222,7 +1222,7 @@ export default function CampaignBuilder() {
                 }}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
                   activeVariant === 'B'
-                    ? 'bg-purple-600 text-white border-purple-400 shadow-md'
+                    ? 'bg-primary text-white border-primary shadow-md'
                     : 'bg-surface/80 border-border/50 text-text-muted hover:text-text-main hover:border-border'
                 }`}
               >
@@ -1236,29 +1236,29 @@ export default function CampaignBuilder() {
               <button
                 onClick={handleGenerateAIVariantB}
                 disabled={isGeneratingAIVariant}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/30 text-purple-200 text-xs font-bold transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/20 hover:bg-primary/30 border border-primary/30 text-text-main text-xs font-bold transition-all"
               >
                 {isGeneratingAIVariant ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-300" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-text-main" />
                 ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                  <Sparkles className="w-3.5 h-3.5 text-text-main" />
                 )}
                 <span>Generate Variant B with AI</span>
               </button>
 
               <button
                 onClick={() => setShowABSettingsModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-bold transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-text-main text-xs font-bold transition-all"
                 title="Configure A/B Split Ratio, Winner Metric, and Rollout Timers"
               >
-                <Sliders className="w-3.5 h-3.5 text-purple-400" />
+                <Sliders className="w-3.5 h-3.5 text-text-main" />
                 <span>Split Settings</span>
               </button>
 
               <div className="hidden lg:flex items-center gap-2 text-[11px] text-text-muted bg-surface/60 border border-border/50 px-3 py-1.5 rounded-xl font-medium">
                 <span>Split: <strong className="text-text-main">{abSplitPct}% ({Math.round(abSplitPct/2)}% A / {Math.round(abSplitPct/2)}% B)</strong></span>
                 <span>·</span>
-                <span>Goal: <strong className="text-purple-300 uppercase">{abWinnerMetric === 'open_rate' ? 'Open Rate' : 'Click Rate'}</strong></span>
+                <span>Goal: <strong className="text-text-main uppercase">{abWinnerMetric === 'open_rate' ? 'Open Rate' : 'Click Rate'}</strong></span>
                 <span>·</span>
                 <span>Window: <strong className="text-text-main">{abEvalHours}h</strong></span>
               </div>
@@ -1331,10 +1331,10 @@ export default function CampaignBuilder() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowAICopilotModal(true)}
-                        className="flex items-center gap-1.5 text-[11px] font-bold text-purple-300 hover:text-white bg-purple-500/15 hover:bg-purple-500/25 border border-purple-400/30 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer"
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-text-main hover:text-white bg-primary/10 hover:bg-primary/20 border border-primary/30 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer"
                         title="Refine this campaign sequence with AI Copilot"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+                        <Sparkles className="w-3.5 h-3.5 text-text-main" />
                         <span>AI Refine Sequence</span>
                       </button>
 
@@ -1508,7 +1508,7 @@ export default function CampaignBuilder() {
                     <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                       {abTestEnabled ? (
                         <>
-                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${activeVariant === 'A' ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white'}`}>
+                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${activeVariant === 'A' ? 'bg-primary text-white' : 'bg-primary text-white'}`}>
                             Variant {activeVariant}
                           </span>
                           <span>Subject Line</span>
@@ -1582,7 +1582,7 @@ export default function CampaignBuilder() {
                   <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
                     {abTestEnabled ? (
                       <>
-                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${activeVariant === 'A' ? 'bg-purple-600 text-white' : 'bg-indigo-600 text-white'}`}>
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${activeVariant === 'A' ? 'bg-primary text-white' : 'bg-primary text-white'}`}>
                           Variant {activeVariant}
                         </span>
                         <span>Email Message Body</span>
@@ -1653,11 +1653,11 @@ export default function CampaignBuilder() {
                     </span>
                   )}
                   {abTestEnabled && (
-                    <div className="flex items-center bg-purple-500/10 border border-purple-500/30 rounded-lg p-0.5 ml-2">
+                    <div className="flex items-center bg-primary/10 border border-primary/30 rounded-lg p-0.5 ml-2">
                       <button
                         onClick={() => setPreviewVariant('A')}
                         className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                          previewVariant === 'A' ? 'bg-purple-600 text-white' : 'text-purple-300 hover:text-white'
+                          previewVariant === 'A' ? 'bg-primary text-white' : 'text-text-main hover:text-white'
                         }`}
                       >
                         Variant A
@@ -1665,7 +1665,7 @@ export default function CampaignBuilder() {
                       <button
                         onClick={() => setPreviewVariant('B')}
                         className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
-                          previewVariant === 'B' ? 'bg-purple-600 text-white' : 'text-purple-300 hover:text-white'
+                          previewVariant === 'B' ? 'bg-primary text-white' : 'text-text-main hover:text-white'
                         }`}
                       >
                         Variant B
@@ -1742,7 +1742,7 @@ export default function CampaignBuilder() {
             <div className="bg-surface border border-border/60 rounded-2xl w-full max-w-lg p-6 shadow-luxury space-y-5">
               <div className="flex items-center justify-between border-b border-border/50 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center text-text-main">
                     <Split className="w-4 h-4" />
                   </div>
                   <div>
@@ -1759,7 +1759,7 @@ export default function CampaignBuilder() {
               <div className="space-y-3 bg-surface-hover/40 border border-border/50 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-text-main">Audience Split Distribution</label>
-                  <span className="text-xs font-black text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                  <span className="text-xs font-black text-text-main bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
                     {abSplitPct >= 100 ? '50% / 50% (Full Audience)' : `${abSplitPct}% Test Sample (${Math.round(abSplitPct/2)}% A / ${Math.round(abSplitPct/2)}% B)`}
                   </span>
                 </div>
@@ -1771,7 +1771,7 @@ export default function CampaignBuilder() {
                   step="10"
                   value={abSplitPct}
                   onChange={e => setAbSplitPct(parseInt(e.target.value) || 50)}
-                  className="w-full accent-purple-500 cursor-pointer"
+                  className="w-full accent-primary cursor-pointer"
                 />
 
                 <div className="flex justify-between text-[10px] text-text-muted font-semibold">
@@ -1781,7 +1781,7 @@ export default function CampaignBuilder() {
                 </div>
 
                 {abSplitPct < 100 && (
-                  <p className="text-[11px] text-purple-300/80 bg-purple-500/5 p-2.5 rounded-lg border border-purple-500/20">
+                  <p className="text-[11px] text-text-muted bg-primary/5 p-2.5 rounded-lg border border-primary/20">
                     💡 <strong>{100 - abSplitPct}% of audience</strong> will be held in reserve. Once a winning variant is determined, it will automatically roll out to the remaining contacts.
                   </p>
                 )}
@@ -1795,12 +1795,12 @@ export default function CampaignBuilder() {
                     onClick={() => setAbWinnerMetric('open_rate')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       abWinnerMetric === 'open_rate'
-                        ? 'border-purple-500 bg-purple-500/10 shadow-sm'
+                        ? 'border-primary bg-primary/10 shadow-sm'
                         : 'border-border/60 bg-surface hover:border-border'
                     }`}
                   >
                     <div className="flex items-center gap-2 font-bold text-xs text-text-main mb-1">
-                      <Eye className="w-4 h-4 text-purple-400" />
+                      <Eye className="w-4 h-4 text-text-main" />
                       <span>Highest Open Rate</span>
                     </div>
                     <p className="text-[11px] text-text-muted">Best for testing subject lines & preview texts.</p>
@@ -1810,12 +1810,12 @@ export default function CampaignBuilder() {
                     onClick={() => setAbWinnerMetric('click_rate')}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       abWinnerMetric === 'click_rate'
-                        ? 'border-purple-500 bg-purple-500/10 shadow-sm'
+                        ? 'border-primary bg-primary/10 shadow-sm'
                         : 'border-border/60 bg-surface hover:border-border'
                     }`}
                   >
                     <div className="flex items-center gap-2 font-bold text-xs text-text-main mb-1">
-                      <MousePointer className="w-4 h-4 text-purple-400" />
+                      <MousePointer className="w-4 h-4 text-text-main" />
                       <span>Highest Click Rate</span>
                     </div>
                     <p className="text-[11px] text-text-muted">Best for testing email copy, CTAs & links.</p>
@@ -1847,7 +1847,7 @@ export default function CampaignBuilder() {
                       type="checkbox"
                       checked={abAutoRollout}
                       onChange={e => setAbAutoRollout(e.target.checked)}
-                      className="accent-purple-500 w-4 h-4"
+                      className="accent-primary w-4 h-4"
                     />
                     <span>Auto-send winner to rest</span>
                   </label>
@@ -1860,7 +1860,7 @@ export default function CampaignBuilder() {
                     setShowABSettingsModal(false);
                     toast('success', 'A/B Config Saved', 'A/B Split Testing settings updated.');
                   }}
-                  className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-interactive"
+                  className="px-5 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-xs font-bold transition-all shadow-interactive"
                 >
                   Apply Settings
                 </button>
@@ -1905,12 +1905,12 @@ export default function CampaignBuilder() {
                   </div>
                   {abTestEnabled && (
                     <div>
-                      <label className="block text-[11px] font-bold text-purple-300 uppercase mb-1">From Name (Variant B)</label>
+                      <label className="block text-[11px] font-bold text-text-main uppercase mb-1">From Name (Variant B)</label>
                       <input
                         value={fromNameB}
                         onChange={e => setFromNameB(e.target.value)}
                         placeholder="e.g. Jack Stone | Growth Partner"
-                        className="w-full bg-surface-hover border border-purple-500/40 rounded-xl px-3.5 py-2 text-xs text-text-main focus:outline-none focus:border-purple-500"
+                        className="w-full bg-surface-hover border border-primary/40 rounded-xl px-3.5 py-2 text-xs text-text-main focus:outline-none focus:border-primary"
                       />
                     </div>
                   )}
@@ -2257,7 +2257,7 @@ export default function CampaignBuilder() {
                     <strong className="text-text-main">{targetRecipientCount} contacts</strong>
                   </div>
                   {abTestEnabled && (
-                    <div className="flex justify-between text-purple-300 pt-1 border-t border-border/30 font-semibold">
+                    <div className="flex justify-between text-text-main pt-1 border-t border-border/30 font-semibold">
                       <span>A/B Strategy:</span>
                       <span>{abSplitPct >= 100 ? '50/50 Split' : `${abSplitPct}% Sample Test + Holdout`}</span>
                     </div>

@@ -824,7 +824,7 @@ export default function Dashboard() {
 
               <div className="p-3.5 rounded-lg bg-surface/30 border border-border/50 shadow-luxury">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1">
-                  <MousePointer className="w-3 h-3 text-indigo-400" /> Unique Clicks
+                  <MousePointer className="w-3 h-3 text-text-muted" /> Unique Clicks
                 </span>
                 <p className="text-xl font-bold font-mono text-text-main mt-1">
                   {emailMarketing?.uniqueClicks?.toLocaleString() ?? 0}
@@ -893,7 +893,7 @@ export default function Dashboard() {
                         </div>
                         <div className="p-2.5 bg-surface/40 rounded-lg border border-border/40">
                           <span className="text-[10px] text-text-muted block">Click Rate</span>
-                          <span className="text-sm font-bold font-mono text-indigo-400">
+                          <span className="text-sm font-bold font-mono text-text-main">
                             {emailMarketing.lastCampaign.clickRate}%
                           </span>
                         </div>

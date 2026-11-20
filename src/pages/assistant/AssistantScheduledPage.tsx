@@ -376,7 +376,7 @@ export default function AssistantScheduledPage() {
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide uppercase shrink-0 ${
                             task.mode === 'full'
-                              ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20'
+                              ? 'bg-primary/10 text-primary border border-primary/20'
                               : task.mode === 'draft'
                               ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
                               : 'bg-primary/10 text-primary border border-primary/20'

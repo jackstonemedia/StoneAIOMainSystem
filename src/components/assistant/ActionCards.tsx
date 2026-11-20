@@ -78,8 +78,8 @@ export function ActionCard({
   // 1. Mode Prompt Card
   if (cardType === 'mode_prompt') {
     return (
-      <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3 text-sm">
-        <div className="flex items-center gap-2 text-indigo-400 font-medium">
+      <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 space-y-3 text-sm">
+        <div className="flex items-center gap-2 text-text-main font-medium">
           <Sparkles className="h-4 w-4" />
           <span>Choose an Access Mode to Proceed</span>
         </div>

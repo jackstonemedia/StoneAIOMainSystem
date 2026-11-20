@@ -37,7 +37,7 @@ export default function ConversationsSettingsLayout() {
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 px-3 py-[7px] rounded-lg text-[13px] font-medium transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400'
+                      ? 'bg-primary/10 text-text-main'
                       : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                   }`
                 }

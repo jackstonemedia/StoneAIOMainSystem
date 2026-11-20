@@ -159,7 +159,7 @@ export default function AdsSettings() {
 
           <div className="p-5 border border-border rounded-xl bg-surface flex items-start justify-between">
             <div className="flex items-start gap-4">
-              <div className={`p-2.5 rounded-lg ${aiEnabled ? 'bg-purple-500/10 text-purple-500' : 'bg-background text-text-muted'}`}>
+              <div className={`p-2.5 rounded-lg ${aiEnabled ? 'bg-primary/10 text-text-main' : 'bg-background text-text-muted'}`}>
                 <Wand2 className="w-5 h-5" />
               </div>
               <div>

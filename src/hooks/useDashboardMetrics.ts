@@ -250,6 +250,9 @@ export function useDashboardMetrics(dateRange: DateRange) {
       const params: Record<string, string> = {};
       if (from) params.from = from;
       if (to) params.to = to;
+      // Item 10: "today" on the Dashboard is the viewer's day, not the
+      // server's — send the browser timezone so the counts agree.
+      params.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const res = await apiClient.get<BusinessMetrics>('/business/metrics', { params });
       return res.data;
     },

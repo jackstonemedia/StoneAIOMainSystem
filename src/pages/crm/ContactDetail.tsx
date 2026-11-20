@@ -372,13 +372,13 @@ export default function ContactDetail() {
             <div className="space-y-3 pt-5 border-t border-border/50 mt-6">
               <div className="flex items-center justify-between text-white">
                 <span className="text-[13px] font-bold flex items-center gap-2">
-                  <Tag className="w-3.5 h-3.5 text-violet-400" /> Tags &amp; Labels
+                  <Tag className="w-3.5 h-3.5 text-text-muted" /> Tags &amp; Labels
                 </span>
                 {!isAddingTag && (
                   <button
                     type="button"
                     onClick={() => setIsAddingTag(true)}
-                    className="text-[11px] font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1 bg-violet-950/40 px-2 py-0.5 rounded border border-violet-800/40 transition-all"
+                    className="text-[11px] font-semibold text-text-main hover:text-text-main flex items-center gap-1 bg-primary/10 px-2 py-0.5 rounded border border-border transition-all"
                   >
                     <Plus className="w-3 h-3" /> Add Tag
                   </button>
@@ -392,7 +392,7 @@ export default function ContactDetail() {
                 )}
 
                 {(contact.tags || []).map((t: string) => (
-                  <span key={t} className="inline-flex items-center gap-1 text-[11px] font-semibold bg-violet-950/60 text-violet-200 border border-violet-700/50 px-2.5 py-0.5 rounded-full shadow-sm">
+                  <span key={t} className="inline-flex items-center gap-1 text-[11px] font-semibold bg-primary/10 text-text-main border border-primary/30 px-2.5 py-0.5 rounded-full shadow-sm">
                     {t}
                     <button
                       type="button"
@@ -416,7 +416,7 @@ export default function ContactDetail() {
                       onKeyDown={handleAddTag}
                       placeholder="Type tag &amp; press Enter..."
                       autoFocus
-                      className="flex-1 bg-surface border border-violet-500 rounded-[6px] text-[12px] font-medium text-text-main py-1.5 px-3 focus:outline-none placeholder:text-text-muted/40"
+                      className="flex-1 bg-surface border border-primary rounded-[6px] text-[12px] font-medium text-text-main py-1.5 px-3 focus:outline-none placeholder:text-text-muted/40"
                     />
                     <button
                       type="button"
@@ -430,7 +430,7 @@ export default function ContactDetail() {
                         }
                         setIsAddingTag(false);
                       }}
-                      className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded text-[11px] font-semibold transition-all"
+                      className="px-3 py-1.5 bg-primary hover:bg-primary-hover text-white rounded text-[11px] font-semibold transition-all"
                     >
                       Add
                     </button>
@@ -459,7 +459,7 @@ export default function ContactDetail() {
                               updateContact.mutate({ tagsJson: JSON.stringify([...currentTags, t]) });
                               setIsAddingTag(false);
                             }}
-                            className="text-[11px] bg-surface-hover hover:bg-violet-900/40 text-text-muted hover:text-violet-300 px-2 py-0.5 rounded border border-border transition-all"
+                            className="text-[11px] bg-surface-hover hover:bg-primary/10 text-text-muted hover:text-text-main px-2 py-0.5 rounded border border-border transition-all"
                           >
                             + {t}
                           </button>

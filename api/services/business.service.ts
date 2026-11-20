@@ -5,9 +5,82 @@
 import { db } from '../../infrastructure/database/client.js';
 import { emitTrigger } from './trigger-emitter.service.js';
 
+/**
+ * Complete-platform item 10 — one day definition.
+ *
+ * The Dashboard page uses the browser-local day, but the server used to
+ * compute "today" from server-local time (UTC on the VM), so the
+ * todayAppointmentsCount and the page disagreed near midnight. The
+ * client now sends its IANA timezone (?tz=) and the day/week bounds are
+ * computed in that zone. No date library: the offset comes from Intl
+ * (formatToParts), and midnight is resolved with one DST re-check
+ * (a zone offset can change across a midnight boundary).
+ */
+export function tzOffsetMs(tz: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return asUtc - date.getTime();
+}
+
+/** The UTC instant of local midnight on year/month/day in `tz`. */
+export function zonedMidnightUtc(tz: string, year: number, month: number, day: number): Date {
+  const guess = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  const offset = tzOffsetMs(tz, new Date(guess));
+  let start = new Date(guess - offset);
+  const offset2 = tzOffsetMs(tz, start);
+  if (offset2 !== offset) start = new Date(guess - offset2);
+  return start;
+}
+
+export interface DayBounds {
+  startOfToday: Date;
+  endOfToday: Date;
+  startOfWeek: Date;
+  endOfWeek: Date;
+}
+
+/**
+ * Day/week bounds for "today" in `tz`. Returns null when `tz` is not a
+ * valid IANA timezone — the caller falls back to server-local bounds.
+ */
+export function dayBoundsInTimezone(tz: string, now: Date = new Date()): DayBounds | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'short',
+    }).formatToParts(now);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    const year = Number(get('year'));
+    const month = Number(get('month'));
+    const day = Number(get('day'));
+    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday'));
+    if (!year || !month || !day || weekday < 0) return null;
+    const startOfToday = zonedMidnightUtc(tz, year, month, day);
+    const endOfToday = new Date(zonedMidnightUtc(tz, year, month, day + 1).getTime() - 1);
+    const startOfWeek = zonedMidnightUtc(tz, year, month, day - weekday);
+    const endOfWeek = new Date(startOfWeek.getTime() + 7 * 86_400_000 - 1);
+    return { startOfToday, endOfToday, startOfWeek, endOfWeek };
+  } catch {
+    return null;
+  }
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
-export async function getBusinessMetrics(workspaceId: string, from?: string, to?: string) {
+export async function getBusinessMetrics(workspaceId: string, from?: string, to?: string, tz?: string) {
   const now = new Date();
 
   // Resolve time window: current period and previous comparison period
@@ -29,13 +102,18 @@ export async function getBusinessMetrics(workspaceId: string, from?: string, to?
   // Fourteen days ago for stale deals
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 86_400_000);
 
-  // Today & This Week boundaries for Calendar
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  const dayOfWeek = now.getDay();
-  const startOfWeek = new Date(now.getTime() - dayOfWeek * 86_400_000);
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek.getTime() + 7 * 86_400_000 - 1);
+  // Today & This Week boundaries for Calendar — in the viewer's timezone
+  // when one is supplied (?tz=), server-local otherwise. A day is not
+  // always 24h (DST), so end-of-day is next midnight minus 1ms.
+  const tzBounds = tz ? dayBoundsInTimezone(tz, now) : null;
+  const startOfToday = tzBounds?.startOfToday ?? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfToday = tzBounds?.endOfToday ?? new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const startOfWeek = tzBounds?.startOfWeek ?? (() => {
+    const s = new Date(now.getTime() - now.getDay() * 86_400_000);
+    s.setHours(0, 0, 0, 0);
+    return s;
+  })();
+  const endOfWeek = tzBounds?.endOfWeek ?? new Date(startOfWeek.getTime() + 7 * 86_400_000 - 1);
 
   // Parallel database queries
   const [

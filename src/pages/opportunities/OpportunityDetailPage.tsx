@@ -588,14 +588,14 @@ export default function OpportunityDetailPage() {
                         }
                       }}
                       placeholder="Type tag & press Enter..."
-                      className="flex-1 bg-surface border border-violet-500 rounded-[6px] text-[12px] font-medium text-text-main py-1 px-2.5 focus:outline-none"
+                      className="flex-1 bg-surface border border-primary rounded-[6px] text-[12px] font-medium text-text-main py-1 px-2.5 focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => {
                         if (newTagText.trim()) handleAddTag(newTagText.trim());
                       }}
-                      className="px-2.5 py-1 bg-violet-600 text-white rounded text-[11px] font-bold"
+                      className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-bold"
                     >
                       Add
                     </button>

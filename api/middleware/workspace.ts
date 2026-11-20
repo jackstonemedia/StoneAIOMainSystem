@@ -28,6 +28,15 @@ export async function resolveWorkspace(req: Request, res: Response, next: NextFu
       return next();
     }
 
+    // ── Public widget bypass — the live-chat widget is embedded on
+    // third-party websites and authenticates with its own inbox embed
+    // token (resolveInboxChannel), not a Clerk JWT. Without this bypass
+    // every token-less widget request 401s here in production before
+    // the widget router ever runs (Complete-platform item 10).
+    if (req.path.match(/^\/widget\//)) {
+      return next();
+    }
+
     // ── Dev bypass ────────────────────────────────────────────────────────────
     if (!process.env.CLERK_SECRET_KEY) {
       if (process.env.NODE_ENV === 'production') {

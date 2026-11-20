@@ -404,11 +404,10 @@ export default function CampaignTypePickerPage() {
           </div>
 
           {/* Bottom guidance card */}
-          <div className="mt-16 relative group cursor-default">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/20 to-primary/20 rounded-2xl blur opacity-50 group-hover:opacity-100 transition duration-500"></div>
+          <div className="mt-16 relative cursor-default">
             <div className="relative p-6 rounded-2xl border border-white/10 bg-surface/80 backdrop-blur-xl flex items-start gap-5">
-              <div className="p-3 rounded-xl shrink-0 bg-gradient-to-br from-purple-500/20 to-primary/20 ring-1 ring-white/10 shadow-inner">
-                <svg className="w-6 h-6 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <div className="p-3 rounded-xl shrink-0 bg-primary/10 ring-1 ring-white/10 shadow-inner">
+                <svg className="w-6 h-6 text-text-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4M12 8h.01"/>
                 </svg>

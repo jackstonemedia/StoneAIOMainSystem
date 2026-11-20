@@ -196,7 +196,7 @@ export default function AutonomousSdrDashboard() {
         {/* ── Page Header ────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-primary to-purple-600 flex items-center justify-center text-white shadow-sm shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-primary flex items-center justify-center text-white shadow-sm shrink-0">
               <Target className="w-5 h-5" />
             </div>
             <div>
@@ -241,7 +241,7 @@ export default function AutonomousSdrDashboard() {
         {/* Empty State if No Agents Exist */}
         {!isLoadingAgents && agents.length === 0 && (
           <div className="bg-surface/40 border border-border/60 rounded-3xl p-12 text-center max-w-xl mx-auto backdrop-blur-md shadow-card space-y-4">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-primary to-purple-600 flex items-center justify-center text-white mx-auto shadow-luxury">
+            <div className="w-16 h-16 rounded-3xl bg-primary flex items-center justify-center text-white mx-auto shadow-luxury">
               <Target className="w-8 h-8" />
             </div>
             <div className="space-y-1">
@@ -252,7 +252,7 @@ export default function AutonomousSdrDashboard() {
             </div>
             <button
               onClick={() => setIsNewAgentModalOpen(true)}
-              className="px-6 py-3 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90 text-white rounded-2xl text-xs font-bold transition-all shadow-interactive inline-flex items-center gap-2 cursor-pointer"
+              className="px-6 py-3 bg-primary hover:opacity-90 text-white rounded-2xl text-xs font-bold transition-all shadow-interactive inline-flex items-center gap-2 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" /> Deploy Your First AI SDR
             </button>
@@ -275,7 +275,7 @@ export default function AutonomousSdrDashboard() {
 
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                   activeAgent.mode === 'AUTOPILOT'
-                    ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30'
+                    ? 'bg-primary/10 text-text-main border border-primary/30'
                     : 'bg-primary/10 text-primary border border-primary/30'
                 }`}>
                   {activeAgent.mode === 'AUTOPILOT' ? '⚡ Autopilot Mode' : '🛡️ Copilot (Review Queue)'}
@@ -310,7 +310,7 @@ export default function AutonomousSdrDashboard() {
                 <button
                   onClick={() => toggleModeMutation.mutate('AUTOPILOT')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                    activeAgent.mode === 'AUTOPILOT' ? 'bg-purple-600 text-white shadow-sm' : 'text-text-muted hover:text-text-main'
+                    activeAgent.mode === 'AUTOPILOT' ? 'bg-primary text-white shadow-sm' : 'text-text-muted hover:text-text-main'
                   }`}
                 >
                   Autopilot
@@ -330,7 +330,7 @@ export default function AutonomousSdrDashboard() {
               <button
                 onClick={() => triggerCycleMutation.mutate()}
                 disabled={triggerCycleMutation.isPending}
-                className="px-4 py-2 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-interactive flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2 bg-primary hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-interactive flex items-center gap-2 cursor-pointer"
               >
                 {triggerCycleMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -358,7 +358,7 @@ export default function AutonomousSdrDashboard() {
             <div className="bg-surface/40 border border-border/50 rounded-2xl p-5 backdrop-blur-md shadow-card space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Outreach Dispatched</span>
-                <Send className="w-4 h-4 text-purple-400" />
+                <Send className="w-4 h-4 text-text-main" />
               </div>
               <div className="text-2xl font-black text-text-main">{stats.approvedAndSending}</div>
               <p className="text-[11px] text-text-muted">Multi-touch sequences in flight</p>
@@ -506,7 +506,7 @@ export default function AutonomousSdrDashboard() {
 
                           {/* Detected Hook */}
                           <td className="p-3.5 max-w-xs">
-                            <div className="truncate font-medium text-purple-300 text-xs flex items-center gap-1">
+                            <div className="truncate font-medium text-text-main text-xs flex items-center gap-1">
                               <Flame className="w-3 h-3 shrink-0 text-amber-400" />
                               <span className="truncate">{dossier.hookAngle}</span>
                             </div>
@@ -525,7 +525,7 @@ export default function AutonomousSdrDashboard() {
                                 : dossier.status === 'ENGAGED'
                                 ? 'bg-accent-green/20 text-accent-green border border-accent-green/30'
                                 : dossier.status === 'APPROVED' || dossier.status === 'SENDING'
-                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                ? 'bg-primary/20 text-text-main border border-primary/30'
                                 : 'bg-primary/10 text-primary border border-primary/20'
                             }`}>
                               {dossier.status === 'DRAFTED' ? 'Review Queue' : dossier.status}
@@ -577,7 +577,7 @@ export default function AutonomousSdrDashboard() {
             </div>
 
             <div className="bg-black/60 border border-border/60 rounded-xl p-4 font-mono text-xs text-text-muted space-y-1.5 max-h-36 overflow-y-auto">
-              <div className="text-purple-300">[Autonomous SDR Engine] Listening on ICP target: {activeAgent.targetIcp?.niche || 'All B2B'}...</div>
+              <div className="text-text-main">[Autonomous SDR Engine] Listening on ICP target: {activeAgent.targetIcp?.niche || 'All B2B'}...</div>
               <div className="text-text-muted">[Research Bot] Website scraper initialized with dynamic header rotation.</div>
               {dossiers.slice(0, 3).map((d, i) => (
                 <div key={i} className="text-emerald-400">
@@ -632,11 +632,11 @@ export default function AutonomousSdrDashboard() {
                 <p className="text-xs text-text-muted leading-relaxed">
                   {selectedDossier.websiteSummary}
                 </p>
-                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl space-y-1">
-                  <span className="text-[10px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1">
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl space-y-1">
+                  <span className="text-[10px] font-black uppercase text-text-main tracking-wider flex items-center gap-1">
                     <Flame className="w-3 h-3 text-amber-400" /> Selected Personalization Hook
                   </span>
-                  <p className="text-xs text-purple-200 font-medium">
+                  <p className="text-xs text-text-main font-medium">
                     {selectedDossier.hookAngle}
                   </p>
                 </div>
