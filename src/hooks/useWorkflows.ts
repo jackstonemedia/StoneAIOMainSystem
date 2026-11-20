@@ -180,6 +180,21 @@ export function useTestNativeWorkflow(workflowId: string) {
   });
 }
 
+// Slice 3: Run now — a REAL production run (mode 'manual'), not a test.
+// Side effects happen. Same invalidation as test so History refreshes.
+export function useRunWorkflow(workflowId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (triggerData?: any) => {
+      const res = await apiClient.post(`/workflows/${workflowId}/run`, { triggerData });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: workflowKeys.runs(workflowId) });
+    },
+  });
+}
+
 export function useTestNativeNode(workflowId: string) {
   return useMutation({
     mutationFn: async (data: { nodeId: string, inputItems?: any[] }) => {

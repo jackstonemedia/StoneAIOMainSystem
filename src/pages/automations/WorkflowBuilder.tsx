@@ -14,7 +14,7 @@ import {
   useWorkflowRuns,
   useNativeWorkflowDefinition, useSaveNativeDefinition,
   usePublishNativeWorkflow, usePauseNativeWorkflow,
-  useTestNativeWorkflow, useTestNativeNode, useNativeWorkflowRunDetail
+  useTestNativeWorkflow, useTestNativeNode, useNativeWorkflowRunDetail, useRunWorkflow
 } from '../../hooks/useWorkflows';
 
 // Native Components
@@ -49,6 +49,7 @@ export default function WorkflowBuilder() {
   const publishNative = usePublishNativeWorkflow(id!);
   const pauseNative = usePauseNativeWorkflow(id!);
   const testNative = useTestNativeWorkflow(id!);
+  const runWorkflow = useRunWorkflow(id!);
   const testNativeNode = useTestNativeNode(id!);
   const { data: nativeRunDetail } = useNativeWorkflowRunDetail(selectedRunId ?? '');
 
@@ -403,6 +404,19 @@ export default function WorkflowBuilder() {
     }
   }, [handleSave, testNative]);
 
+  // Slice 3: Run now — a real production run, not a test. Saves first,
+  // then enqueues mode 'manual' so side effects actually happen.
+  const handleRunNow = useCallback(async () => {
+    setTestError(null);
+    try {
+      await handleSave();
+      const run = await runWorkflow.mutateAsync({});
+      setSelectedRunId(run.runId);
+    } catch (e: any) {
+      setTestError(e.message ?? 'Run failed');
+    }
+  }, [handleSave, runWorkflow]);
+
   const handleTogglePublish = useCallback(async () => {
     if (isDirty) {
       await handleSave();
@@ -496,6 +510,14 @@ export default function WorkflowBuilder() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-main bg-bg hover:bg-surface border border-border rounded-lg"
           >
             <Play className="w-3.5 h-3.5" /> Test
+          </button>
+
+          <button
+            onClick={handleRunNow}
+            title="Run this workflow for real — side effects happen"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-accent hover:bg-accent/90 rounded-lg"
+          >
+            <Play className="w-3.5 h-3.5" /> Run now
           </button>
 
           <button

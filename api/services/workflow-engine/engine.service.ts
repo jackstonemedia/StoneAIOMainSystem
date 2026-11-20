@@ -8,6 +8,7 @@ import {
 } from '../../../src/types/automation.js';
 import { nodeRegistry } from './node-runner';
 import { expressionService } from './expression.service';
+import { assertPlan } from '../../middleware/plan-guard.js';
 
 export class WorkflowEngine {
   
@@ -19,6 +20,14 @@ export class WorkflowEngine {
     userId?: string;
   }): Promise<{ runId: string; status: string }> {
     const { workspaceId, workflowId, triggerData, mode = 'production', userId } = params;
+
+    // Slice 3: workflows are a Complete feature. Gate at the engine so
+    // EVERY entry point refuses below Complete — scheduled runs, CRM
+    // event dispatches, manual runs, and the assistant tool — not just
+    // the HTTP routes (which are also gated). A downgraded workspace's
+    // runs stop instead of silently executing. resumeRun is NOT gated:
+    // it continues a run that already started, it does not start one.
+    await assertPlan(workspaceId, 'complete');
 
     // 1. Load Workflow from DB
     const workflow = await db.workflow.findUnique({

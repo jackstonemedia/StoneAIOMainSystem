@@ -49,12 +49,16 @@ export class QueueService {
     triggerData: unknown;
     mode: 'production' | 'test' | 'manual';
     userId?: string;
-  }): Promise<{ runId: string }> {
+  }): Promise<{ runId: string; status?: string }> {
     // In test mode, execute directly so caller receives immediate result & logs
     if (params.mode === 'test' || !this.queue) {
       console.log(`[QueueService] Executing workflow in-process (mode: ${params.mode})...`);
-      const { runId } = await engineService.executeWorkflow(params);
-      return { runId };
+      // Slice 3: surface the engine's real outcome — callers (the Run
+      // now route, the assistant tool) must not report success for a
+      // run that FAILED. The Bull path below cannot know the outcome
+      // (async job), so status stays undefined there.
+      const { runId, status } = await engineService.executeWorkflow(params);
+      return { runId, status };
     }
 
     // Production queueing with retries and exponential backoff

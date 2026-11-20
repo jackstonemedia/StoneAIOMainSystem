@@ -6,6 +6,7 @@ import { nodeRegistry } from '../node-runner.js';
 import { triggerWebhook } from './trigger-webhook.js';
 import { triggerSchedule } from './trigger-schedule.js';
 import { triggerCrmEvent } from './trigger-crm-event.js';
+import { triggerManual } from './trigger-manual.js';
 
 // ── CRM nodes ──────────────────────────────────────────────────────────────────
 import { crmCreateContact } from './crm-create-contact.js';
@@ -47,6 +48,7 @@ export function registerAllNodes(): void {
   nodeRegistry.register(triggerWebhook);
   nodeRegistry.register(triggerSchedule);
   nodeRegistry.register(triggerCrmEvent);
+  nodeRegistry.register(triggerManual);
 
   // CRM Actions
   nodeRegistry.register(crmCreateContact);

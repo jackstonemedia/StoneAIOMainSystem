@@ -29,6 +29,11 @@ const fakeDb = vi.hoisted(() => {
     });
   };
   const db = {
+    // Slice 3: the engine plan-gates every execution; the fake
+    // workspace is Complete so the resume tests exercise resume logic.
+    workspace: {
+      findUnique: async () => ({ plan: 'complete', subscriptionStatus: 'active' }),
+    },
     workflow: {
       findUnique: async ({ where }: any) =>
         workflows.find((w) => w.id === where.id) ?? null,

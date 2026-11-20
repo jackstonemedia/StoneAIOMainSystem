@@ -764,6 +764,36 @@ router.post('/:id/test-native', async (req, res) => {
   }
 });
 
+// POST /api/workflows/:id/run — Run now (real production execution)
+// Slice 3: unlike test-native (mode 'test'), this enqueues a REAL run
+// (mode 'manual') — side effects happen. Works on drafts and published
+// workflows alike: a manual run is an explicit user action, not a
+// trigger firing on its own. Non-GET routes are already plan-gated to
+// Complete at the top of this router, and the engine gates again.
+router.post('/:id/run', async (req, res) => {
+  try {
+    await scopedFindOrThrow(db.workflow, req.params.id, req.workspaceId!);
+    const { queueService } = await import('../services/workflow-engine/queue.service.js');
+
+    const triggerData = {
+      manual: true,
+      triggeredAt: new Date().toISOString(),
+      ...(req.body?.triggerData && typeof req.body.triggerData === 'object' ? req.body.triggerData : {}),
+    };
+
+    const result = await queueService.enqueue({
+      workspaceId: req.workspaceId!,
+      workflowId: req.params.id,
+      triggerData,
+      mode: 'manual',
+    });
+    res.json(result);
+  } catch (e: any) {
+    if (e.statusCode === 404) return res.status(404).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/workflows/:id/test-node
 router.post('/:id/test-node', async (req, res) => {
   try {

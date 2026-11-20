@@ -4,6 +4,7 @@
  */
 
 import { db } from '../../../../infrastructure/database/client.js';
+import { queueService } from '../../workflow-engine/queue.service.js';
 import type { ToolDefinition } from './types.js';
 
 export const workflowTools: ToolDefinition[] = [
@@ -104,13 +105,38 @@ export const workflowTools: ToolDefinition[] = [
         throw new Error(`Workflow ${args.workflowId} not found in workspace.`);
       }
 
-      // Workflow execution triggered
+      // Slice 3: this used to return a fake 'triggered' without running
+      // anything. Now it enqueues a real manual run through the same
+      // queue the Run now button uses. The engine plan-gates below
+      // Complete, so a downgraded workspace gets a real PLAN_REQUIRED
+      // error here instead of a fake success. And the run's real
+      // outcome is reported: enqueue surfaces the engine status
+      // in-process, so a FAILED run throws here instead of being
+      // reported as triggered.
+      const { runId, status } = await queueService.enqueue({
+        workspaceId: ctx.workspaceId,
+        workflowId: workflow.id,
+        triggerData: {
+          manual: true,
+          triggeredBy: ctx.userId ?? null,
+          triggeredAt: new Date().toISOString(),
+          ...(args.contactId ? { contactId: args.contactId } : {}),
+        },
+        mode: 'manual',
+        userId: ctx.userId,
+      });
+
+      if (status === 'FAILED') {
+        throw new Error(`Workflow "${workflow.name}" failed to run (run ${runId}). Check the run log for the error.`);
+      }
+
       return {
         workflowId: workflow.id,
         workflowName: workflow.name,
         contactId: args.contactId || null,
-        status: 'triggered',
-        message: `Workflow "${workflow.name}" triggered successfully.`,
+        runId,
+        status: status ?? 'triggered',
+        message: `Workflow "${workflow.name}" triggered successfully (run ${runId}).`,
       };
     },
   },
