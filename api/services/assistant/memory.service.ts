@@ -11,6 +11,44 @@ import { db } from '../../../infrastructure/database/client.js';
 import { recordUsage, extractUsage } from '../agent/metering.js';
 import type { AssistantMemory } from '@prisma/client';
 
+/**
+ * The trigger gate for memory extraction: does this message look like a
+ * persistent preference, fact, or correction worth one small-model
+ * extraction call? Pure, so it is unit-testable and checkable live
+ * without a model. The gate decides whether to SPEND the call; the
+ * model decides whether anything is actually saved (it returns {} when
+ * nothing persistent is expressed).
+ *
+ * Item 9 correction (2026-11-19): the old gate never fired on
+ * "avoid Mondays" — `avoid` was only matched when followed by a verb
+ * from a fixed list. Any "avoid X" is a standing rule, and correction
+ * language ("actually … instead", "not anymore", "no longer") is now a
+ * trigger too, so a correction is extracted at all.
+ */
+export const MEMORY_TRIGGER_PATTERNS: RegExp[] = [
+  /\b(?:remember|keep in mind|note that|learn that|from now on|in the future|save this)\b/i,
+  /\b(?:i prefer|i like|i dislike|my preference|prefer to|i want you to|i'd prefer|i would prefer)\b/i,
+  /\b(?:always|never|don't|do not|stop|avoid)\s+(?:use|write|say|sound|add|include|put|be|give|send)\b/i,
+  /\b(?:make\s+(?:it|this|them|emails?|messages?|responses?)|sound|write|draft|keep\s+(?:it|this)|be)\s+(?:more|less)\s+[a-z-]+/i,
+  /\b(?:make\s+(?:it|this|them|emails?|messages?|responses?)|keep\s+(?:it|this)|be)\s+(?:simpler|shorter|longer|clearer|warmer|cleaner|punchier|briefer|crisper|softer|bolder)\b/i,
+  /\b(?:more|less)\s+(?:detailed|detail|depth|context|examples?|wordy|verbose|fluff|jargon|human|personal|conversational|casual|professional|concise|friendly|punchy|formal|direct|brief)\b/i,
+  /\b(?:add|include|give)\s+(?:more|some)?\s*(?:details?|depth|context|examples?|bullet\s*points?|bullets?|steps?)\b/i,
+  /\b(?:bullet\s*points?|numbered\s*lists?|headings?|formatting)\b/i,
+  /\b(?:my name is|our company is|our product is|call me|i am the|my role is|we are a|i work at)\b/i,
+  /\b(?:writing style|my tone|tone of voice|sound like me|my voice)\b/i,
+  /\b(?:no emojis?|without emojis?|never use emojis?|stop using emojis?|don't use emojis?)\b/i,
+  // Item 9: "avoid X" is a standing rule whatever X is ("avoid Mondays"
+  // previously never triggered extraction at all).
+  /\bavoid\s+[a-z][a-z-]*\b/i,
+  // Item 9: correction language — a statement that revises something
+  // said before is exactly the case the stale-memory bug ate.
+  /\b(?:actually|instead|change\s+(?:it|that|this)?\s*to|not\s+anymore|no\s+longer|correction|update\s+(?:it|that|this)|scratch\s+that|forget\s+(?:it|that|this))\b/i,
+];
+
+export function shouldExtractMemories(message: string): boolean {
+  return MEMORY_TRIGGER_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 export class AssistantMemoryService {
   /**
    * List stored memories for a user or workspace.
@@ -46,15 +84,28 @@ export class AssistantMemoryService {
 
   /**
    * Save or update a memory fact.
+   *
+   * Item 9 — supersession: `opts.supersedes` lists the keys of existing
+   * memories this new fact replaces. The new memory is saved FIRST and
+   * the superseded rows are deleted AFTER (in their own tenant call,
+   * each guarded), so a failure between the two leaves the old memory
+   * in place, never a hole — and a delete failure cannot roll back the
+   * save. A key equal to the new memory's own key is skipped (that is
+   * the upsert path). Permissions mirror updateMemory: a personal row
+   * is superseded only when it belongs to this user; a business row
+   * only when userRole is admin — extraction must not bypass the
+   * admin-only business-memory rule.
    */
   async saveMemory(
     workspaceId: string,
     userId: string,
-    data: { key: string; value: string; category?: string }
+    data: { key: string; value: string; category?: string },
+    opts: { supersedes?: string[]; userRole?: string } = {},
   ): Promise<AssistantMemory> {
     const category = data.category || 'general';
+    const userRole = opts.userRole || 'member';
 
-    return await withTenant(workspaceId, async (tx) => {
+    const saved = await withTenant(workspaceId, async (tx) => {
       const existing = await tx.assistantMemory.findFirst({
         where: {
           workspaceId,
@@ -83,6 +134,37 @@ export class AssistantMemoryService {
         },
       });
     });
+
+    const supersedes = [...new Set(opts.supersedes ?? [])].filter((k) => k && k !== data.key);
+    for (const key of supersedes) {
+      try {
+        await withTenant(workspaceId, async (tx) => {
+          // Same scope the prompt block feeds the model: this user's
+          // personal rows plus business rows — never another user's
+          // personal memory, even if it shares the key.
+          const target = await tx.assistantMemory.findFirst({
+            where: { workspaceId, key, OR: [{ userId }, { category: 'business' }] },
+          });
+          if (!target) return;
+          if (target.category === 'business') {
+            if (!hasMinimumRole(userRole, 'admin')) {
+              console.log(
+                `[AssistantMemory] Skipping supersede of business memory "${key}" — caller is not an admin.`,
+              );
+              return;
+            }
+          } else if (target.userId !== userId) {
+            return;
+          }
+          await tx.assistantMemory.delete({ where: { id: target.id } });
+          console.log(`[AssistantMemory] Superseded memory: [${key}] replaced by [${data.key}]`);
+        });
+      } catch (err) {
+        console.error(`[AssistantMemory] Failed to supersede memory "${key}" (kept):`, (err as Error)?.message);
+      }
+    }
+
+    return saved;
   }
 
   /**
@@ -242,45 +324,48 @@ export class AssistantMemoryService {
 
   /**
    * Extracts user preferences or facts from a conversation exchange using a small model.
+   *
+   * Item 9 — the extractor is shown the user's current memories and
+   * returns `supersedes`: the keys of existing memories this statement
+   * replaces, contradicts, or restates. Without that, a correction
+   * lands as a second row and the prompt block feeds the model both
+   * the stale rule and its correction with nothing saying which wins.
    */
   async maybeExtractMemories(
     workspaceId: string,
     userId: string,
-    userMessage: string
+    userMessage: string,
+    userRole: string = 'member',
   ): Promise<void> {
     const settings = await assistantRepo.getSettings(workspaceId, userId);
     if (!settings.memoryEnabled) return;
 
-    // Detect user preferences, style feedback, tone rules, or persistent facts
-    const preferencePatterns = [
-      /\b(?:remember|keep in mind|note that|learn that|from now on|in the future|save this)\b/i,
-      /\b(?:i prefer|i like|i dislike|my preference|prefer to|i want you to|i'd prefer|i would prefer)\b/i,
-      /\b(?:always|never|don't|do not|stop|avoid)\s+(?:use|write|say|sound|add|include|put|be|give|send)\b/i,
-      /\b(?:make\s+(?:it|this|them|emails?|messages?|responses?)|sound|write|draft|keep\s+(?:it|this)|be)\s+(?:more|less)\s+[a-z-]+/i,
-      /\b(?:make\s+(?:it|this|them|emails?|messages?|responses?)|keep\s+(?:it|this)|be)\s+(?:simpler|shorter|longer|clearer|warmer|cleaner|punchier|briefer|crisper|softer|bolder)\b/i,
-      /\b(?:more|less)\s+(?:detailed|detail|depth|context|examples?|wordy|verbose|fluff|jargon|human|personal|conversational|casual|professional|concise|friendly|punchy|formal|direct|brief)\b/i,
-      /\b(?:add|include|give)\s+(?:more|some)?\s*(?:details?|depth|context|examples?|bullet\s*points?|bullets?|steps?)\b/i,
-      /\b(?:bullet\s*points?|numbered\s*lists?|headings?|formatting)\b/i,
-      /\b(?:my name is|our company is|our product is|call me|i am the|my role is|we are a|i work at)\b/i,
-      /\b(?:writing style|my tone|tone of voice|sound like me|my voice)\b/i,
-      /\b(?:no emojis?|without emojis?|never use emojis?|stop using emojis?|don't use emojis?)\b/i,
-    ];
-
-    const hasTrigger = preferencePatterns.some((pattern) => pattern.test(userMessage));
-    if (!hasTrigger) return;
+    if (!shouldExtractMemories(userMessage)) return;
 
     const ai = tryGetAIClient();
     if (!ai) return;
 
+    // Item 9: the model can only name what it can see — give it the
+    // current memories (same set the prompt block feeds it every turn).
+    const existingMemories = await this.listMemories(workspaceId, userId, { scope: 'all' });
+    const existingBlock =
+      existingMemories.length > 0
+        ? `\nExisting memories (do not repeat them; if the user's statement replaces, contradicts, or restates one of them under different wording, list its exact key in "supersedes" — an array of keys, possibly empty. Do not list a memory the new statement merely adds to):\n${existingMemories
+            .slice(0, 20)
+            .map((m) => `- ${m.key}: ${m.value}`)
+            .join('\n')}\n`
+        : '';
+
     const prompt = `You are an assistant memory extractor. Analyze the user statement below and determine if the user is expressing a writing style preference, detail/depth preference (e.g., "Make it more detailed", "keep it concise"), tone guideline (e.g., "Make it sound more human and personal", "don't sound corporate"), formatting rule (e.g., "use bullet points", "never use emojis"), or persistent user/workspace fact.
 
 When a user gives feedback on how they want content drafted, revised, or formatted, extract it as an ongoing preference.
-
+${existingBlock}
 If YES, output a single JSON object with:
 {
   "key": string (short descriptive title like "Detail Level", "Writing Tone", "Email Style", "Tone Preference", or "Company Name"),
   "value": string (clear, actionable rule or guideline to remember and follow, e.g. "Prefers detailed, comprehensive explanations with thorough depth." or "Prefers a human, personal, and conversational tone when drafting emails and messages."),
-  "category": "preference" | "fact" | "instruction"
+  "category": "preference" | "fact" | "instruction",
+  "supersedes": string[] (keys of existing memories this statement replaces, contradicts, or restates — [] when it adds a new rule instead)
 }
 
 If NO persistent preference or fact is expressed, output {} only.
@@ -319,11 +404,19 @@ Return VALID JSON ONLY (no markdown code blocks, no other text):
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.key && parsed.value) {
-          await this.saveMemory(workspaceId, userId, {
-            key: parsed.key,
-            value: parsed.value,
-            category: parsed.category || 'preference',
-          });
+          const supersedes = Array.isArray(parsed.supersedes)
+            ? parsed.supersedes.filter((k: unknown): k is string => typeof k === 'string')
+            : [];
+          await this.saveMemory(
+            workspaceId,
+            userId,
+            {
+              key: parsed.key,
+              value: parsed.value,
+              category: parsed.category || 'preference',
+            },
+            { supersedes, userRole },
+          );
           console.log(`[AssistantMemory] Automatically extracted and saved preference: [${parsed.key}] ${parsed.value}`);
         }
       }

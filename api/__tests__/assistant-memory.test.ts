@@ -63,6 +63,13 @@ vi.mock('../../infrastructure/database/client.js', () => ({
                 if (where.workspaceId && m.workspaceId !== where.workspaceId) return false;
                 if (where.userId && m.userId !== where.userId) return false;
                 if (where.key && m.key !== where.key) return false;
+                if (where.OR) {
+                  return where.OR.some((cond: any) => {
+                    if (cond.userId && m.userId === cond.userId) return true;
+                    if (cond.category && m.category === cond.category) return true;
+                    return false;
+                  });
+                }
                 return true;
               }) || null
             );
@@ -183,13 +190,45 @@ vi.mock('../../packages/ai/client.js', () => ({
             }),
           };
         }
+        // Item 9: a correction under a DIFFERENT key that names the stale
+        // row in `supersedes` — the whole point is the old key differs.
+        if (lastLine.includes('avoid Mondays instead')) {
+          return {
+            text: JSON.stringify({
+              key: 'Email Scheduling',
+              value: 'Avoid sending emails on Mondays.',
+              category: 'preference',
+              supersedes: ['Email Send Days'],
+            }),
+          };
+        }
+        if (lastLine.includes('no emails on weekends')) {
+          return {
+            text: JSON.stringify({
+              key: 'Business Email Rule',
+              value: 'No emails on weekends.',
+              category: 'preference',
+              supersedes: ['Company Email Policy'],
+            }),
+          };
+        }
+        if (lastLine.includes('Make it punchier')) {
+          return {
+            text: JSON.stringify({
+              key: 'Punchiness',
+              value: 'Prefers punchier copy.',
+              category: 'preference',
+              supersedes: [],
+            }),
+          };
+        }
         return { text: '{}' };
       }),
     },
   }),
 }));
 
-import { memoryService } from '../services/assistant/memory.service.js';
+import { memoryService, shouldExtractMemories } from '../services/assistant/memory.service.js';
 
 describe('Assistant Memory Service', () => {
   const ws1 = 'ws-mem-1';
@@ -359,6 +398,76 @@ describe('Assistant Memory Service', () => {
     const memories = await memoryService.listMemories(ws1, user1);
     expect(memories.length).toBe(1);
     expect(memories[0].key).toBe('Writing Tone');
+  });
+
+  it('Item 9: the trigger gate fires on corrections the old patterns missed', () => {
+    // "avoid Mondays" matched NO old pattern — the correction was never
+    // extracted at all.
+    expect(shouldExtractMemories('avoid Mondays')).toBe(true);
+    expect(shouldExtractMemories('Actually, Fridays are fine')).toBe(true);
+    expect(shouldExtractMemories('Please change it to Tuesdays')).toBe(true);
+    expect(shouldExtractMemories('Never send emails on Fridays')).toBe(true);
+    expect(shouldExtractMemories("What's the weather?")).toBe(false);
+    expect(shouldExtractMemories('Show me the dashboard')).toBe(false);
+  });
+
+  it('Item 9: a correction supersedes the stale memory — the prompt block shows only the new rule', async () => {
+    await memoryService.saveMemory(ws1, user1, {
+      key: 'Email Send Days',
+      value: 'Never send emails on Fridays.',
+      category: 'preference',
+    });
+
+    await memoryService.maybeExtractMemories(ws1, user1, 'Actually, avoid Mondays instead');
+
+    const memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.map((m) => m.key)).toEqual(['Email Scheduling']);
+    expect(memories[0].value).toContain('Mondays');
+
+    const block = await memoryService.getMemoriesPromptBlock(ws1, user1);
+    expect(block).toContain('Mondays');
+    expect(block).not.toContain('Fridays');
+  });
+
+  it('Item 9: an additive preference leaves existing memories alone', async () => {
+    await memoryService.saveMemory(ws1, user1, {
+      key: 'Writing Tone',
+      value: 'Prefers a human, personal tone.',
+      category: 'preference',
+    });
+
+    await memoryService.maybeExtractMemories(ws1, user1, 'Make it punchier');
+
+    const memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.map((m) => m.key).sort()).toEqual(['Punchiness', 'Writing Tone']);
+  });
+
+  it('Item 9: a non-admin cannot supersede a business memory; an admin can', async () => {
+    await memoryService.saveMemory(ws1, user1, {
+      key: 'Company Email Policy',
+      value: 'Send the newsletter on Fridays.',
+      category: 'business',
+    });
+
+    await memoryService.maybeExtractMemories(
+      ws1,
+      user1,
+      'Change it to no emails on weekends',
+      'member',
+    );
+
+    let memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.map((m) => m.key).sort()).toEqual(['Business Email Rule', 'Company Email Policy']);
+
+    await memoryService.maybeExtractMemories(
+      ws1,
+      user1,
+      'Change it to no emails on weekends',
+      'admin',
+    );
+
+    memories = await memoryService.listMemories(ws1, user1);
+    expect(memories.map((m) => m.key)).toEqual(['Business Email Rule']);
   });
 
   it('searches past chats using keyword match with strict workspace scoping', async () => {

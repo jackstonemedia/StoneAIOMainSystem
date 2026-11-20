@@ -695,7 +695,7 @@ export class AssistantOrchestrator {
         }
 
         // Trigger memory extraction in background
-        memoryService.maybeExtractMemories(workspaceId, userId, content).catch((err) => {
+        memoryService.maybeExtractMemories(workspaceId, userId, content, userRole).catch((err) => {
           console.warn('[AssistantMemory] Background memory extraction failed:', err);
         });
 
