@@ -9,6 +9,7 @@ import { buildSystemPrompt } from '../../../packages/ai/prompts/assistant.v1.js'
 import { evaluateModeGate, type AccessMode } from './modes.js';
 import { toolRegistry } from './tools/registry.js';
 import { memoryService } from './memory.service.js';
+import { getProjectContextBlock } from './project-context.service.js';
 import { db } from '../../../infrastructure/database/client.js';
 import {
   checkBudget,
@@ -165,6 +166,25 @@ export class AssistantOrchestrator {
       includeToolParagraph: true,
     });
     let systemPrompt = memoriesBlock ? `${basePrompt}\n${memoriesBlock}` : basePrompt;
+
+    // 6b. Project context (Complete-platform item 8): when this
+    // conversation lives in a project, feed the project's instructions
+    // + ready file text into the prompt — bounded, and never from any
+    // other project. A context failure never breaks the turn: log
+    // loudly and continue without the block.
+    if (convo.projectId) {
+      try {
+        const projectBlock = await getProjectContextBlock(workspaceId, convo.projectId);
+        if (projectBlock) {
+          systemPrompt += `\n\n${projectBlock}`;
+        }
+      } catch (err) {
+        console.error(
+          '[AssistantProjectContext] Failed to load project context (continuing without it):',
+          (err as Error)?.message,
+        );
+      }
+    }
 
     if (options.surface) {
       if (options.entity?.id) {
