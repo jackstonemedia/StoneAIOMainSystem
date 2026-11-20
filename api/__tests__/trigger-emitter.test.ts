@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // normalized event — and never throw, whatever the consumers do.
 
 const runnerCtl = vi.hoisted(() => ({
-  evaluate: vi.fn(async () => undefined),
+  evaluate: vi.fn(async (..._args: any[]) => undefined),
   failNext: false,
 }));
 vi.mock('../services/email-marketing/automation-runner.service.js', () => ({

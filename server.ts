@@ -43,7 +43,6 @@ import { startLeadWorker } from './api/services/leads/lead-worker.service.js';
 import { facebookLeadsWebhookVerify, facebookLeadsWebhookPost } from './api/webhooks/facebook-leads.webhook.js';
 import { startAdsMetricsSyncJob } from './api/jobs/ads-metrics-sync.job.js';
 import { startGoogleLeadPollJob }  from './api/jobs/google-ads-lead-poll.job.js';
-import { startResumePausedRunsJob } from './api/jobs/resume-paused-runs.job.js';
 import publicBookingRouter from './api/routes/public-booking.routes.js';
 import publicLandingRouter from './api/routes/public-landing.routes.js';
 import publicFunnelsRouter from './api/routes/public-funnels.routes.js';
@@ -513,6 +512,21 @@ async function startServer() {
     });
     console.log('✅ Email Marketing automation runner: active (1-min WAIT resumer + daily DATE_BASED)');
 
+    // ── Workflow Engine: resume paused runs (every minute) ───────────────
+    // Complete-platform item 1, Slice 2: logic.wait pauses a run, but the
+    // old BullMQ repeat job fired once per boot on Redis-less deploys
+    // (MockQueue ignores `repeat`). The server cron resumes due runs.
+    cron.schedule('* * * * *', async () => {
+      try {
+        const { resumeDueWorkflowRuns } = await import('./api/jobs/resume-paused-runs.job.js');
+        const resumed = await resumeDueWorkflowRuns();
+        if (resumed > 0) {
+          console.log(`[WorkflowEngine] Resumed ${resumed} paused workflow run(s).`);
+        }
+      } catch (err) { console.error('[WorkflowEngine]', err); }
+    });
+    console.log('✅ Workflow Engine pause resumer: active (1-min interval)');
+
     // ── AI Assistant: Scheduled tasks runner (every minute) ───────────────
     // Blueprint 3 Phase 1: the Scheduled page had routes + a manual Run
     // button but nothing ever called executeTask on a schedule. The runner
@@ -592,9 +606,6 @@ async function startServer() {
       } catch (err) { console.error('[Facebook Token Refresh]', err); }
     });
     console.log('✅ Facebook token refresh: active (Daily 8 AM)');
-
-    // Background job for resuming paused native runs (Wait node)
-    startResumePausedRunsJob();
 
 
   });

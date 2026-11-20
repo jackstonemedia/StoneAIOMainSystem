@@ -86,7 +86,17 @@ export class WorkflowEngine {
     try {
       // 7 & 8. Call executeNode recursively starting from trigger
       await this.executeNodeRecursive(triggerNode, [{ json: triggerData as Record<string, unknown> }], context, nodes, graph);
-      
+
+      // Slice 2: a wait node may have paused the run mid-execution (status
+      // PAUSED in the DB, waitingNodeId + runData persisted by the pause
+      // branch). The old code marked it SUCCEEDED anyway — so the run
+      // never stayed paused, the nodes after the wait never ran, and the
+      // resumer never had anything to resume. Leave a paused run alone.
+      const finalRun = await db.workflowRun.findUnique({ where: { id: run.id } });
+      if (finalRun?.status === 'PAUSED') {
+        return { runId: run.id, status: 'PAUSED' };
+      }
+
       // 10. On completion update run
       const stepCount = Object.keys(context.runData).length;
       await db.workflowRun.update({
@@ -181,6 +191,11 @@ export class WorkflowEngine {
     visited: Set<string> = new Set()
   ): Promise<void> {
 
+    // Slice 2: if an earlier branch paused the run, stop here — a paused
+    // run executes nothing further until the resumer picks it up.
+    const runState = await db.workflowRun.findUnique({ where: { id: context.runId } });
+    if (runState?.status === 'PAUSED') return;
+
     // Cycle detection: if we've already executed this node in the current path,
     // stop recursion. Prevents stack overflows from cyclic workflow graphs.
     if (visited.has(node.id)) {
@@ -197,7 +212,11 @@ export class WorkflowEngine {
     if (currentRun?.status === 'PAUSED') {
       await db.workflowRun.update({
         where: { id: context.runId },
-        data: { waitingNodeId: node.id },
+        // Slice 2: persist runData at pause time — context.runData already
+        // holds this node's output (executeNode records it). Without this
+        // the stored runData stays '{}' and a resume feeds successors the
+        // raw trigger data instead of the wait node's actual output.
+        data: { waitingNodeId: node.id, runData: JSON.stringify(context.runData) },
       });
       return; // Stop execution here. It will resume later.
     }
@@ -364,7 +383,18 @@ export class WorkflowEngine {
     return result.output;
   }
 
-  /** Resume a PAUSED workflow run from the node recorded in waitingNodeId. */
+  /**
+   * Resume a PAUSED workflow run from the node recorded in waitingNodeId.
+   *
+   * Slice 2 rewrite — the old version was doubly broken:
+   *  (1) it resumed FROM waitingNodeId (the wait node itself), so
+   *      re-executing logic.wait re-paused the run forever;
+   *  (2) it parsed nodesJson raw with no normalizeNodes, so raw React
+   *      Flow nodes (n.type 'nativeStep'/'triggerStep') broke the trigger
+   *      fallback and the registry lookups.
+   * The resume now starts at the wait node's SUCCESSORS, fed with the wait
+   * node's saved output (persisted into runData when the run paused).
+   */
   async resumeRun(runId: string): Promise<void> {
     const run = await db.workflowRun.findUnique({ where: { id: runId } });
     if (!run || run.status !== 'PAUSED') return;
@@ -381,7 +411,7 @@ export class WorkflowEngine {
     let nodes: NativeNode[] = [];
     let edges: NativeEdge[] = [];
     try {
-      nodes = JSON.parse(workflow.nativeDefinition.nodesJson) as NativeNode[];
+      nodes = this.normalizeNodes(JSON.parse(workflow.nativeDefinition.nodesJson) as any[]);
       edges = JSON.parse(workflow.nativeDefinition.edgesJson) as NativeEdge[];
     } catch {
       await this.failRun(runId, 'Failed to parse workflow definition during resume');
@@ -389,8 +419,13 @@ export class WorkflowEngine {
     }
 
     const graph = this.buildGraph(edges);
+    // Slice 2: capture everything resume needs from the run BEFORE the
+    // status update below — the update clears waitingNodeId/resumeAt, and
+    // a live-row handle (as in tests) would see the cleared values.
+    const waitingNodeId = run.waitingNodeId;
     const savedRunData = run.runData ? JSON.parse(run.runData) : {};
     const triggerData = run.triggerData ? JSON.parse(run.triggerData) : {};
+    const startedAt = run.startedAt;
 
     const context: ExecutionContext = {
       workspaceId: run.workspaceId,
@@ -407,19 +442,45 @@ export class WorkflowEngine {
     });
 
     try {
-      // Resume from the node that was waiting, or fall back to the trigger node
-      const resumeNodeId = run.waitingNodeId;
-      const startNode = resumeNodeId
-        ? nodes.find(n => n.id === resumeNodeId)
-        : nodes.find(n => n.type.startsWith('trigger.'));
-
-      if (!startNode) {
-        await this.failRun(runId, 'Could not find node to resume from');
-        return;
+      if (waitingNodeId) {
+        const waitOutput: WorkflowItem[] = savedRunData[waitingNodeId] ?? [{ json: triggerData }];
+        const successors = (graph.get(waitingNodeId) || [])
+          .map((edge) => nodes.find((n) => n.id === edge.target))
+          .filter((n): n is NativeNode => !!n);
+        if (successors.length === 0) {
+          // The wait was the last node — the run is done.
+          await db.workflowRun.update({
+            where: { id: runId },
+            data: {
+              status: 'SUCCEEDED',
+              runData: JSON.stringify(context.runData),
+              finishedAt: new Date(),
+              durationMs: Date.now() - startedAt.getTime(),
+              stepCount: Object.keys(context.runData).length,
+            },
+          });
+          return;
+        }
+        for (const next of successors) {
+          await this.executeNodeRecursive(next, waitOutput, context, nodes, graph);
+        }
+      } else {
+        // No waiting node recorded (runs paused before waitingNodeId
+        // existed): fall back to the trigger node, as before.
+        const startNode = nodes.find((n) => n.type.startsWith('trigger.'));
+        if (!startNode) {
+          await this.failRun(runId, 'Could not find node to resume from');
+          return;
+        }
+        const previousOutput: WorkflowItem[] = savedRunData[startNode.id] ?? [{ json: triggerData }];
+        await this.executeNodeRecursive(startNode, previousOutput, context, nodes, graph);
       }
 
-      const previousOutput: WorkflowItem[] = savedRunData[startNode.id] ?? [{ json: triggerData }];
-      await this.executeNodeRecursive(startNode, previousOutput, context, nodes, graph);
+      // The resumed chain may itself have hit another wait — then the run
+      // is PAUSED again (waitingNodeId + runData already persisted by the
+      // pause branch) and must NOT be marked SUCCEEDED.
+      const finalRun = await db.workflowRun.findUnique({ where: { id: runId } });
+      if (finalRun?.status === 'PAUSED') return;
 
       await db.workflowRun.update({
         where: { id: runId },
@@ -427,7 +488,8 @@ export class WorkflowEngine {
           status: 'SUCCEEDED',
           runData: JSON.stringify(context.runData),
           finishedAt: new Date(),
-          durationMs: Date.now() - run.startedAt.getTime(),
+          durationMs: Date.now() - startedAt.getTime(),
+          stepCount: Object.keys(context.runData).length,
         },
       });
     } catch (error: any) {
